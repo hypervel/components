@@ -15,7 +15,7 @@ Callbacks still run in the worker that records the success. If that worker stops
 
 ## Owner approval
 
-The owner approved the new table. These Laravel differences still need the owner's approval:
+The owner approved the new table and the pruning index on `job_batches`. These Laravel differences still need the owner's approval:
 
 - **Stale failures.** A failure after a job's recorded success is ignored. Laravel counts it, and the first such failure cancels a batch that does not allow failures and runs its `catch` callbacks.
 - **Required configuration.** `queue.batching.successes_table` is a new required config key. An application that defines its own `queue.batching` array must add it, because framework defaults merge only at the top level.
@@ -110,6 +110,12 @@ Schema::create('job_batch_successes', function (Blueprint $table) {
 - **Testbench migration.** Add `src/testbench/hypervel/migrations/0001_01_01_000010_testbench_create_job_batch_successes_table.php`.
 - **Bus test fixture.** Add `tests/Bus/Fixtures/migrations/2024_11_20_000001_create_job_batch_successes_table.php`.
 - **Align the test schemas.** The Testbench `job_batches` migration uses `longText('failed_job_ids')`, and the Bus fixture uses `text` for both `failed_job_ids` and `options`. Change them to the shipped `json('failed_job_ids')` and `mediumText('options')`, so the database tests run against the real column types.
+- **Pruning index.** Add `$table->index(['finished_at', 'created_at']);` to every `job_batches` definition: `batches.stub`, the skeleton and Testbench `000005` migrations, and the Bus fixture.
+  - **What `EXPLAIN` showed.** `job_batches` has only its primary key, so every prune page scans the table, including the final page that finds nothing. Plain `EXPLAIN` on MySQL 9.5 compared the planned candidate selects with and without the index. The scratch table held 101,000 rows: two days of batches, 2% still running, plus 1,000 stuck unfinished batches.
+    - With the index, the daily prune and its final empty page use a `finished_at` range.
+    - `--unfinished` uses a range on both columns.
+    - These are access paths, not timings.
+  - **`--cancelled`.** It filters on `cancelled_at` and `created_at`, so it still scans the table on every page when many cancelled batches qualify. A separate `created_at` index would serve only that optional mode, at the cost of extra index work on every batch insert and delete.
 
 ## Generator command
 
@@ -418,6 +424,11 @@ On PostgreSQL, `RETURNING` recovers today's uncontended rate.
 - **Retries.** `attempts: 3` costs nothing unless a deadlock or serialization failure occurs.
 - **Storage.** One row per successful batched job until pruning.
 - **Finishing.** No `markAsFinished()` UPDATE once per batch.
+
+**Pruning index (not measured).** The harness tables had only their primary keys, so these figures exclude the pruning index.
+- The index adds an entry when a batch is created and removes it when the batch is deleted.
+- It moves the entry when `finished_at` changes: on finish, cancel or reopen, which happens a few times per batch, never per job.
+- The finish happens in the last success's locked update, so that update also moves the entry. For one-job batches, that is every success.
 
 The hot row is held until the commit flushes, so contention is limited by commit latency, and work before the lock costs little. SQLite was checked for correctness only.
 
