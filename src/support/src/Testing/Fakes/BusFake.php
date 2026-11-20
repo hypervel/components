@@ -332,7 +332,7 @@ class BusFake implements Fake, QueueingDispatcher
             $command = get_class($instance);
 
             $callback = function ($job) use ($instance) {
-                return serialize($this->resetChainPropertiesToDefaults($job)) === serialize($instance);
+                return Batch::matchesChainedJob($instance, serialize($this->resetChainPropertiesToDefaults($job)));
             };
         }
 
@@ -427,7 +427,7 @@ class BusFake implements Fake, QueueingDispatcher
                         if ($chain[$index] !== get_class(unserialize($serializedChainedJob))) {
                             return false;
                         }
-                    } elseif (serialize($chain[$index]) !== $serializedChainedJob) {
+                    } elseif (! Batch::matchesChainedJob($chain[$index], $serializedChainedJob)) {
                         return false;
                     }
                 }

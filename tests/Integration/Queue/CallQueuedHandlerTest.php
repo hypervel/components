@@ -163,14 +163,16 @@ class CallQueuedHandlerTest extends TestCase
         Event::assertNotDispatched(JobFailed::class);
     }
 
-    public function testBatchJobIsRecordedWhenDeletedDueToMissingModel(): void
+    #[TestWith([null])]
+    #[TestWith(['position'])]
+    public function testBatchJobIsRecordedWhenDeletedDueToMissingModel(?string $position): void
     {
         Event::fake();
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $batch = Double::for(Batch::class)->strict();
-        $batch->expects('recordSuccessfulJob')->with('job-uuid');
+        $batch->expects('recordSuccessfulJob')->with($position ?? 'job-uuid');
 
         $repository = Double::for(BatchRepository::class)->strict();
         $repository->expects('find')->with('test-batch-id')->returns($batch);
@@ -183,11 +185,12 @@ class CallQueuedHandlerTest extends TestCase
         $job->expects('markAsFailed')->never();
         $job->expects('delete');
         $job->expects('fail')->never();
-        $job->expects('uuid')->times(1)->returns('job-uuid');
-        $job->expects('payload')->times(3)->returns([
+        $job->expects('uuid')->times($position === null ? 1 : 0)->returns('job-uuid');
+        $job->expects('payload')->times($position === null ? 3 : 2)->returns([
             'deleteWhenMissingModels' => true,
             'data' => [
                 'batchId' => 'test-batch-id',
+                'batchPositionId' => $position,
                 'command' => $serialized,
             ],
         ]);
@@ -199,14 +202,19 @@ class CallQueuedHandlerTest extends TestCase
         Event::assertNotDispatched(JobFailed::class);
     }
 
-    public function testBatchJobIsRecordedAsFailedWhenModelIsMissing(): void
+    #[TestWith([null, null])]
+    #[TestWith(['position', null])]
+    #[TestWith([null, 'original-id'])]
+    #[TestWith(['position', 'original-id'])]
+    public function testBatchJobIsRecordedAsFailedWhenModelIsMissing(?string $position, ?string $originalId): void
     {
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $exception = new ModelNotFoundException('Foo');
 
         $batch = Double::for(Batch::class)->strict();
-        $batch->expects('recordFailedJob')->with('job-uuid', Argument::same($exception));
+        $jobId = $position ?? $originalId ?? 'job-uuid';
+        $batch->expects('recordFailedJob')->with($jobId, Argument::same($exception), $jobId === 'job-uuid' ? null : 'job-uuid');
 
         $repository = Double::for(BatchRepository::class)->strict();
         $repository->expects('find')->with('test-batch-id')->returns($batch);
@@ -216,8 +224,9 @@ class CallQueuedHandlerTest extends TestCase
 
         $instance->failed([
             'batchId' => 'test-batch-id',
+            'batchPositionId' => $position,
             'command' => serialize((new CallQueuedHandlerBatchableExceptionThrower)->withBatchId('test-batch-id')),
-        ], $exception, 'job-uuid');
+        ], $exception, 'job-uuid', $originalId === null ? null : new FakeJob(['batchJobId' => $originalId]));
     }
 
     public function testUniqueJobLockIsReleasedFromPayloadWhenDeletedForMissingModel(): void

@@ -51,6 +51,28 @@ abstract class MigrationGeneratorCommand extends Command
     }
 
     /**
+     * Create the missing table migrations and report whether any were written.
+     *
+     * @param array<string, string> $stubs stub paths keyed by table name
+     */
+    protected function createMissingMigrations(array $stubs): bool
+    {
+        $created = false;
+
+        foreach ($stubs as $table => $stub) {
+            if ($this->migrationExists($table)) {
+                $this->components->warn("Migration for [{$table}] table already exists.");
+                continue;
+            }
+
+            $this->createBaseMigration($table, $stub);
+            $created = true;
+        }
+
+        return $created;
+    }
+
+    /**
      * Create a base migration file for the table.
      */
     protected function createBaseMigration(string $table, ?string $stubPath = null): string

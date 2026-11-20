@@ -40,6 +40,22 @@ class BatchRepositoryFake implements BatchRepository
     }
 
     /**
+     * Get the fake batch's outstanding retry lookup IDs.
+     */
+    public function getFailedJobIds(string $batchId): array
+    {
+        return $this->batches[$batchId]->failedJobIds ?? [];
+    }
+
+    /**
+     * Determine if the fake batch has an outstanding failure for the job.
+     */
+    public function hasFailedJob(string $batchId, string $jobId): bool
+    {
+        return in_array($jobId, $this->getFailedJobIds($batchId), true);
+    }
+
+    /**
      * Store a new pending batch.
      */
     public function store(PendingBatch $batch): Batch
@@ -80,7 +96,7 @@ class BatchRepositoryFake implements BatchRepository
     /**
      * Increment the total number of failed jobs for the batch.
      */
-    public function incrementFailedJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
+    public function incrementFailedJobs(string $batchId, string $jobId, ?string $retryId = null): ?UpdatedBatchJobCounts
     {
         return isset($this->batches[$batchId]) ? new UpdatedBatchJobCounts : null;
     }

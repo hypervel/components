@@ -8,6 +8,8 @@ use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Container\Container;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\BatchFake;
 use Hypervel\Tests\TestCase;
@@ -102,8 +104,25 @@ class BusBatchableTest extends TestCase
             use Batchable;
         };
 
-        $job->withFakeBatch('test-batch-id', 'test-batch-name', finishedAt: CarbonImmutable::now());
+        $job->withFakeBatch(finishedAt: CarbonImmutable::now());
 
+        $this->assertFalse($job->batching());
+    }
+
+    public function testOnlyAnOutstandingRetryCanRunInAFinishedUncancelledBatch(): void
+    {
+        $job = new class {
+            use Batchable;
+            use InteractsWithQueue;
+        };
+
+        [, $batch] = $job->withFakeBatch(failedJobIds: ['failed-job'], finishedAt: CarbonImmutable::now());
+        $job->setJob(new FakeJob(['uuid' => 'other-job']));
+        $this->assertFalse($job->batching());
+
+        $job->setJob(new FakeJob(['uuid' => 'failed-job']));
+        $this->assertTrue($job->batching());
+        $batch->cancel();
         $this->assertFalse($job->batching());
     }
 }

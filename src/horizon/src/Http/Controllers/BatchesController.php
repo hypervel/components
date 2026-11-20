@@ -98,15 +98,10 @@ class BatchesController extends Controller
         $batch = $this->batches->find($id);
 
         if ($batch) {
-            app(JobRepository::class)
-                ->getJobs($batch->failedJobIds)
-                ->reject(function ($job) {
-                    $payload = json_decode($job->payload);
-
-                    return isset($payload->retry_of);
-                })->each(function ($job) {
-                    dispatch(new RetryFailedJob($job->id));
-                });
+            // Each outstanding job has one delivery ID, which may itself be a failed Horizon retry.
+            foreach ($batch->failedJobIds as $jobId) {
+                dispatch(new RetryFailedJob($jobId));
+            }
         }
     }
 }

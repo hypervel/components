@@ -53,6 +53,7 @@ class BusServiceProvider extends ServiceProvider
                 $app->make('db'),
                 $app->make('config')->string('queue.batching.table'),
                 $app->make('config')->get('queue.batching.database'),
+                $app->make('config')->string('queue.batching.results_table'),
             );
         });
     }

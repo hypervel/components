@@ -6,11 +6,14 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 
 use Exception;
 use Hypervel\Horizon\Contracts\JobRepository;
+use Hypervel\Horizon\Http\Controllers\BatchesController;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\Jobs\MonitorTag;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
+use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Support\Testing\Fakes\BatchRepositoryFake;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\ConditionallyFailingJob;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\FailingJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
@@ -132,8 +135,10 @@ class RetryJobTest extends IntegrationTestCase
         $this->assertArrayNotHasKey('batchJobId', $payload);
     }
 
-    public function testRetriesOfABatchedJobCarryTheOriginalBatchJobId(): void
+    public function testDashboardCanRetryAFailedBatchRetryWithItsOriginalCountingIdentity(): void
     {
+        $batches = new BatchRepositoryFake;
+        $batch = $batches->store(Bus::batch([]));
         $repository = $this->app->make(JobRepository::class);
 
         $repository->failed(new Exception('Failed Job'), 'redis', 'default', new JobPayload(json_encode([
@@ -144,7 +149,8 @@ class RetryJobTest extends IntegrationTestCase
             'data' => [
                 'commandName' => FailingJob::class,
                 'command' => serialize(new FailingJob),
-                'batchId' => 'batch-id',
+                'batchId' => $batch->id,
+                'batchPositionId' => 'position',
             ],
         ])));
 
@@ -156,10 +162,11 @@ class RetryJobTest extends IntegrationTestCase
 
         $this->assertSame('original-id', json_decode($firstRetry, true)['batchJobId']);
 
-        // Retrying the failed retry keeps the original ID rather than the retry's UUID.
         $repository->failed(new Exception('Failed Job'), 'redis', 'default', new JobPayload($firstRetry));
 
-        dispatch(new RetryFailedJob($firstRetryId));
+        $batch->failedJobIds = [$firstRetryId];
+        (new BatchesController($batches))->retry($batch->id);
+        $this->assertSame(1, Queue::size());
         $this->work();
 
         $secondRetryId = json_decode(Redis::connection('horizon')->hGet($firstRetryId, 'retried_by'), true)[0]['id'];
@@ -168,5 +175,6 @@ class RetryJobTest extends IntegrationTestCase
         $this->assertNotSame($firstRetryId, $secondRetry['uuid']);
         $this->assertSame($firstRetryId, $secondRetry['retry_of']);
         $this->assertSame('original-id', $secondRetry['batchJobId']);
+        $this->assertSame('position', $secondRetry['data']['batchPositionId']);
     }
 }

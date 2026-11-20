@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
 use Hypervel\Broadcasting\BroadcastManager;
+use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Cache\Console\CacheTableCommand;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Config\Repository;
@@ -121,6 +122,7 @@ class FoundationConfigTest extends TestCase
         );
         $connections = $config['connections'];
 
+        $this->assertSame(DatabaseBatchRepository::DEFAULT_RESULTS_TABLE, $config['batching']['results_table']);
         $this->assertFalse($connections['sync']['after_commit']);
         $this->assertFalse($connections['database']['after_commit']);
 

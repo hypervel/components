@@ -27,7 +27,7 @@ class BatchFactory
         int $totalJobs,
         int $pendingJobs,
         int $failedJobs,
-        array $failedJobIds,
+        ?array $failedJobIds,
         array $options,
         CarbonImmutable $createdAt,
         ?CarbonImmutable $cancelledAt,

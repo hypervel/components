@@ -21,6 +21,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
+use Hypervel\Support\Str;
 use JsonSerializable;
 use LogicException;
 use Throwable;
@@ -36,6 +37,19 @@ class Batch implements Arrayable, JsonSerializable
     protected static ?WeakMap $commandJobIds = null;
 
     /**
+     * The outstanding retry IDs, loaded when first read.
+     */
+    public array $failedJobIds {
+        &get {
+            if (! isset($this->failedJobIds)) {
+                $this->failedJobIds = $this->repository->getFailedJobIds($this->id);
+            }
+
+            return $this->failedJobIds;
+        }
+    }
+
+    /**
      * Create a new batch instance.
      */
     public function __construct(
@@ -46,12 +60,15 @@ class Batch implements Arrayable, JsonSerializable
         public int $totalJobs,
         public int $pendingJobs,
         public int $failedJobs,
-        public array $failedJobIds,
+        ?array $failedJobIds,
         public array $options,
         public CarbonImmutable $createdAt,
         public ?CarbonImmutable $cancelledAt = null,
         public ?CarbonImmutable $finishedAt = null,
     ) {
+        if ($failedJobIds !== null) {
+            $this->failedJobIds = $failedJobIds;
+        }
     }
 
     /**
@@ -73,15 +90,22 @@ class Batch implements Arrayable, JsonSerializable
         $owner = null;
         $resolver = null;
 
-        $jobs = Collection::wrap($jobs)->map(function ($job) use (&$count, &$owner, &$resolver) {
-            $job = $job instanceof Closure ? CallQueuedClosure::create($job) : $job;
+        $jobs = Collection::wrap($jobs);
 
+        if ($jobs->isEmpty()) {
+            return $this->fresh();
+        }
+
+        $hasChains = array_any($jobs->all(), static fn ($job) => is_array($job));
+        if ($hasChains) {
+            $jobs = $this->prepareChainOccurrences($jobs);
+        }
+
+        $jobs = $jobs->map(function ($job) use ($hasChains, &$count, &$owner, &$resolver) {
             if (is_array($job)) {
                 $count += count($job);
 
-                $chain = $this->prepareBatchedChain($job);
-
-                $first = $chain->first();
+                $first = array_shift($job);
 
                 if (isset($this->options['queue'])) {
                     $first->allOnQueue($this->options['queue']);
@@ -91,9 +115,11 @@ class Batch implements Arrayable, JsonSerializable
                     $first->allOnConnection($this->options['connection']);
                 }
 
-                $job = $first->chain($chain->slice(1)->values()->all());
+                $job = $first->chain($job);
             } else {
-                $job->withBatchId($this->id);
+                if (! $hasChains) {
+                    $job = $this->prepareBatchedJob($job);
+                }
 
                 ++$count;
             }
@@ -140,12 +166,69 @@ class Batch implements Arrayable, JsonSerializable
     }
 
     /**
+     * Enroll a standalone job or chain head in the batch.
+     *
+     * Clone an enrolled job so its running handler keeps its batch, chain and position.
+     */
+    protected function prepareBatchedJob(object $job): object
+    {
+        $job = $job instanceof Closure ? CallQueuedClosure::create($job) : $job;
+        if (isset($job->batchId)) {
+            $job = clone $job;
+        }
+
+        $job->batchPositionId = null;
+
+        return $job->withBatchId($this->id);
+    }
+
+    /**
+     * Prepare chain occurrences before applying routing and outbox defaults.
+     *
+     * Enroll heads first so using a fresh head as another chain's tail preserves the caller's head.
+     */
+    protected function prepareChainOccurrences(Collection $jobs): Collection
+    {
+        return $jobs->map(function ($entry) {
+            if (! is_array($entry)) {
+                return $this->prepareBatchedJob($entry);
+            }
+
+            $chain = array_values($entry);
+            $chain[0] = $this->prepareBatchedJob($chain[0]);
+
+            return $chain;
+        })->map(function ($entry) {
+            if (! is_array($entry)) {
+                return $entry;
+            }
+
+            $chain = $this->prepareBatchedChain($entry)->values()->all();
+            foreach ($chain as $index => $job) {
+                if ($index !== 0) {
+                    $chain[$index] = clone $job;
+                    $chain[$index]->batchPositionId = (string) Str::uuid();
+                }
+            }
+
+            return $chain;
+        });
+    }
+
+    /**
      * Prepare a chain that exists within the jobs being added.
      */
     protected function prepareBatchedChain(array $chain): Collection
     {
         return (new Collection($chain))->map(function ($job) {
             $job = $job instanceof Closure ? CallQueuedClosure::create($job) : $job;
+
+            if (($job->batchId ?? null) === $this->id) {
+                return $job;
+            }
+            if (isset($job->batchId)) {
+                $job = clone $job;
+            }
 
             return $job->withBatchId($this->id);
         });
@@ -170,9 +253,9 @@ class Batch implements Arrayable, JsonSerializable
     }
 
     /**
-     * Get the ID the batch records for the given queued job.
+     * Get the job's original queue ID.
      *
-     * Horizon gives each retry a new UUID, so a retried batch job carries its original ID in the payload.
+     * Horizon retries preserve this ID in the payload. It identifies the job for counting unless it has a chain position.
      *
      * @internal
      */
@@ -188,6 +271,10 @@ class Batch implements Arrayable, JsonSerializable
      */
     public static function jobIdForCommand(object $command): ?string
     {
+        if (isset($command->batchPositionId)) {
+            return $command->batchPositionId;
+        }
+
         if (isset(static::$commandJobIds[$command])) {
             return static::$commandJobIds[$command];
         }
@@ -212,6 +299,33 @@ class Batch implements Arrayable, JsonSerializable
             static::$commandJobIds ??= new WeakMap;
             static::$commandJobIds[$command] = $jobId;
         }
+    }
+
+    /**
+     * Compare a chain assertion's expected job with its serialized occurrence.
+     *
+     * @internal
+     */
+    public static function matchesChainedJob(mixed $expected, string $serialized): bool
+    {
+        if (serialize($expected) === $serialized) {
+            return true;
+        }
+
+        if (! is_object($expected) || ! isset(class_uses_recursive($expected)[Batchable::class])) {
+            return false;
+        }
+
+        // Read only the framework's position without restoring the job's queued models.
+        $properties = (array) unserialize($serialized, ['allowed_classes' => false]);
+        if (! is_string($properties['batchPositionId'] ?? null)) {
+            return false;
+        }
+
+        $expected = clone $expected;
+        $expected->batchPositionId = $properties['batchPositionId'];
+
+        return serialize($expected) === $serialized;
     }
 
     /**
@@ -242,7 +356,9 @@ class Batch implements Arrayable, JsonSerializable
         }
 
         if ($counts->pendingJobs === 0) {
-            $this->repository->markAsFinished($this->id);
+            if ($counts->completedFirstPass === null) {
+                $this->repository->markAsFinished($this->id);
+            }
 
             $container = Container::getInstance();
 
@@ -250,19 +366,22 @@ class Batch implements Arrayable, JsonSerializable
                 $events = $container->make(Dispatcher::class);
 
                 if ($events->hasListeners(BatchFinished::class)) {
-                    $events->dispatch(new BatchFinished($this->fresh() ?? $this));
+                    $batch = $this->fresh();
+                    if ($batch === null || $counts->totalJobs === null || $batch->totalJobs === $counts->totalJobs) {
+                        $events->dispatch(new BatchFinished($batch ?? $this));
+                    }
                 }
             }
         }
 
         if ($counts->pendingJobs === 0 && $this->hasThenCallbacks()) {
-            $this->invokeCallbacks('then');
+            $this->invokeCallbacks('then', null, $counts->totalJobs);
         }
 
         $this->markAsFinishedIfOnlyFailuresRemain($counts);
 
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
-            $this->invokeCallbacks('finally');
+            $this->invokeCallbacks('finally', null, $counts->totalJobs);
         }
     }
 
@@ -276,12 +395,14 @@ class Batch implements Arrayable, JsonSerializable
 
     /**
      * Invoke the callbacks of the given type.
+     *
+     * @param null|int $expectedTotalJobs skip completion callbacks when the snapshot's total no longer matches
      */
-    protected function invokeCallbacks(string $type, ?Throwable $e = null): void
+    protected function invokeCallbacks(string $type, ?Throwable $e = null, ?int $expectedTotalJobs = null): void
     {
         $batch = $this->fresh();
 
-        if ($batch === null) {
+        if ($batch === null || ($expectedTotalJobs !== null && $batch->totalJobs !== $expectedTotalJobs)) {
             return;
         }
 
@@ -331,11 +452,19 @@ class Batch implements Arrayable, JsonSerializable
     }
 
     /**
+     * Determine if the job's counting identity has an outstanding failure.
+     */
+    public function hasFailedJob(string $jobId): bool
+    {
+        return $this->repository->hasFailedJob($this->id, $jobId);
+    }
+
+    /**
      * Record that a job within the batch failed to finish successfully, executing any callbacks if necessary.
      */
-    public function recordFailedJob(string $jobId, ?Throwable $e): void
+    public function recordFailedJob(string $jobId, ?Throwable $e, ?string $retryId = null): void
     {
-        $counts = $this->incrementFailedJobs($jobId);
+        $counts = $this->incrementFailedJobs($jobId, $retryId);
 
         if ($counts === null) {
             return;
@@ -374,16 +503,16 @@ class Batch implements Arrayable, JsonSerializable
         $this->markAsFinishedIfOnlyFailuresRemain($counts);
 
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
-            $this->invokeCallbacks('finally');
+            $this->invokeCallbacks('finally', null, $counts->totalJobs);
         }
     }
 
     /**
      * Increment the failed jobs for the batch.
      */
-    public function incrementFailedJobs(string $jobId): ?UpdatedBatchJobCounts
+    public function incrementFailedJobs(string $jobId, ?string $retryId = null): ?UpdatedBatchJobCounts
     {
-        return $this->repository->incrementFailedJobs($this->id, $jobId);
+        return $this->repository->incrementFailedJobs($this->id, $jobId, $retryId);
     }
 
     /**
@@ -406,7 +535,7 @@ class Batch implements Arrayable, JsonSerializable
      */
     protected function isFirstJobProcessed(UpdatedBatchJobCounts $counts): bool
     {
-        return $this->totalJobs - $counts->pendingJobs + $counts->failedJobs === 1;
+        return ($counts->totalJobs ?? $this->totalJobs) - $counts->pendingJobs + $counts->failedJobs === 1;
     }
 
     /**

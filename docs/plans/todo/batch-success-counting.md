@@ -2,440 +2,104 @@
 
 ## Status and purpose
 
-Agreed design; the owner approved the new table. Implement it as its own components PR on `0.4`. Before starting, check the current code against this plan.
+Implement the approved per-job results design as its own components PR on `0.4`.
 
-Queues deliver jobs at least once. A worker can record a batched job's success and stop before the queue deletes the job, so the job runs again and is recorded again. `DatabaseBatchRepository::decrementPendingJobs()` subtracts once per call, so the second delivery decrements another job's pending slot and `then` / `finally` can run while work is still pending. A redelivery that throws after its success was counted also fails the batch: a batch that does not allow failures is cancelled and its `catch` callbacks run for a job that succeeded. Laravel `master` has the same code. Reproductions: [the two-job case](https://github.com/cyppe/laravel-batch-jobs-redis-driver/issues/7) and [overlapping retries](https://github.com/laravel/framework/pull/48000).
-
-`Batch::jobIdFor()` already gives a retried job its original ID. After this change:
-- each job's success counts once;
-- a failure after the job's recorded success is ignored;
-- failures before a success still increment `failed_jobs` each time, as today.
+Queues deliver jobs at least once. If a worker records success and stops before deleting the job, a second success can consume another job's pending slot and run completion callbacks early. A terminal failure on redelivery can cancel a batch for a job that already succeeded. A replayed chain link can also enqueue its successor twice with different queue UUIDs. Count each logical batch job's success once. [Two-job reproduction](https://github.com/cyppe/laravel-batch-jobs-redis-driver/issues/7) and [overlapping retries](https://github.com/laravel/framework/pull/48000).
 
 Callbacks still run in the worker that records the success. If that worker stops after committing the count but before its callbacks finish, the redelivery does not run them.
 
-## Owner approval
+## Batch identity and API
 
-The owner approved the new table and the pruning index on `job_batches`. These Laravel differences still need the owner's approval:
+The queue keeps its normal UUID per dispatch. Batch accounting uses the stable chain position when present, otherwise the original queue ID from `Batch::jobIdFor()` (including Horizon's `batchJobId` on retry).
 
-- **Stale failures.** A failure after a job's recorded success is ignored. Laravel counts it, and the first such failure cancels a batch that does not allow failures and runs its `catch` callbacks.
-- **Required configuration.** `queue.batching.successes_table` is a new required config key. An application that defines its own `queue.batching` array must add it, because framework defaults merge only at the top level.
-- **Protected extension point.** `decrementPendingJobs()` no longer goes through the protected `updateAtomicValues()`, which keeps its signature and still serves failures.
-- **Uncontended cost.** The record costs up to about a quarter of bookkeeping throughput when batches do not contend (see the measurements).
-
-## Design
-
-1. **Success records.** A new `job_batch_successes` table with primary key `(batch_id, job_id_hash)`. Recording a success inserts the record first with `insertOrIgnore()`; a duplicate returns `null` and changes nothing.
-2. **Insert before locking.** The insert runs in the decrement's transaction before the batch row is locked, so it adds no work while the hot row is locked.
-3. **Missing batch.** When the locked read finds no batch, the transaction deletes the record it inserted and returns `null`.
-4. **Finish in the locked update**, following the completion rule under Repository contract. `Batch` no longer calls `markAsFinished()` afterwards, so a job added just after the last success reopens the batch instead of being stranded in a finished batch.
-5. **PostgreSQL.** One `UPDATE … RETURNING` statement replaces the locking `SELECT` and `UPDATE`, so the row is locked only from that statement until `COMMIT`. Removing the job from `failed_job_ids`, or finishing a batch with only failures left, needs a second `UPDATE` in the same transaction; both are rare.
-6. **Stale failures.** `incrementFailedJobs()` locks the batch row as today, then makes a non-locking existence read for the job's success record and returns `null` when it exists. `Batch::recordFailedJob()` already returns early for `null`.
-7. **No foreign key.** InnoDB checks a foreign key by share-locking the parent row, which is the hot batch row, so every success insert would wait behind the batch lock. `delete()` and the prune methods delete the records explicitly.
-8. **Keep records until pruning.** A duplicate can arrive after its batch finished, once the queue's retry or visibility timeout passes.
-9. **Deletion and pruning.** Only a batch that is actually deleted loses its records. Each deletion transaction deletes the records, deletes the batches that still match, and deletes the records again. If fewer batches were deleted than selected, the whole transaction rolls back and pruning selects again.
-10. **Retry concurrency errors.** The success, failure and deletion transactions pass `attempts: 3`, as `DatabaseOutboxRepository` and the database rate limiter do. `transaction()` retries only errors its concurrency detector recognizes (deadlocks, serialization failures, lock timeouts and SQLite busy errors), and only at the outermost level.
-    - This matters because `CallQueuedHandler` records a success after the job ran and before the queue deletes it. A bookkeeping error that escapes would make the queue run the work again.
-    - Each transaction closure is database work only, so it is safe to repeat.
-
-Lock order: a success takes its record, then the batch row. A failure or `incrementTotalJobs()` takes only the batch row, plus a non-locking read for a failure. Deletion takes the records, then the batch rows, then any records committed meanwhile. So no transaction holds a batch row while it waits for a success record, except under MySQL READ COMMITTED (below).
-
-The isolation levels below were checked with two connections each on MySQL 9.5, MariaDB 10.11 and PostgreSQL 17, in two orders. In one, the success inserts its record after the deletion's first record delete; in the other, the success already holds the batch row. No case left a batch or record behind:
-
-| Engine and isolation level | Behavior |
-|---|---|
-| MySQL and MariaDB, REPEATABLE READ (the default) | No errors. The first record delete waits for an in-flight success's uncommitted record and gap-locks the range against new ones |
-| MySQL and MariaDB, READ COMMITTED | Can deadlock: with no gap locks, a success inserts its record after the first delete, then waits for the batch row while the second delete waits for that record. InnoDB chose the success in the check, but either transaction can be rolled back. A success's retry finds the batch gone and records nothing; a prune's retry repeats its chunk |
-| PostgreSQL, READ COMMITTED (the default) | No errors. A delete never waits for another transaction's uncommitted record, and each statement takes a new snapshot, so the second record delete removes a record committed while the batch delete waited |
-| PostgreSQL, REPEATABLE READ | The losing transaction fails with a serialization failure, both for a late success and for a prune waiting on a success; the retry handles it |
-
-SERIALIZABLE was not checked. Like REPEATABLE READ, it reports conflicts as serialization failures, which the retry covers. SQLite serializes writers, and the success transaction begins with a write; the earlier SQLite interleaving checks covered this design.
-
-A failure that commits before a competing success of the same job is counted as a failure, and the success is counted too. Both deliveries happened, and closing that window would need a reverse lock order or a longer hot lock.
-
-Rejected alternatives:
-
-| Alternative | Why not |
-|---|---|
-| Foreign key with cascade, locking the batch before inserting | Puts the insert's round trips inside the hot lock. Estimated about −18% on MySQL at 1.4 ms RTT, and it gives back most of PostgreSQL's gain |
-| ID array or bitmap on the batch row | An O(N) rewrite under the lock |
-| Per-job rows at enqueue | More writes, and finishing still needs the counter |
-| Acknowledging the job first | Loses completions, and SQL cannot acknowledge the queue atomically |
-| Skipping by attempt number | A later attempt cannot tell whether an earlier one committed |
-| MySQL `LAST_INSERT_ID(expr)` or triggers | Returns only one value, or moves logic into migrations |
-| Sharded counters | Change what `pending_jobs` means and need a separate claim to finish exactly once |
-| PostgreSQL single-statement CTE | Finishing an allow-failures batch would need a second transaction, and a crash between them leaves the batch unfinished forever |
-| Deleting batches first, then sweeping records in separate transactions | A crash between them leaves records nothing can find |
-
-## Repository contract
-
-Document these semantics on `BatchRepository` and `UpdatedBatchJobCounts` so every repository, including any future Redis repository, implements the same counting:
-
-- `decrementPendingJobs()` counts each job's success once. It returns `null` when the batch does not exist or the job's success was already recorded.
-- `incrementFailedJobs()` returns `null` when the batch does not exist or the job already succeeded.
-- A repository that reports `completedFirstPass` finishes the batch in the same atomic update: once no jobs remain pending, or once only failed jobs remain in a batch that allows failures. It keeps an existing finish time.
-- Repositories that report `null` keep Laravel's behavior: `Batch` calls `markAsFinished()` itself.
-- Deleting or pruning a batch removes its success records. A batch that survives keeps them.
-
-`BatchRepositoryFake` and `BatchFake` need no change.
+- Enroll standalone jobs and chain heads before preparing successors or setting routes, chains and outbox defaults. Clone previously enrolled jobs before changing their batch or position. Fresh caller objects retain their batch ID. Give every queued successor occurrence its own internal `Batchable::$batchPositionId` UUID and clear positions on queued roots. The existing `chain()` serializes the positioned tail, preserving identities across redelivery, prepends and `ChainedBatch` handoffs. Object-based chain assertions ignore the internal position while comparing job data, without restoring queued models.
+- Include `data.batchPositionId` in the outer queue payload only for positioned jobs. In `CallQueuedHandler`, resolve both normal and missing-model outcomes from that identity and the failed delivery UUID. Keep the handler's batch lookup, fakes, virtual calls and pre-update `BatchStarted` snapshot.
+- `$jobId` identifies the job for counting throughout `Batch` and `BatchRepository`. Success signatures stay as they are. Append `?string $retryId = null` to `Batch::recordFailedJob()` (after `$e`), both `incrementFailedJobs()` APIs and their implementations. Pass the failed delivery UUID when it differs from the counting ID. Omission means use `$jobId`. Keep existing parameter names for named callers.
+- Add `getFailedJobIds(string $batchId): array` (a list of outstanding retry lookup IDs) and `hasFailedJob(string $batchId, string $jobId): bool` (membership by counting identity) to `BatchRepository`. SQL reads use the writer. For membership, match the full primary key and require a non-null retry ID. For a missing batch the results are an empty list and false.
+- Keep `Batch::$failedJobIds` a public, writable array. Widen the existing `$failedJobIds` argument on `BatchFactory::make()` and the `Batch` constructor to `?array`. In `toBatch()`, pass `[]` when no failures are outstanding and `null` for an unloaded list. Set an explicitly supplied array in the constructor. A backed PHP 8.4 `&get` hook with implicit set loads and caches the list on first read, including offset and reference access. The first read can see a newer commit than the counters. No insertion order is promised.
+- Preserve `Batchable::batching()` for missing, cancelled and unfinished batches. For a finished batch, a job with a known counting ID delegates membership to `Batch::hasFailedJob($jobId)` and the repository. A job without an ID returns false. This lets an already-queued copy do its work after an allow-failures finish. Update `BatchFake` and `BatchRepositoryFake` for the new signatures and reads, using their supplied in-memory IDs.
 
 ## Schema, configuration and migrations
 
-New table, identical in the stub, the skeleton and the Testbench migrations:
+| Table | Change |
+|---|---|
+| `job_batches` | Replace `failed_job_ids` with integer `outstanding_failed_jobs`, initialized to zero in `store()`. Keep `failed_jobs` cumulative. Index `(finished_at, created_at)` for finished and unfinished pruning. |
+| `job_batch_results` | Use `string('batch_id')` to match the parent ID, `char('job_id_hash', 32)` and nullable `longText('retry_id')`. MySQL can silently truncate a caller-supplied retry ID in a smaller text column during `INSERT IGNORE`. Primary key `(batch_id, job_id_hash)`. Store the lowercase hex `xxh128` digest of the counting ID's bytes for a fixed-width key independent of database collation. |
 
-```php
-Schema::create('job_batch_successes', function (Blueprint $table) {
-    $table->string('batch_id');
-    // Hashing gives job IDs of any length a fixed-width key that stays exact on every database.
-    $table->char('job_id_hash', 32);
+On PostgreSQL and SQLite only, add `$table->index('batch_id')->whereNotNull('retry_id')` after checking the schema connection's driver. On MySQL and MariaDB the primary key also serves scans for one batch. A secondary index on every success slows writes. Omit the foreign key because its InnoDB parent check would lock the hot batch row during result insertion. Keep results through completion and cancellation, until the batch is deleted.
 
-    $table->primary(['batch_id', 'job_id_hash']);
-});
-```
+- Set `queue.batching.results_table` to `job_batch_results` in `src/foundation/config/queue.php`, explain both tables in the section comment and sync both skeleton configs. `BusServiceProvider` passes the required value via the typed string getter. For direct callers, append `string $resultsTable = self::DEFAULT_RESULTS_TABLE` after the repository constructor's connection argument and define the public typed constant.
+- Update `batches.stub`, the skeleton and Testbench `000005` migrations and the Bus migration fixture. Match the shipped nullable `mediumText('options')` in fixtures. Add the results table to its own `batch-results.stub`, skeleton and Testbench `000010` migrations and the next Bus fixture migration. Use configured table names in generated migrations.
 
-- **`batch_id`** has the same type as `job_batches.id`, whose values it holds.
-- **`job_id_hash`** is the lowercase hex `xxh128` digest of the job ID.
-  - **Why a digest.** `Batch::recordSuccessfulJob(string $jobId)` and `recordFailedJob()` accept any string and enforce no length. Framework job IDs are 36-character UUIDs, but nothing else limits them.
-  - **Why not the raw ID.** A `string()` column has the configured default length, normally 255. MySQL's `INSERT IGNORE` truncates longer values even in strict mode, so two IDs sharing their first 255 bytes would count as one success.
-  - **Exact.** The digest compares exactly under every collation, as `failed_job_ids` compares raw IDs in PHP today.
-  - **Unseeded.** It must be identical in every worker, and job IDs are framework-generated, not untrusted input.
-  - **Collisions.** At 128 bits, a collision between two job IDs is negligible.
-  - `uuid()` columns would also reject the non-UUID IDs that `BusBatchTest` and the public methods accept, on PostgreSQL and MariaDB.
-- **Benchmarks.** They used `string('batch_id')` and `string('job_id')` holding 36-character UUIDs. The planned key is 32 characters, and each success also computes one `xxh128` digest in PHP. Throughput was not re-measured.
-- **Configuration.**
-  - Add `'successes_table' => 'job_batch_successes'` to `queue.batching` in `src/foundation/config/queue.php`, with no code fallback.
-  - Update the section comment to say the tables also record each job's success.
-  - Run `composer sync:skeleton-config` to regenerate both skeleton configs.
-- **`BusServiceProvider`.** Pass `config->string('queue.batching.successes_table')` to the repository.
-- **Skeleton migration.** Add `skeletons/hypervel/database/migrations/0001_01_01_000010_create_job_batch_successes_table.php`. It goes after the outbox migration (`000009`) so earlier files keep their names; without a foreign key, order does not matter.
-- **Testbench migration.** Add `src/testbench/hypervel/migrations/0001_01_01_000010_testbench_create_job_batch_successes_table.php`.
-- **Bus test fixture.** Add `tests/Bus/Fixtures/migrations/2024_11_20_000001_create_job_batch_successes_table.php`.
-- **Align the test schemas.** The Testbench `job_batches` migration uses `longText('failed_job_ids')`, and the Bus fixture uses `text` for both `failed_job_ids` and `options`. Change them to the shipped `json('failed_job_ids')` and `mediumText('options')`, so the database tests run against the real column types.
-- **Pruning index.** Add `$table->index(['finished_at', 'created_at']);` to every `job_batches` definition: `batches.stub`, the skeleton and Testbench `000005` migrations, and the Bus fixture.
-  - **What `EXPLAIN` showed.** `job_batches` has only its primary key, so every prune page scans the table, including the final page that finds nothing. Plain `EXPLAIN` on MySQL 9.5 compared the planned candidate selects with and without the index. The scratch table held 101,000 rows: two days of batches, 2% still running, plus 1,000 stuck unfinished batches.
-    - With the index, the daily prune and its final empty page use a `finished_at` range.
-    - `--unfinished` uses a range on both columns.
-    - These are access paths, not timings.
-  - **`--cancelled`.** It filters on `cancelled_at` and `created_at`, so it still scans the table on every page when many cancelled batches qualify. A separate `created_at` index would serve only that optional mode, at the cost of extra index work on every batch insert and delete.
+### Private monorepo consumers
+
+On monorepo `main`, sync both apps' queue configs with the skeleton. Update their batch create-table migrations and copy the results and outbox migrations. Add `job_batch_results` and `job_outbox` to `tenancy.schema.global_tables` in `packages/hypervel/src/tenancy/config/tenancy.php`. Verify both fresh schemas and tenancy classification.
 
 ## Generator command
 
 `make:queue-batches-table` creates one migration per table, like `make:cache-table`.
 
-- **Stubs.** Add `src/queue/src/Console/stubs/batch-successes.stub`. Both table names come from configuration.
 - **Shared helper.** Move `CacheTableCommand::handle()`'s loop into a protected `createMissingMigrations(array $stubs): bool` on `MigrationGeneratorCommand`.
   - `$stubs` holds stub paths keyed by table name.
   - It warns about and skips each table whose migration exists, and creates the others.
   - It returns whether it created any.
 - **Outcomes.** Each command keeps its own outcome:
-  - `make:cache-table` keeps reporting `Migrations created successfully.` and succeeding.
+  - `make:cache-table` succeeds on rerun and reports creation only when it writes a migration.
   - `make:queue-batches-table` keeps failing when every migration already exists, reporting `Migrations already exist.`; otherwise it reports `Migrations created successfully.`
 - **Existing detection.** Keep `BatchesTableCommand::migrationExists()`. It also treats Laravel's `0001_01_01_000002_create_jobs_table.php` as the `job_batches` migration, so an application whose batch table lives there gets only the new migration.
 - **Description.** Change the command description to `Create migrations for the batch database tables`.
 
-## DatabaseBatchRepository
+## Recording results
 
-**Constructor.** Append `string $successesTable = self::DEFAULT_SUCCESSES_TABLE` after `?string $connection = null`, so existing four-argument calls keep naming the connection.
-- Add `public const string DEFAULT_SUCCESSES_TABLE = 'job_batch_successes'`, as `DatabaseStore::DEFAULT_LOCK_TABLE` does.
-- `BusServiceProvider` passes the configured value explicitly, so a missing key still fails.
+Each accepted transition updates the result row and parent counters in one transaction. An absent result means the job has yet to report. A non-null `retry_id` means an outstanding failure. SQL NULL means terminal success. Use explicit null checks so a lookup ID such as `'0'` survives.
 
-**`jobIdHash(string $jobId): string`** returns `hash('xxh128', $jobId)`. Its docblock gives the reason, which is under Schema. The success insert, the missing-batch cleanup and the stale-failure read all use it.
+| Stored result | Incoming result | Result row | Change to parent |
+|---|---|---|---|
+| Absent | Success | Insert success | Pending −1 |
+| Absent | Failure | Insert retry ID | Cumulative failures +1, outstanding +1 |
+| Failed | Success | Clear retry ID | Pending −1, outstanding −1 |
+| Failed | Failure | Update retry ID if different | Cumulative failures +1 |
+| Succeeded | Either | Keep success | Return null and skip all batch callbacks/events |
 
-**`decrementPendingJobs()`** owns its transaction, because the record must be inserted before the batch is locked. Calling `updateAtomicValues()` inside it would add savepoint round trips while the row is locked.
+**Lock order.** Take the result row before the parent. On portable SQL, use `insertOrIgnore()`. On a success conflict, update the matching row to NULL only where `retry_id IS NOT NULL`. Zero affected rows means a duplicate or deleted result. On a failure conflict, re-read the result with `lockForUpdate()` before updating the parent. If missing or succeeded, return null. Otherwise hold the child lock through the parent update. If the parent is missing, remove the result claimed by this transaction and return null.
 
-```php
-public function decrementPendingJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
-{
-    $connection = $this->getConnection();
+**Parent update.** The initial locked read needs only the counters and `finished_at`. Return `UpdatedBatchJobCounts` with the total at the transition, so notifications can detect work added later. Set `completedFirstPass` when `pending_jobs - outstanding_failed_jobs` moves from positive to zero. Preserve an existing finish time. Finish at zero pending regardless of the flag. Only when the first pass completes with jobs still pending and no finish time, fetch and decode `options` on the writer under the same lock. Finish if `allowFailures` is true.
 
-    $success = ['batch_id' => $batchId, 'job_id_hash' => $this->jobIdHash($jobId)];
+**Protected hook.** Remove `DatabaseBatchRepository::updateAtomicValues()` so each counting method owns one child-first transaction. Retaining the Laravel hook on accepted failures adds a nested savepoint, and its old JSON row is gone. Document the removal for subclasses that override or call it.
 
-    return $connection->transaction(function () use ($connection, $batchId, $jobId, $success) {
-        // A job the batch already counted, such as one the queue delivered again, changes nothing.
-        if ($connection->table($this->successesTable)->insertOrIgnore($success) === 0) {
-            return null;
-        }
+**PostgreSQL success.** Use one writable CTE for an ordinary first success. Insert with `ON CONFLICT DO NOTHING RETURNING batch_id`, update the matching parent from the inserted row and return the new counters and finish time. Left-join the update to the insert so a conflict (no inserted row) and a missing parent (inserted row without an update) remain distinguishable. Set a zero-pending finish with `coalesce(finished_at, ?)` in the update. Handle a prior failure with the guarded transition and parent `UPDATE … RETURNING`. Keep the conditional options lookup and any finish update in that same transaction. Wrap both configured table names with the grammar for prefix support. Execute the CTE on the writer and mark the connection modified when it writes, following `Builder::insertOrIgnoreReturning()`.
 
-        $counts = $connection instanceof PostgresConnection
-            ? $this->decrementPendingJobsWithReturning($batchId, $jobId)
-            : $this->decrementPendingJobsWithLock($batchId, $jobId);
+Use `transaction(..., attempts: 3)` for result and deletion transactions. Only the outermost transaction can retry recognized concurrency errors. Keep batch callbacks outside the retry closure. In `Batch::recordSuccessfulJob()`, call `markAsFinished()` at zero pending only when `$counts->completedFirstPass === null`. A null counts object skips all further handling. Keep the existing fallback for an allow-failures finish and preserve event/callback order. Adding work reopens the batch. An empty addition leaves it alone. Use the transaction total to identify the first processed job and suppress terminal notifications superseded by newly added work. The optional trailing `?int $expectedTotalJobs` on `Batch::invokeCallbacks()` checks the snapshot delivered to each terminal callback group.
 
-        // The batch was deleted after the job loaded it, so its success must not outlive it.
-        if ($counts === null) {
-            $connection->table($this->successesTable)->where($success)->delete();
-        }
+## Deletion and pruning
 
-        return $counts;
-    }, attempts: 3);
-}
-```
+1. Keep the current predicates for finished, unfinished and cancelled batches. On the writer, select at most 1,000 candidate IDs and their `total_jobs` per page. Split into chunks targeting 10,000 result rows using `total_jobs` as an upper estimate. A larger individual batch stays in one transaction.
+2. Share a deletion helper with `delete($batchId)`. Inside the transaction delete results for the selected IDs, delete parents that still satisfy the original predicate, then delete results again. The second sweep catches rows committed while the parent delete waited.
+3. If fewer parents were deleted than selected, roll back the whole chunk with an internal stale-selection exception. Ordinary pruning reselects. Inside a caller's transaction, use `chunkById()` to advance past stale snapshot rows and retry a stale multi-ID chunk individually before advancing. Count only committed deletions. A missing ID on direct delete is a no-op. Retry concurrency errors independently of stale selection.
 
-**`decrementPendingJobsWithLock()`** holds today's `decrementPendingJobs()` body. It calls `lockAndUpdate()` instead of `updateAtomicValues()`, and uses `finishWhenComplete()`.
+## Documentation and upstream sync
 
-**`decrementPendingJobsWithReturning()`** handles PostgreSQL:
+In `src/docs/queues.md`, explain counting on redelivery, failures after success, lazy and unordered failure IDs, and pruning both tables. Link there from brief Bus README entries for deliberate public differences. In `src/docs/porting-from-laravel.md`, tell porters to use Hypervel's migrations, configure `results_table` in custom batching arrays, adapt custom repositories and read failure IDs through the batch API. Compatible jobs can still share a queue backend, restart signals and lock keys. Use one framework to maintain a batch's SQL records.
 
-```php
-$connection = $this->getConnection();
-$table = $connection->getQueryGrammar()->wrapTable($this->table);
-
-// The right-hand side reads the old row, so pending_jobs = 1 means this success leaves none pending.
-$batch = $connection->selectOne(
-    "update {$table} set pending_jobs = pending_jobs - 1, "
-    . 'finished_at = case when pending_jobs = 1 then coalesce(finished_at, ?) else finished_at end '
-    . 'where id = ? returning pending_jobs, failed_jobs, failed_job_ids, finished_at, options',
-    [time(), $batchId],
-    useReadPdo: false,
-);
-
-if ($batch === null) {
-    return null;
-}
-
-$failedJobIds = (array) json_decode($batch->failed_job_ids, true);
-$remainingFailedJobIds = array_values(array_diff($failedJobIds, [$jobId]));
-$completedFirstPass = $this->completesFirstPass(
-    $batch->pending_jobs + 1 - count($failedJobIds),
-    $batch->pending_jobs - count($remainingFailedJobIds),
-);
-
-$values = ($remainingFailedJobIds === $failedJobIds ? [] : ['failed_job_ids' => json_encode($remainingFailedJobIds)])
-    + $this->finishWhenComplete($batch, $batch->pending_jobs, $completedFirstPass);
-
-if ($values !== []) {
-    $connection->table($this->table)->where('id', $batchId)->update($values);
-}
-
-return new UpdatedBatchJobCounts($batch->pending_jobs, $batch->failed_jobs, $completedFirstPass);
-```
-
-`wrapTable()` applies the connection's table prefix. The returned row has `finished_at` set whenever no jobs are pending, so `finishWhenComplete()` only adds the finish for an allow-failures batch.
-
-**`lockAndUpdate(string $batchId, Closure $callback): ?array`** is the body of today's `updateAtomicValues()`: lock the row, call the callback and update with its values. Its docblock says the caller owns the transaction.
-- A callback that returns `null` leaves the batch unchanged, and `lockAndUpdate()` returns `null`.
-- `updateAtomicValues()` keeps its Laravel signature and becomes `transaction(fn () => $this->lockAndUpdate($batchId, $callback), attempts: 3)`.
-- `incrementFailedJobs()` still calls `updateAtomicValues()`. Its callback first returns `null` when `exists()` finds the job's success record by `batch_id` and `jobIdHash()`, and otherwise keeps today's body. Comment that the read does not lock, so a failure never waits for a success's record.
-
-**`finishWhenComplete(object $batch, int $pendingJobs, bool $completedFirstPass): array`** replaces `finishWhenOnlyFailuresRemain()` and applies the completion rule. It keeps that method's docblock, extended to the zero case. It unserializes the options only when it checks for an allow-failures finish.
-
-**Deletion and pruning.**
-
-```php
-public function delete(string $batchId): void
-{
-    $this->deleteBatches([$batchId], fn (Builder $query) => $query);
-}
-
-public function prune(DateTimeInterface $before): int
-{
-    return $this->pruneBatches(fn (Builder $query) => $query
-        ->whereNotNull('finished_at')
-        ->where('finished_at', '<', $before->getTimestamp()));
-}
-
-// pruneUnfinished() and pruneCancelled() keep their current constraints the same way.
-
-protected function pruneBatches(Closure $constraints): int
-{
-    $totalDeleted = 0;
-
-    do {
-        // Select from the writer: a lagging replica would keep returning batches that are already gone.
-        $batches = $constraints($this->getConnection()->table($this->table)->useWritePdo())
-            ->limit(1000)
-            ->pluck('total_jobs', 'id');
-
-        // Aim for about 10,000 success records per transaction; a single larger batch still takes one transaction.
-        $ids = [];
-        $records = 0;
-
-        foreach ($batches as $id => $totalJobs) {
-            if ($ids !== [] && $records + $totalJobs > 10000) {
-                $totalDeleted += $this->deleteBatches($ids, $constraints) ?? 0;
-                [$ids, $records] = [[], 0];
-            }
-
-            $ids[] = $id;
-            $records += $totalJobs;
-        }
-
-        if ($ids !== []) {
-            $totalDeleted += $this->deleteBatches($ids, $constraints) ?? 0;
-        }
-    } while ($batches->isNotEmpty());
-
-    return $totalDeleted;
-}
-
-protected function deleteBatches(array $ids, Closure $constraints): ?int
-{
-    $connection = $this->getConnection();
-
-    try {
-        return $connection->transaction(function () use ($connection, $ids, $constraints) {
-            $connection->table($this->successesTable)->whereIn('batch_id', $ids)->delete();
-
-            $deleted = $constraints($connection->table($this->table))->whereIn('id', $ids)->delete();
-
-            if ($deleted !== count($ids)) {
-                throw new StaleBatchSelectionException;
-            }
-
-            $connection->table($this->successesTable)->whereIn('batch_id', $ids)->delete();
-
-            return $deleted;
-        }, attempts: 3);
-    } catch (StaleBatchSelectionException) {
-        return null;
-    }
-}
-```
-
-**`deleteBatches()` docblock.** Explain three things:
-- the lock order;
-- that the second delete removes records committed while the batch rows were being deleted;
-- why a batch that was reopened, finished or deleted after it was selected rolls back the chunk: otherwise a redelivered job could be counted again.
-
-**Prune loop.** It stops because a deleted batch is never selected again, and a changed one no longer matches. The `total_jobs` target is soft: it groups many small batches into one transaction, and a batch larger than the target still gets one transaction of its own.
-
-**`StaleBatchSelectionException`.** Add it as an `@internal` `RuntimeException` in `src/bus/src/`, with a one-line class docblock explaining that it rolls back a deletion transaction. Throwing from the transaction closure is how `transaction()` rolls back. Hypervel rejects a manual rollback inside that closure.
-
-Imports: `Hypervel\Database\Query\Builder` for the constraint closures. `PostgresConnection` is already imported.
-
-## Batch and counts
-
-**`Batch::recordSuccessfulJob()`.** When `$counts->pendingJobs === 0`, call `markAsFinished()` only when `$counts->completedFirstPass === null`, with the same comment as `markAsFinishedIfOnlyFailuresRemain()`. Dispatching `BatchFinished` and running `then` / `finally` stay unchanged.
-
-**The `UpdatedBatchJobCounts` docblock for `$completedFirstPass`.** State the completion rule there. It ties both finishes to this one Hypervel-specific signal rather than adding a second flag: only `DatabaseBatchRepository` reports it, and repositories that report `null` keep Laravel's behavior.
-
-**`BatchRepository` docblocks.** Add the contract above to `decrementPendingJobs()`, `incrementFailedJobs()` and `delete()`.
-
-## Documentation
-
-- **`src/docs/queues.md`, Job Batching introduction.**
-  - Say the command creates migrations for the batch tables, including the record of each job's success.
-  - Add one sentence: a job the queue [delivers again](#at-least-once-delivery) after it completed is counted once, so it does not change the batch's progress or run its callbacks again.
-- **Batch Failures.** Add one sentence: a failure of a job that already completed successfully does not count as a batch failure.
-- **Pruning Batches.** Name both tables in the opening sentence.
-
-The owner is adding general porting guidance on using Hypervel's framework migrations, so this plan adds no batch-specific porting entry or README difference.
-
-Horizon's batch screens and Telescope's batch watcher only read or retry batches; they need no change.
+Document counting and atomic finish on `BatchRepository` and `UpdatedBatchJobCounts`. Explain the intentional ID and storage differences at their owning code so an upstream sync preserves them. Ordinary handler and callback changes can still be ported directly. Adapt upstream batch storage, pruning and custom repository changes against the transition table and tests.
 
 ## Tests
 
-**`tests/Bus/BusBatchTest.php`**, which runs on the default SQLite connection:
+- **Public batch behavior.** In `BusBatchTest`, use distinct IDs in the ordinary two-job success test. Redeliver one success and then report its failure. Verify progress runs once, the batch stays active, and completion occurs only after the other job succeeds. Cover a last-job progress callback that adds work, and the zero-pending fallback for a repository without first-pass reporting.
+- **Chains.** Reproduce A → B → C with the real SQLite queue. Interrupt A after B is queued and before A is counted, expire the reservation, and process both copies. Distinct queue UUIDs for B and C must each consume only one slot per position. Extend existing serialization, missing-model and Horizon retry cases for position identity. Cover a repeated object at two positions, latest retry lookup after two failures, both `queue:retry-batch` and the Horizon dashboard resolving the failed delivery, and an already-queued copy doing its work after an allow-failures finish.
+- **Failure reads.** Check that `find()`, paged `get()` and progress-only callbacks do not load the list. One first access when needed loads and caches real retry IDs. Preserve eager arrays, assignment and offset/reference access, including fakes. Check membership for an outstanding position and a succeeded position in a finished batch, including cancellation taking precedence.
+- **SQL transitions.** Add a shared `tests/Integration/Bus/Database/DatabaseBatchRepositoryTestCase.php` patterned on `OutboxClaimTestCase`. Use `DatabaseTruncation`, the two Testbench migrations, independent pooled connections, bounded server lock timeouts and file-backed SQLite in its default DEFERRED mode. Exercise the transition table on all four engines. Include `'0'` as a lookup ID, case-distinct and long common-prefix job IDs, missing-parent cleanup, and an injected post-update exception followed by successful redelivery. Directly fail and then succeed the last outstanding job with a previously unset finish time and a false first-pass flag. Check allow-failures completion and preservation of a cancellation timestamp. An ordinary new success costs one accounting statement on PostgreSQL, three elsewhere, excluding `find()` and transaction control.
+- **Races and pruning.** Prove duplicate successes contend for one job, and use bounded two-session barriers for competing failure/success in both orders, including a repeat failure. Exercise deletion during an uncommitted result and a result arriving during deletion, including MySQL/MariaDB READ COMMITTED. On PostgreSQL pause after the combined statement rather than between its CTEs. Assert committed counts, no orphan results and no escaping concurrency error. Cover direct delete and all prune predicates, a cancelled batch pruned during a success, and stale candidates reopened or finished between selection and deletion. A survivor keeps its results and ignores a redelivery.
+- **Affected fixtures and consumers.** Replace raw JSON assertions in `BatchableTransactionTest` with parent counts and the actual retry ID. Update both Horizon controller test schemas, Bus fixtures/mock rows and explicit migration lists in `CommanderTest` and Redis `OutboxDeliveryTest`. Check generator order, configured names, Laravel's bundled jobs migration and both-present exit codes. Extend `FoundationConfigTest` to match the shipped results table to the constructor constant.
 
-- **`testSuccessfulJobsCanBeRecorded`.** The upstream test records `'test-id'` twice and expects both to count. Record two distinct IDs, as `testBatchStartedEventIsDispatched` already does.
-- **New `testRedeliveredSuccessIsCountedOnce`.** Record one job twice in a two-job batch. Pending stays 1, progress runs once, and `then` / `finally` do not run. The second job then finishes the batch once.
-- **New `testFailureOfAJobThatAlreadySucceededDoesNotFailTheBatch`.** The batch does not allow failures. Afterwards it is not cancelled, `failedJobs` is 0, `catch` has not run, and `failedJobIds` is empty.
-- **New `testJobAddedAsTheLastJobSucceedsReopensTheBatch`.** A `progress` callback adds a job on the last success, mirroring `testWorkAddedWhileOnlyFailuresRemainReopensTheBatch`. The batch ends unfinished with one pending job; today's code marks it finished.
-- **New `testRepositoriesWithoutFirstPassReportingFinishBatchesWhenNoJobsRemain`.** It sits beside the failure fallback test: a repository double returns `new UpdatedBatchJobCounts(0, 0)`, and `markAsFinished` is expected.
+## Performance evidence for the PR
 
-**New `tests/Integration/Bus/Database/DatabaseBatchRepositoryTestCase.php`.**
-- **Setup.** It is abstract and follows `OutboxClaimTestCase`:
-  - `DatabaseTruncation`;
-  - pooled testing connections with `max_connections` 4;
-  - a bounded `lock_timeout` on the server engines;
-  - the Testbench `job_batches` and success migrations loaded by path;
-  - plain string job IDs such as `job-a`, so the non-UUID path runs on every engine.
-- **Subclasses.**
-  - `DatabaseBatchRepositoryTest` runs on MySQL, MariaDB and PostgreSQL.
-  - `Sqlite/DatabaseBatchRepositoryTest` runs on a file-backed database, as `Sqlite/OutboxClaimTest` does, under the shipped DEFERRED transaction mode.
-
-Sequential cases:
-- **Counting.** In a five-job batch:
-  - `job-a` fails, then succeeds, which empties `failed_job_ids` (PostgreSQL's second update);
-  - its second success returns `null` with the counts unchanged;
-  - its later failure returns `null`;
-  - `JOB-A` counts as a separate job, and so do two 300-character IDs that share their first 255 characters;
-  - `job-b` leaves nothing pending and sets `finished_at` in that update.
-- **Finishing.**
-  - A success that leaves only failures finishes an allow-failures batch, through PostgreSQL's second update.
-  - A cancelled batch keeps its cancellation's finish time when its last job succeeds.
-- **Rolled-back success.** A listener throws once, right after the decrement statement. Nothing is recorded and the counts are unchanged; redelivering the job then counts it once. This verifies that the record and the decrement commit together.
-- **Missing batch.** A success for the missing batch ID `missing-batch` returns `null` and leaves no record.
-- **Statement count.** The success path issues 2 statements on PostgreSQL (insert, then `update … returning`), the same number as today's locking select and update, and 3 elsewhere. This guards the locked-section shape.
-- **Deletion.**
-  - `delete()` removes the batch and its records.
-  - Each prune method (data provider) returns the number of batches deleted, removes their records, and leaves other batches and their records alone.
-- **Changed prune candidates.** A `QueryExecuted` listener changes one candidate once, right after the first candidate select (data provider):
-  - for `prune`, the candidate is reopened through `incrementTotalJobs()`;
-  - for `pruneUnfinished`, its last job succeeds.
-
-  The changed batch keeps its records, a redelivery of its old job returns `null`, and the other candidates and their records are gone.
-
-Interleavings: pause one coroutine inside its transaction with a `QueryExecuted` listener and a `Channel`, start the other, and release the first after a short sleep.
-- **Delete during a success.** A success holds its record (paused after the insert) while `delete()` runs. There is no deadlock, and no batch or record remains.
-- **Success arriving during a delete.** A `delete()` is paused after its batch delete while a success inserts its record and waits for the batch row. Then the delete is released.
-  - It runs at the default isolation level and, on MySQL and MariaDB, also under READ COMMITTED through a method-level `#[DefineEnvironment]`.
-  - Under READ COMMITTED the two deadlock, and the engine may roll back either one.
-  - Assert only the outcome: no exception escapes, and no batch or record remains. If the deletion is rolled back, the success can commit before the deletion's retry.
-- **Prune during a success.** A success holds the batch row (paused after its update) while a cancelled batch is pruned. The prune waits, then removes the batch and every record.
-- **Failure and success of the same job, in both orders** (`TestWith`). Neither deadlocks.
-  - Mark this case `#[RequiresDatabase(['mysql', 'mariadb', 'pgsql'])]`.
-  - SQLite serializes writers, and its read-then-write failure transaction is subject to DEFERRED mode's lock upgrade, as it is today.
-
-**Other test changes:**
-- **`QueueBatchesTableCommandTest`.**
-  - Assert both migrations, in order.
-  - When a Laravel `0001_01_01_000002_create_jobs_table.php` exists, assert that only the success records migration is created.
-  - When both exist, assert the command fails.
-- **`CommanderTest`.** Add the new Testbench migration to the expected list.
-- **`FoundationConfigTest`.** Assert that `queue.batching.successes_table` matches `DatabaseBatchRepository::DEFAULT_SUCCESSES_TABLE`, as it does for the cache lock table.
-- **`OutboxDeliveryTest`.** Add the new Testbench migration path; it processes batch jobs.
-
-## Measured bookkeeping cost
-
-These are scratch-harness measurements, not end-to-end application timings. End-to-end impact was not measured; [discussion #49715](https://github.com/laravel/framework/discussions/49715)'s 100 s vs 15 s figures were end-to-end production timings.
-
-**Harness.**
-- Each success ran `find()`, the decrement, and the finish on the last job, with no callbacks.
-- 50 forked workers, each with its own connection.
-- Durability was identical across variants: MySQL 9.5 with flush=1 and `sync_binlog=1`; MariaDB 10.11 with flush=1 and no binlog; PostgreSQL 17 with `fsync` and `synchronous_commit`.
-- Figures are medians: 5 local runs, or 3 runs with about 1.4 ms added per round trip.
-
-**One batch, 1,000 jobs, 50 workers** (elapsed time; jobs per second in brackets):
-
-| Engine | Today | Success record | Record plus PostgreSQL `RETURNING` |
-|---|---|---|---|
-| MySQL, local | 10.97 s (91); runs 8.84–11.30 | 11.69 s (86); runs 9.53–31.14 | — |
-| MySQL, 1.4 ms RTT | 12.69 s (79) | 12.67 s (79) | — |
-| MariaDB, local | 1.21 s (824) | 1.27 s (786) | — |
-| PostgreSQL, local | 4.16 s (240) | 4.12 s (243) | 3.51 s (285) |
-| PostgreSQL, 1.4 ms RTT | 9.84 s (102); p95 2.5 s | 9.88 s (101); p95 0.66 s | 5.57 s (180); p95 0.68 s |
-
-**Each worker on its own batch** (jobs per second, with the change from today):
-
-| Engine | Today | Success record |
-|---|---|---|
-| MySQL | 534 | 397 (−26%) |
-| MariaDB | 1297 | 1168 (−10%) |
-| PostgreSQL | 1130 | 961 (−15%); 1124 (−0.5%) with `RETURNING` |
-
-On PostgreSQL, `RETURNING` recovers today's uncontended rate.
-
-**Per success.**
-- **Statements.**
-  - On MySQL, MariaDB and SQLite, one more statement runs before the lock: three instead of two. On MySQL that is an `INSERT IGNORE`, which also adds a prepare.
-  - PostgreSQL still runs two: the insert, then `update … returning` in place of the locking select and update, with one fewer inside the lock.
-- **Writes.**
-  - One more row plus its primary-key entry.
-  - MySQL redo grew from about 1,250 B to 1,750 B; PostgreSQL WAL from about 185 B to 575 B.
-  - fsyncs were roughly unchanged (MySQL under contention: 1.14 → 1.18 per job).
-- **Retries.** `attempts: 3` costs nothing unless a deadlock or serialization failure occurs.
-- **Storage.** One row per successful batched job until pruning.
-- **Finishing.** No `markAsFinished()` UPDATE once per batch.
-
-**Pruning index (not measured).** The harness tables had only their primary keys, so these figures exclude the pruning index.
-- The index adds an entry when a batch is created and removes it when the batch is deleted.
-- It moves the entry when `finished_at` changes: on finish, cancel or reopen, which happens a few times per batch, never per job.
-- The finish happens in the last success's locked update, so that update also moves the entry. For one-job batches, that is every success.
-
-The hot row is held until the commit flushes, so contention is limited by commit latency, and work before the lock costs little. SQLite was checked for correctness only.
+Include the final matched table and its run ranges in the PR body, labelled as batch bookkeeping throughput. Use the [benchmark report](../../../tests/Benchmarks/JobBatches/results.md) for the method, tradeoffs and raw samples.
 
 ## Verification
 
 - Run each changed or new test file immediately.
 - Run the database suite filtered to the new tests on each engine: `bin/run-database-tests.sh {mysql|mariadb|pgsql|sqlite} --filter=DatabaseBatchRepositoryTest`.
 - Run `BusBatchTest`, `CallQueuedHandlerTest`, `SkipIfBatchCancelledTest`, `JobChainingTest`, the Integration/Database/Queue tests, the Horizon batch tests, the generator tests, `CommanderTest` and the Redis `OutboxDeliveryTest`.
-- Run `composer sync:skeleton-config`, then `composer check:skeleton-config`.
+- Run `composer sync:skeleton-config` and `composer check:skeleton-config`. After Testbench migration changes, run `composer test:testbench`.
 - Finish with `composer analyse`, then `composer lint:fix` before review.

@@ -367,13 +367,15 @@ trait Queueable
         );
 
         if ((new Collection($expectedChain))->contains(fn ($job) => is_object($job))) {
-            $expectedChain = (new Collection($expectedChain))->map(fn ($job) => serialize($job))->all();
+            $matches = array_keys($expectedChain) === array_keys($this->chained)
+                && array_all($expectedChain, fn ($job, $key) => Batch::matchesChainedJob($job, $this->chained[$key]));
         } else {
             $chain = (new Collection($this->chained))->map(fn ($job) => get_class(unserialize($job)))->all();
+            $matches = $expectedChain === $chain;
         }
 
         PHPUnit::assertTrue(
-            $expectedChain === ($chain ?? $this->chained),
+            $matches,
             'The job does not have the expected chain.'
         );
     }

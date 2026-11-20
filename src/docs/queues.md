@@ -2433,7 +2433,7 @@ class SyncChatHistory implements ShouldQueue
 
 Hypervel's job batching feature allows you to easily execute a group of jobs in parallel and then perform some action when the batch of jobs has completed executing.
 
-Before getting started, you should create a database migration to build a table which will contain meta information about your job batches, such as their completion percentage. This migration may be generated using the `make:queue-batches-table` Artisan command:
+Job batching uses two tables. The `job_batches` table stores batch progress and callbacks. The `job_batch_results` table records the outcome of each job. If your application does not already contain their migrations, you may generate them using the `make:queue-batches-table` Artisan command:
 
 ```shell
 php artisan make:queue-batches-table
@@ -2653,7 +2653,7 @@ $batch->totalJobs;
 // The number of jobs that have not been processed by the queue...
 $batch->pendingJobs;
 
-// The number of jobs that have failed...
+// The cumulative number of recorded failures, including failed retries...
 $batch->failedJobs;
 
 // The number of jobs that have been processed thus far...
@@ -2671,6 +2671,10 @@ $batch->cancel();
 // Indicates if the batch has been cancelled...
 $batch->cancelled();
 ```
+
+The batch counts each job's success once, even if the queue delivers it again. Once a job succeeds, a later failure from another copy of that job leaves the batch unchanged. Callbacks triggered by a success run in the worker that records it. If it stops after committing the count, callbacks it did not finish are not replayed.
+
+`$batch->failedJobIds` lists the queue ID of the latest failed delivery for each job that hasn't succeeded. The IDs have no guaranteed order. Use `$batch->fresh()->failedJobIds` to read the current list.
 
 <a name="returning-batches-from-routes"></a>
 #### Returning Batches From Routes
@@ -2763,7 +2767,7 @@ A batch that allows failures is marked as finished once each of its jobs has run
 <a name="retrying-failed-batch-jobs"></a>
 #### Retrying Failed Batch Jobs
 
-For convenience, Hypervel provides a `queue:retry-batch` Artisan command that allows you to easily retry all of the failed jobs for a given batch. This command accepts the UUID of the batch whose failed jobs should be retried:
+The `queue:retry-batch` Artisan command accepts a batch UUID and retries its outstanding failures. It requires a failed job provider that can look up jobs by their payload UUID, such as `database-uuids` or `file`.
 
 ```shell
 php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
@@ -2772,7 +2776,7 @@ php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
 <a name="pruning-batches"></a>
 ### Pruning Batches
 
-Without pruning, the `job_batches` table can accumulate records very quickly. To mitigate this, you should [schedule](/docs/{{version}}/scheduling) the `queue:prune-batches` Artisan command to run daily:
+Pruning a batch also removes its job results. To manage the size of both tables, you should [schedule](/docs/{{version}}/scheduling) the `queue:prune-batches` Artisan command to run daily:
 
 ```php
 use Hypervel\Support\Facades\Schedule;

@@ -138,7 +138,7 @@ class BatchesControllerTest extends ControllerTestCase
             $table->integer('total_jobs');
             $table->integer('pending_jobs');
             $table->integer('failed_jobs');
-            $table->longText('failed_job_ids');
+            $table->integer('outstanding_failed_jobs');
             $table->mediumText('options')->nullable();
             $table->integer('cancelled_at')->nullable();
             $table->integer('created_at');
@@ -163,7 +163,7 @@ class BatchesControllerTest extends ControllerTestCase
                 'total_jobs' => 10,
                 'pending_jobs' => 0,
                 'failed_jobs' => 0,
-                'failed_job_ids' => '[]',
+                'outstanding_failed_jobs' => 0,
                 'options' => serialize([]),
                 'created_at' => time(),
                 'cancelled_at' => null,
