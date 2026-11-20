@@ -157,6 +157,7 @@ class BusBatchTest extends TestCase
 
         $thirdJob = function (): void {
         };
+        $job->batchPositionId = 'previous-enrollment';
 
         $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
@@ -178,6 +179,7 @@ class BusBatchTest extends TestCase
         $this->assertEquals(3, $batch->totalJobs);
         $this->assertEquals(3, $batch->pendingJobs);
         $this->assertIsString($job->batchId);
+        $this->assertNull($job->batchPositionId);
         $this->assertSame(CarbonImmutable::class, $batch->createdAt::class);
     }
 
@@ -339,6 +341,15 @@ class BusBatchTest extends TestCase
 
         $batch->recordSuccessfulJob('test-id');
         $batch->recordSuccessfulJob('test-id');
+        $batch->recordFailedJob('test-id', new RuntimeException);
+
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
+        $this->assertFalse($batch->fresh()->finished());
+        $this->assertSame(0, $batch->fresh()->failedJobs);
+        $this->assertSame(1, $_SERVER['__progress.count']);
+        $this->assertSame(0, $_SERVER['__finally.count']);
+        $this->assertSame(0, $_SERVER['__then.count']);
+        $batch->recordSuccessfulJob('second-id');
 
         $this->assertInstanceOf(Batch::class, $_SERVER['__finally.batch']);
         $this->assertInstanceOf(Batch::class, $_SERVER['__progress.batch']);
@@ -671,6 +682,8 @@ class BusBatchTest extends TestCase
         $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
 
         $this->assertSame(100, $batch->fresh()->finishedAt->getTimestamp());
+        $batch->recordSuccessfulJob('first-id');
+        $this->assertSame(100, $batch->fresh()->finishedAt->getTimestamp());
     }
 
     public function testBatchesNotAllowingFailuresAreOnlyFinishedByCancellation(): void
@@ -703,10 +716,58 @@ class BusBatchTest extends TestCase
         $batch = new Batch(Double::for(Factory::class)->strict(), $repository, 'batch', 'batch', 1, 1, 0, [], [
             'allowFailures' => true,
         ], CarbonImmutable::now());
-        $repository->expects('incrementFailedJobs')->with('batch', 'job')->returns(new UpdatedBatchJobCounts(1, 1));
-        $repository->expects('markAsFinished')->with('batch');
+        $repository->expects('incrementFailedJobs')->with('batch', 'job', null)->returns(new UpdatedBatchJobCounts(1, 1));
+        $repository->expects('decrementPendingJobs')->with('batch', 'job')->returns(new UpdatedBatchJobCounts(0, 1));
+        $repository->expects('markAsFinished')->with('batch')->times(2);
 
         $batch->recordFailedJob('job', new RuntimeException('Something went wrong.'));
+        $batch->recordSuccessfulJob('job');
+    }
+
+    public function testWorkAddedByLastSuccessProgressCallbackReopensBatch(): void
+    {
+        Queue::fake();
+        $batch = Bus::batch([new TestBatchJob])->progress(static function (Batch $batch): void {
+            if ($batch->totalJobs === 1) {
+                $batch->add(new TestBatchJob);
+            }
+        })->dispatch();
+
+        $batch->recordSuccessfulJob('first');
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
+        $this->assertFalse($batch->fresh()->finished());
+        $batch->recordSuccessfulJob('added');
+        $this->assertTrue($batch->fresh()->finished());
+    }
+
+    public function testOutstandingRetryIdsLoadOnceWhenReadAndRemainWritable(): void
+    {
+        $batch = $this->createTestBatch(new QueueFake($this->app), true)->add([new TestBatchJob, new TestBatchJob]);
+        $batch->recordFailedJob('position', null, 'original-retry');
+        $repository = $this->app->make(DatabaseBatchRepository::class);
+        $connection = $repository->getConnection();
+        $connection->enableQueryLog();
+
+        try {
+            $batch->recordSuccessfulJob('other');
+            $loaded = $repository->find($batch->id);
+            $listed = $repository->get(1)[0];
+            $this->assertSame($loaded->id, $listed->id);
+            $reads = fn (): int => count(array_filter(
+                $connection->getQueryLog(),
+                static fn (array $query): bool => str_starts_with($query['query'], 'select') && str_contains($query['query'], 'job_batch_results')
+            ));
+            $this->assertSame(0, $reads());
+            $this->assertSame('original-retry', $loaded->failedJobIds[0]);
+            $reference = &$loaded->failedJobIds;
+            $reference[] = 'local';
+            $this->assertSame(['original-retry', 'local'], $loaded->failedJobIds);
+            $listed->failedJobIds = ['assigned'];
+            $this->assertSame(['assigned'], $listed->failedJobIds);
+            $this->assertSame(1, $reads());
+        } finally {
+            $connection->disableQueryLog();
+        }
     }
 
     public function testPendingBatchFiltersOutFalsyJobs(): void
@@ -924,8 +985,8 @@ class BusBatchTest extends TestCase
         $connection->expects('bulk')->with(Argument::satisfies(function (array $jobs) use ($chainHeadJob, $secondJob, $thirdJob): bool {
             return
                 $jobs[0] === $chainHeadJob
-                && serialize($secondJob) === $jobs[0]->chained[0]
-                && serialize($thirdJob) === $jobs[0]->chained[1];
+                && Batch::matchesChainedJob($secondJob, $jobs[0]->chained[0])
+                && Batch::matchesChainedJob($thirdJob, $jobs[0]->chained[1]);
         }), '', 'test-queue');
 
         $batch = $batch->add([
@@ -939,6 +1000,21 @@ class BusBatchTest extends TestCase
         $this->assertIsString($secondJob->batchId);
         $this->assertIsString($thirdJob->batchId);
         $this->assertSame(CarbonImmutable::class, $batch->createdAt::class);
+    }
+
+    public function testObjectAssertionsCompareTheApplicationJobsAtRepeatedPositions(): void
+    {
+        Queue::fake();
+        $head = new ChainHeadJob;
+        $tail = (new SecondTestJob)->onQueue('tail-route');
+        $batch = Bus::batch([[$head, $tail, $tail]])->dispatch();
+        $expected = (new SecondTestJob)->onQueue('tail-route')->withBatchId($batch->id);
+
+        $head->assertHasChain([$tail, $tail]);
+        Queue::assertPushedWithChain(ChainHeadJob::class, [$expected, $expected]);
+        Bus::fake();
+        $head->dispatchNextJobInChain();
+        Bus::assertChained([$expected, $expected]);
     }
 
     public function testChainedJobsInBatchPreserveTheirQueueWhenBatchHasNoQueue(): void
@@ -1046,7 +1122,7 @@ class BusBatchTest extends TestCase
             'total_jobs' => 0,
             'pending_jobs' => 0,
             'failed_jobs' => 0,
-            'failed_job_ids' => '[]',
+            'outstanding_failed_jobs' => 0,
             'options' => base64_encode(serialize($pendingBatch->options)),
             'created_at' => time(),
             'cancelled_at' => null,
@@ -1076,7 +1152,7 @@ class BusBatchTest extends TestCase
         $builder->expects('where')->returns($builder);
         $builder->expects('first')->returns((object) [
             'id' => 'batch', 'name' => '', 'total_jobs' => 0, 'pending_jobs' => 0,
-            'failed_jobs' => 0, 'failed_job_ids' => '[]',
+            'failed_jobs' => 0, 'outstanding_failed_jobs' => 0,
             'options' => serialize([new BatchOptionWithFailingRestoration($canceled)]),
             'created_at' => now()->getTimestamp(), 'cancelled_at' => null, 'finished_at' => null,
         ]);
@@ -1124,7 +1200,7 @@ class BusBatchTest extends TestCase
                 'total_jobs' => '',
                 'pending_jobs' => '',
                 'failed_jobs' => '',
-                'failed_job_ids' => '[]',
+                'outstanding_failed_jobs' => 0,
                 'options' => $serialize,
                 'created_at' => now()->getTimestamp(),
                 'cancelled_at' => null,

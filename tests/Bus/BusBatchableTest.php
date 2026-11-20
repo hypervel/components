@@ -102,8 +102,13 @@ class BusBatchableTest extends TestCase
             use Batchable;
         };
 
-        $job->withFakeBatch('test-batch-id', 'test-batch-name', finishedAt: CarbonImmutable::now());
+        [, $batch] = $job->withFakeBatch('test-batch-id', 'test-batch-name', finishedAt: CarbonImmutable::now());
 
+        $this->assertFalse($job->batching());
+        $job->batchPositionId = 'position';
+        $batch->failedJobIds[] = 'position';
+        $this->assertTrue($job->batching());
+        $batch->cancel();
         $this->assertFalse($job->batching());
     }
 }
