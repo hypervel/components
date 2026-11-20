@@ -164,9 +164,9 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
         [$first, $second] = $this->overlap(
             $successFirst ? $success : $failure,
             $successFirst ? $failure : $success,
-            // The parent write runs after the first session owns the job result, including on retries.
+            // On recovery the PostgreSQL CTE writes nothing; the separate parent update follows the result change.
             static fn (string $sql) => str_contains($sql, 'job_batches')
-                && (str_starts_with($sql, 'update') || str_starts_with($sql, 'with inserted')),
+                && (str_starts_with($sql, 'update') || (! $alreadyFailed && str_starts_with($sql, 'with inserted'))),
         );
 
         $this->assertNotNull($first);
