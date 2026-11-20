@@ -116,6 +116,18 @@ class ValidateOriginTest extends TestCase
         $this->postJson('test-mcp', $message, [...mcpHeaders($message), 'Origin' => 'https://evil.example'])->assertStatus(403);
     }
 
+    #[TestWith(['https://client.example/app'])]
+    #[TestWith(['https://client.example/?app=1'])]
+    #[TestWith(['https://client.example/#app'])]
+    public function testIgnoresAConfiguredEntryWithAPathQueryOrFragment(string $allowed): void
+    {
+        config(['mcp.allowed_origins' => [$allowed]]);
+
+        $message = listToolsMessage();
+
+        $this->postJson('test-mcp', $message, [...mcpHeaders($message), 'Origin' => 'https://client.example'])->assertStatus(403);
+    }
+
     public function testAcceptsAConfiguredOriginGivenAsAString(): void
     {
         config(['mcp.allowed_origins' => 'https://client.example']);
