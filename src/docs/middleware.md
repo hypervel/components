@@ -149,7 +149,7 @@ use Hypervel\Http\Middleware\TrustProxies;
 You may also pass an array of middleware as the second argument to either method.
 
 > [!WARNING]
-> If the middleware you are positioning against is not part of the global middleware stack, nothing will be inserted.
+> If the middleware you are positioning against is not part of the default global middleware stack, or the stack you pass to the `use` method, nothing will be inserted.
 
 <a name="preferring-json-responses"></a>
 #### Preferring JSON Responses

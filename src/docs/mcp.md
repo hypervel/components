@@ -2527,7 +2527,7 @@ The following structured content assertions are available:
 | `assertStructuredContentPaths($paths)` | Assert multiple path / value pairs. |
 | `assertStructuredContentPathCanonicalizing($path, $expect)` | Assert the values at a given path, ignoring order. |
 | `assertStructuredContentPathsCanonicalizing($paths)` | Assert multiple path / value pairs, ignoring order. |
-| `assertStructuredContentFragment($data)` | Assert that a fragment appears anywhere in the structured content. |
+| `assertStructuredContentFragment($data)` | Assert that each key/value pair appears somewhere in the structured content. |
 | `assertStructuredContentFragments($data)` | Assert that each given fragment appears in the structured content. |
 | `assertStructuredContentMissing($data)` | Assert that a fragment does not appear in the structured content. |
 | `assertStructuredContentMissingExact($data)` | Assert that an exact fragment does not appear in the structured content. |

@@ -228,7 +228,7 @@ if ($request->hasHeader('X-Header-Name')) {
 }
 ```
 
-For convenience, the `bearerToken` method may be used to retrieve a bearer token from the `Authorization` header. If no token is present, `null` will be returned:
+For convenience, the `bearerToken` method may be used to retrieve a bearer token from the `Authorization` header. If the header contains no bearer scheme, the method returns `null`:
 
 ```php
 $token = $request->bearerToken();
