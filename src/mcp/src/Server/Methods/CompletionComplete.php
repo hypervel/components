@@ -52,8 +52,21 @@ class CompletionComplete implements Method
             );
         }
 
-        if (! is_array($ref) || ! is_array($argument)) {
-            throw new JsonRpcException('The [ref] and [argument] parameters must be objects.', -32602, $request->id);
+        // Unlike upstream, these checks do not use the validator. It skips type rules for blank
+        // strings, so a blank [ref] or [context.arguments] would reach the typed parameters below.
+        if (! is_array($ref) || ! is_string($ref['name'] ?? '') || ! is_string($ref['uri'] ?? '')) {
+            throw new JsonRpcException('The [ref] parameter must be an object with string [name] and [uri] members.', -32602, $request->id);
+        }
+
+        if (! is_array($argument) || ! is_string($argument['name'] ?? '') || ! is_string(Arr::get($argument, 'value', ''))) {
+            throw new JsonRpcException('The [argument] parameter must be an object with string [name] and [value] members.', -32602, $request->id);
+        }
+
+        $completionContext = $request->get('context', []);
+        $contextArguments = is_array($completionContext) ? Arr::get($completionContext, 'arguments', []) : null;
+
+        if (! is_array($contextArguments) || ! array_all($contextArguments, fn (mixed $value): bool => is_string($value))) {
+            throw new JsonRpcException('The [context] parameter must be an object whose [arguments] member contains strings.', -32602, $request->id);
         }
 
         try {
@@ -81,16 +94,6 @@ class CompletionComplete implements Method
             );
         }
 
-        if (! is_string($argumentName) || ! is_string($argumentValue)) {
-            throw new JsonRpcException('The argument [name] and [value] members must be strings.', -32602, $request->id);
-        }
-
-        $completionContext = $request->get('context', []);
-
-        if (! is_array($completionContext) || ! is_array($contextArguments = Arr::get($completionContext, 'arguments', []))) {
-            throw new JsonRpcException('The [context] and its [arguments] member must be objects.', -32602, $request->id);
-        }
-
         try {
             $result = $this->invokeCompletion($primitive, $argumentName, $argumentValue, $contextArguments);
         } catch (Exception $exception) {
@@ -113,21 +116,11 @@ class CompletionComplete implements Method
      */
     protected function resolvePrimitive(array $ref, ServerContext $context): Prompt|Resource|HasUriTemplate
     {
-        $type = Arr::get($ref, 'type');
-        $key = match ($type) {
-            'ref/prompt' => 'name',
-            'ref/resource' => 'uri',
+        return match (Arr::get($ref, 'type')) {
+            'ref/prompt' => $this->resolvePrompt(Arr::get($ref, 'name'), $context),
+            'ref/resource' => $this->resolveResource(Arr::get($ref, 'uri'), $context),
             default => throw new InvalidArgumentException('Invalid reference type. Expected ref/prompt or ref/resource.'),
         };
-        $name = Arr::get($ref, $key);
-
-        if ($name !== null && ! is_string($name)) {
-            throw new InvalidArgumentException("The reference [{$key}] member must be a string.");
-        }
-
-        return $type === 'ref/prompt'
-            ? $this->resolvePrompt($name, $context)
-            : $this->resolveResource($name, $context);
     }
 
     /**

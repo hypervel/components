@@ -87,24 +87,63 @@ class ValidateMcpHeadersTest extends TestCase
         $this->assertSame(-32020, $response->json('error.code'));
     }
 
-    public function testInvalidHeaderBytesStillProduceAProtocolError(): void
+    #[DataProvider('requiredHeaders')]
+    public function testIgnoresWhitespaceSurroundingAHeaderValue(string $header): void
     {
         $message = callToolMessage();
+        $headers = mcpHeaders($message);
 
-        $this->postJson('test-mcp', $message, [
-            ...mcpHeaders($message),
-            'Mcp-Name' => "invalid-\xFF",
-        ])->assertStatus(400)
-            ->assertJsonPath('id', $message['id'])
-            ->assertJsonPath('error.code', -32020)
-            ->assertJsonPath('error.message', "Header mismatch: The [Mcp-Name] header value [invalid-\u{FFFD}] does not match the request body value [{$message['params']['name']}].");
+        $headers[$header] = " \t{$headers[$header]}  ";
 
-        $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/list'], [
-            'MCP-Protocol-Version' => "invalid-\xFF",
-        ])->assertStatus(400)
-            ->assertJsonPath('id', 3)
-            ->assertJsonPath('error.code', -32022)
-            ->assertJsonPath('error.data.requested', "invalid-\u{FFFD}");
+        $response = $this->postJson('test-mcp', $message, $headers);
+
+        $response->assertStatus(200);
+    }
+
+    public function testRejectsARequestWithoutMetadataThatSendsAStatelessProtocolVersionHeader(): void
+    {
+        $message = ['jsonrpc' => '2.0', 'id' => 3, 'method' => 'server/discover', 'params' => []];
+
+        $response = $this->postJson('test-mcp', $message, mcpHeaders($message));
+
+        $response->assertStatus(400);
+
+        $this->assertEquals([
+            'jsonrpc' => '2.0',
+            'id' => 3,
+            'error' => [
+                'code' => -32602,
+                'message' => 'Invalid params: The request [_meta] is missing the required [io.modelcontextprotocol/protocolVersion] member.',
+            ],
+        ], $response->json());
+    }
+
+    #[DataProvider('removedLifecycleMethods')]
+    public function testAnswersTheRemovedLifecycleMethodsWithA404OnAStatelessRequest(string $method): void
+    {
+        $message = [
+            'jsonrpc' => '2.0',
+            'id' => 9,
+            'method' => $method,
+            'params' => ['_meta' => protocolMeta()],
+        ];
+
+        $response = $this->postJson('test-mcp', $message, mcpHeaders($message));
+
+        $response->assertStatus(404);
+
+        $this->assertEquals([
+            'code' => -32601,
+            'message' => "The method [{$method}] was not found.",
+        ], $response->json('error'));
+    }
+
+    /**
+     * Provide the legacy lifecycle methods removed from the stateless protocol.
+     */
+    public static function removedLifecycleMethods(): array
+    {
+        return [['initialize'], ['ping']];
     }
 
     #[DataProvider('invalidRequestIds')]
@@ -144,6 +183,68 @@ class ValidateMcpHeadersTest extends TestCase
         ]);
 
         $response->assertStatus(200);
+    }
+
+    public function testRejectsABase64NameHeaderThatDecodesToInvalidUtf8(): void
+    {
+        $message = callToolMessage();
+
+        $response = $this->postJson('test-mcp', $message, [
+            ...mcpHeaders($message),
+            'Mcp-Name' => '=?base64?/w==?=',
+        ]);
+
+        $response->assertStatus(400);
+
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => "Header mismatch: The [Mcp-Name] header value [=?base64?/w==?=] does not match the request body value [{$message['params']['name']}].",
+        ], $response->json('error'));
+    }
+
+    #[DataProvider('requiredHeaders')]
+    public function testRejectsAHeaderCarryingInvalidUtf8Bytes(string $header): void
+    {
+        $message = callToolMessage();
+
+        $response = $this->postJson('test-mcp', $message, [
+            ...mcpHeaders($message),
+            $header => "\xFF",
+        ]);
+
+        $response->assertStatus(400);
+
+        $this->assertSame($message['id'], $response->json('id'));
+        $this->assertSame(-32020, $response->json('error.code'));
+        $this->assertStringContainsString('header value [=?base64?/w==?=]', $response->json('error.message'));
+    }
+
+    public function testQuotesANonAsciiNameHeaderDecodedInTheMismatchMessage(): void
+    {
+        $message = callToolMessage();
+
+        $response = $this->postJson('test-mcp', $message, [
+            ...mcpHeaders($message),
+            'Mcp-Name' => '=?base64?SGVsbG8sIOS4lueVjA==?=',
+        ]);
+
+        $response->assertStatus(400);
+
+        $this->assertSame("Header mismatch: The [Mcp-Name] header value [Hello, 世界] does not match the request body value [{$message['params']['name']}].", $response->json('error.message'));
+    }
+
+    public function testEncodesADecodedNameHeaderCarryingControlCharactersInTheMismatchMessage(): void
+    {
+        $message = callToolMessage();
+
+        $response = $this->postJson('test-mcp', $message, [
+            ...mcpHeaders($message),
+            'Mcp-Name' => '=?base64?' . base64_encode("a\nb") . '?=',
+        ]);
+
+        $response->assertStatus(400);
+
+        $this->assertSame('Header mismatch: The [Mcp-Name] header value [=?base64?' . base64_encode("a\nb") . "?=] does not match the request body value [{$message['params']['name']}].", $response->json('error.message'));
     }
 
     public function testDoesNotRequireANameHeaderForMethodsWithoutANamedTarget(): void
@@ -205,20 +306,19 @@ class ValidateMcpHeadersTest extends TestCase
     }
 
     /**
-     * Provide modern-only methods and a method identified by its version header.
+     * Provide a modern-only method and a method identified by its version header.
      */
     public static function missingMetadataMethods(): array
     {
-        return [['server/discover'], ['subscriptions/listen'], ['tools/list']];
+        return [['subscriptions/listen'], ['tools/list']];
     }
 
-    #[DataProvider('unsupportedModernMethods')]
-    public function testAnswersAnUnsupportedModernMethodWithA404(string $method): void
+    public function testAnswersAnUnknownMethodWithA404(): void
     {
         $message = [
             'jsonrpc' => '2.0',
             'id' => 9,
-            'method' => $method,
+            'method' => 'unknown/method',
             'params' => ['_meta' => protocolMeta()],
         ];
 
@@ -227,14 +327,6 @@ class ValidateMcpHeadersTest extends TestCase
         $response->assertStatus(404);
 
         $this->assertSame(-32601, $response->json('error.code'));
-    }
-
-    /**
-     * Provide unknown methods and methods removed from the modern protocol.
-     */
-    public static function unsupportedModernMethods(): array
-    {
-        return [['unknown/method'], ['initialize'], ['ping']];
     }
 
     public function testRequiresTheProtocolVersionHeaderEvenWhenTheBodyOmitsTheMetaMember(): void
@@ -330,6 +422,28 @@ class ValidateMcpHeadersTest extends TestCase
         ], $response->json());
     }
 
+    public function testAnswersALegacyRequestCarryingAnInvalidUtf8ProtocolVersionHeaderWithA400(): void
+    {
+        $response = $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/list', 'params' => []], [
+            'MCP-Protocol-Version' => "\xFF",
+        ]);
+
+        $response->assertStatus(400);
+
+        $this->assertEquals([
+            'jsonrpc' => '2.0',
+            'id' => 3,
+            'error' => [
+                'code' => -32022,
+                'message' => 'Unsupported protocol version',
+                'data' => [
+                    'supported' => ['2025-11-25', '2025-06-18'],
+                    'requested' => '=?base64?/w==?=',
+                ],
+            ],
+        ], $response->json());
+    }
+
     public function testRequiresTheNameHeaderEvenWhenTheBodyCarriesNoUsableName(): void
     {
         $message = callToolMessage();
@@ -359,7 +473,10 @@ class ValidateMcpHeadersTest extends TestCase
 
         $response->assertStatus(400);
 
-        $this->assertSame(-32020, $response->json('error.code'));
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => 'Header mismatch: The [Mcp-Method] header value [=?base64?' . base64_encode('tools/call') . '?=] does not match the request body value [tools/call].',
+        ], $response->json('error'));
     }
 
     public function testAnswersAnInternalErrorWithA500(): void

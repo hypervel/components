@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mcp\Unit\Methods;
 
+use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Mcp\Request;
 use Hypervel\Mcp\Response;
 use Hypervel\Mcp\Schema\Implementation;
@@ -14,6 +15,7 @@ use Hypervel\Mcp\Server\ServerContext;
 use Hypervel\Mcp\Support\UriTemplate;
 use Hypervel\Mcp\Transport\JsonRpcRequest;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ListResourceTemplatesTest extends TestCase
 {
@@ -182,5 +184,40 @@ class ListResourceTemplatesTest extends TestCase
         $this->assertSame('Access user files by ID', $template['description']);
         $this->assertSame('file://users/{id}/data', $template['uriTemplate']);
         $this->assertSame('application/json', $template['mimeType']);
+    }
+
+    #[DataProvider('wronglyTypedPaginationParams')]
+    public function testRejectsWronglyTypedPaginationParams(array $params, string $message): void
+    {
+        $context = new ServerContext(
+            supportedProtocolVersions: ['2025-03-26'],
+            serverCapabilities: [],
+            implementation: new Implementation('Test Server', '1.0.0'),
+            instructions: 'Test instructions',
+            maxPaginationLength: 50,
+            defaultPaginationLength: 10,
+            tools: [],
+            resources: [],
+            prompts: [],
+        );
+
+        $this->expectException(JsonRpcException::class);
+        $this->expectExceptionMessage($message);
+
+        (new ListResourceTemplates)->handle(new JsonRpcRequest(1, 'resources/templates/list', $params), $context);
+    }
+
+    /**
+     * Provide wrongly typed pagination params.
+     */
+    public static function wronglyTypedPaginationParams(): array
+    {
+        return [
+            'cursor as int' => [['cursor' => 1], 'Invalid params: The [cursor] member must be a string.'],
+            'cursor as array' => [['cursor' => ['x']], 'Invalid params: The [cursor] member must be a string.'],
+            'per_page as string' => [['per_page' => '10'], 'Invalid params: The [per_page] member must be a positive integer.'],
+            'per_page as zero' => [['per_page' => 0], 'Invalid params: The [per_page] member must be a positive integer.'],
+            'per_page as negative' => [['per_page' => -1], 'Invalid params: The [per_page] member must be a positive integer.'],
+        ];
     }
 }

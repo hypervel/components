@@ -129,10 +129,10 @@ class JsonRpcResponseTest extends TestCase
         $this->assertSame("hello\u{FFFD}", json_decode($response->toJson(), true, flags: JSON_THROW_ON_ERROR)['result']['text']);
     }
 
-    public function testThrowsForValuesThatCannotBeEncoded(): void
+    public function testThrowsInsteadOfReturningAnEmptyStringWhenTheResponseCannotBeEncoded(): void
     {
         $this->expectException(JsonException::class);
 
-        JsonRpcResponse::result(1, ['value' => INF])->toJson();
+        JsonRpcResponse::result(1, ['value' => NAN])->toJson();
     }
 }

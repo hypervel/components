@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Enums\ErrorCode;
 use Hypervel\Mcp\Enums\MetaKey;
-use Hypervel\Mcp\Enums\ProtocolHandshake;
 use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Enums\RequestHeader;
 use Hypervel\Mcp\Transport\HeaderValue;
@@ -55,7 +54,7 @@ class ValidateMcpHeaders
                 'code' => ErrorCode::HEADER_MISMATCH->value,
                 'message' => $mismatch,
             ],
-        ], 400, options: JSON_INVALID_UTF8_SUBSTITUTE);
+        ], 400);
     }
 
     /**
@@ -72,7 +71,7 @@ class ValidateMcpHeaders
             return null;
         }
 
-        if (ProtocolVersion::tryFrom($version)?->handshake() === ProtocolHandshake::Discovery) {
+        if (in_array($version, ProtocolVersion::serverSupported(), true)) {
             return response()->json([
                 'jsonrpc' => '2.0',
                 'id' => $id,
@@ -80,7 +79,7 @@ class ValidateMcpHeaders
                     'code' => ErrorCode::INVALID_PARAMS->value,
                     'message' => 'Invalid params: The request [_meta] is missing the required [' . MetaKey::PROTOCOL_VERSION->value . '] member.',
                 ],
-            ], 400, options: JSON_INVALID_UTF8_SUBSTITUTE);
+            ], 400);
         }
 
         return response()->json([
@@ -91,10 +90,10 @@ class ValidateMcpHeaders
                 'message' => 'Unsupported protocol version',
                 'data' => [
                     'supported' => ProtocolVersion::initializeSupported(),
-                    'requested' => $version,
+                    'requested' => $this->printable(new HeaderValue($version)),
                 ],
             ],
-        ], 400, options: JSON_INVALID_UTF8_SUBSTITUTE);
+        ], 400);
     }
 
     /**
@@ -103,6 +102,10 @@ class ValidateMcpHeaders
     protected function mismatch(Request $request, RequestHeader $header, mixed $expected, bool $required): ?string
     {
         $value = $request->header($header->value);
+
+        if (is_string($value)) {
+            $value = trim($value, " \t");
+        }
 
         if (! is_string($value) || $value === '') {
             return $required ? "Header mismatch: The [{$header->value}] header is required." : null;
@@ -116,6 +119,14 @@ class ValidateMcpHeaders
             return null;
         }
 
-        return "Header mismatch: The [{$header->value}] header value [{$headerValue->value}] does not match the request body value [{$expected}].";
+        return "Header mismatch: The [{$header->value}] header value [{$this->printable($headerValue)}] does not match the request body value [{$expected}].";
+    }
+
+    /**
+     * Get a header value that is safe to show in an error message.
+     */
+    protected function printable(HeaderValue $value): string
+    {
+        return preg_match('/\A\P{Cc}*\z/u', $value->value) === 1 ? $value->value : (string) $value;
     }
 }
