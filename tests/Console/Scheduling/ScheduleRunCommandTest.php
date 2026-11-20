@@ -1175,6 +1175,11 @@ class ScheduleRunCommandTest extends TestCase
         // A longer correction keeps scheduling the earlier minutes
         $this->invokeRunEvents($command, [$callbackEvent], $startedAt->subHour());
         $this->assertSame(3, $runCount);
+
+        // Polls without due events count too, so a later correction isn't mistaken for a one-minute one
+        $this->invokeRunEvents($command, [], $startedAt->subMinutes(40));
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->subHour()->subMinute());
+        $this->assertSame(4, $runCount);
     }
 
     public function testRepeatableEventIsThrottledByLastChecked(): void

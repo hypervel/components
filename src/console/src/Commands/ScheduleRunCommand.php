@@ -295,6 +295,16 @@ class ScheduleRunCommand extends Command
         $paused = $this->isPaused();
         $minute = intdiv($startedAt->getTimestamp(), 60);
 
+        // A clock set back into the previous minute doesn't run its events again, while a longer
+        // correction evaluates the earlier minutes again, as a fresh scheduler would. Every poll
+        // records its minute, so minutes without due events don't hide a longer correction.
+        $isPreviousMinute = $this->evaluatedEventsMinute !== null && $minute === $this->evaluatedEventsMinute - 1;
+
+        if (! $isPreviousMinute && $minute !== $this->evaluatedEventsMinute) {
+            $this->evaluatedEventsMinute = $minute;
+            $this->evaluatedEvents = [];
+        }
+
         foreach ($events as $event) {
             if ($this->shouldQuit) {
                 break;
@@ -309,7 +319,7 @@ class ScheduleRunCommand extends Command
                 continue;
             }
 
-            if ($this->hasAlreadyEvaluatedNonRepeatableEvent($event, $minute)) {
+            if ($this->hasAlreadyEvaluatedNonRepeatableEvent($event, $isPreviousMinute)) {
                 continue;
             }
 
@@ -425,21 +435,14 @@ class ScheduleRunCommand extends Command
     /**
      * Determine if the non-repeatable event was already evaluated this minute.
      */
-    protected function hasAlreadyEvaluatedNonRepeatableEvent(Event $event, int $minute): bool
+    protected function hasAlreadyEvaluatedNonRepeatableEvent(Event $event, bool $isPreviousMinute): bool
     {
         if ($event->isRepeatable()) {
             return false;
         }
 
-        // A clock set back into the previous minute doesn't run its events again, while a longer
-        // correction evaluates the earlier minutes again, as a fresh scheduler would
-        if ($this->evaluatedEventsMinute !== null && $minute === $this->evaluatedEventsMinute - 1) {
+        if ($isPreviousMinute) {
             return true;
-        }
-
-        if ($this->evaluatedEventsMinute !== $minute) {
-            $this->evaluatedEventsMinute = $minute;
-            $this->evaluatedEvents = [];
         }
 
         $eventId = spl_object_id($event);
