@@ -14,6 +14,8 @@ use Hypervel\Permission\Events\RoleAttachedEvent;
 use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
 use Hypervel\Permission\Exceptions\RoleDoesNotExist;
+use Hypervel\Permission\Exceptions\TeamsNotEnabled;
+use Hypervel\Permission\Support\Config;
 use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
@@ -1171,5 +1173,98 @@ class HasRolesTest extends TestCase
                 && $event->model->hasRole('testRole3')
                 && $event->rolesOrIds === $attachedRoleIds;
         });
+    }
+
+    #[DataProvider('permissionModelsProvider')]
+    public function testCanQueryTheDisabledTeamsRelationWithoutMigratingTeamColumns(bool $customModels): void
+    {
+        if (Config::teamsEnabled()) {
+            $this->markTestSkipped('Covers the teams relation while teams are disabled.');
+        }
+
+        if ($customModels) {
+            $this->setUpCustomModels();
+        }
+
+        $this->testUser->givePermissionTo($this->testUserPermission);
+        $this->testUser->assignRole($this->testUserRole);
+
+        $this->assertInstanceOf(BelongsToMany::class, $this->testUser->teams());
+        $this->assertEmpty($this->testUser->teams()->get());
+        $this->assertFalse($this->testUser->teams()->exists());
+        $this->assertEmpty($this->testUser->teams()->allRelatedIds());
+        $this->assertSame([$this->testUserPermission->getKey()], $this->testUser->permissions()->get()->modelKeys());
+        $this->assertSame([$this->testUserRole->getKey()], $this->testUser->roles()->get()->modelKeys());
+    }
+
+    #[DataProvider('permissionModelsProvider')]
+    public function testCanEagerlyLoadDisabledTeamsWithoutMigratingTeamColumns(bool $customModels): void
+    {
+        if (Config::teamsEnabled()) {
+            $this->markTestSkipped('Covers the teams relation while teams are disabled.');
+        }
+
+        if ($customModels) {
+            $this->setUpCustomModels();
+        }
+
+        $this->testUser->givePermissionTo($this->testUserPermission);
+        $otherUser = User::create(['email' => 'without-permissions@example.com']);
+
+        $users = User::with(['teams', 'permissions'])->withCount('teams')->get();
+
+        foreach ($users as $user) {
+            $this->assertTrue($user->relationLoaded('teams'));
+            $this->assertEmpty($user->teams);
+            $this->assertSame(0, $user->teams_count);
+        }
+
+        $this->assertSame([$this->testUserPermission->getKey()], $users->find($this->testUser->getKey())->permissions->modelKeys());
+        $this->assertEmpty($users->find($otherUser->getKey())->permissions);
+        $this->assertSame(0, User::whereHas('teams')->count());
+        $this->assertEqualsCanonicalizing(
+            [$this->testUser->getKey(), $otherUser->getKey()],
+            User::whereDoesntHave('teams')->get()->modelKeys(),
+        );
+    }
+
+    /**
+     * Provide the default and custom UUID permission models.
+     */
+    public static function permissionModelsProvider(): array
+    {
+        return [
+            'default models' => [false],
+            'custom UUID models' => [true],
+        ];
+    }
+
+    public function testWritesThroughTheDisabledTeamsRelationAreRejectedWithoutChangingDirectPermissions(): void
+    {
+        if (Config::teamsEnabled()) {
+            $this->markTestSkipped('Covers the teams relation while teams are disabled.');
+        }
+
+        $this->testUser->givePermissionTo($this->testUserPermission);
+        $newsPermission = $this->app->make(Permission::class)::findByName('edit-news')->getKey();
+        $articlesPermission = $this->testUserPermission->getKey();
+
+        $writes = [
+            'attach' => fn () => $this->testUser->teams()->attach($newsPermission),
+            'sync' => fn () => $this->testUser->teams()->sync([$newsPermission]),
+            'toggle' => fn () => $this->testUser->teams()->toggle([$articlesPermission]),
+            'detach' => fn () => $this->testUser->teams()->detach(),
+            'updateExistingPivot' => fn () => $this->testUser->teams()->updateExistingPivot($articlesPermission, ['model_type' => 'other']),
+        ];
+
+        foreach ($writes as $method => $write) {
+            try {
+                $write();
+                $this->fail("Expected {$method} to be rejected.");
+            } catch (TeamsNotEnabled) {
+            }
+        }
+
+        $this->assertSame(['edit-articles'], $this->testUser->fresh()->getPermissionNames()->all());
     }
 }

@@ -52,6 +52,18 @@ class PartitionRelationProvenanceTest extends PartitionTestCase
         $this->assertTrue($user->hasRole('member'));
     }
 
+    public function testLoadingTheDisabledTeamsRelationKeepsLoadedPermissionsCurrent(): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $user->givePermissionTo(PartitionedPermission::create(['name' => 'permission-a']));
+        $user->load('permissions');
+
+        $user->teams()->getResults();
+
+        $this->assertTrue($registrar->loadedRelationIsCurrent($user, 'permissions'));
+    }
+
     public function testManualRelationReplacementInvalidatesItsProvenanceMarker(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
