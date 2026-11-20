@@ -384,7 +384,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame(['1e2', '0100'], array_column($blueprint->getCommands(), 'name'));
     }
 
-    public function testCreatePromotesForeignKeyTargetsWithoutMovingOtherCommands(): void
+    public function testCreateMovesForeignKeysAfterTheirTargetsWithoutReorderingOtherCommands(): void
     {
         $blueprint = new DatabaseSchemaBlueprintOrderingTestBlueprint(
             $this->getConnection('Postgres'),
@@ -406,7 +406,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         $this->assertSame(
             [
-                'create', 'unique', 'index', 'primary', 'foreign', 'foreign', 'custom',
+                'create', 'unique', 'index', 'custom', 'primary', 'foreign', 'foreign',
                 'AutoIncrementStartingValues', 'Comment', 'AutoIncrementStartingValues', 'Comment',
                 'AutoIncrementStartingValues', 'Comment',
             ],
