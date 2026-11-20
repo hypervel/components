@@ -35,6 +35,7 @@
     - [Local Scopes](#local-scopes)
     - [Applying Scope Callbacks](#applying-scope-callbacks)
     - [Pending Attributes](#pending-attributes)
+    - [After Query Callbacks](#after-query-callbacks)
     - [Custom Eloquent Builders](#custom-eloquent-builders)
 - [Comparing Models](#comparing-models)
 - [Events](#events)
@@ -1884,6 +1885,23 @@ To instruct the `withAttributes` method to not add `where` conditions to the que
 $query->withAttributes([
     'hidden' => true,
 ], asConditions: false);
+```
+
+<a name="after-query-callbacks"></a>
+### After Query Callbacks
+
+The `afterQuery` method allows you to register a closure that will be invoked with the results of the query after it has been executed:
+
+```php
+use App\Models\Post;
+use Hypervel\Database\Eloquent\Collection;
+
+$posts = Post::where('published', true)
+    ->afterQuery(function (Collection $posts) {
+        // Hide the full post body when the posts are serialized...
+        $posts->makeHidden('body');
+    })
+    ->get();
 ```
 
 <a name="custom-eloquent-builders"></a>
