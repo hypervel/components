@@ -282,6 +282,12 @@ trait HandlesTextStreaming
                 } elseif ($deltaType === 'citations_delta' && $currentBlockType === 'text') {
                     $citationData = $data['delta']['citation'] ?? null;
 
+                    // Unlike upstream, the citation is kept on its block, as in a buffered response,
+                    // so the step's citations and replay content include it.
+                    if ($citationData && isset($responseContent[$currentBlockIndex])) {
+                        $responseContent[$currentBlockIndex]['citations'][] = $citationData;
+                    }
+
                     if ($citationData && ($citationData['type'] ?? '') === 'web_search_result_location'
                         && ($event = $emitCitation(new UrlCitation($citationData['url'] ?? '', $citationData['title'] ?? null))) instanceof StreamEvent) {
                         yield $event;

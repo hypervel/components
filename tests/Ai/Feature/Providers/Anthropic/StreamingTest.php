@@ -890,11 +890,19 @@ class StreamingTest extends TestCase
             ),
         ]);
 
+        $events = $this->collectStreamEvents();
+
         $citations = array_map(
             fn (CitationEvent $e): array => [$e->citation->url, $e->citation->title],
-            array_values(array_filter($this->collectStreamEvents(), fn ($e): bool => $e instanceof CitationEvent)),
+            array_values(array_filter($events, fn ($e): bool => $e instanceof CitationEvent)),
         );
 
         $this->assertSame([['https://laravel-news.com/laravel-13', 'Laravel 13']], $citations);
+
+        $step = collect($events)->first(fn ($e): bool => $e instanceof StreamEnd)->steps->sole();
+
+        $this->assertSame(['https://laravel-news.com/laravel-13'], $step->meta->citations->pluck('url')->all());
+        $this->assertSame([$citation['citation']], $step->replayBlocks[1]['citations']);
+        $this->assertSame([$citation['citation']], $step->replayBlocks[2]['citations']);
     }
 }
