@@ -38,6 +38,9 @@ class CacheTableCommandTest extends TestCase
                 '2026_07_23_120000_create_cache_table.php',
                 '2026_07_23_120001_create_cache_locks_table.php',
             ], array_map(basename(...), $files));
+            $this->artisan(CacheTableCommand::class)
+                ->expectsOutputToContain('Migrations created successfully.')
+                ->assertSuccessful();
         } finally {
             Date::setTestNow();
         }
