@@ -23,6 +23,7 @@ use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class HasApiVersionTest extends TestCase
 {
@@ -163,6 +164,23 @@ class HasApiVersionTest extends TestCase
         $this->assertSame('override-version', $response->toPsrRequest()->getHeaderLine('api-version'));
     }
 
+    public function testTheConnectorCanOverrideTheApiVersionInTheUrl(): void
+    {
+        $connector = new class('https://api.provider.com/{version}', VersionMode::Url, null) extends VersionedConnector {
+            /**
+             * Get the API version.
+             */
+            public function getApiVersion(): ?string
+            {
+                return 'override-version';
+            }
+        };
+
+        $response = $this->sendVersionedRequest($connector, $this->makeVersionedRequest());
+
+        $this->assertSame('https://api.provider.com/override-version', (string) $response->toPsrRequest()->getUri());
+    }
+
     public function testTheRequestCanOverrideTheApiVersionAtRuntime(): void
     {
         $request = $this->makeVersionedRequest('override-version', VersionMode::Header);
@@ -175,7 +193,85 @@ class HasApiVersionTest extends TestCase
         $this->assertSame('override-version', $response->toPsrRequest()->getHeaderLine('api-version'));
     }
 
-    #[DataProvider('versionModes')]
+    public function testTheRequestCanOverrideTheConnectorApiVersionInTheUrl(): void
+    {
+        $response = $this->sendVersionedRequest(
+            $this->makeVersionedConnector('https://api.provider.com/{version}', VersionMode::Url, 'v1'),
+            $this->makeVersionedRequest('beta', VersionMode::Url),
+        );
+
+        $this->assertSame('https://api.provider.com/beta', (string) $response->toPsrRequest()->getUri());
+    }
+
+    public function testARequestVersionedByHeaderLeavesTheConnectorApiVersionInTheUrl(): void
+    {
+        $response = $this->sendVersionedRequest(
+            $this->makeVersionedConnector('https://api.provider.com/{version}', VersionMode::Url, 'v1'),
+            $this->makeVersionedRequest('beta', VersionMode::Header),
+        );
+        $psrRequest = $response->toPsrRequest();
+
+        $this->assertSame('https://api.provider.com/v1', (string) $psrRequest->getUri());
+        $this->assertSame('beta', $psrRequest->getHeaderLine('api-version'));
+    }
+
+    public function testARequestWithItsOwnVersionMethodsButNotTheTraitLeavesTheConnectorApiVersionInTheUrl(): void
+    {
+        $request = new class extends Request {
+            protected Method $method = Method::GET;
+
+            /**
+             * Resolve the request endpoint.
+             */
+            public function resolveEndpoint(): string
+            {
+                return '';
+            }
+
+            /**
+             * Get the API version.
+             */
+            public function getApiVersion(): string
+            {
+                return 'beta';
+            }
+
+            /**
+             * Get where the API version is applied to the request.
+             */
+            public function getVersionMode(): VersionMode
+            {
+                return VersionMode::Url;
+            }
+        };
+
+        $response = $this->sendVersionedRequest(
+            $this->makeVersionedConnector('https://api.provider.com/{version}', VersionMode::Url, 'v1'),
+            $request,
+        );
+
+        $this->assertSame('https://api.provider.com/v1', (string) $response->toPsrRequest()->getUri());
+    }
+
+    public function testTheConnectorCanChooseTheUrlVersionOverTheRequestVersion(): void
+    {
+        $connector = new class('https://api.provider.com/{version}', VersionMode::Url, 'v1') extends VersionedConnector {
+            /**
+             * Resolve which version to substitute into `{version}` for URL mode.
+             */
+            protected function resolveUrlApiVersion(PendingRequest $pendingRequest): string
+            {
+                return 'v2';
+            }
+        };
+
+        $response = $this->sendVersionedRequest($connector, $this->makeVersionedRequest('beta', VersionMode::Url));
+
+        $this->assertSame('https://api.provider.com/v2', (string) $response->toPsrRequest()->getUri());
+    }
+
+    #[TestWith([VersionMode::Header])]
+    #[TestWith([VersionMode::QueryParam])]
     public function testARequestVersionReplacesTheConnectorVersion(VersionMode $versionMode): void
     {
         $response = $this->sendVersionedRequest(
@@ -187,7 +283,6 @@ class HasApiVersionTest extends TestCase
         match ($versionMode) {
             VersionMode::Header => $this->assertSame(['request-version'], $psrRequest->getHeader('api-version')),
             VersionMode::QueryParam => $this->assertSame('api-version=request-version', $psrRequest->getUri()->getQuery()),
-            VersionMode::Url => $this->assertSame('https://api.provider.com/request-version', (string) $psrRequest->getUri()),
         };
     }
 

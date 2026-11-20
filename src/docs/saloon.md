@@ -641,7 +641,7 @@ class AnthropicConnector extends Connector
 }
 ```
 
-In URL mode, the version replaces a `{version}` placeholder in the base URL, endpoint, or URL override, such as `https://generativelanguage.googleapis.com/{version}`. The version may only contain letters, numbers, dashes, underscores, and single dots, so it can only fill that subdomain label or path segment. You may override `getApiVersion` to calculate the version. When both a connector and a request send a version, the request's version is used.
+In URL mode, the version replaces a `{version}` placeholder in the base URL, endpoint, or URL override, such as `https://generativelanguage.googleapis.com/{version}`. The version may only contain letters, numbers, dashes, underscores, and single dots, so it can only fill that subdomain label or path segment. You may override `getApiVersion` to calculate the version. When a connector and a request both send a version in the same place, the request's version is used. To choose the version substituted into the URL differently, a connector may override the protected `resolveUrlApiVersion` method, which receives the pending request.
 
 <a name="authentication"></a>
 ### Authentication
