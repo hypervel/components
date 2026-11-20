@@ -486,18 +486,21 @@ class CallQueuedHandler
      */
     public function failed(array $data, ?Throwable $e, string $uuid, ?Job $job = null): void
     {
-        $batchJobId = $job === null ? $uuid : (Batch::jobIdFor($job) ?? $uuid);
-
         try {
             $command = $this->getCommand($data);
         } catch (ModelNotFoundException $exception) {
+            $payload = $job === null ? ['data' => $data] : $job->payload();
             $this->ensureUniqueJobLockIsReleasedForMissingModel(
                 $job,
-                $job === null ? ['data' => $data] : $job->payload(),
+                $payload,
                 beforeProcessing: $job !== null && CoroutineContext::get(self::MISSING_MODEL_FAILURE_CONTEXT_KEY) === $job,
             );
 
-            $this->ensureFailedBatchJobIsRecordedForMissingModel($batchJobId, $data, $e);
+            // Horizon carries the original batch job ID at the top level of a retry payload.
+            if (isset($payload['batchJobId'])) {
+                $data['batchJobId'] = $payload['batchJobId'];
+            }
+            $this->ensureFailedBatchJobIsRecordedForMissingModel($uuid, $data, $e);
 
             throw $exception;
         }
@@ -516,7 +519,7 @@ class CallQueuedHandler
             return;
         }
 
-        $this->ensureFailedBatchJobIsRecorded($batchJobId, $command, $e);
+        $this->ensureFailedBatchJobIsRecorded($uuid, $command, $e);
         $this->ensureChainCatchCallbacksAreInvoked($uuid, $command, $e);
 
         if (method_exists($command, 'failed')) {
@@ -534,7 +537,8 @@ class CallQueuedHandler
         }
 
         if ($batch = $command->batch()) {
-            $batch->recordFailedJob($command->batchPositionId ?? $uuid, $e, isset($command->batchPositionId) ? $uuid : null);
+            $jobId = Batch::jobIdForCommand($command) ?? $uuid;
+            $batch->recordFailedJob($jobId, $e, $jobId === $uuid ? null : $uuid);
         }
     }
 
@@ -554,7 +558,8 @@ class CallQueuedHandler
         }
 
         if ($batch = $this->container->make(BatchRepository::class)->find($batchId)) {
-            $batch->recordFailedJob($data['batchPositionId'] ?? $uuid, $e, isset($data['batchPositionId']) ? $uuid : null);
+            $jobId = $data['batchPositionId'] ?? $data['batchJobId'] ?? $uuid;
+            $batch->recordFailedJob($jobId, $e, $jobId === $uuid ? null : $uuid);
         }
     }
 
