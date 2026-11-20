@@ -754,7 +754,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
         string $operator = '='
     ): string {
         $operator = match ($operator) {
-            // Array values are raw filter expressions, such as geo filters, so equality leaves the operator out. Unlike
+            // Array values are filter expressions, such as geo filters, so equality leaves the operator out. Unlike
             // upstream, explicit operators are kept for array values instead of being dropped.
             '=' => is_array($value) ? ':' : ':=',
             '!=' => ':!=',
@@ -771,7 +771,17 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
                 ->implode(''));
         }
 
-        return sprintf('%s%s%s', $key, $operator, $this->quoteFilterValue($value, ['&&', '||', '`', '(', ')']));
+        $quotedValue = $this->quoteFilterValue($value, ['&&', '||', '`', '(', ')']);
+
+        // Unlike upstream, a quoted equality value is sent as a one-member list. Typesense decodes a list member's
+        // backticks as delimiters but keeps them in a scalar value, so a quoted scalar misses its record on a field
+        // that indexes backticks. A value with its own backticks stays scalar: Typesense can't quote them, and the
+        // list would match the value without them, which is a different record on such a field.
+        if (in_array($operator, [':=', ':!='], true) && is_string($value) && $quotedValue !== $value && ! str_contains($value, '`')) {
+            return sprintf('%s%s[%s]', $key, $operator, $quotedValue);
+        }
+
+        return sprintf('%s%s%s', $key, $operator, $quotedValue);
     }
 
     /**

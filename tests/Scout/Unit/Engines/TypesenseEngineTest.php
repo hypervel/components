@@ -134,7 +134,7 @@ class TypesenseEngineTest extends TestCase
         $result = $this->invokeMethod($engine, 'filters', [$builder]);
 
         $this->assertSame(
-            'band:=`Rock || Roll` && company:!=`Acme (UK)` && title:=`Its R&&D` && name:=New* && price:=[10..100] && location:(48.85, 2.34, 5 km)'
+            'band:=[`Rock || Roll`] && company:!=[`Acme (UK)`] && title:=`Its R&&D` && name:=New* && price:=[10..100] && location:(48.85, 2.34, 5 km)'
             . ' && status:`Rock || Roll` && company:=[Laravel, `Acme (UK)`, `Acme, Inc`] && band:!=[`Rock || Roll`]',
             $result
         );
