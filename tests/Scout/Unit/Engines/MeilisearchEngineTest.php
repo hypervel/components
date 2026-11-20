@@ -401,6 +401,28 @@ class MeilisearchEngineTest extends TestCase
         $engine->search($builder);
     }
 
+    public function testWhereValuesAreEscaped(): void
+    {
+        $client = Double::for(Client::class)->strict();
+        $index = Double::for(Indexes::class)->strict();
+        $client->expects('index')->with('test_index')->returns($index);
+        $index->expects('rawSearch')->with('', [
+            'filter' => 'size="12\" pipe" AND path="C:\\\dir\\\"',
+        ])->returns(['hits' => [], 'totalHits' => 0]);
+
+        $engine = new MeilisearchEngine($client);
+
+        $model = Double::for(MeilisearchTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('test_index');
+        $model->allows('getScoutKeyName')->returns('id');
+
+        $builder = new Builder($model, '');
+        $builder->where('size', '12" pipe');
+        $builder->where('path', 'C:\dir\\');
+
+        $engine->search($builder);
+    }
+
     public function testWhereInAndWhereNotInValuesAreEscaped(): void
     {
         $client = Double::for(Client::class)->strict();
