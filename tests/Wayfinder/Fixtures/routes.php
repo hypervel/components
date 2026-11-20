@@ -110,6 +110,8 @@ Route::get('/photos/window', fn (): string => 'ok')->name('photos.index.window')
 
 Route::get('/albums/recent', fn (): string => 'ok')->name('albums.index.recent');
 
+Route::redirect('/old-photos', '/photos')->name('photos.redirect');
+
 Route::get('/prism/chat', [PrismChatController::class, 'index']);
 
 Route::get('/two-routes-one-action-1', [TwoRoutesSameActionController::class, 'same']);
