@@ -145,6 +145,7 @@ class RetryJobTest extends IntegrationTestCase
                 'commandName' => FailingJob::class,
                 'command' => serialize(new FailingJob),
                 'batchId' => 'batch-id',
+                'batchPositionId' => 'position',
             ],
         ])));
 
@@ -168,5 +169,6 @@ class RetryJobTest extends IntegrationTestCase
         $this->assertNotSame($firstRetryId, $secondRetry['uuid']);
         $this->assertSame($firstRetryId, $secondRetry['retry_of']);
         $this->assertSame('original-id', $secondRetry['batchJobId']);
+        $this->assertSame('position', $secondRetry['data']['batchPositionId']);
     }
 }
