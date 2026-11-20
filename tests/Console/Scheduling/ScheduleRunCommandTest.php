@@ -1166,10 +1166,20 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->invokeRunEvents($command, [$callbackEvent], $startedAt->addMinute());
         $this->assertSame(2, $runCount);
+
+        // A clock set back into the previous minute neither runs it again nor forgets the later minute's run
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->addSeconds(59));
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->addMinute()->addSecond());
+        $this->assertSame(2, $runCount);
+
+        // A longer correction keeps scheduling the earlier minutes
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->subHour());
+        $this->assertSame(3, $runCount);
     }
 
     public function testRepeatableEventIsThrottledByLastChecked(): void
     {
+        Date::setTestNow('2026-05-28 12:34:00');
         $runCount = 0;
 
         $eventMutex = Double::for(EventMutex::class)->strict();
@@ -1193,6 +1203,32 @@ class ScheduleRunCommandTest extends TestCase
         // less than 10 seconds have passed. Event should be skipped.
         $this->invokeRunEvents($command, [$callbackEvent]);
         $this->assertSame(1, $runCount);
+    }
+
+    public function testRepeatableEventRestartsItsCycleOnTheFirstCheckOfALaterMinute(): void
+    {
+        $runs = [];
+
+        $eventMutex = Double::for(EventMutex::class)->strict();
+        $eventMutex->allows('create')->returns(true);
+        $eventMutex->allows('forget');
+
+        $callbackEvent = new CallbackEvent($eventMutex, function () use (&$runs): int {
+            $runs[] = Date::now()->format('H:i:s');
+
+            return 0;
+        });
+        $callbackEvent->repeatSeconds = 5;
+
+        $command = $this->makeCommand();
+
+        // The clock is set back from 12:35:00.1 to 12:34:59.9, which isn't a later minute
+        foreach (['12:34:37', '12:34:40', '12:34:42', '12:34:57', '12:35:00.1', '12:34:59.9', '12:35:06'] as $time) {
+            Date::setTestNow("2026-05-28 {$time}");
+            $this->invokeRunEvents($command, [$callbackEvent]);
+        }
+
+        $this->assertSame(['12:34:37', '12:34:42', '12:34:57', '12:35:00', '12:35:06'], $runs);
     }
 
     public function testSingleServerEventClaimedElsewhereDoesNotReportThatNoCommandsWereReady(): void

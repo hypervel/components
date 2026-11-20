@@ -123,9 +123,9 @@ class ScheduleRunCommand extends Command
     protected ?Concurrent $concurrent = null;
 
     /**
-     * The minute currently represented by the evaluated event cache.
+     * The minute since the Unix epoch currently represented by the evaluated event cache.
      */
-    protected ?string $evaluatedEventsMinute = null;
+    protected ?int $evaluatedEventsMinute = null;
 
     /**
      * The non-repeatable events already evaluated for the current minute.
@@ -293,17 +293,23 @@ class ScheduleRunCommand extends Command
     protected function runEvents(Collection $events, CarbonInterface $startedAt): void
     {
         $paused = $this->isPaused();
+        $minute = intdiv($startedAt->getTimestamp(), 60);
 
         foreach ($events as $event) {
             if ($this->shouldQuit) {
                 break;
             }
 
-            if ($event->isRepeatable() && $event->lastChecked && ! $event->shouldRepeatNow()) {
+            // Laravel starts a fresh scheduler each minute, so a repeatable event's first check in a later
+            // minute runs regardless of the last check. Otherwise a late check would delay later minutes too.
+            if ($event->isRepeatable()
+                && $event->lastChecked
+                && intdiv($event->lastChecked->getTimestamp(), 60) >= $minute
+                && ! $event->shouldRepeatNow()) {
                 continue;
             }
 
-            if ($this->hasAlreadyEvaluatedNonRepeatableEvent($event, $startedAt)) {
+            if ($this->hasAlreadyEvaluatedNonRepeatableEvent($event, $minute)) {
                 continue;
             }
 
@@ -419,13 +425,17 @@ class ScheduleRunCommand extends Command
     /**
      * Determine if the non-repeatable event was already evaluated this minute.
      */
-    protected function hasAlreadyEvaluatedNonRepeatableEvent(Event $event, CarbonInterface $startedAt): bool
+    protected function hasAlreadyEvaluatedNonRepeatableEvent(Event $event, int $minute): bool
     {
         if ($event->isRepeatable()) {
             return false;
         }
 
-        $minute = $startedAt->format('YmdHi');
+        // A clock set back into the previous minute doesn't run its events again, while a longer
+        // correction evaluates the earlier minutes again, as a fresh scheduler would
+        if ($this->evaluatedEventsMinute !== null && $minute === $this->evaluatedEventsMinute - 1) {
+            return true;
+        }
 
         if ($this->evaluatedEventsMinute !== $minute) {
             $this->evaluatedEventsMinute = $minute;
