@@ -408,8 +408,8 @@ class ConsoleSchedulingIntegration extends Feature
 
                     // The parsers also differ on a range of one value, a step as large as the field's last
                     // value, and a stepped weekday range ending at 7: Sentry reads "0-7/2" with Sundays
-                    if (($start !== '' && $start === $end)
-                        || ($step !== '' && ((int) $step >= [59, 23, 31, 12, 7][$position] || ($position === 4 && $end === '7')))) {
+                    if (($start !== '' && (int) $start === (int) $end)
+                        || ($step !== '' && ((int) $step >= [59, 23, 31, 12, 7][$position] || ($position === 4 && (int) $end === 7)))) {
                         return null;
                     }
                 }
