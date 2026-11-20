@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Gateway\Anthropic;
 use Generator;
 use Hypervel\Ai\Contracts\Files\TranscribableAudio;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
+use Hypervel\Ai\Contracts\Gateway\ReplaysFullHistory;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\Providers\AudioProvider;
 use Hypervel\Ai\Contracts\Providers\EmbeddingProvider;
@@ -34,7 +35,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Attributes\Unsupported;
 use LogicException;
 
-class AnthropicGateway implements Gateway, StepTextGateway
+class AnthropicGateway implements Gateway, ReplaysFullHistory, StepTextGateway
 {
     use BuildsTextRequests;
     use CreatesAnthropicClient;
@@ -78,6 +79,8 @@ class AnthropicGateway implements Gateway, StepTextGateway
             $options,
         );
 
+        $body = $this->withContainer($body, $stepContext);
+
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider, $timeout)->post('messages', $body),
@@ -115,6 +118,8 @@ class AnthropicGateway implements Gateway, StepTextGateway
             $schema,
             $options,
         );
+
+        $body = $this->withContainer($body, $stepContext);
 
         $body['stream'] = true;
 

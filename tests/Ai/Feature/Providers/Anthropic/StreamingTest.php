@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
+use Closure;
 use Hypervel\Ai\Exceptions\StreamErrorException;
+use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\Messages\UserMessage;
+use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
 use Hypervel\Ai\Streaming\Events\Error;
@@ -24,6 +28,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ProviderOptionsWithToolsAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
 class StreamingTest extends TestCase
@@ -180,6 +185,52 @@ class StreamingTest extends TestCase
         $this->assertSame('FixedNumberGenerator', $toolCallEvents[0]->toolCall->name);
         $this->assertSame('toolu_1', $toolCallEvents[0]->toolCall->id);
         $this->assertSame('The number is 72019', TextDelta::combine($events));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamingReusesTheCodeExecutionContainerOnTheFollowUpRequest(bool $editedFirstStep): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => '{}']),
+                        $this->contentBlockStop(0),
+                        [
+                            'type' => 'message_delta',
+                            'delta' => ['stop_reason' => 'tool_use', 'container' => ['id' => 'container_123', 'expires_at' => '2026-11-08T11:00:00Z']],
+                            'usage' => ['output_tokens' => 5],
+                        ],
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'The number is 72019']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 10),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $this->collectStreamEvents(agent: (new ProviderOptionsWithToolsAgent)->withMiddleware([
+            fn (PendingStep $step, Closure $next): StepResult => $next($editedFirstStep && $step->isFirstStep() ? $step->withMessages([new UserMessage('Summarized')]) : $step),
+        ]));
+
+        $recorded = Http::recorded();
+
+        $this->assertCount(2, $recorded);
+        $this->assertArrayNotHasKey('container', $recorded[0][0]->data());
+        $this->assertSame('container_123', $recorded[1][0]->data()['container']);
     }
 
     public function testStreamingRunsToolCallsWhenTheMessageEndsWithEndTurn(): void

@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Gateway\Gemini\Concerns;
 
 use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
+use Hypervel\Ai\Messages\ToolResultMessage;
 use Hypervel\Ai\ObjectSchema;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\ToolResult;
@@ -39,7 +40,34 @@ trait BuildsTextRequests
         ?TextGenerationOptions $options,
         StepContext $stepContext,
     ): array {
-        return $this->buildTextRequestBody($provider, $model, $instructions, $messages, $tools, $schema, $options);
+        if (! $previousInteractionId = $stepContext->continuationToken) {
+            return $this->buildTextRequestBody($provider, $model, $instructions, $messages, $tools, $schema, $options);
+        }
+
+        return [
+            ...$this->assembleRequestBody($model, $this->extractToolResultsInput($messages), $instructions, $tools, $schema, $options, $provider),
+            'previous_interaction_id' => $previousInteractionId,
+        ];
+    }
+
+    /**
+     * Extract function result steps from the trailing tool result message for a continuation request.
+     */
+    protected function extractToolResultsInput(array $messages): array
+    {
+        $lastMessage = end($messages);
+
+        return $lastMessage instanceof ToolResultMessage
+            ? $this->buildFunctionResultSteps($lastMessage->toolResults->all())
+            : [];
+    }
+
+    /**
+     * Determine if Gemini will retain the interaction described by the given request body.
+     */
+    protected function storesInteraction(array $body): bool
+    {
+        return $body['store'] === true;
     }
 
     /**

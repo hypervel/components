@@ -6,8 +6,11 @@ namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
 use Exception;
-use Hypervel\Ai\AnonymousAgent;
+use Generator;
+use Hypervel\Ai\Agents\ConversationTitleAgent;
 use Hypervel\Ai\Approvals\Decisions;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\CanActAsTool;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Events\AgentFailed;
@@ -37,7 +40,10 @@ use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
+use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Streaming\Events\Error;
+use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -72,6 +78,7 @@ use Hypervel\Tests\Ai\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -378,7 +385,7 @@ class AgentEventsTest extends TestCase
 
         $failed = Event::dispatched(AgentFailed::class)->sole()[0];
 
-        $this->assertInstanceOf(AnonymousAgent::class, $failed->prompt->agent);
+        $this->assertInstanceOf(ConversationTitleAgent::class, $failed->prompt->agent);
         $this->assertSame($response->invocationId, $failed->prompt->parentInvocationId);
         $this->assertInstanceOf(RequestException::class, $failed->exception);
     }
@@ -556,6 +563,99 @@ class AgentEventsTest extends TestCase
 
         $this->assertSame($invoking->toolInvocationId, $failed->toolInvocationId);
         $this->assertSame($invoking->invocationId, $failed->invocationId);
+    }
+
+    #[WithConfig('app.debug', true)]
+    public function testASubAgentThatThrowsDispatchesToolFailedAndTheRunContinues(): void
+    {
+        Event::fake();
+
+        DelegatingAgent::fake([
+            new ToolCall('call_123', 'research_agent', ['task' => 'Research Hypervel']),
+            'The research could not be completed.',
+        ]);
+
+        ResearchAgent::fake(fn () => throw new RuntimeException('Research failed.'));
+
+        $response = (new DelegatingAgent)->prompt('Delegate research about Hypervel');
+
+        $invoking = Event::dispatched(InvokingTool::class)->first()[0];
+
+        Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->toolInvocationId === $invoking->toolInvocationId
+            && $event->exception->getMessage() === 'Research failed.');
+
+        Event::assertNotDispatched(ToolInvoked::class);
+
+        Event::assertDispatched(AgentFailed::class, fn (AgentFailed $event): bool => $event->prompt->agent instanceof ResearchAgent);
+
+        $result = $response->steps->first()->toolResults[0];
+
+        $this->assertTrue($result->failed);
+        $this->assertSame('The tool call failed: Research failed.', $result->result);
+    }
+
+    #[WithConfig('app.debug', true)]
+    public function testASubAgentThatThrowsWhileStreamedAsAToolDispatchesToolFailedAndTheRunContinues(): void
+    {
+        Event::fake();
+
+        DelegatingAgent::fake([
+            new ToolCall('call_123', 'research_agent', ['task' => 'Research Hypervel']),
+            'The research could not be completed.',
+        ]);
+
+        ResearchAgent::fake(fn () => throw new RuntimeException('Research failed.'));
+
+        $events = iterator_to_array((new DelegatingAgent)->stream('Delegate research about Hypervel'), false);
+
+        $invoking = Event::dispatched(InvokingTool::class)->first()[0];
+
+        Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->toolInvocationId === $invoking->toolInvocationId
+            && $event->exception->getMessage() === 'Research failed.');
+
+        Event::assertNotDispatched(ToolInvoked::class);
+
+        Event::assertDispatched(AgentFailed::class, fn (AgentFailed $event): bool => $event->prompt->agent instanceof ResearchAgent);
+
+        $result = collect($events)->first(fn ($event): bool => $event instanceof ToolResultEvent && ! $event->preliminary);
+
+        $this->assertFalse($result->successful);
+        $this->assertSame('The tool call failed: Research failed.', $result->error);
+    }
+
+    #[WithConfig('app.debug', true)]
+    public function testASubAgentThatThrowsAfterStreamingOutputEndsItsToolCallWithAFailedResult(): void
+    {
+        Event::fake();
+
+        DelegatingAgent::fake([
+            new ToolCall('call_123', 'middle_manager', ['task' => 'Research Hypervel']),
+            'The research could not be completed.',
+        ]);
+
+        // Unlike upstream, only text output produces a preliminary result, so the sub-agent streams a snapshot's worth of text before it throws...
+        $subAgent = Double::for(Agent::class, CanActAsTool::class)->strict();
+        $subAgent->allows('name')->returns('middle_manager');
+        $subAgent->allows('description')->returns('Delegate research tasks.');
+        $subAgent->expects('stream')->returns(new StreamableAgentResponse('sub-invocation', function (): Generator {
+            yield new TextDelta('event-1', 'message-1', str_repeat('Hypervel is a PHP framework. ', 10), time());
+
+            throw new RuntimeException('Research failed.');
+        }));
+
+        $results = collect(iterator_to_array((new DelegatingAgent)->withTools([new AgentTool($subAgent)])->stream('Delegate research about Hypervel'), false))
+            ->filter(fn ($event): bool => $event instanceof ToolResultEvent)
+            ->values();
+
+        Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->tool instanceof AgentTool
+            && $event->tool->name() === 'middle_manager'
+            && $event->exception->getMessage() === 'Research failed.');
+
+        $this->assertTrue($results->first()->preliminary);
+        $this->assertTrue($results->first()->successful);
+        $this->assertFalse($results->last()->preliminary);
+        $this->assertFalse($results->last()->successful);
+        $this->assertSame('The tool call failed: Research failed.', $results->last()->error);
     }
 
     #[WithConfig('app.debug', false)]
@@ -1169,17 +1269,22 @@ class AgentEventsTest extends TestCase
         Event::assertNotDispatched(AgentFailed::class);
     }
 
-    public function testStreamingSubAgentCancellationReportsToolFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamingSubAgentCancellationReportsToolFailure(bool $cleanupThrows): void
     {
         Event::fake();
         DelegatingAgent::fake([new ToolCall('research', 'research_agent', ['task' => 'Research'])]);
         $exception = new CanceledException('Research canceled.');
+        if ($cleanupThrows) {
+            $exception = new RuntimeException('Research cleanup failed.', previous: $exception);
+        }
         ResearchAgent::fake([fn (): never => throw $exception]);
 
         try {
             iterator_to_array((new DelegatingAgent)->stream('Research'));
             $this->fail('Cancellation must reach the caller.');
-        } catch (CanceledException $caught) {
+        } catch (Throwable $caught) {
             $this->assertSame($exception, $caught);
         }
 

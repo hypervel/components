@@ -14,8 +14,11 @@ use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Tests\Ai\Fixtures\Agents\DelegatingAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\ResearchAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ThrowingToolAgent;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class ToolFailureRecoveryTest extends TestCase
@@ -79,6 +82,37 @@ class ToolFailureRecoveryTest extends TestCase
         $this->assertSame('The tool could not run.', TextDelta::combine(array_filter($events, fn ($event): bool => $event instanceof TextDelta)));
 
         Exceptions::assertReported(fn (Exception $exception): bool => $exception->getMessage() === 'Forced to throw exception.');
+    }
+
+    #[TestWith([false], 'prompt')]
+    #[TestWith([true], 'stream')]
+    #[WithConfig('app.debug', false)]
+    public function testAThrowingSubAgentIsReportedOnceAndHiddenFromTheModelOutsideDebugMode(bool $streaming): void
+    {
+        Exceptions::fake();
+        $exception = new RuntimeException('Research failed.');
+
+        DelegatingAgent::fake([
+            new ToolCall('call_1', 'research_agent', ['task' => 'Research']),
+            'The research could not be completed.',
+        ]);
+        ResearchAgent::fake(fn () => throw $exception);
+
+        if ($streaming) {
+            $events = iterator_to_array((new DelegatingAgent)->stream('Research'), false);
+            $result = collect($events)->first(fn ($event): bool => $event instanceof ToolResult && ! $event->preliminary);
+
+            $this->assertFalse($result->successful);
+            $this->assertSame('The tool call failed.', $result->error);
+        } else {
+            $response = (new DelegatingAgent)->prompt('Research');
+
+            $this->assertFalse($response->toolResults[0]->successful());
+            $this->assertSame('The tool call failed.', $response->toolResults[0]->error());
+        }
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (RuntimeException $reported): bool => $reported === $exception);
     }
 
     public function testAnExceptionFromAToolEventListenerStillFailsTheRun(): void

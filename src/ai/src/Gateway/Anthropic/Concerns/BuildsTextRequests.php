@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
 use Hypervel\Ai\Attributes\CacheInstructions;
 use Hypervel\Ai\Attributes\CacheToolDefinitions;
 use Hypervel\Ai\Gateway\Anthropic\AnthropicSchemaSanitizer;
+use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
 use Hypervel\Ai\ObjectSchema;
 use Hypervel\Ai\Providers\Provider;
@@ -79,6 +80,24 @@ trait BuildsTextRequests
         }
 
         return $this->applyPromptCacheBreakpoints(array_merge($body, $providerOptions), $options);
+    }
+
+    /**
+     * Run the step in the code execution container the previous step used.
+     */
+    protected function withContainer(array $body, StepContext $stepContext): array
+    {
+        if (blank($stepContext->continuationToken)) {
+            return $body;
+        }
+
+        if (is_array($body['container'] ?? null)) {
+            $body['container']['id'] ??= $stepContext->continuationToken;
+        } else {
+            $body['container'] ??= $stepContext->continuationToken;
+        }
+
+        return $body;
     }
 
     /**

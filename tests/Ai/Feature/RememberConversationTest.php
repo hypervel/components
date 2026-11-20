@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Ai\Feature;
 use Closure;
 use Generator;
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Ai\Agents\ConversationTitleAgent;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Approvals\PendingApproval;
@@ -735,28 +736,6 @@ class RememberConversationTest extends TestCase
         }
     }
 
-    public function testAgentFakesKeepSerialTitleOrderingWhenConcurrencyIsEnabled(): void
-    {
-        config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
-        $prompt = $this->prompt();
-        Ai::fakeAgent($prompt->agent::class);
-        $generated = false;
-        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
-        $middleware->expects('generateTitle')->resolves(function () use (&$generated): string {
-            $this->assertTrue($generated);
-
-            return 'Fake conversation';
-        });
-
-        $middleware->handle($prompt, function () use (&$generated): AgentResponse {
-            $generated = true;
-
-            return $this->response();
-        });
-
-        $this->assertDatabaseHas('agent_conversations', ['title' => 'Fake conversation']);
-    }
-
     public function testCancelingTheStreamConsumerJoinsItsTitleRequest(): void
     {
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
@@ -919,21 +898,35 @@ class RememberConversationTest extends TestCase
         return ['failed turn' => [true], 'completed turn' => [false]];
     }
 
+    public function testAContractOnlyProviderTitlesTheConversationUnderItsName(): void
+    {
+        config(['ai.conversations.generate_title' => true]);
+        $prompt = $this->prompt();
+        $provider = $prompt->provider();
+        Ai::extend('test', static fn (): TextProvider => $provider);
+        $provider->expects('cheapestTextModel')->returns('title-model');
+        $provider->expects('prompt')->resolves(static fn (AgentPrompt $title): AgentResponse => new AgentResponse($title->invocationId, 'Greeting Conversation', new TextUsage, new Meta('test', 'title-model')));
+
+        $response = $this->response();
+        (new RememberConversation(new DatabaseConversationStore, $provider))->handle($prompt, fn (): AgentResponse => $response);
+
+        $this->assertDatabaseHas('agent_conversations', ['id' => $response->conversationId, 'title' => 'Greeting Conversation']);
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testTitleCancellationSavesTheCompletedTurnBeforeRethrowing(bool $cleanupThrows): void
     {
-        config(['ai.conversations.generate_title' => true]);
+        config(['ai.conversations.generate_title' => true, 'ai.providers.openai.key' => 'test-key']);
         $prompt = $this->prompt();
         $failure = new CanceledException('Title request canceled');
         if ($cleanupThrows) {
             $failure = new RuntimeException('Title cleanup failed.', previous: $failure);
         }
-        $prompt->provider()->expects('prompt')->throws($failure);
-        $prompt->provider()->expects('cheapestTextModel')->returns('title-model');
+        ConversationTitleAgent::fake(fn () => throw $failure);
 
         $response = $this->response();
-        $this->assertThrowsSame($failure, fn () => (new RememberConversation(new DatabaseConversationStore, $prompt->provider()))
+        $this->assertThrowsSame($failure, fn () => (new RememberConversation(new DatabaseConversationStore, Ai::textProvider('openai')))
             ->handle($prompt, fn (): AgentResponse => $response));
 
         $this->assertDatabaseHas('agent_conversations', ['id' => $response->conversationId, 'title' => 'Hello']);
@@ -943,18 +936,17 @@ class RememberConversationTest extends TestCase
 
     public function testStorageFailurePreservesTitleCancellation(): void
     {
-        config(['ai.conversations.generate_title' => true]);
+        config(['ai.conversations.generate_title' => true, 'ai.providers.openai.key' => 'test-key']);
         $prompt = $this->prompt();
         $cancellation = new CanceledException('Title request canceled.');
         $storageFailure = new RuntimeException('Conversation storage failed.');
-        $prompt->provider()->expects('prompt')->throws($cancellation);
-        $prompt->provider()->expects('cheapestTextModel')->returns('title-model');
+        ConversationTitleAgent::fake(fn () => throw $cancellation);
         $store = Double::for(DatabaseConversationStore::class)->strict();
         $store->expects('storeTurn')->throws($storageFailure);
         $caught = null;
 
         try {
-            (new RememberConversation($store, $prompt->provider()))
+            (new RememberConversation($store, Ai::textProvider('openai')))
                 ->handle($prompt, fn () => $this->response());
         } catch (Throwable $exception) {
             $caught = $exception;

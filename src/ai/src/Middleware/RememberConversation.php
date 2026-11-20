@@ -6,8 +6,8 @@ namespace Hypervel\Ai\Middleware;
 
 use Closure;
 use Generator;
+use Hypervel\Ai\Agents\ConversationTitleAgent;
 use Hypervel\Ai\Ai;
-use Hypervel\Ai\AnonymousAgent;
 use Hypervel\Ai\Concerns\RemembersConversations as RemembersConversationsTrait;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\ConversationStore;
@@ -15,9 +15,11 @@ use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\RemembersConversations;
 use Hypervel\Ai\Contracts\StoresConversationTurns;
 use Hypervel\Ai\Exceptions\StreamAbandonedException;
+use Hypervel\Ai\Gateway\ParentInvocation;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Models\Conversation;
 use Hypervel\Ai\Prompts\AgentPrompt;
+use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Storage\StoredTurn;
@@ -348,13 +350,12 @@ class RememberConversation
         /** @var Agent&RemembersConversations $agent */
         $agent = $prompt->agent;
 
-        // Decisions are validated during generation, and agent fakes hand out responses in call order.
+        // Decisions are validated during generation.
         if (! config()->boolean('ai.conversations.concurrent_title', false)
             || ! config()->boolean('ai.conversations.generate_title', true)
             || $prompt->hasApprovalDecisions()
             || ! $this->startsConversation($prompt)
-            || ! $this->shouldRememberTurn($agent, $prompt)
-            || Ai::hasFakeGatewayFor($agent::class)) {
+            || ! $this->shouldRememberTurn($agent, $prompt)) {
             return null;
         }
 
@@ -376,20 +377,18 @@ class RememberConversation
         }
 
         try {
-            $response = $this->provider->prompt(new AgentPrompt(
-                new AnonymousAgent(
-                    'Generate a concise 3-5 word title for a conversation that starts with the following message. Use the same language as the message. Respond with only the title, no quotes or punctuation.',
-                    [],
-                    [],
-                ),
-                Str::limit($prompt->prompt, 500),
-                [],
-                $this->provider,
-                $this->provider->cheapestTextModel(),
-                parentInvocationId: $prompt->invocationId,
-            ));
+            $agent = resolve(ConversationTitleAgent::class);
 
-            return Str::limit($response->text, 100);
+            // A faked conversation must not reach a real provider for its title...
+            if (Ai::hasFakeGatewayFor($prompt->agent) && ! $agent::isFaked()) {
+                $agent::fake();
+            }
+
+            // Unlike upstream, a provider instance is passed instead of its name, so an on-demand provider keeps its credentials. On-demand providers are always concrete; providers that only implement the contract are registered by name.
+            $response = ParentInvocation::within($prompt->invocationId, null, fn (): AgentResponse => $agent->prompt(
+                Str::limit($prompt->prompt, 500),
+                provider: $this->provider instanceof Provider ? $this->provider : $this->provider->name(),
+            ));
         } catch (Throwable $exception) {
             if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
@@ -397,5 +396,7 @@ class RememberConversation
 
             return Str::limit($prompt->prompt, 100, preserveWords: true);
         }
+
+        return Str::limit($response->text, 100);
     }
 }
