@@ -7,6 +7,7 @@ This PHP 8.4 prototype compares the SQL work for recording batched jobs. It uses
 | A | The checkout's DatabaseBatchRepository, at the pinned baseline revision, including its first-pass fixes and duplicate-success defect. |
 | B | The planned per-job success table, with an indexed hash key, the pruning index, and outstanding failures stored on the batch as JSON. The PHP path handles both ordinary IDs and chain entries. PostgreSQL updates with RETURNING and rewrites JSON only when a corresponding failure is removed. |
 | C | One row per observed job identity. A null retry ID is terminal success. A non-null ID identifies an outstanding failure. Parent counters track pending jobs, cumulative failures, and outstanding failed jobs. The failed-ID property loads once on access when outstanding failures exist. |
+| C-noindex | C without the secondary index for looking up outstanding failures. |
 | C-reuse | C with the parent row from the accounting transaction used to populate the batch snapshot, saving the handler's initial find. Measures normal SQL-backed batches without listeners or callbacks. |
 | C-cte | PostgreSQL C with a data-modifying CTE for the first success insert and parent update, in a transaction. Conflict and exceptional finish paths use subsequent statements in that transaction. |
 | C-reuse-cte | Both PostgreSQL optimizations. |
@@ -50,6 +51,6 @@ python3 tests/Benchmarks/JobBatches/run.py --phase sparse --engine mysql > spars
 python3 tests/Benchmarks/JobBatches/run.py --phase latency --engine pgsql --repeats 3 > latency.jsonl
 ```
 
-The MySQL index control processes 5,000 jobs per repetition, split across 50 independent batches. C-noindex changes only the secondary failure-lookup index. The sparse control then compares forced access paths when listing the single outstanding failure in 100,001 rows of one batch (20 warm samples of each). The local PostgreSQL latency control applies a requested 1.4 ms delay per server response chunk through a loopback proxy. Use the recorded SELECT 1 medians to interpret that control; the requested delay is not a measured RTT.
+The MySQL index control processes 5,000 jobs per repetition, split across 50 independent batches. The sparse control then compares forced access paths when listing the single outstanding failure in 100,001 rows of one batch (20 warm samples of each). The local PostgreSQL latency control applies a requested 1.4 ms delay per server response chunk through a loopback proxy. Use the recorded SELECT 1 medians to interpret that control; the requested delay is not a measured RTT.
 
 The servers in this campaign ran on the same host as PHP, with six CPUs available to the benchmark process (Intel Core i7-7700). All variants used real durable commits. See [measurements](measurements.md) for aggregate medians and ranges, and [samples](samples/) for individual runs and engine settings.
