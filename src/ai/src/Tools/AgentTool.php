@@ -15,9 +15,7 @@ use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
-use Hypervel\Coroutine\Coroutine;
 use Stringable;
-use Throwable;
 
 class AgentTool implements Approvable, Tool, Transient
 {
@@ -58,16 +56,7 @@ class AgentTool implements Approvable, Tool, Transient
      */
     public function handle(Request $request): string
     {
-        try {
-            return $this->agent->prompt((string) $request['task'])->text;
-        } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
-            // Degraded to a result so the parent run survives; the failure surfaces as the sub-agent's own AgentFailed...
-            return $this->failedResult($throwable);
-        }
+        return $this->agent->prompt((string) $request['task'])->text;
     }
 
     /**
@@ -81,33 +70,11 @@ class AgentTool implements Approvable, Tool, Transient
             return $this->handle($request);
         }
 
-        try {
-            $stream = $this->agent->stream((string) $request['task']);
+        $stream = $this->agent->stream((string) $request['task']);
 
-            yield from $stream;
+        yield from $stream;
 
-            return (string) $stream->text;
-        } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
-            return $this->failedResult($throwable);
-        }
-    }
-
-    /**
-     * Report the sub-agent's failure and get the result the parent agent receives.
-     */
-    protected function failedResult(Throwable $throwable): string
-    {
-        // Unlike upstream, the failure is reported, since AgentFailed only reaches listeners and the parent run never sees the exception.
-        report($throwable);
-
-        // Unlike upstream, the exception message is only included in debug mode, matching ordinary tool failures...
-        return config()->boolean('app.debug')
-            ? 'Agent failed: ' . $throwable->getMessage()
-            : 'Agent failed.';
+        return (string) $stream->text;
     }
 
     /**

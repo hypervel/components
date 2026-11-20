@@ -24,7 +24,7 @@ class ParentInvocation
     /**
      * Run the given callback with the given invocation and tool invocation as the delegating parent.
      */
-    public static function within(?string $invocationId, string $toolInvocationId, Closure $callback): mixed
+    public static function within(?string $invocationId, ?string $toolInvocationId, Closure $callback): mixed
     {
         $previous = CoroutineContext::get(static::PARENT_INVOCATION_CONTEXT_KEY);
 

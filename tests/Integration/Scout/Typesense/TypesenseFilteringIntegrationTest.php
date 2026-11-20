@@ -79,6 +79,40 @@ class TypesenseFilteringIntegrationTest extends TypesenseScoutIntegrationTestCas
         $this->assertSame($model2->id, $results->first()->id);
     }
 
+    public function testFiltersMatchValuesContainingSpecialCharacters(): void
+    {
+        foreach (['Laravel Framework', 'Rock || Roll', 'Acme (UK)', 'Acme, Inc', 'Acme', 'A`B`C', 'ABC'] as $title) {
+            TypesenseSearchableModel::create(['title' => $title, 'body' => $title]);
+        }
+
+        TypesenseSearchableModel::query()->get()->each(fn ($m) => $this->engine->update(new EloquentCollection([$m])));
+
+        $this->assertSame(['Rock || Roll'], TypesenseSearchableModel::search('')->where('title', 'Rock || Roll')->get()->pluck('title')->all());
+        $this->assertSame(['Acme (UK)'], TypesenseSearchableModel::search('')->where('title', 'Acme (UK)')->get()->pluck('title')->all());
+        $this->assertEqualsCanonicalizing(
+            ['Laravel Framework', 'Acme, Inc'],
+            TypesenseSearchableModel::search('')->whereIn('title', ['Laravel Framework', 'Acme, Inc'])->get()->pluck('title')->all()
+        );
+
+        $titles = TypesenseSearchableModel::search('')->whereNotIn('title', ['Rock || Roll', 'Acme, Inc'])->get()->pluck('title')->all();
+
+        $this->assertNotContains('Rock || Roll', $titles);
+        $this->assertNotContains('Acme, Inc', $titles);
+        $this->assertContains('Acme', $titles);
+
+        // The body field indexes backticks, so quoted values must still match exactly and exclude exactly there.
+        $this->assertSame(['Rock || Roll'], TypesenseSearchableModel::search('')->where('body', 'Rock || Roll')->get()->pluck('title')->all());
+
+        $titles = TypesenseSearchableModel::search('')->where('body', '!=', 'Acme (UK)')->get()->pluck('title')->all();
+
+        $this->assertNotContains('Acme (UK)', $titles);
+        $this->assertCount(6, $titles);
+
+        // Typesense can't quote a literal backtick, but the value without its backticks is a different record there.
+        $this->assertNotContains('ABC', TypesenseSearchableModel::search('')->where('body', 'A`B`C')->get()->pluck('title')->all());
+        $this->assertContains('ABC', TypesenseSearchableModel::search('')->where('body', '!=', 'A`B`C')->get()->pluck('title')->all());
+    }
+
     public function testMultipleWhereClausesAreCombinedWithAnd(): void
     {
         TypesenseSearchableModel::create(['title' => 'PHP Guide', 'body' => 'Content A']);

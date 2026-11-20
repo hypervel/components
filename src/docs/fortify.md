@@ -306,6 +306,8 @@ The package defaults leave `fortify.limiters.login` and `fortify.limiters.passke
 
 The published configuration sets the login and passkey limiters to `login` and `passkeys`, and the published `App\Providers\FortifyServiceProvider` registers matching named rate limiters.
 
+When a login rate limiter is configured, Fortify automatically applies the corresponding `throttle` middleware to its login route, so you do not need to attach this middleware manually.
+
 Fortify's `two-factor` limiter allows five attempts per minute for each challenged account and guard. Changing the request's IP address does not reset that account's limit, and users behind the same IP address do not share a limit. If the challenged account is unexpectedly missing from the login session, the limiter falls back to that session's ID.
 
 You may set `fortify.limiters.two-factor` to a different throttle string or named limiter. Registering another limiter named `two-factor` from your application provider replaces Fortify's default.

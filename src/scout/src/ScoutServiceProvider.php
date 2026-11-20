@@ -52,6 +52,8 @@ class ScoutServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        SearchableSchema::register();
+
         $this->configureAlgoliaSdk();
 
         if ($this->app->runningInConsole()) {

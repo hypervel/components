@@ -83,6 +83,24 @@ class ImageGenerationTest extends TestCase
         });
     }
 
+    public function testImageRequestModerationCanBeSetThroughProviderOptionsForGptImageModels(): void
+    {
+        Http::fake([
+            '*' => fakeOpenAiImageResponse(),
+        ]);
+
+        Image::of('A red apple')
+            ->withProviderOptions(['moderation' => 'auto'])
+            ->generate(provider: 'openai', model: 'gpt-image-1');
+
+        Http::assertSent(function (Request $request): bool {
+            $body = json_decode($request->body(), true);
+
+            return $body['model'] === 'gpt-image-1'
+                && $body['moderation'] === 'auto';
+        });
+    }
+
     public function testImageRequestIncludesQualityWhenExplicitlySpecified(): void
     {
         Http::fake([

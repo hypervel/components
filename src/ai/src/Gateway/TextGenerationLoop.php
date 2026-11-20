@@ -15,6 +15,7 @@ use Hypervel\Ai\Attributes\ConcurrentTools;
 use Hypervel\Ai\Attributes\RepairToolCalls;
 use Hypervel\Ai\Concerns\JoinsReasoning;
 use Hypervel\Ai\Contracts\Approvable;
+use Hypervel\Ai\Contracts\Gateway\ReplaysFullHistory;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\HasMiddleware;
 use Hypervel\Ai\Contracts\Providers\SupportsCodeExecution;
@@ -241,7 +242,8 @@ class TextGenerationLoop
                 break;
             }
 
-            $continuationToken = $lastResult->continuationToken;
+            // Unlike upstream, a response to edited messages is not continued, since the provider stored the edited history the next step must not inherit. A gateway that replays the full history stores none.
+            $continuationToken = $this->gateway instanceof ReplaysFullHistory || $prepared->messages === $pending->messages ? $lastResult->continuationToken : null;
             $previous = $prepared;
         }
 
@@ -468,7 +470,8 @@ class TextGenerationLoop
                 break;
             }
 
-            $continuationToken = $result->continuationToken;
+            // Unlike upstream, a response to edited messages is not continued, since the provider stored the edited history the next step must not inherit. A gateway that replays the full history stores none.
+            $continuationToken = $this->gateway instanceof ReplaysFullHistory || $prepared->messages === $pending->messages ? $result->continuationToken : null;
             $previous = $prepared;
         }
 
@@ -588,12 +591,14 @@ class TextGenerationLoop
      */
     protected function stepContextFor(PendingStep $step, ?PendingStep $previous, array $history, ?string $continuationToken): StepContext
     {
-        $unchanged = $step->messages === $history && $step->model === $previous?->model && $step->instructions === $previous->instructions;
+        // Unlike upstream, the token of a gateway that sends the full history every step, such as Anthropic's execution container, outlives changes to the step.
+        $reusable = $this->gateway instanceof ReplaysFullHistory
+            || ($step->messages === $history && $step->model === $previous?->model && $step->instructions === $previous->instructions);
 
         return new StepContext(
             stepNumber: $step->number,
             isFinalStep: $step->isFinalStep,
-            continuationToken: $unchanged ? $continuationToken : null,
+            continuationToken: $reusable ? $continuationToken : null,
         );
     }
 
@@ -764,11 +769,7 @@ class TextGenerationLoop
                     );
                 }
 
-                $events = $this->executeAgentToolStreaming($tool, $toolCall->arguments, $toolCall->id, $context);
-
-                yield from $this->preliminaryToolResults($events, $toolCall, $invocationId);
-
-                return $this->recordedToolResult($this->toolResult($toolCall, $events->getReturn()), $context);
+                return yield from $this->streamedAgentToolResult($tool, $toolCall, $invocationId, $context);
             }, $context);
 
             return [$results, $pendingApprovals];
@@ -786,14 +787,28 @@ class TextGenerationLoop
                 continue;
             }
 
-            $events = $this->executeAgentToolStreaming($tool, $toolCall->arguments, $toolCall->id, $context);
-
-            yield from $this->preliminaryToolResults($events, $toolCall, $invocationId);
-
-            $toolResults[] = $this->recordedToolResult($this->toolResult($toolCall, $events->getReturn()), $context);
+            $toolResults[] = yield from $this->streamedAgentToolResult($tool, $toolCall, $invocationId, $context);
         }
 
         return [$toolResults, $pendingApprovals];
+    }
+
+    /**
+     * Stream a sub-agent's output as preliminary results, then record its final or failed result.
+     *
+     * @return Generator<int, ToolResultEvent, mixed, ToolResult>
+     */
+    private function streamedAgentToolResult(AgentTool $tool, ToolCall $toolCall, string $invocationId, ?RunContext $context): Generator
+    {
+        $events = $this->executeAgentToolStreaming($tool, $toolCall->arguments, $toolCall->id, $context);
+
+        try {
+            yield from $this->preliminaryToolResults($events, $toolCall, $invocationId);
+
+            return $this->recordedToolResult($this->toolResult($toolCall, $events->getReturn()), $context);
+        } catch (ToolExecutionException $exception) {
+            return $this->recordedToolResult($this->failedToolResult($toolCall, $exception), $context);
+        }
     }
 
     /**
@@ -857,6 +872,7 @@ class TextGenerationLoop
 
         $startedAt = hrtime(true);
 
+        // Only the sub-agent itself may fail the tool call, so a listener that throws is never reported as a tool failure...
         try {
             $events = $tool->stream(new Request($arguments, $toolCallId, $toolInvocationId));
 
@@ -873,7 +889,8 @@ class TextGenerationLoop
         } catch (Throwable $exception) {
             // Keep the original exception, including cancellation, as previous if failure reporting throws.
             try {
-                throw $exception;
+                // Unlike upstream, cancellation is not wrapped, so the caller never recovers it as the tool's own failure.
+                throw Coroutine::causedByCancellation($exception) ? $exception : new ToolExecutionException($exception);
             } finally {
                 $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
             }
@@ -1029,10 +1046,18 @@ class TextGenerationLoop
         try {
             return $this->toolResult($toolCall, $this->executeTool($tool, $toolCall->arguments, $toolCall->id, $context));
         } catch (ToolExecutionException $exception) {
-            report($exception->exception);
-
-            return $this->toolResult($toolCall, $this->failedToolResultText($exception->exception), failed: true);
+            return $this->failedToolResult($toolCall, $exception);
         }
+    }
+
+    /**
+     * Report the given tool failure and turn it into a result the model can react to.
+     */
+    protected function failedToolResult(ToolCall $toolCall, ToolExecutionException $exception): ToolResult
+    {
+        report($exception->exception);
+
+        return $this->toolResult($toolCall, $this->failedToolResultText($exception->exception), failed: true);
     }
 
     /**

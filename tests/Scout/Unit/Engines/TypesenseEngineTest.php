@@ -110,6 +110,36 @@ class TypesenseEngineTest extends TestCase
         $this->assertStringContainsString('brand:!=[apple, samsung]', $result);
     }
 
+    public function testFilterValuesWithSpecialCharactersAreQuoted(): void
+    {
+        $engine = $this->createEngine();
+
+        $builder = Double::for(Builder::class)->strict();
+        $builder->wheres = [
+            ['field' => 'band', 'value' => 'Rock || Roll', 'operator' => '='],
+            ['field' => 'company', 'value' => 'Acme (UK)', 'operator' => '!='],
+            ['field' => 'title', 'value' => 'It`s R&&D', 'operator' => '='],
+            ['field' => 'name', 'value' => 'New*', 'operator' => '='],
+            ['field' => 'price', 'value' => '[10..100]', 'operator' => '='],
+            ['field' => 'location', 'value' => ['(48.85, 2.34, 5 km)'], 'operator' => '='],
+            ['field' => 'status', 'value' => ['Rock || Roll'], 'operator' => '='],
+        ];
+        $builder->whereIns = [
+            'company' => ['Laravel', 'Acme (UK)', 'Acme, Inc'],
+        ];
+        $builder->whereNotIns = [
+            'band' => ['Rock || Roll'],
+        ];
+
+        $result = $this->invokeMethod($engine, 'filters', [$builder]);
+
+        $this->assertSame(
+            'band:=[`Rock || Roll`] && company:!=[`Acme (UK)`] && title:=`Its R&&D` && name:=New* && price:=[10..100] && location:(48.85, 2.34, 5 km)'
+            . ' && status:`Rock || Roll` && company:=[Laravel, `Acme (UK)`, `Acme, Inc`] && band:!=[`Rock || Roll`]',
+            $result
+        );
+    }
+
     public function testParseFilterValueMethod(): void
     {
         $engine = $this->createEngine();
@@ -135,16 +165,27 @@ class TypesenseEngineTest extends TestCase
         $this->assertEquals('age:=25', $this->invokeMethod($engine, 'parseWhereFilter', [25, 'age']));
         $this->assertEquals('age:>=25', $this->invokeMethod($engine, 'parseWhereFilter', [25, 'age', '>=']));
         $this->assertEquals('status:!=inactive', $this->invokeMethod($engine, 'parseWhereFilter', ['inactive', 'status', '!=']));
+        $this->assertEquals('tags:tag1tag2tag3', $this->invokeMethod($engine, 'parseWhereFilter', [['tag1', 'tag2', 'tag3'], 'tags']));
+        $this->assertEquals('status:!=inactive', $this->invokeMethod($engine, 'parseWhereFilter', [['inactive'], 'status', '!=']));
     }
 
-    public function testParseWhereFilterRejectsUnsupportedOperators(): void
+    #[DataProvider('unsupportedOperatorValues')]
+    public function testParseWhereFilterRejectsUnsupportedOperators(array|string $value): void
     {
         $engine = $this->createEngine();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Unsupported Typesense filter operator [LIKE].');
 
-        $this->invokeMethod($engine, 'parseWhereFilter', ['active', 'status', 'LIKE']);
+        $this->invokeMethod($engine, 'parseWhereFilter', [$value, 'status', 'LIKE']);
+    }
+
+    public static function unsupportedOperatorValues(): array
+    {
+        return [
+            'scalar' => ['active'],
+            'array' => [['active']],
+        ];
     }
 
     public function testParseWhereInFilterMethod(): void
@@ -155,6 +196,7 @@ class TypesenseEngineTest extends TestCase
             'category:=[electronics, books]',
             $this->invokeMethod($engine, 'parseWhereInFilter', [['electronics', 'books'], 'category'])
         );
+        $this->assertEquals('id:=[1, 2, 3]', $this->invokeMethod($engine, 'parseWhereInFilter', [[1, 2, 3], 'id']));
     }
 
     public function testParseWhereNotInFilterMethod(): void

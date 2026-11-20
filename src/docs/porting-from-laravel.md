@@ -848,6 +848,8 @@ For schema dumps and loads over TLS, use MySQL command-line tools version 5.7.11
 
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
+PostgreSQL multi-column full text indexes and `whereFullText` queries coalesce each column, so a null column no longer hides a row. Indexes created by Laravel's grammar no longer match these queries; recreate existing multi-column full text indexes so searches can use them. See [full text where clauses](/docs/{{version}}/queries#full-text-where-clauses).
+
 Review pagination on update and delete queries. SQLite and PostgreSQL honor offsets, including without a limit. MySQL and MariaDB reject write offsets and limits on joined updates, and PostgreSQL rejects limits or offsets on `updateFrom`, instead of silently ignoring them. For these unsupported forms, select the intended primary keys first and write those rows explicitly.
 
 For cursor or ID-based pagination across unions, select plain columns in corresponding positions, or use `fromSub` to paginate the combined output. Hypervel rejects projections whose correspondence cannot be established, including computed paging columns. For query-builder `chunk`, `lazy`, and `cursorPaginate` calls, add `orderBy` after the union; an order on the first query alone throws. Union members use positional mapping instead of the protected `getOriginalColumnNameForCursorPagination` override; root queries retain that override. See [paginating unions](/docs/{{version}}/queries#paginating-unions).

@@ -91,6 +91,7 @@ trait HandlesTextStreaming
         $messageUsage = [];
         $usage = null;
         $stopReason = '';
+        $container = null;
         $citedUrls = [];
 
         $emitTextStart = function () use (&$textStartEmitted, $messageId, $invocationId): ?StreamEvent {
@@ -372,6 +373,7 @@ trait HandlesTextStreaming
 
             if ($type === 'message_delta') {
                 $stopReason = $data['delta']['stop_reason'] ?? '';
+                $container = $data['delta']['container']['id'] ?? $container;
 
                 // Usage on message_delta is cumulative for the whole message...
                 $usage = $this->extractUsage(['usage' => array_merge($messageUsage, $data['usage'] ?? [])]);
@@ -407,6 +409,7 @@ trait HandlesTextStreaming
             usage: $usage ?? new TextUsage(0, 0),
             finishReason: $this->extractFinishReason(['stop_reason' => $stopReason]),
             structured: false,
+            container: $container,
         );
     }
 

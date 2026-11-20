@@ -6,6 +6,7 @@ namespace Hypervel\Tests\PHPStan\Unit;
 
 use Hypervel\Database\Eloquent\Concerns\HasUniqueStringIds;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\SchemaAggregator;
 use Hypervel\PHPStan\Properties\SchemaConnection;
@@ -26,6 +27,7 @@ use PHPStan\Testing\PHPStanTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
+use ReflectionProperty;
 
 use function array_keys;
 use function array_map;
@@ -357,6 +359,88 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
         $this->assertSame([], $this->columns($aggregator, 'cities'));
         $this->assertFalse($this->table($aggregator, 'cities')->complete);
+    }
+
+    #[Test]
+    public function itReadsTheColumnsOfNestedSetMacros(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('categories', function (Blueprint $table) {
+                $table->string('name');
+                $table->nestedSet();
+            });
+
+            Schema::create('integer_categories', fn (Blueprint $table) => $table->integerNestedSet());
+            Schema::create('uuid_categories', fn (Blueprint $table) => $table->uuidNestedSet(['tenant_id']));
+            Schema::create('ulid_categories', fn (Blueprint $table) => $table->ulidNestedSet());
+
+            Schema::create('flat_categories', function (Blueprint $table) {
+                $table->string('name');
+                $table->nestedSet();
+            });
+
+            Schema::table('flat_categories', fn (Blueprint $table) => $table->dropNestedSet());
+        PHP);
+
+        $bounds = ['_lft' => ['int<0, max>', false], '_rgt' => ['int<0, max>', false], 'depth' => ['int<0, max>', false]];
+
+        $this->assertSame(['name' => ['string', false]] + $bounds + ['parent_id' => ['int<0, max>|numeric-string', true]], $this->columns($aggregator, 'categories'));
+        $this->assertSame($bounds + ['parent_id' => ['int<0, max>', true]], $this->columns($aggregator, 'integer_categories'));
+        $this->assertSame($bounds + ['parent_id' => ['string', true]], $this->columns($aggregator, 'uuid_categories'));
+        $this->assertSame($bounds + ['parent_id' => ['string', true]], $this->columns($aggregator, 'ulid_categories'));
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'flat_categories'));
+        $this->assertTrue($this->table($aggregator, 'flat_categories')->complete);
+    }
+
+    #[Test]
+    public function itReadsTheVectorColumnsOfScoutSearchableMacros(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('posts', function (Blueprint $table) {
+                $table->string('title');
+                $table->searchable(['title']);
+                $table->searchable(['title'], tsvector: 'title_vector');
+                $table->searchable(['title'], tsvector: 'body_vector');
+            });
+
+            Schema::table('posts', fn (Blueprint $table) => $table->dropSearchable(tsvector: 'title_vector'));
+            Schema::table('posts', fn (Blueprint $table) => $table->dropSearchable());
+        PHP, 'pgsql');
+
+        $this->assertSame(['title' => ['string', false], 'body_vector' => ['string', false]], $this->columns($aggregator, 'posts', 'pgsql'));
+        $this->assertTrue($this->table($aggregator, 'posts', 'pgsql')->complete);
+
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('posts', function (Blueprint $table) {
+                $table->string('title');
+                $table->searchable(['title'], tsvector: $this->column);
+            });
+        PHP, 'pgsql', members: 'public string $column = "search_vector";');
+
+        $this->assertSame(['title' => ['string', false]], $this->columns($aggregator, 'posts', 'pgsql'));
+        $this->assertFalse($this->table($aggregator, 'posts', 'pgsql')->complete);
+    }
+
+    #[Test]
+    public function itForgetsTablesAnotherSearchableMacroChanges(): void
+    {
+        $macro = (new ReflectionProperty(Blueprint::class, 'macros'))->getValue()['searchable'];
+
+        Blueprint::macro('searchable', function (): void {});
+
+        try {
+            $aggregator = $this->aggregate(<<<'PHP'
+                Schema::create('posts', function (Blueprint $table) {
+                    $table->string('title');
+                    $table->searchable(['title']);
+                });
+            PHP, 'pgsql');
+        } finally {
+            Blueprint::macro('searchable', $macro);
+        }
+
+        $this->assertSame([], $this->columns($aggregator, 'posts', 'pgsql'));
+        $this->assertFalse($this->table($aggregator, 'posts', 'pgsql')->complete);
     }
 
     /**

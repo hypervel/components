@@ -118,6 +118,18 @@ By default, Blade `{{ }}` statements are automatically sent through PHP's `htmls
 Hello, {!! $name !!}.
 ```
 
+Alternatively, you may wrap a string in an instance of `Hypervel\Support\HtmlString`. Blade will not escape these instances, even when displayed using the `{{ }}` statement:
+
+```php
+use Hypervel\Support\HtmlString;
+
+$name = new HtmlString('<strong>Taylor</strong>');
+```
+
+```blade
+Hello, {{ $name }}.
+```
+
 > [!WARNING]
 > Be very careful when echoing content that is supplied by users of your application. You should typically use the escaped, double curly brace syntax to prevent XSS attacks when displaying user supplied data.
 

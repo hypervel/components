@@ -42,7 +42,16 @@ class SearchUsingFullText
      * Create a new attribute instance.
      *
      * @param array<string>|string $columns
-     * @param array<string, mixed> $options
+     * @param array{
+     *     mode?: 'boolean'|'natural'|'phrase'|'plain'|'raw'|'websearch',
+     *     language?: string,
+     *     vector?: bool,
+     *     trigram?: array<int, string>|string,
+     *     trigram_mode?: 'blend'|'fallback',
+     *     rank?: 'ts_rank'|'ts_rank_cd',
+     *     expanded?: bool,
+     *     ...
+     * } $options
      */
     public function __construct(array|string $columns, array $options = [])
     {

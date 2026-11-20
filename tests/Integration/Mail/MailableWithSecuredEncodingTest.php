@@ -175,10 +175,12 @@ TABLE, false);
 
     public function testSecuredRenderingPreservesLiteralContentAcrossMailComponents(): void
     {
-        $value = '\\\server\share [x] <b>';
+        $value = '\\\server\share [x] <b> "quoted" it\'s &copy; & more';
+        $url = 'https://example.com/search?q="mail" data-injected="yes"&tag=it\'s';
         $html = $this->app->make(Markdown::class)->render('message-with-punctuation', [
             'value' => $value,
             'punctuation' => '[x]',
+            'url' => $url,
             'host' => 'evil.test\\',
             'number' => 42,
         ])->toHtml();
@@ -188,6 +190,9 @@ TABLE, false);
         $this->assertSame($value, $document->filter('code')->eq(1)->text());
         $this->assertSame($value, $document->filter('.panel-item')->text());
         $this->assertSame($value, $document->filter('.subcopy')->text());
+        // The CSS inliner's HTML serializer percent-encodes link URLs.
+        $this->assertSame($url, rawurldecode($document->selectLink('Open')->attr('href')));
+        $this->assertNull($document->selectLink('Open')->attr('data-injected'));
         $this->assertStringContainsString('content: "[x]"', $document->filter('style')->last()->text());
         $this->assertSame('https://evil.test%5C.good.test', $document->selectLink('Destination')->attr('href'));
         $this->assertContains('42', $document->filter('p')->each(fn (Crawler $paragraph): string => $paragraph->text()));

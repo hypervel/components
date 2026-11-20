@@ -579,7 +579,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);
-        $this->assertSame('create index "users_body_title_fulltext" on "users" using gin ((to_tsvector(\'english\', "body") || to_tsvector(\'english\', "title")))', $statements[0]);
+        $this->assertSame('create index "users_body_title_fulltext" on "users" using gin ((coalesce(to_tsvector(\'english\', "body"), \'\'::tsvector) || coalesce(to_tsvector(\'english\', "title"), \'\'::tsvector)))', $statements[0]);
     }
 
     public function testAddingFulltextIndexWithLanguage(): void

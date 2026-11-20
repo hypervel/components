@@ -449,6 +449,12 @@ class PostgresGrammar extends Grammar
             return "to_tsvector({$this->quoteString($language)}, {$this->wrap($column)})";
         }, $command->columns);
 
+        // Unlike Laravel, each vector of a multi-column index is coalesced, matching the query grammar's full-text
+        // expression so a null column doesn't hide the row and searches can still use the index.
+        if (count($columns) > 1) {
+            $columns = array_map(fn (string $vector): string => "coalesce({$vector}, ''::tsvector)", $columns);
+        }
+
         return sprintf(
             'create index %s%s on %s using gin ((%s))',
             $command->online ? 'concurrently ' : '',

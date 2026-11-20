@@ -6,6 +6,7 @@ namespace Hypervel\Tests\PHPStan\Unit;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\MigrationCache;
@@ -13,6 +14,7 @@ use Hypervel\PHPStan\Properties\SchemaConnection;
 use Hypervel\PHPStan\Properties\SchemaTable;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\PHPStan\TestCase;
+use ReflectionProperty;
 use SplFileInfo;
 
 use function clearstatcache;
@@ -260,6 +262,34 @@ class MigrationCacheTest extends TestCase
         });
 
         $this->assertSame(['analytics.connection'], $resolver->getConsumedKeys());
+    }
+
+    /**
+     * An application macro replacing a first-party schema macro makes its changes unknown, so the entry
+     * aggregated with the first-party macro no longer applies.
+     */
+    public function testReplacingAKnownSchemaMacroInvalidatesTheEntry(): void
+    {
+        $migrationFiles = [new SplFileInfo($this->createTempFile('mig1.php'))];
+        $calls = 0;
+        $aggregate = static function () use (&$calls): array {
+            ++$calls;
+
+            return self::schema([]);
+        };
+
+        $this->cache->remember($migrationFiles, [], $this->resolver->getSchemaConfiguration(), $aggregate);
+
+        $macro = (new ReflectionProperty(Blueprint::class, 'macros'))->getValue()['searchable'];
+        Blueprint::macro('searchable', function (): void {});
+
+        try {
+            $this->cache->remember($migrationFiles, [], $this->resolver->getSchemaConfiguration(), $aggregate);
+        } finally {
+            Blueprint::macro('searchable', $macro);
+        }
+
+        $this->assertSame(2, $calls);
     }
 
     /**

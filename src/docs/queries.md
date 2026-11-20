@@ -1433,6 +1433,8 @@ $users = DB::table('users')
     ->get();
 ```
 
+When searching several PostgreSQL columns, a row with a null column can still match the others. Multi-column full text indexes use the same expression, so these searches can use the index.
+
 <a name="vector-similarity-clauses"></a>
 ### Vector Similarity Clauses
 
@@ -1519,17 +1521,6 @@ $corporations = DB::table('corporations')
     ->get();
 ```
 
-<a name="preferred-value-ordering"></a>
-#### Preferred Value Ordering
-
-The `inOrderOf` method orders results according to a preferred sequence of values. Values not included in the sequence are placed last:
-
-```php
-$orders = DB::table('orders')
-    ->inOrderOf('status', ['pending', 'processing', 'completed'])
-    ->get();
-```
-
 <a name="latest-oldest"></a>
 #### The `latest` and `oldest` Methods
 
@@ -1540,6 +1531,19 @@ $user = DB::table('users')
     ->latest()
     ->first();
 ```
+
+<a name="sequence-ordering"></a>
+#### Sequence Ordering
+
+The `inOrderOf` method allows you to order query results using a sequence of values, such as strings or enums:
+
+```php
+$orders = DB::table('orders')
+    ->inOrderOf('status', [OrderStatus::Shipped, OrderStatus::Delivered, OrderStatus::Cancelled])
+    ->get();
+```
+
+Values not included in the sequence are placed last.
 
 <a name="random-ordering"></a>
 #### Random Ordering

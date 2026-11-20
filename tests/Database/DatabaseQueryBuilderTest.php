@@ -2048,12 +2048,12 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder = $this->getPostgresBuilderWithProcessor();
         $builder->select('*')->from('users')->whereFullText(['body', 'title'], 'Car Plane');
-        $this->assertSame('select * from "users" where (to_tsvector(\'english\', "body") || to_tsvector(\'english\', "title")) @@ plainto_tsquery(\'english\', ?)', $builder->toSql());
+        $this->assertSame('select * from "users" where (coalesce(to_tsvector(\'english\', "body"), \'\'::tsvector) || coalesce(to_tsvector(\'english\', "title"), \'\'::tsvector)) @@ plainto_tsquery(\'english\', ?)', $builder->toSql());
         $this->assertEquals(['Car Plane'], $builder->getBindings());
 
         $builder = $this->getPostgresBuilderWithProcessor();
         $builder->select('*')->from('users')->whereFullText(['body', 'title'], 'Air | Plan:* -Car', ['mode' => 'raw']);
-        $this->assertSame('select * from "users" where (to_tsvector(\'english\', "body") || to_tsvector(\'english\', "title")) @@ to_tsquery(\'english\', ?)', $builder->toSql());
+        $this->assertSame('select * from "users" where (coalesce(to_tsvector(\'english\', "body"), \'\'::tsvector) || coalesce(to_tsvector(\'english\', "title"), \'\'::tsvector)) @@ to_tsquery(\'english\', ?)', $builder->toSql());
         $this->assertEquals(['Air | Plan:* -Car'], $builder->getBindings());
 
         $builder = $this->getPostgresBuilderWithProcessor();
@@ -2073,7 +2073,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder = $this->getPostgresBuilderWithProcessor();
         $builder->select('*')->from('users')->whereFullText(['tsv_title', 'tsv_body'], 'Car Plane', ['vector' => true]);
-        $this->assertSame('select * from "users" where ("tsv_title" || "tsv_body") @@ plainto_tsquery(\'english\', ?)', $builder->toSql());
+        $this->assertSame('select * from "users" where (coalesce("tsv_title", \'\'::tsvector) || coalesce("tsv_body", \'\'::tsvector)) @@ plainto_tsquery(\'english\', ?)', $builder->toSql());
         $this->assertSame(['Car Plane'], $builder->getBindings());
     }
 

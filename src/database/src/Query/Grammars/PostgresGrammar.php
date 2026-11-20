@@ -147,8 +147,16 @@ class PostgresGrammar extends Grammar
         $columns = (new Collection($where['columns']))
             ->map(fn ($column) => $isVector
                 ? $this->wrap($column)
-                : "to_tsvector('{$language}', {$this->wrap($column)})")
-            ->implode(' || ');
+                : "to_tsvector('{$language}', {$this->wrap($column)})");
+
+        // Unlike Laravel, each vector of a multi-column search is coalesced, since a null column would make the whole
+        // concatenation null and hide the row. The schema grammar's full-text index uses the same expression, which
+        // PostgreSQL requires before it can use the index.
+        if ($columns->count() > 1) {
+            $columns = $columns->map(fn (string $vector): string => "coalesce({$vector}, ''::tsvector)");
+        }
+
+        $columns = $columns->implode(' || ');
 
         $mode = 'plainto_tsquery';
 

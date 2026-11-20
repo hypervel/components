@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Feature;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Attributes\SearchableAs;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
+use Hypervel\Scout\Searchable;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableAsChildModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableAsModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -58,11 +62,15 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertInstanceOf(ContainerScoutBuilder::class, SearchableModel::search('test'));
     }
 
-    public function testSearchableAsReturnsTableName(): void
+    public function testSearchableAsDefaultsToTheTableName(): void
     {
-        $model = new SearchableModel;
+        $model = new class extends Model {
+            use Searchable;
 
-        $this->assertSame('searchable_models', $model->searchableAs());
+            protected ?string $table = 'posts';
+        };
+
+        $this->assertSame('posts', $model->searchableAs());
     }
 
     public function testSearchableAsReturnsTableNameWithPrefix(): void
@@ -74,6 +82,29 @@ class SearchableModelTest extends ScoutTestCase
         $model = new SearchableModel;
 
         $this->assertSame('test_searchable_models', $model->searchableAs());
+    }
+
+    public function testSearchableAsUsesTheSearchableAsAttribute(): void
+    {
+        $this->assertSame('posts_index', (new SearchableAsModel)->searchableAs());
+        $this->assertSame('posts_index', (new SearchableAsModel)->indexableAs());
+    }
+
+    public function testSearchableAsAttributeIsPrefixed(): void
+    {
+        config(['scout.prefix' => 'prod_']);
+
+        $this->assertSame('prod_posts_index', (new SearchableAsModel)->searchableAs());
+    }
+
+    public function testSearchableAsAttributeIsInherited(): void
+    {
+        $this->assertSame('posts_index', (new SearchableAsChildModel)->searchableAs());
+    }
+
+    public function testSearchableAsIgnoresAttributesOnTraits(): void
+    {
+        $this->assertSame('posts_index', (new SearchableAsTraitChildModel)->searchableAs());
     }
 
     public function testToSearchableArrayReturnsModelArray(): void
@@ -377,4 +408,14 @@ class CustomScoutBuilder extends Builder
 
 class ContainerScoutBuilder extends Builder
 {
+}
+
+#[SearchableAs('trait_index')]
+trait SearchableAsTrait
+{
+}
+
+class SearchableAsTraitChildModel extends SearchableAsModel
+{
+    use SearchableAsTrait;
 }

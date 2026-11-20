@@ -130,7 +130,7 @@ class ConnectionConfigResolver
     }
 
     /**
-     * Get the normalized configuration that schema aggregation reads.
+     * Get the normalized configuration and boot state that schema aggregation reads.
      *
      * Fetch options and custom resolvers only affect lookups, so changing them keeps the aggregated schema.
      *
@@ -156,6 +156,7 @@ class ConnectionConfigResolver
                 ];
             }, $names)),
             'morphKeyType' => Builder::$defaultMorphKeyType,
+            'macros' => SchemaAggregator::getKnownMacros(),
         ];
     }
 

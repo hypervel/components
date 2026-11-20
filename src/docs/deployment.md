@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Server Requirements](#server-requirements)
+    - [Hypervel PHP Requirements](#hypervel-php-requirements)
 - [Server Configuration](#server-configuration)
     - [Nginx](#nginx)
     - [Nginx and WebSockets](#nginx-and-websockets)
@@ -27,32 +28,16 @@ When you're ready to deploy your Hypervel application to production, there are s
 <a name="server-requirements"></a>
 ## Server Requirements
 
-The Hypervel framework has a few system requirements. Hypervel ships with its own Swoole-based application server, so your production server should run the long-running Hypervel server process instead of PHP-FPM. You should ensure that your server has the following minimum PHP version and commonly required extensions:
+Hypervel ships with its own Swoole-based application server, so your production server should run the long-running Hypervel server process instead of PHP-FPM.
 
-<div class="content-list" markdown="1">
+<a name="hypervel-php-requirements"></a>
+### Hypervel PHP Requirements
 
-- PHP >= 8.4
-- Ctype PHP Extension
-- cURL PHP Extension
-- DOM PHP Extension
-- Fileinfo PHP Extension
-- Filter PHP Extension
-- Hash PHP Extension
-- Intl PHP Extension
-- JSON PHP Extension
-- Mbstring PHP Extension
-- OpenSSL PHP Extension
-- PCNTL PHP Extension
-- PCRE PHP Extension
-- PDO PHP Extension
-- POSIX PHP Extension
-- Redis PHP Extension >= 6.1
-- Session PHP Extension
-- Swoole PHP Extension >= 6.3.0
-- Tokenizer PHP Extension
-- XML PHP Extension
+Your server must meet Hypervel's [installation requirements](/docs/{{version}}/installation#requirements), including the PHP version, the required PHP extensions, Swoole's build options, and the `swoole.use_shortname` setting. You can check the PHP version installed on your server with:
 
-</div>
+```shell
+php -v
+```
 
 <a name="server-configuration"></a>
 ## Server Configuration

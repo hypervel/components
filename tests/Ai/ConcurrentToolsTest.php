@@ -38,6 +38,8 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Exceptions;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
 use InvalidArgumentException;
 use JMac\Testing\Double;
@@ -261,6 +263,39 @@ class ConcurrentToolsTest extends TestCase
         $this->assertTrue($receivedLiveOutput);
         $this->assertSame(0, $active);
         $this->assertFalse($resumed);
+    }
+
+    #[WithConfig('app.debug', false)]
+    public function testAFailingSubAgentReturnsAFailedResultWhileTheOtherToolsFinish(): void
+    {
+        Exceptions::fake();
+        $agent = Double::for(Agent::class, CanActAsTool::class)->strict();
+        $agent->allows('name')->returns('child');
+        $agent->expects('stream')->times(2)->resolves(fn (string $task): StreamableAgentResponse => new StreamableAgentResponse($task, function () use ($task): Generator {
+            yield new TextDelta($task, $task, $task, time());
+
+            if ($task === 'first') {
+                throw new RuntimeException('The sub-agent failed.');
+            }
+        }));
+        $provider = Double::for(TextProvider::class)->strict();
+        $provider->allows('name')->returns('provider');
+        $results = [];
+        $gateway = $this->gateway(true, [
+            new ToolCall('first', 'child', ['task' => 'first']),
+            new ToolCall('second', 'child', ['task' => 'second']),
+        ], $results);
+
+        iterator_to_array((new TextGenerationLoop($gateway))->stream(
+            'invocation',
+            $provider,
+            'model',
+            '',
+            tools: [new AgentTool($agent)],
+            options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])),
+        ), false);
+
+        $this->assertSame(['The tool call failed.', 'second'], $results);
     }
 
     #[DataProvider('cancellationModes')]

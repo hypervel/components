@@ -293,7 +293,8 @@ class HeadManager implements Arrayable, Htmlable
         $data = (new HeadData)->merge($this->defaults);
 
         if ($this->defaultsResolver !== null) {
-            $data = $data->merge($this->define($this->defaultsResolver)->asDefaults());
+            // Marked after merging, so runtime default media replaces the registered default media instead of joining it.
+            $data = $data->merge($this->define($this->defaultsResolver))->asDefaults();
         }
 
         if ($route = $this->route()) {
@@ -361,7 +362,7 @@ class HeadManager implements Arrayable, Htmlable
      */
     protected function state(): CurrentHead
     {
-        return $this->app->make(CurrentHead::class);
+        return $this->currentContainer()->make(CurrentHead::class);
     }
 
     /**
@@ -369,7 +370,17 @@ class HeadManager implements Arrayable, Htmlable
      */
     protected function request(): ?Request
     {
-        return $this->app->make('request');
+        return $this->currentContainer()->make('request');
+    }
+
+    /**
+     * Get the container handling the current request.
+     */
+    protected function currentContainer(): Container
+    {
+        // Unlike upstream, this is the injected container rather than Container::getInstance(): the worker keeps one
+        // container, CurrentHead is scoped per coroutine and the request comes from the coroutine's context.
+        return $this->app;
     }
 
     /**
