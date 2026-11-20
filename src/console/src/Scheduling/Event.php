@@ -399,8 +399,9 @@ class Event
             $date = $date->setTimezone($this->timezone);
         }
 
-        return (new CronExpression($this->expression))
-            ->isDue($date->toDateTimeString());
+        // Laravel passes a formatted string, which is read in the application's timezone and
+        // matches the wrong times around that timezone's daylight saving changes
+        return (new CronExpression($this->expression))->isDue($date);
     }
 
     /**
