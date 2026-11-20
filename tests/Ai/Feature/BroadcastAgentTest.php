@@ -18,6 +18,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ConversationalAgent;
 use Hypervel\Tests\Ai\TestCase;
+use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -144,6 +145,67 @@ class BroadcastAgentTest extends TestCase
             && $event->broadcastOn() === $channels);
     }
 
+    #[DataProvider('failureExceptions')]
+    public function testFailedRunsTheCatchCallbacksWithTheException(?Throwable $exception): void
+    {
+        Event::fake();
+
+        $job = new BroadcastAgent(new AssistantAgent, 'Say hello', new Channel('test-channel'));
+        $invocationId = $job->invocationId;
+        $failures = [];
+        $job->catch(function (?Throwable $exception) use ($invocationId, &$failures): void {
+            Event::assertDispatched(AnonymousEvent::class, fn (AnonymousEvent $event): bool => $event->broadcastAs() === 'stream_failed'
+                && $event->broadcastWith()['invocation_id'] === $invocationId);
+
+            $failures[] = $exception;
+        });
+
+        $job->failed($exception);
+
+        $this->assertSame([$exception], $failures);
+    }
+
+    /**
+     * Provide exception and manual failures.
+     */
+    public static function failureExceptions(): array
+    {
+        return [
+            'exception' => [new RuntimeException('Something went wrong')],
+            'manual failure' => [null],
+        ];
+    }
+
+    public function testFailedRunsTheCatchCallbacksWhenTheErrorBroadcastThrows(): void
+    {
+        $broadcastException = new InvalidArgumentException('Broadcast connection [x] is not defined.');
+        Broadcast::shouldReceive('on')->andThrow($broadcastException);
+
+        $received = null;
+
+        $job = new BroadcastAgent(
+            agent: new AssistantAgent,
+            prompt: 'Say hello',
+            channels: new Channel('test-channel'),
+        );
+
+        $job->catch(function (Throwable $e) use (&$received): void {
+            $received = $e;
+        });
+
+        $exception = new RuntimeException('boom');
+
+        try {
+            $job->failed($exception);
+
+            $this->fail('The broadcast exception was not thrown.');
+        } catch (InvalidArgumentException $caught) {
+            $this->assertSame($broadcastException, $caught);
+        }
+
+        $this->assertSame($exception, $received);
+    }
+
     #[TestWith(['overloaded_error'])]
     #[TestWith(['not_found'])]
     #[TestWith(['unknown_error'])]
@@ -234,36 +296,5 @@ class BroadcastAgentTest extends TestCase
         $this->assertInstanceOf(StreamedAgentResponse::class, $received);
         $this->assertNotEmpty($received->events);
         $this->assertSame('Hello world', $received->text);
-    }
-
-    #[DataProvider('failureExceptions')]
-    public function testFailedInvokesCatchCallbacksAfterBroadcasting(?Throwable $exception): void
-    {
-        Event::fake();
-
-        $job = new BroadcastAgent(new AssistantAgent, 'Say hello', new Channel('test-channel'));
-        $invocationId = $job->invocationId;
-        $failures = [];
-        $job->catch(function (?Throwable $exception) use ($invocationId, &$failures): void {
-            Event::assertDispatched(AnonymousEvent::class, fn (AnonymousEvent $event): bool => $event->broadcastAs() === 'stream_failed'
-                && $event->broadcastWith()['invocation_id'] === $invocationId);
-
-            $failures[] = $exception;
-        });
-
-        $job->failed($exception);
-
-        $this->assertSame([$exception], $failures);
-    }
-
-    /**
-     * Provide exception and manual failures.
-     */
-    public static function failureExceptions(): array
-    {
-        return [
-            'exception' => [new RuntimeException('Something went wrong')],
-            'manual failure' => [null],
-        ];
     }
 }

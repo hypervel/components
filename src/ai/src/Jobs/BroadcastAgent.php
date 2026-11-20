@@ -23,7 +23,7 @@ use function Hypervel\Ai\ulid;
 class BroadcastAgent implements ShouldQueue
 {
     use InvokesQueuedResponseCallbacks {
-        failed as protected invokeFailureCallbacks;
+        failed as protected invokeCatchCallbacks;
     }
     use Queueable;
 
@@ -69,16 +69,18 @@ class BroadcastAgent implements ShouldQueue
      */
     public function failed(?Throwable $exception): void
     {
-        (new Error(
-            id: ulid(),
-            type: 'stream_failed',
-            message: 'The stream failed.',
-            recoverable: false,
-            timestamp: time(),
-        ))->withInvocationId($this->invocationId)
-            ->broadcastNow($this->channels);
-
-        $this->invokeFailureCallbacks($exception);
+        try {
+            (new Error(
+                id: ulid(),
+                type: 'stream_failed',
+                message: 'The stream failed.',
+                recoverable: false,
+                timestamp: time(),
+            ))->withInvocationId($this->invocationId)
+                ->broadcastNow($this->channels);
+        } finally {
+            $this->invokeCatchCallbacks($exception);
+        }
     }
 
     /**
