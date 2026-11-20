@@ -85,6 +85,26 @@ class DatabasePgsqlSearchTest extends ScoutTestCase
         $this->assertFalse(Schema::hasColumn('scout_posts', 'search_vector'));
     }
 
+    public function testOverlongSearchableIndexNamesDoNotCollideAndCanBeDropped(): void
+    {
+        // PostgreSQL would truncate both trigram index names to the same identifier, and a byte cut
+        // at the shortened length would split one of the table name's multibyte characters.
+        $table = 'scout_p' . str_repeat('é', 22);
+
+        Schema::create($table, function (Blueprint $table): void {
+            $table->id();
+            $table->text('description_primary');
+            $table->text('description_secondary');
+            $table->searchable(['description_primary'], trigram: ['description_primary', 'description_secondary']);
+        });
+
+        $this->assertCount(3, $this->indexes($table));
+
+        Schema::table($table, fn (Blueprint $table) => $table->dropSearchable(['description_primary', 'description_secondary']));
+
+        $this->assertSame([], $this->indexes($table));
+    }
+
     public function testSearchableCanBeAddedToAnExistingTable(): void
     {
         Schema::table('scout_posts', fn (Blueprint $table) => $table->dropSearchable(['title']));
@@ -333,13 +353,13 @@ class DatabasePgsqlSearchTest extends ScoutTestCase
     }
 
     /**
-     * Get the definitions of the searchable table's indexes, keyed by name.
+     * Get the definitions of the given table's indexes other than its primary key, keyed by name.
      *
      * @return array<string, string>
      */
-    protected function indexes(): array
+    protected function indexes(string $table = 'scout_posts'): array
     {
-        return collect(DB::select("select indexname, indexdef from pg_indexes where tablename = 'scout_posts' and indexname <> 'scout_posts_pkey' order by indexname"))
+        return collect(DB::select('select indexname, indexdef from pg_indexes where tablename = ? and indexname <> ? order by indexname', [$table, "{$table}_pkey"]))
             ->pluck('indexdef', 'indexname')
             ->all();
     }

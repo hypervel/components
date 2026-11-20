@@ -6,7 +6,6 @@ namespace Hypervel\Scout;
 
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Grammars\Grammar;
-use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 class SearchableSchema
@@ -25,7 +24,7 @@ class SearchableSchema
                 SearchableSchema::vectorExpression($columns, $language)
             );
 
-            $this->index($tsvector, null, 'gin');
+            $this->index($tsvector, SearchableSchema::indexName($this->createIndexName('index', [$tsvector])), 'gin');
 
             if ($trigram === []) {
                 return;
@@ -36,20 +35,36 @@ class SearchableSchema
             foreach ($trigram as $column) {
                 SearchableSchema::ensureValidIdentifier($column);
 
-                $this->rawIndex("\"{$column}\" gin_trgm_ops", $this->createIndexName('trigram', [$column]))->algorithm('gin');
+                $this->rawIndex("\"{$column}\" gin_trgm_ops", SearchableSchema::indexName($this->createIndexName('trigram', [$column])))->algorithm('gin');
             }
         });
 
         Blueprint::macro('dropSearchable', function (array $trigram = [], string $tsvector = 'search_vector'): void {
-            $table = $this->getTable();
-            $schema = str_contains($table, '.') ? Str::beforeLast($table, '.') . '.' : '';
-
+            // Unlike upstream, the index name isn't qualified with the table's schema here: the PostgreSQL grammar
+            // already qualifies dropped indexes, and a qualified name would get the table prefix on its schema.
             foreach ($trigram as $column) {
-                $this->dropIndex($schema . $this->createIndexName('trigram', [$column]));
+                $this->dropIndex(SearchableSchema::indexName($this->createIndexName('trigram', [$column])));
             }
 
             $this->dropColumn($tsvector);
         });
+    }
+
+    /**
+     * Fit the given generated index name within PostgreSQL's 63-byte identifier limit.
+     *
+     * Unlike upstream, an overlong name is shortened deterministically rather than left for PostgreSQL to truncate,
+     * since two generated names sharing their first 63 bytes would collide. The cut never splits a character.
+     *
+     * @internal
+     */
+    public static function indexName(string $name): string
+    {
+        if (strlen($name) <= 63) {
+            return $name;
+        }
+
+        return mb_strcut($name, 0, 46, 'UTF-8') . '_' . substr(hash('xxh128', $name), 0, 16);
     }
 
     /**
