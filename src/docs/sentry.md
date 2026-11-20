@@ -368,7 +368,7 @@ Schedule::command('reports:generate')
 
 When no monitor slug is given, one is derived from the task's command or description. The macro also accepts the `checkInMargin`, `maxRuntime`, `failureIssueThreshold`, and `recoveryThreshold` monitor settings. Pass `updateMonitorConfig: false` when the monitor is configured in Sentry instead.
 
-To monitor every scheduled task without calling `sentryMonitor` on each one, set the `SENTRY_CRONS_MONITOR_SCHEDULED_TASKS` environment variable to `true`. Tasks that call `sentryMonitor` keep their own settings. You may leave tasks out by listing their monitor slugs, commands, job classes, or names in the `crons.exclude_scheduled_tasks` configuration option, using `*` as a wildcard:
+To monitor every scheduled task without calling `sentryMonitor` on each one, set the `SENTRY_CRONS_MONITOR_SCHEDULED_TASKS` environment variable to `true`. Tasks that call `sentryMonitor` keep their own settings. You may leave tasks out by listing their monitor slugs, commands, or names in the `crons.exclude_scheduled_tasks` configuration option, using `*` as a wildcard. Unless you give a scheduled job a name, it's named after its class, or by its `displayName` method when you schedule a job instance that has one:
 
 ```php
 'crons' => [
@@ -377,7 +377,7 @@ To monitor every scheduled task without calling `sentryMonitor` on each one, set
 ],
 ```
 
-Tasks are only monitored automatically when Sentry can expect every run, so closures without a `name`, tasks that share a slug, sub-minute tasks, tasks with a timezone offset instead of a timezone name, tasks limited by `between`, `unlessBetween`, `when`, or `skip`, and schedules Sentry would read differently are left out. Call `sentryMonitor` on such a task to monitor it yourself.
+Tasks are only monitored automatically when Sentry can expect every run, so closures without a `name`, tasks that share a slug, sub-minute tasks, tasks with a timezone offset instead of a timezone name, tasks limited by `between`, `unlessBetween`, `when`, or `skip`, and schedules Sentry would read differently, such as some times of day that a daylight saving change skips, are left out. Only a task's time and weekday are compared with daylight saving changes, so a task at such a time can be left out even if its dates never have a change. Call `sentryMonitor` on such a task to monitor it yourself.
 
 Sentry expects a check-in for every run of the task's schedule. Tasks limited by `between`, `unlessBetween`, `when`, or `skip` do not check in when they are skipped, so their skipped runs are reported as missed. Prefer expressing the schedule with the `cron` method.
 

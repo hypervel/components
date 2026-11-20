@@ -242,10 +242,34 @@ class ConsoleSchedulingMonitorAllTasksTest extends TestCase
         yield 'day and weekday' => [static fn (Event $task): Event => $task->cron('0 0 1 * 1'), null];
         yield 'step from a number' => [static fn (Event $task): Event => $task->cron('5/15 * * * *'), null];
         yield 'step over a range' => [static fn (Event $task): Event => $task->cron('0 9-17/2 * * *'), '0 9-17/2 * * *'];
+        yield 'range of one value' => [static fn (Event $task): Event => $task->cron('5-5/2 * * * *'), null];
+        yield 'step as large as the field' => [static fn (Event $task): Event => $task->cron('*/59 * * * *'), null];
+        yield 'stepped weekday range ending at 7' => [static fn (Event $task): Event => $task->cron('0 0 * * 0-7/2'), null];
+        yield 'start of a clock change' => [static fn (Event $task): Event => $task->dailyAt('2:00')->timezone('Europe/Vienna'), '0 2 * * *'];
+        yield 'weekdays at a time a Sunday clock change skips' => [static fn (Event $task): Event => $task->weekdays()->at('2:30')->timezone('Europe/Vienna'), '30 2 * * 1-5'];
+        yield 'Sundays at a time a Sunday clock change skips' => [static fn (Event $task): Event => $task->sundays()->at('2:30')->timezone('Europe/Vienna'), null];
+        yield 'weekday that depends on the date' => [static fn (Event $task): Event => $task->cron('30 2 * * 1#1')->timezone('Europe/Vienna'), null];
+        yield 'minutes during a clock change' => [static fn (Event $task): Event => $task->everyFifteenMinutes()->timezone('Europe/Vienna'), '*/15 * * * *'];
         yield 'when' => [static fn (Event $task): Event => $task->daily()->when(fn (): bool => true), null];
         yield 'skip' => [static fn (Event $task): Event => $task->daily()->skip(fn (): bool => false), null];
         yield 'between' => [static fn (Event $task): Event => $task->hourly()->between('8:00', '17:00'), null];
         yield 'offset timezone' => [static fn (Event $task): Event => $task->daily()->timezone('+05:00'), null];
+    }
+
+    // Spring clock changes can be 371 days apart, so the year after the first date has none
+    #[TestWith(['2029-03-26 12:00:00'])]
+    #[TestWith(['2029-04-03 12:00:00'])]
+    public function testTimeAClockChangeSkipsIsNotMonitoredWhateverTheDate(string $now): void
+    {
+        Date::setTestNow($now);
+
+        $task = $this->getScheduler()->call(function (): void {
+        })->name('send-report')->dailyAt('2:30')->timezone('Europe/Vienna');
+
+        $this->startCommand('schedule:run');
+        $task->run($this->app);
+
+        $this->assertSentryCheckInCount(0);
     }
 
     // Upstream doesn't monitor `lastDayOfMonth()`, because Laravel writes this month's last day number.

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
+use Cron\CronExpression;
+use DateTimeImmutable;
 use DateTimeZone;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Events\CommandStarting;
@@ -17,6 +19,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Features\Concerns\WorksWithSpans;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Sentry\CheckIn;
@@ -399,10 +402,62 @@ class ConsoleSchedulingIntegration extends Feature
                 if (! $isSupported) {
                     return null;
                 }
+
+                if (preg_match('/^(?:\*|(\d+)-(\d+))(?:\/(\d+))?$/', $item, $range) === 1) {
+                    [, $start, $end, $step] = $range + ['', '', '', ''];
+
+                    // The parsers also differ on a range of one value, a step as large as the field's last
+                    // value, and a stepped weekday range ending at 7: Sentry reads "0-7/2" with Sundays
+                    if (($start !== '' && $start === $end)
+                        || ($step !== '' && ((int) $step >= [59, 23, 31, 12, 7][$position] || ($position === 4 && $end === '7')))) {
+                        return null;
+                    }
+                }
+            }
+        }
+
+        // Like Debian cron, Sentry expects a task with a set minute and hour that a clock change skips to run
+        // when the change ends, which the scheduler doesn't always do. Clock changes fall on the same weekday
+        // each year but not the same date, so only the time and weekday are compared, unless the weekday
+        // depends on the date, as "5L" and "1#2" do.
+        if (! str_starts_with($fields[0], '*') && ! str_starts_with($fields[1], '*')) {
+            $weekday = preg_match('/[L#]/i', $fields[4]) === 1 ? '*' : $fields[4];
+
+            if ($this->runsLateAfterClockChange(new CronExpression("{$fields[0]} {$fields[1]} * * {$weekday}"), $timezone)) {
+                return null;
             }
         }
 
         return implode(' ', $fields);
+    }
+
+    /**
+     * Determine if the schedule falls in local times that a clock change skips, but isn't due when the change ends.
+     */
+    private function runsLateAfterClockChange(CronExpression $cron, DateTimeZone $timezone): bool
+    {
+        $now = Date::now()->getTimestamp();
+        // Two years always include each yearly change, which can be up to 371 days apart
+        $transitions = $timezone->getTransitions($now, $now + 2 * 366 * 86400);
+
+        for ($index = 1, $count = count($transitions); $index < $count; ++$index) {
+            $previousOffset = $transitions[$index - 1]['offset'];
+            $change = $transitions[$index];
+
+            if ($change['offset'] <= $previousOffset) {
+                continue;
+            }
+
+            // The skipped local times run from the old offset up to the new one, compared here as UTC times
+            $firstMatch = $cron->getNextRunDate(new DateTimeImmutable('@' . ($change['ts'] + $previousOffset)), allowCurrentDate: true);
+
+            if ($firstMatch->getTimestamp() < $change['ts'] + $change['offset']
+                && ! $cron->isDue((new DateTimeImmutable('@' . $change['ts']))->setTimezone($timezone))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

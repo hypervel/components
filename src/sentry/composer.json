@@ -31,6 +31,7 @@
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
+        "dragonmantank/cron-expression": "^3.4",
         "guzzlehttp/psr7": "^3.1",
         "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
