@@ -18,11 +18,12 @@ return new class extends Migration {
             $table->integer('total_jobs');
             $table->integer('pending_jobs');
             $table->integer('failed_jobs');
-            $table->text('failed_job_ids');
-            $table->text('options')->nullable();
+            $table->integer('outstanding_failed_jobs');
+            $table->mediumText('options')->nullable();
             $table->integer('cancelled_at')->nullable();
             $table->integer('created_at');
             $table->integer('finished_at')->nullable();
+            $table->index(['finished_at', 'created_at']);
         });
     }
 
