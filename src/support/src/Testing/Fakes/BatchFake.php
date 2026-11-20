@@ -42,7 +42,7 @@ class BatchFake extends Batch
     }
 
     /**
-     * Determine if the job belongs to the fake batch's outstanding failures.
+     * Determine if the job ID is one of the fake batch's failed job IDs.
      */
     public function hasFailedJob(string $jobId): bool
     {
