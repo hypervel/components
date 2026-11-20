@@ -12,7 +12,7 @@ Callbacks still run in the worker that records the success. If that worker stops
 
 The queue keeps its normal UUID per dispatch. Batch accounting uses the stable chain position when present, otherwise the original queue ID from `Batch::jobIdFor()` (including Horizon's `batchJobId` on retry).
 
-- In `Batch::add()`, clear any old `batchPositionId` when enrolling a standalone job or chain head. After `prepareBatchedChain()`, clone each successor occurrence, assign the copy a fresh internal `Batchable::$batchPositionId` UUID, and pass the copies to the head's existing `chain()`. The serialized tail keeps those identities across redelivery, prepended unbatched jobs and `ChainedBatch` handoffs. Reusing a job object at two positions gives each its own ID.
+- In chain-bearing inputs to `Batch::add()`, isolate repeated heads and standalone occurrences and prepare every successor before setting head routes, chains or outbox defaults. After `prepareBatchedChain()`, clone each successor occurrence and give the copy a fresh internal `Batchable::$batchPositionId` UUID. Clear old positions on heads and standalone jobs. The existing `chain()` serializes the positioned tail, preserving identities across redelivery, prepends and `ChainedBatch` handoffs. Object-based chain assertions ignore the internal position while comparing job data, without restoring queued models.
 - Include `data.batchPositionId` in the outer queue payload only for positioned jobs. In `CallQueuedHandler`, resolve both normal and missing-model outcomes from that identity and the existing retry lookup ID. Keep the handler's batch lookup, fakes, virtual calls and pre-update `BatchStarted` snapshot.
 - `$jobId` identifies the job for counting throughout `Batch` and `BatchRepository`. Success signatures stay as they are. Append `?string $retryId = null` to `Batch::recordFailedJob()` (after `$e`), both `incrementFailedJobs()` APIs and their implementations. Pass the original lookup ID for a positioned failure. Omission means use `$jobId`. Keep existing parameter names for named callers.
 - Add `getFailedJobIds(string $batchId): array` (a list of outstanding retry lookup IDs) and `hasFailedJob(string $batchId, string $jobId): bool` (membership by counting identity) to `BatchRepository`. SQL reads use the writer. For membership, match the full primary key and require a non-null retry ID. For a missing batch the results are an empty list and false.
@@ -33,7 +33,7 @@ On PostgreSQL and SQLite only, add `$table->index('batch_id')->whereNotNull('ret
 
 ### Private monorepo consumers
 
-On monorepo `main`, update the batching config and fresh schema in `apps/starter` and `apps/sonicstack`. Copy the new migration and update their batch create-table migrations. Add `job_batch_results` and `job_outbox` to `tenancy.schema.global_tables` in `packages/hypervel/src/tenancy/config/tenancy.php`. Verify both fresh schemas and tenancy classification.
+On monorepo `main`, sync both apps' queue configs with the skeleton. Update their batch create-table migrations and copy the results and outbox migrations. Add `job_batch_results` and `job_outbox` to `tenancy.schema.global_tables` in `packages/hypervel/src/tenancy/config/tenancy.php`. Verify both fresh schemas and tenancy classification.
 
 ## Generator command
 
@@ -75,7 +75,7 @@ Use `transaction(..., attempts: 3)` for result and deletion transactions. Only t
 
 1. Keep the current predicates for finished, unfinished and cancelled batches. On the writer, select at most 1,000 candidate IDs and their `total_jobs` per page. Split into chunks targeting 10,000 result rows using `total_jobs` as an upper estimate. A larger individual batch stays in one transaction.
 2. Share a deletion helper with `delete($batchId)`. Inside the transaction delete results for the selected IDs, delete parents that still satisfy the original predicate, then delete results again. The second sweep catches rows committed while the parent delete waited.
-3. If fewer parents were deleted than selected, throw an internal stale-selection exception to roll back the whole chunk. Catch it outside the transaction, leave surviving batches' results intact, and reselect on the next prune page. Count only committed parent deletions. A missing ID on direct delete is a no-op. Retry concurrency errors independently of stale selection.
+3. If fewer parents were deleted than selected, roll back the whole chunk with an internal stale-selection exception. Ordinary pruning reselects. Inside a caller's transaction, use `chunkById()` to advance past stale snapshot rows and retry a stale multi-ID chunk individually before advancing. Count only committed deletions. A missing ID on direct delete is a no-op. Retry concurrency errors independently of stale selection.
 
 ## Documentation and upstream sync
 
