@@ -15,7 +15,7 @@ B and C are benchmark implementations, with the public framework methods used wh
 
 ## Reproduce
 
-Run on an idle machine from the components worktree. Install Composer dependencies first. The PHP CLI needs pcntl, PDO MySQL, PostgreSQL and SQLite. Docker must have the three server images listed in run.py locally. Each engine runs in its own new loopback-only container and volume. The runner removes them afterward.
+Run on an idle machine from a components worktree at `568424974`, the revision containing the harness and its baseline batch repository. Install Composer dependencies there first. The PHP CLI needs pcntl, PDO MySQL, PostgreSQL and SQLite. Docker must have the three server images listed in run.py locally. Each engine runs in its own new loopback-only container and volume. The runner removes them afterward.
 
 ```sh
 python3 tests/Benchmarks/JobBatches/run.py --phase final > final.jsonl

@@ -420,5 +420,5 @@ if ($mode === 'check') {
     $pdo->prepare('insert into job_outcomes values (?,?,?)')->execute([batchId(1), hash('xxh128', 'single-failure'), 'single-failure']);
     $pdo->query($engine === 'pgsql' ? 'analyze job_outcomes' : 'analyze table job_outcomes')->closeCursor();
     $sparse = $pdo->query("explain select retry_id from job_outcomes where batch_id='" . batchId(1) . "' and retry_id is not null")->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['settings' => $config, 'explain' => $plan, 'sparse_explain' => $sparse],JSON_THROW_ON_ERROR),"\n";
+    echo json_encode(['settings' => $config, 'explain' => $plan, 'sparse_explain' => $sparse], JSON_THROW_ON_ERROR),"\n";
 }
