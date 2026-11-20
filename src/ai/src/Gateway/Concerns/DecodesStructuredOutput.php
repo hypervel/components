@@ -47,7 +47,11 @@ trait DecodesStructuredOutput
             $unfenced = substr($unfenced, 4);
         }
 
-        foreach (array_unique([$unfenced, Str::before($unfenced, '``'), Str::beforeLast($unfenced, '``')]) as $candidate) {
+        $candidates = [$unfenced, Str::before($unfenced, '``'), Str::beforeLast($unfenced, '``')];
+
+        // Unlike upstream, each candidate also drops its trailing backticks, so a closing fence with a single
+        // backtick, or with more backticks than the opening one, does not leave one behind.
+        foreach (array_unique(array_map(fn (string $candidate): string => rtrim($candidate, '`'), $candidates)) as $candidate) {
             if (is_array($decoded = json_decode($candidate, true))) {
                 return $decoded;
             }

@@ -132,4 +132,11 @@ class DecodesStructuredOutputTest extends TestCase
         $this->assertSame(['reply' => 'type ``x`` here'], $this->decodeStructuredOutput('``{"reply":"type ``x`` here"}``'));
         $this->assertSame(['code' => "```php\necho 1;\n```"], $this->decodeStructuredOutput('``{"code":"```php\necho 1;\n```"}``'));
     }
+
+    public function testStripsAWholeClosingRunThatDoesNotMatchTheOpeningFence(): void
+    {
+        $this->assertSame(['ok' => true], $this->decodeStructuredOutput('{"ok":true}`'));
+        $this->assertSame(['ok' => true], $this->decodeStructuredOutput('`{"ok":true}`'));
+        $this->assertSame(['reply' => 'type ``x`` here'], $this->decodeStructuredOutput('``{"reply":"type ``x`` here"}```'));
+    }
 }
