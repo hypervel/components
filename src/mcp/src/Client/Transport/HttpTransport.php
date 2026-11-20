@@ -223,6 +223,8 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
                     $exchange->ensureOpen();
 
                     if ($this->hasJsonRpcError($content)) {
+                        $this->ensureResponseExpected($response, $message, $content);
+
                         $this->queue[] = $content;
 
                         return;
@@ -246,6 +248,8 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             if (! $response->successful()) {
                 $content = trim($response->body());
                 $exchange->ensureOpen();
+
+                $this->ensureResponseExpected($response, $message, $content);
 
                 if ($this->hasJsonRpcError($content)) {
                     $this->queue[] = $content;
@@ -353,6 +357,24 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
         $body = json_decode($content, true);
 
         return is_array($body) && Arr::get($body, 'jsonrpc') === '2.0' && is_array(Arr::get($body, 'error'));
+    }
+
+    /**
+     * Throw when the server rejects a notification, since no response is read for one.
+     *
+     * The rejection does not end the session, so the negotiation is kept.
+     */
+    protected function ensureResponseExpected(ClientResponse $response, string $message, string $content): void
+    {
+        $outgoing = json_decode($message, true);
+
+        if (! is_array($outgoing) || ! isset($outgoing['method']) || array_key_exists('id', $outgoing)) {
+            return;
+        }
+
+        $error = Arr::get(json_decode($content, true), 'error.message');
+
+        throw new TransportException("The endpoint [{$this->url}] rejected the notification with HTTP status [{$response->status()}]" . (is_string($error) ? ": {$error}" : '.'));
     }
 
     /**
