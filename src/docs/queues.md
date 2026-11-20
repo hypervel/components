@@ -2672,9 +2672,9 @@ $batch->cancel();
 $batch->cancelled();
 ```
 
-The batch counts each job's success once, even if the queue delivers it again. Once a job succeeds, a later failure from another copy of that job leaves the batch unchanged. Batch callbacks run in the worker that records the result. If that worker stops after committing the result, a redelivery does not repeat the callbacks.
+The batch counts each job's success once, even if the queue delivers it again. Once a job succeeds, a later failure from another copy of that job leaves the batch unchanged. Callbacks triggered by a success run in the worker that records it. If it stops after committing the count, callbacks it did not finish are not replayed.
 
-Read `$batch->failedJobIds` to get the queue IDs you can retry. Once a job succeeds, its ID drops out of the list. When the batch has outstanding failures, the first read loads the current IDs, which can reflect changes since you retrieved the batch. Subsequent reads on that instance use the same array. The IDs have no guaranteed order.
+`$batch->failedJobIds` lists the queue ID of the latest failed delivery for each job that hasn't succeeded. The IDs have no guaranteed order. Use `$batch->fresh()->failedJobIds` to read the current list.
 
 <a name="returning-batches-from-routes"></a>
 #### Returning Batches From Routes
@@ -2767,7 +2767,7 @@ A batch that allows failures is marked as finished once each of its jobs has run
 <a name="retrying-failed-batch-jobs"></a>
 #### Retrying Failed Batch Jobs
 
-For convenience, Hypervel provides a `queue:retry-batch` Artisan command that allows you to easily retry all of the failed jobs for a given batch. This command accepts the UUID of the batch whose failed jobs should be retried:
+The `queue:retry-batch` Artisan command accepts a batch UUID and retries its outstanding failures. It requires a failed job provider that can look up jobs by their payload UUID, such as `database-uuids` or `file`.
 
 ```shell
 php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
