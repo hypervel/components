@@ -148,6 +148,9 @@ trait StagesOutboxJobs
             }
         }
 
+        if ($direct !== []) {
+            $this->validateBulkJobs($direct, $queue);
+        }
         if ($selected === []) {
             return $jobs;
         }

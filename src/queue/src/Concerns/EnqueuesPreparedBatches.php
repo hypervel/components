@@ -21,7 +21,6 @@ trait EnqueuesPreparedBatches
             return null;
         }
 
-        $this->validateBulkJobs($jobs, $queue);
         $transactions = $this->container->has('db.transactions') ? $this->container->make('db.transactions') : null;
         $connection = $attempt?->batchTransactionConnection;
         if ($connection !== null && $this->batchWaitsForOwner($connection)) {
@@ -67,12 +66,5 @@ trait EnqueuesPreparedBatches
     private function usesCustomBatchWriter(string $class, string $method): bool
     {
         return $this::class !== $class && (new ReflectionMethod($this, $method))->getDeclaringClass()->getName() !== $class;
-    }
-
-    /**
-     * Validate driver-specific delivery constraints before publishing either group.
-     */
-    protected function validateBulkJobs(array $jobs, ?string $queue): void
-    {
     }
 }

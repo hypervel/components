@@ -279,6 +279,13 @@ abstract class Queue implements EnqueuesBatchJobs
     }
 
     /**
+     * Validate driver-specific constraints on direct jobs before staging or publishing any jobs.
+     */
+    protected function validateBulkJobs(array $jobs, ?string $queue): void
+    {
+    }
+
+    /**
      * Let a custom sequential transport own its dispatch and retain an unacknowledged send.
      */
     protected function prepareBatchMember(object|string $job, mixed $data, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, int $offset): Closure
