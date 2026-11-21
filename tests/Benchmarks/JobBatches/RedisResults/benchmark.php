@@ -5,16 +5,24 @@ declare(strict_types=1);
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\BatchFactory;
 use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Bus\RedisBatchRepository;
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PostgresConnection;
+use Hypervel\Redis\Pool\PoolManager;
+use Hypervel\Redis\RedisConfig;
+use Hypervel\Redis\RedisManager;
+use Hypervel\Redis\RedisSentinelFactory;
 
 require dirname(__DIR__, 4) . '/vendor/autoload.php';
-require __DIR__ . '/RedisResults.php';
 
 function check(bool $condition, string $message): void
 {
@@ -26,10 +34,6 @@ function check(bool $condition, string $message): void
 class Metrics
 {
     public static int $writes = 0;
-
-    public static int $redisCalls = 0;
-
-    public static int $escalations = 0;
 
     public static int $statements = 0;
 
@@ -83,6 +87,27 @@ function openPdo(bool $countStatements = false): PDO
     return $pdo;
 }
 
+function benchRedis(): Redis
+{
+    $client = new Redis;
+    $client->connect('127.0.0.1', (int) getenv('BENCH_REDIS_PORT'), 5.0);
+
+    return $client;
+}
+
+function scriptCalls(Redis $redis): int
+{
+    $stats = $redis->info('commandstats');
+    $calls = 0;
+    foreach (['cmdstat_eval', 'cmdstat_evalsha'] as $key) {
+        if (isset($stats[$key]) && preg_match('/calls=(\d+)/', $stats[$key], $matches)) {
+            $calls += (int) $matches[1];
+        }
+    }
+
+    return $calls;
+}
+
 function repository(string $engine, string $variant): DatabaseBatchRepository
 {
     $class = match ($engine) {
@@ -91,6 +116,7 @@ function repository(string $engine, string $variant): DatabaseBatchRepository
         'pgsql' => PostgresConnection::class,
     };
     $db = new $class(openPdo(true), 'batchbench', '', ['driver' => $engine, 'name' => 'benchmark']);
+    $db->setTransactionManager(new DatabaseTransactionsManager);
     $resolver = new class($db) implements ConnectionResolverInterface {
         public function __construct(private Connection $db)
         {
@@ -120,10 +146,25 @@ function repository(string $engine, string $variant): DatabaseBatchRepository
     if ($variant === 'sql') {
         return new DatabaseBatchRepository(new BatchFactory($queue), $resolver, 'job_batches');
     }
-    if ($variant === 'lazy') {
-        return new LazyResultsRepository(new LazyResultFactory($queue), $resolver, 'job_batches');
-    }
-    return new RedisResultsRepository(new ResultFactory($queue), $resolver, 'job_batches');
+    $app = Container::getInstance();
+    $app->instance(ContainerContract::class, $app);
+    $config = new RedisConfig(new Repository(['database' => ['redis' => [
+        'options' => ['prefix' => ''],
+        'benchmark' => ['host' => '127.0.0.1', 'port' => (int) getenv('BENCH_REDIS_PORT')],
+    ]]]));
+    $app->instance(RedisConfig::class, $config);
+    $redis = new RedisManager($app, new PoolManager($app), $config, new RedisSentinelFactory);
+
+    return new RedisBatchRepository(
+        new BatchFactory($queue),
+        $resolver,
+        'job_batches',
+        'benchmark',
+        'job_batch_results',
+        $redis,
+        'benchmark',
+        'job_batch_deletions'
+    );
 }
 
 function jobId(int $id): string
@@ -150,12 +191,12 @@ function setup(PDO $pdo, string $engine, string $variant, string $case, int $job
     $mysql = $engine !== 'pgsql';
     $pdo->exec('drop table if exists job_batch_results');
     $pdo->exec('drop table if exists job_batches');
-    $idType = $mysql ? 'char(36)' : 'uuid';
+    $idType = 'varchar(255)';
     $text = $mysql ? 'mediumtext' : 'text';
     $pdo->exec("create table job_batches(id {$idType} primary key, name varchar(255) not null,
         total_jobs int not null, pending_jobs int not null, failed_jobs int not null,
         outstanding_failed_jobs int not null, options {$text}, cancelled_at int, created_at int not null,
-        finished_at int, deleted_at int, driver varchar(16) not null)");
+        finished_at int, previous_finished_at int, previous_finished_total int, previous_first_pass_total int, previous_success_total int, driver varchar(255) not null)");
     $pdo->exec('create index batch_pruning on job_batches(finished_at, created_at)');
     $pdo->exec("create table job_batch_results(batch_id {$idType} not null, job_id_hash char(32) not null,
         retry_id text, primary key(batch_id,job_id_hash))");
@@ -164,7 +205,8 @@ function setup(PDO $pdo, string $engine, string $variant, string $case, int $job
     }
     $redis = benchRedis();
     $redis->flushDB();
-    RedisResultsRepository::loadScripts($redis);
+    $pdo->exec('drop table if exists job_batch_deletions');
+    $pdo->exec("create table job_batch_deletions(batch_id {$idType} primary key, driver varchar(255) not null)");
     $failures = in_array($case, ['heavy', 'progress'], true) ? 5000 : 0;
     $options = ['allowFailures' => true];
     if ($case === 'progress') {
@@ -177,11 +219,11 @@ function setup(PDO $pdo, string $engine, string $variant, string $case, int $job
         default => 1,
     };
     $total = intdiv($jobs, $parents) + $failures;
-    $insert = $pdo->prepare('insert into job_batches values (?, ?, ?, ?, ?, ?, ?, null, ?, null, null, ?)');
+    $insert = $pdo->prepare('insert into job_batches (id,name,total_jobs,pending_jobs,failed_jobs,outstanding_failed_jobs,options,created_at,driver) values (?,?,?,?,?,?,?,?,?)');
     $pdo->beginTransaction();
     for ($i = 0; $i < $parents; ++$i) {
         $insert->execute([batchId($i), 'benchmark', $total, $total, $variant === 'sql' ? $failures : 0,
-            $variant === 'sql' ? $failures : 0, $mysql ? $encoded : base64_encode($encoded), time(), $variant]);
+            $variant === 'sql' ? $failures : 0, $mysql ? $encoded : base64_encode($encoded), time(), $variant === 'sql' ? 'database' : 'redis']);
     }
     if ($failures) {
         $id = batchId(0);
@@ -196,11 +238,11 @@ function setup(PDO $pdo, string $engine, string $variant, string $case, int $job
             if ($variant === 'sql') {
                 $pdo->prepare('insert into job_batch_results values ' . implode(',', array_fill(0, count($chunk), '(?,?,?)')))->execute($values);
             } else {
-                $redis->hMSet("batch:{{$id}}:failures", $fields);
+                $redis->hMSet("batches:{{$id}}:failures", $fields);
             }
         }
         if ($variant !== 'sql') {
-            $redis->hMSet("batch:{{$id}}:state", ['known_total' => $total, 'failed_count' => $failures]);
+            $redis->hMSet("batches:{{$id}}:state", ['known_total' => $total, 'failed_count' => $failures]);
         }
     }
     $pdo->commit();
@@ -239,7 +281,7 @@ function runSample(string $engine, string $variant, string $case, int $jobs, int
                 $batch = batchId($case === 'independent' ? $worker : 0);
                 $warm = $repo->find($batch);
                 check($warm !== null && $warm->pendingJobs >= 0, 'Warm connection');
-                Metrics::$statements = Metrics::$redisCalls = Metrics::$writes = Metrics::$escalations = 0;
+                Metrics::$statements = Metrics::$writes = Metrics::$transactions = 0;
                 fwrite($child, "ready\n");
                 check(fgets($child) === "go\n", 'Start barrier');
                 for ($i = $worker; $i < $jobs; $i += $workers) {
@@ -253,8 +295,6 @@ function runSample(string $engine, string $variant, string $case, int $jobs, int
                         'sql_statements' => Metrics::$statements,
                         'sql_transactions' => Metrics::$transactions,
                         'sql_write_statements' => Metrics::$writes,
-                        'redis_round_trips' => Metrics::$redisCalls,
-                        'escalations' => Metrics::$escalations,
                         'callbacks' => Metrics::$callbacks,
                     ],
                 ], JSON_THROW_ON_ERROR) . "\n");
@@ -274,6 +314,8 @@ function runSample(string $engine, string $variant, string $case, int $jobs, int
     }
     $pdo = openPdo();
     $before = logPosition($pdo, $engine);
+    $redis = benchRedis();
+    $beforeScripts = scriptCalls($redis);
     $start = hrtime(true);
     foreach ($sockets as $socket) {
         fwrite($socket, "go\n");
@@ -292,6 +334,7 @@ function runSample(string $engine, string $variant, string $case, int $jobs, int
         pcntl_waitpid($pid, $status);
         check(pcntl_wifexited($status) && pcntl_wexitstatus($status) === 0, 'Worker exit');
     }
+    $sums['redis_script_calls'] = scriptCalls($redis) - $beforeScripts;
     $bytes = logPosition($pdo, $engine) - $before;
     $failures = in_array($case, ['heavy', 'progress'], true) ? 5000 : 0;
     $rows = $pdo->query('select * from job_batches')->fetchAll(PDO::FETCH_OBJ);
@@ -301,7 +344,7 @@ function runSample(string $engine, string $variant, string $case, int $jobs, int
         $view = $verify->find($row->id);
         check($view->pendingJobs === $failures && $view->failedJobs === $failures && $view->finished()
             && $row->finished_at !== null && count($view->failedJobIds) === $failures, 'Final counters or finish');
-        $recorded += $variant === 'sql' ? 0 : $verify->successes($row->id);
+        $recorded += $variant === 'sql' ? 0 : $redis->sCard("batches:{{$row->id}}:successes");
     }
     if ($variant === 'sql') {
         $recorded = (int) $pdo->query('select count(*) from job_batch_results where retry_id is null')->fetchColumn();

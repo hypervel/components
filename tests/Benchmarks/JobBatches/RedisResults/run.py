@@ -1,5 +1,4 @@
-"""Compare the production SQL repository with the Redis results prototype on isolated servers."""
-import argparse
+"""Compare the production SQL and Redis batch repositories on isolated servers."""
 import contextlib
 import json
 import os
@@ -48,14 +47,15 @@ def emit(**entry):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--lazy", action="store_true", help="PostgreSQL eager vs lazy counter hydration control")
-    lazy = parser.parse_args().lazy
-    engines = {"pgsql": IMAGES["pgsql"]} if lazy else IMAGES
-    workloads = {key: WORKLOADS[key] for key in ("clean", "independent", "singleton")} if lazy else WORKLOADS
-    emit(commit=output("git", "rev-parse", "HEAD"), cpus=len(os.sched_getaffinity(0)),
+    root = Path(output("git", "rev-parse", "--show-toplevel"))
+    measured = [root / "src/bus/src" / name for name in
+                ("Batch.php", "BatchFactory.php", "DatabaseBatchRepository.php", "RedisBatchRepository.php", "UpdatedBatchJobCounts.php")]
+    measured += [HERE / name for name in ("benchmark.php", "enrollment.php", "run.py")]
+    emit(commit=output("git", "rev-parse", "HEAD"),
+         blobs={str(path.relative_to(root)): output("git", "hash-object", str(path)) for path in measured},
+         cpus=len(os.sched_getaffinity(0)),
          kernel=platform.release(), php=output("php", "-r", "echo PHP_VERSION;"))
-    for engine, image in engines.items():
+    for engine, image in IMAGES.items():
         pg = engine == "pgsql"
         password = secrets.token_urlsafe(24)
         password_key = "POSTGRES_PASSWORD" if pg else "MYSQL_ROOT_PASSWORD"
@@ -77,7 +77,7 @@ def main():
             emit(engine=engine, sql_settings=json.loads(output("php", "-r", query, sql_settings, env=env)),
                  image=output("docker", "inspect", "-f", "{{.Image}}", sql))
             ports = {}
-            for mode in (("always",) if lazy else ("always", "everysec")):
+            for mode in ("always", "everysec"):
                 container, redis_port = stack.enter_context(server("redis:latest", 6379, args=(
                     "redis-server", "--save", "", "--appendonly", "yes", "--appendfsync", mode,
                     "--auto-aof-rewrite-percentage", "0", "--maxmemory-policy", "noeviction")))
@@ -85,13 +85,8 @@ def main():
                 config = output("docker", "exec", container, "redis-cli", "config", "get", "appendfsync", "appendonly","maxmemory-policy")
                 emit(engine=engine, redis=mode, config=config.splitlines(),
                      version=output("docker", "exec", container, "redis-server", "--version"))
-            if lazy:
-                ports["lazy"] = ports["always"]
-            else:
-                ports["sql"] = ports["everysec"]
-            if lazy:
-                report = output("php", str(HERE / "checks.php"), env=dict(env, BENCH_REDIS_PORT=ports["always"]))
-                emit(engine=engine, protocol=report)
+            ports["sql"] = ports["everysec"]
+            if pg:
                 control = output("php", str(HERE / "enrollment.php"), env=dict(env, BENCH_REDIS_PORT=ports["always"]))
                 emit(engine=engine, enrollment=[json.loads(line) for line in control.splitlines()])
             for variant in ports:
@@ -100,8 +95,8 @@ def main():
                     sample(engine, variant, case, 4, 2, probe_env)
             emit(engine=engine, smoke="passed")
             for repeat in range(5):
-                for case, (jobs, workers) in workloads.items():
-                    variants = ["always", "lazy"] if lazy else ["sql", "always", "everysec"]
+                for case, (jobs, workers) in WORKLOADS.items():
+                    variants = ["sql", "always", "everysec"]
                     for i in range(len(variants)):
                         variant = variants[(repeat + i) % len(variants)]
                         record = sample(engine, variant, case, jobs, workers,
