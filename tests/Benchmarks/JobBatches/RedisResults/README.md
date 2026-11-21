@@ -1,6 +1,6 @@
 # Redis batch results benchmark
 
-The benchmark runs `find()->recordSuccessfulJob()` on the selected SQL or Redis repository, including real batch callbacks. It excludes container routing, queue delivery, business logic and cleanup. Redis batches start with a certified total. The separate enrollment control measures the cost of invalidating it.
+The benchmark runs `find()->recordSuccessfulJob()` on the selected SQL or Redis repository, including real batch callbacks. It excludes container routing, queue delivery, business logic and cleanup. The failure-heavy and progress-callback workloads start with a certified total. The other workloads include the cost of first certifying each batch. The separate enrollment control measures the cost of invalidating it.
 
 ## Results
 
@@ -35,7 +35,7 @@ With synchronous flushing, Redis won the shared-batch workload on all three engi
 
 On PostgreSQL, adding 20 jobs to an existing batch took a median of **3.90 ms with SQL** and **10.40 ms with Redis** across five alternating runs of 100 additions. The respective runs ranged from 3.51 to 37.69 ms and 8.30 to 108.36 ms. Each Redis addition invalidated an existing total with AOF flushing every write. Enrollment is outside the throughput table.
 
-The [original comparison](samples/comparison.jsonl) and [eager versus lazy hydration control](samples/lazy.jsonl) used the prototype at `9b67ea190` and the framework baseline at `01ce457f8`. Those planning measurements are separate from the production table.
+The [original comparison](samples/comparison.jsonl) and [eager versus lazy hydration control](samples/lazy.jsonl) record their framework baseline, `01ce457f8`. The prototype source is retained in `9b67ea190`. Those planning measurements are separate from the production table.
 
 ## Reproduce
 
@@ -47,4 +47,4 @@ python3 run.py > /tmp/batch-results-production.jsonl
 python3 summarize.py /tmp/batch-results-production.jsonl
 ```
 
-The runner provisions private containers on loopback and removes their volumes on exit. Each sample starts with a fresh schema. The output records Git blob IDs for the measured source, image and server versions, and persistence settings.
+The runner provisions private containers on loopback and removes their volumes on exit. Each sample starts with a fresh schema. The output records the Git checkout, working-tree file hashes, image and server versions, and persistence settings. The retained production samples measured the implementation before it was committed. Four of those file hashes differ from the committed files and are not available in Git.

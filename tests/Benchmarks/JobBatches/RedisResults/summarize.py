@@ -5,6 +5,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from run import IMAGES, WORKLOADS
+
 runs = defaultdict(dict)
 for line in Path(sys.argv[1]).read_text().splitlines():
     row = json.loads(line)
@@ -15,9 +17,14 @@ for line in Path(sys.argv[1]).read_text().splitlines():
         group[row["repeat"]] = row
 
 variants = ["always", "lazy"] if any(key[2] == "lazy" for key in runs) else ["sql", "always", "everysec"]
+if "lazy" in variants:
+    cases = [("pgsql", case) for case in ("clean", "independent", "singleton")]
+else:
+    cases = [(engine, case) for engine in IMAGES for case in WORKLOADS]
+
 print("| SQL engine | Workload | " + " | ".join(variants) + " |")
 print("|---|---|" + "---:|" * len(variants))
-for engine, case in dict.fromkeys((engine, case) for engine, case, variant in runs):
+for engine, case in cases:
     cells = []
     for variant in variants:
         group = runs[engine, case, variant]

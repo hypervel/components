@@ -82,6 +82,12 @@ def main():
                     "redis-server", "--save", "", "--appendonly", "yes", "--appendfsync", mode,
                     "--auto-aof-rewrite-percentage", "0", "--maxmemory-policy", "noeviction")))
                 ports[mode] = redis_port
+                until = time.monotonic() + 30
+                ping = ["docker", "exec", container, "redis-cli", "ping"]
+                while subprocess.run(ping, capture_output=True, text=True, timeout=6).stdout.strip() != "PONG":
+                    if time.monotonic() >= until:
+                        raise RuntimeError("Redis startup failed")
+                    time.sleep(0.25)
                 config = output("docker", "exec", container, "redis-cli", "config", "get", "appendfsync", "appendonly","maxmemory-policy")
                 emit(engine=engine, redis=mode, config=config.splitlines(),
                      version=output("docker", "exec", container, "redis-server", "--version"))
