@@ -108,8 +108,12 @@ class RedisBatchRepository extends DatabaseBatchRepository
     {
         $batches = [];
         foreach (array_chunk(array_column($rows, null, 'id'), 100, true) as $group) {
-            foreach ($this->loadSnapshots($group) as $id => $counts) {
-                $row = $group[$id];
+            $snapshots = $this->loadSnapshots($group);
+            foreach ($group as $id => $row) {
+                if (! isset($snapshots[$id])) {
+                    continue;
+                }
+                $counts = $snapshots[$id];
                 $row->total_jobs = $counts['totalJobs'];
                 $row->pending_jobs = $counts['pendingJobs'];
                 $row->failed_jobs = $counts['failedJobs'];
@@ -290,9 +294,10 @@ class RedisBatchRepository extends DatabaseBatchRepository
         $connection->table($this->table)->useWritePdo()->where('driver', static::DRIVER)
             ->whereNull('finished_at')->where('created_at', '<', $before->getTimestamp())
             ->select(['id', 'total_jobs'])->chunkById(100, function (Collection $rows) use ($connection) {
+                $snapshots = $this->readSnapshots($rows->pluck('id')->all());
                 foreach ($rows as $row) {
-                    $finished = $this->finishMarker($row->id, (int) $row->total_jobs);
-                    if ($finished !== null) {
+                    [, , , , $finished, $finishedTotal] = $snapshots[$row->id];
+                    if ($finished !== -1 && $finishedTotal === (int) $row->total_jobs) {
                         $connection->transaction(function () use ($row) {
                             $parent = $this->lockParents([$row->id]);
                             $live = (clone $parent)->whereNull('finished_at')->first(['total_jobs']);

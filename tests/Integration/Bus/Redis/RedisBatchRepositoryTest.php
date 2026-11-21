@@ -30,6 +30,8 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Integration\Bus\Fixtures\TestsBatchReopening;
 use Hypervel\Tests\Integration\Database\Queue\Fixtures\TimeOutJobWithNestedTransactions;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
 use PDO;
 use PDOException;
@@ -46,6 +48,7 @@ class RedisBatchRepositoryTest extends TestCase
     use DatabaseTruncation;
     use InteractsWithRedis;
     use TestsBatchReopening;
+    use VerifiesDoubles;
 
     protected static string $directory;
 
@@ -138,7 +141,9 @@ class RedisBatchRepositoryTest extends TestCase
         $repository->incrementTotalJobs($batch->id, 1);
         $batch->recordSuccessfulJob('first');
 
-        $this->app->instance(JobRepository::class, $this->createStub(JobRepository::class));
+        $jobs = Double::for(JobRepository::class)->strict();
+        $jobs->expects('getJobs')->with([])->returns(collect());
+        $this->app->instance(JobRepository::class, $jobs);
         $controller = new BatchesController($repository);
         $list = $controller->index(Request::create('/'));
         $search = $controller->index(Request::create('/?query=Import'));
@@ -150,6 +155,17 @@ class RedisBatchRepositoryTest extends TestCase
             $this->assertSame($batch->id, $snapshot['id']);
             $this->assertSame(100, $snapshot['progress']);
         }
+    }
+
+    public function testRedisPaginationKeepsWaitingAndActiveBatchesInCursorOrder(): void
+    {
+        $repository = $this->app->make(RedisBatchRepository::class);
+        $older = $repository->store(Bus::batch([]));
+        $repository->incrementTotalJobs($older->id, 2);
+        $older->recordSuccessfulJob('first');
+        $newer = $repository->store(Bus::batch([]));
+
+        $this->assertSame([$newer->id, $older->id], array_column($repository->get(), 'id'));
     }
 
     public function testWaitingPageDoesNotLockAndRetainedProgressLoadsOnlyOnce(): void
