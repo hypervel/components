@@ -372,25 +372,32 @@ class PendingBatch
         try {
             $batch = $this->store($repository);
 
-            $batch = $batch->add($this->jobs);
+            $added = $batch->add($this->jobs);
         } catch (Throwable $e) {
             // Keep the original failure in flight so cleanup errors retain its cancellation chain.
             try {
                 throw $e;
             } finally {
                 if (isset($batch)) {
-                    $repository->delete($batch->id);
+                    $this->deleteIfEmpty($batch, $repository);
                 }
             }
+        }
+
+        if ($added === null) {
+            return $batch;
         }
 
         $events = $this->container->make(EventDispatcher::class);
 
         if ($events->hasListeners(BatchDispatched::class)) {
-            $events->dispatch(new BatchDispatched($batch));
+            if ($added->loadMissingJobCounts() === null) {
+                return $batch;
+            }
+            $events->dispatch(new BatchDispatched($added));
         }
 
-        return $batch;
+        return $added;
     }
 
     /**
@@ -421,13 +428,17 @@ class PendingBatch
             try {
                 throw $e;
             } finally {
-                $batch->delete();
+                $this->deleteIfEmpty($batch);
             }
+        }
+
+        if ($batch === null) {
+            return;
         }
 
         $events = $this->container->make(EventDispatcher::class);
 
-        if ($events->hasListeners(BatchDispatched::class)) {
+        if ($events->hasListeners(BatchDispatched::class) && $batch->loadMissingJobCounts() !== null) {
             $events->dispatch(new BatchDispatched($batch));
         }
     }
@@ -474,11 +485,26 @@ class PendingBatch
             try {
                 throw $e;
             } finally {
-                $repository->delete($batch->id);
+                $this->deleteIfEmpty($batch, $repository);
             }
         }
 
         return $batch;
+    }
+
+    /**
+     * Preserve an earlier addition when a later part of the initial dispatch fails.
+     */
+    protected function deleteIfEmpty(Batch $batch, ?BatchRepository $repository = null): void
+    {
+        $owner = $repository ?? $this->container->make(BatchRepository::class);
+        if ($owner instanceof DatabaseBatchRepository) {
+            $owner->deleteIfEmpty($batch->id);
+        } elseif ($repository !== null) {
+            $repository->delete($batch->id);
+        } else {
+            $batch->delete();
+        }
     }
 
     /**

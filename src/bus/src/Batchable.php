@@ -19,7 +19,7 @@ trait Batchable
     public ?string $batchId = null;
 
     /**
-     * The logical position shared by all deliveries of this batched chain successor.
+     * The logical position shared by all deliveries of a batched chain successor or failover job.
      *
      * @internal
      */
@@ -53,7 +53,7 @@ trait Batchable
     {
         $batch = $this->batch();
 
-        if (! $batch || $batch->cancelled()) {
+        if (! $batch || $batch->cancelled() || $batch->loadMissingJobCounts() === null) {
             return false;
         }
 
