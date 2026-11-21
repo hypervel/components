@@ -28,6 +28,7 @@ use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
@@ -44,6 +45,7 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
+#[ResetRefreshDatabaseState]
 class OutboxDispatchTest extends TestCase
 {
     use RefreshDatabase;

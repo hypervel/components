@@ -24,6 +24,7 @@ use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use LogicException;
@@ -35,6 +36,7 @@ use Swoole\Coroutine\CanceledException;
 #[WithConfig('queue.default', 'database')]
 #[WithConfig('queue.connections.database.connection', 'delivery')]
 #[WithConfig('database.connections.delivery', ['driver' => 'sqlite', 'database' => ':memory:'])]
+#[ResetRefreshDatabaseState]
 class BatchDatabaseDeliveryTest extends TestCase
 {
     use DatabaseTruncation;

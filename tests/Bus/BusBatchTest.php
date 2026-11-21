@@ -41,6 +41,8 @@ use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\QueueFake;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
@@ -51,6 +53,7 @@ use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
+#[ResetRefreshDatabaseState]
 class BusBatchTest extends TestCase
 {
     use RefreshDatabase;
@@ -203,6 +206,8 @@ class BusBatchTest extends TestCase
         $this->assertCount(2, $batch->jobs);
     }
 
+    #[WithConfig('database.default', 'testing')]
+    #[WithConfig('queue.batching.database', 'testing')]
     public function testStoredOutboxDefaultsApplyToNewJobsWithoutReplacingExplicitChoices(): void
     {
         Queue::fake();

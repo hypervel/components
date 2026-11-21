@@ -26,6 +26,7 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Integration\Bus\Fixtures\TestsBatchReopening;
@@ -43,6 +44,7 @@ use Symfony\Component\Process\Exception\ProcessSignaledException;
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Testbench\remote;
 
+#[ResetRefreshDatabaseState]
 class RedisBatchRepositoryTest extends TestCase
 {
     use DatabaseTruncation;

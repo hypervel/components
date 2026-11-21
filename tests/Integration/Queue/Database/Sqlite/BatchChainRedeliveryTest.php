@@ -15,12 +15,14 @@ use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
 #[RequiresDatabase('sqlite')]
 #[WithConfig('queue.default', 'database')]
+#[ResetRefreshDatabaseState]
 class BatchChainRedeliveryTest extends TestCase
 {
     use RefreshDatabase;
