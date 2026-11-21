@@ -2284,7 +2284,7 @@ With `after_commit` enabled, Hypervel waits until every applicable database tran
 
 When the failover connection waits for commit, it copies the log context entries at dispatch, but each child driver serializes the job and context when its attempt is made. Avoid mutating the job, its data, or objects stored in context before the transactions commit.
 
-If you disable the failover connection's `after_commit` setting, each child connection uses its own transaction policy. A failure from a child that defers its dispatch may then occur after the failover attempt has returned and cannot activate the next child. A job's `afterCommit()` or `beforeCommit()` choice overrides the connection setting. Integer delays begin when the post-commit attempt is made, while absolute date and time delays retain their original target.
+If you disable the failover connection's `after_commit` setting, each child connection uses its own transaction policy. A failure from a child that defers its dispatch may then occur after the failover attempt has returned and cannot activate the next child. A job's `afterCommit()` or `beforeCommit()` choice overrides the connection setting. Integer delays begin when the post-commit attempt is made, while absolute date and time delays retain their original target. If a database error leaves the caller's transaction unusable, failover propagates the error so the application can roll back safely.
 
 Once you have configured a connection that uses the `failover` driver, you will need to set the failover connection as your default queue connection in your application's `.env` file to make use of the failover functionality:
 
@@ -2433,13 +2433,19 @@ class SyncChatHistory implements ShouldQueue
 
 Hypervel's job batching feature allows you to easily execute a group of jobs in parallel and then perform some action when the batch of jobs has completed executing.
 
-Job batching uses two tables. The `job_batches` table stores batch progress and callbacks. The `job_batch_results` table records the outcome of each job. If your application does not already contain their migrations, you may generate them using the `make:queue-batches-table` Artisan command:
+Hypervel stores each batch and its callbacks in the `job_batches` SQL table. By default, it also stores job outcomes in `job_batch_results`. To install the batching tables, generate and run their migrations:
 
 ```shell
 php artisan make:queue-batches-table
 
 php artisan migrate
 ```
+
+For large batches with many workers updating the same batch, you may set `QUEUE_BATCHING_DRIVER=redis`. Workers then record job outcomes and progress in Redis. The batch record stays in SQL. This setting is independent of your queue connection and applies to new batches. Inline `sync` queues and failover connections that can run jobs inline use database results so their updates can roll back with the jobs.
+
+Set `REDIS_BATCHING_CONNECTION` to select the Redis connection. Use persistent Redis storage with key eviction disabled, and keep existing batch keys accessible when changing connections. A Redis-backed batch can record a job's result only after any open transaction on its batch database has ended.
+
+External sends wait until the batch's job count commits. A database queue on a separate connection also waits automatically for a transaction on the batch database. If the queue's own database has an open transaction, dispatch after it commits, even when using `afterCommit()`. When dispatching inside an application transaction on the batch database, omit `beforeCommit()` for jobs that must wait. A delivery failure can then surface from the application's commit after its SQL writes have succeeded. If a queue may have accepted a job, the batch keeps that job counted. Use the [transactional outbox](/docs/{{version}}/queue-outbox) when a send must survive a crash after commit.
 
 <a name="defining-batchable-jobs"></a>
 ### Defining Batchable Jobs
@@ -2674,6 +2680,8 @@ $batch->cancelled();
 
 The batch counts each job's success once, even if the queue delivers it again. Once a job succeeds, a later failure from another copy of that job leaves the batch unchanged. Callbacks triggered by a success run in the worker that records it. If it stops after committing the count, callbacks it did not finish are not replayed.
 
+For a Redis-backed batch returned by `Bus::findBatch()`, the first read of a progress property loads the counts and finish time together. Use `fresh()` to read them again or check whether the batch still exists.
+
 `$batch->failedJobIds` lists the queue ID of the latest failed delivery for each job that hasn't succeeded. The IDs have no guaranteed order. Use `$batch->fresh()->failedJobIds` to read the current list.
 
 <a name="returning-batches-from-routes"></a>
@@ -2791,6 +2799,8 @@ use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches --hours=48')->daily();
 ```
+
+The same command cleans up results for both batching drivers. With Redis, the `job_batch_deletions` table records pending cleanup so a later prune can finish an interrupted deletion.
 
 Sometimes, your `job_batches` table may accumulate batch records for batches that never finished, such as batches whose jobs were cleared from the queue before they could run. Batches that [allow failures](#allowing-failures) finish once every job has run, so they are pruned along with other finished batches. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
 

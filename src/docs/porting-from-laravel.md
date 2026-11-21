@@ -932,7 +932,9 @@ Remove assignments to `Worker::$flushStickyConnections`: daemon jobs already hav
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 
-Use Hypervel's two batch migrations and add `results_table` to custom `queue.batching` configurations. Compatible jobs can share a queue backend, restart signals and lock keys with Laravel, but one framework must maintain a batch's SQL records. Code that reads the `failed_job_ids` column directly must use `$batch->failedJobIds` instead. Adapt custom repositories to the [Bus contract differences](https://github.com/hypervel/bus#differences-from-laravel).
+Use Hypervel's batching migrations and copy the shipped `queue.batching` settings into custom queue configurations. Compatible jobs can share a queue backend, restart signals and lock keys with Laravel, but one framework must maintain a batch's SQL records. Code that reads the `failed_job_ids` column directly must use `$batch->failedJobIds` instead. Adapt custom repositories to the [Bus contract differences](https://github.com/hypervel/bus#differences-from-laravel).
+
+Batched jobs sent to an external queue wait until their enrollment commits. Omit `beforeCommit()` when dispatching these jobs in a transaction on the batch database, and handle delivery errors from the commit itself. See [job batching](/docs/{{version}}/queues#job-batching).
 
 Custom queue drivers whose job classes implement `Hypervel\Contracts\Queue\Job` directly must also implement `Hypervel\Contracts\Queue\JobLifecycleCallbacks` to run jobs that use `CountCrashesAsExceptions`; extending `Hypervel\Queue\Jobs\Job` provides it. See [counting worker crashes](/docs/{{version}}/queues#counting-worker-crashes) for the callback requirements.
 
