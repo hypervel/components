@@ -2034,6 +2034,37 @@ class QueueSqsQueueTest extends TestCase
         $this->assertSame($exception, $failed[0]->exception);
     }
 
+    public function testBatchEnrollmentKeepsUnknownEntriesAndRejectsUnattemptedChunks(): void
+    {
+        $queue = new class($this->sqs, $this->queueName, $this->prefix) extends SqsQueue {
+            public bool $receivedList = false;
+
+            protected function prepareBatchMessages(array $jobs, mixed $data, ?string $queue): array
+            {
+                $this->receivedList = array_is_list($jobs);
+
+                return array_values(parent::prepareBatchMessages($jobs, $data, $queue));
+            }
+        };
+        $queue->setContainer(new Container);
+        $queue->setConnectionName('sqs');
+        $jobs = array_fill(2, 11, 'job');
+        $this->expectSqsCommand('sendMessageBatch', null, new Result([
+            'Successful' => array_map(static fn (int $id) => ['Id' => (string) $id, 'MessageId' => "id-{$id}"], range(2, 9)),
+            'Failed' => [
+                ['Id' => '10', 'Code' => 'Invalid', 'Message' => 'invalid', 'SenderFault' => true],
+                ['Id' => '11', 'Code' => 'InternalError', 'Message' => 'uncertain', 'SenderFault' => false],
+            ],
+        ]));
+
+        $result = $queue->bulkForBatch($jobs, static fn () => null, queue: $this->queueName);
+        $this->assertInstanceOf(SqsException::class, $result->failure);
+        $this->assertTrue($queue->receivedList);
+        $this->assertSame(range(2, 9), $result->accepted);
+        $this->assertSame([11], $result->unknown);
+        $this->assertSame([10, 12], $result->rejected);
+    }
+
     public function testBulkCleansOnlyRejectedOverflowPointers(): void
     {
         $firstPayload = json_encode(['uuid' => 'accepted'], JSON_THROW_ON_ERROR);

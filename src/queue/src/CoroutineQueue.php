@@ -71,6 +71,22 @@ abstract class CoroutineQueue extends SyncQueue
     }
 
     /**
+     * Preserve per-job transport overrides in custom queues.
+     */
+    protected function usesCustomBatchDelivery(): bool
+    {
+        return ! in_array(static::class, [BackgroundQueue::class, DeferredQueue::class], true);
+    }
+
+    /**
+     * Schedule background work only after enrollment commits.
+     */
+    protected function batchWaitsForOwner(string $connection): bool
+    {
+        return true;
+    }
+
+    /**
      * Set the exception callback for the coroutine queue.
      *
      * The callback persists on the cached queue connection for the worker

@@ -29,7 +29,7 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
-class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue, PublishesOutboxMessages
+class QueuePoolProxy extends PoolProxy implements QueueContract, EnqueuesBatchJobs, IndexAwareQueue, PublishesOutboxMessages
 {
     use PublishesOutboxMessagesSequentially;
 
@@ -229,6 +229,51 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Check the borrowed transport's transaction requirements before enrolling a batch.
+     *
+     * @internal
+     */
+    public function ensureBatchCanBeEnqueued(array $jobs, string $connection, bool $ownerHasTransaction): void
+    {
+        $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Enqueue through one lease and preserve its result if releasing the lease fails.
+     *
+     * @internal
+     */
+    public function bulkForBatch(
+        array $jobs,
+        Closure $onDeferredRejection,
+        mixed $data = '',
+        UnitEnum|string|null $queue = null,
+        ?string $batchTransactionConnection = null,
+    ): BatchEnqueueResult {
+        $result = null;
+        try {
+            return $this->usingConnection(static function (Queue $owner) use ($jobs, $onDeferredRejection, $data, $queue, $batchTransactionConnection, &$result) {
+                return $result = $owner->bulkForBatch($jobs, $onDeferredRejection, $data, $queue, $batchTransactionConnection);
+            });
+        } catch (Throwable $failure) {
+            if ($result === null) {
+                return BatchEnqueueResult::failed($failure, $jobs);
+            }
+
+            if ($result->failure === null) {
+                return new BatchEnqueueResult($failure, array_keys($jobs));
+            }
+
+            return new BatchEnqueueResult(
+                Coroutine::preferCancellation($result->failure, $failure),
+                $result->accepted,
+                $result->unknown,
+                $result->rejected,
+            );
+        }
     }
 
     /**

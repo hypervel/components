@@ -135,6 +135,8 @@ interface ConnectionInterface
 
     /**
      * Determine whether the connection has an active physical transaction.
+     *
+     * @phpstan-impure
      */
     public function inTransaction(): bool;
 

@@ -34,9 +34,11 @@ class BatchesTableCommand extends MigrationGeneratorCommand
      */
     public function handle(): int
     {
+        $config = $this->hypervel->make('config');
         $created = $this->createMissingMigrations([
             $this->migrationTableName() => $this->migrationStubFile(),
-            $this->hypervel->make('config')->string('queue.batching.results_table') => __DIR__ . '/stubs/batch-results.stub',
+            $config->string('queue.batching.results_table') => __DIR__ . '/stubs/batch-results.stub',
+            $config->string('queue.batching.deletions_table') => __DIR__ . '/stubs/batch-deletions.stub',
         ]);
 
         if (! $created) {

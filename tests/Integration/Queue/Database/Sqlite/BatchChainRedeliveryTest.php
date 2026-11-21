@@ -8,18 +8,21 @@ use ArrayObject;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
 #[RequiresDatabase('sqlite')]
 #[WithConfig('queue.default', 'database')]
+#[ResetRefreshDatabaseState]
 class BatchChainRedeliveryTest extends TestCase
 {
     use RefreshDatabase;
@@ -77,6 +80,53 @@ class BatchChainRedeliveryTest extends TestCase
             $this->assertSame($pending === 0, $batch->fresh()->finished());
         }
         $this->assertSame(3, DB::table('job_batch_results')->count());
+    }
+
+    public function testFailoverCopiesShareOneBatchPosition(): void
+    {
+        $this->app->instance(ArrayObject::class, new ArrayObject);
+        $database = config('queue.connections.database');
+        config([
+            'queue.connections.primary' => array_replace($database, ['queue' => 'primary', 'after_commit' => false]),
+            'queue.connections.secondary' => array_replace($database, ['queue' => 'secondary', 'after_commit' => false]),
+            'queue.connections.failover.connections' => ['primary', 'secondary'],
+            'queue.connections.failover.after_commit' => false,
+        ]);
+        DB::listen(static function (QueryExecuted $query): void {
+            static $first = true;
+            if ($first && str_starts_with($query->sql, 'insert into "jobs"')) {
+                $first = false;
+                throw new RuntimeException('The insert succeeded before the queue received its acknowledgement.');
+            }
+        });
+
+        $batch = Bus::batch([new BatchChainJob('A'), new BatchChainJob('B')])->onConnection('failover')->dispatch();
+        $original = Queue::connection('primary')->pop();
+        $copy = Queue::connection('secondary')->pop();
+        $this->assertNotSame($original->uuid(), $copy->uuid());
+        $original->fire();
+        $copy->fire();
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
+        Queue::connection('primary')->pop()->fire();
+        $this->assertTrue($batch->fresh()->finished());
+    }
+
+    public function testFailoverKeepsAnAcknowledgedJobWhenItsQueuedListenerThrows(): void
+    {
+        config(['queue.connections.failover.connections' => ['database', 'sync']]);
+        $error = new RuntimeException('Queued listener failed.');
+        $this->app->make('events')->listen(JobQueued::class, static fn () => throw $error);
+        $batch = Bus::batch([])->onConnection('failover')->dispatch();
+
+        try {
+            $batch->add(new BatchChainJob('accepted'));
+            $this->fail('Expected the listener failure.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($error, $exception);
+        }
+
+        $this->assertSame(1, DB::table('jobs')->count());
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
     }
 
     public function testBatchRetryUsesTheLatestFailedCopyAndAlreadyQueuedCopiesCanStillWork(): void

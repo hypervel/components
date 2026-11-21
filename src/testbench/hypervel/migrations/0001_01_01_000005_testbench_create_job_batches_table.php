@@ -15,6 +15,7 @@ return new class extends Migration {
         Schema::create('job_batches', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('name');
+            $table->string('driver')->default('database');
             $table->integer('total_jobs');
             $table->integer('pending_jobs');
             $table->integer('failed_jobs');
@@ -23,6 +24,10 @@ return new class extends Migration {
             $table->integer('cancelled_at')->nullable();
             $table->integer('created_at');
             $table->integer('finished_at')->nullable();
+            $table->integer('previous_finished_at')->nullable();
+            $table->integer('previous_finished_total')->nullable();
+            $table->integer('previous_first_pass_total')->nullable();
+            $table->integer('previous_success_total')->nullable();
             $table->index(['finished_at', 'created_at']);
         });
     }

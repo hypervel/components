@@ -308,6 +308,7 @@ class BusPendingBatchTest extends TestCase
         $storedBatch = Double::for(Batch::class)->strict();
         $repository->expects('store')->with(Argument::same($pendingBatch))->returns($storedBatch);
         $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
         $storedBatch->expects('add')->with(Argument::type(Collection::class))->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);
@@ -358,6 +359,7 @@ class BusPendingBatchTest extends TestCase
 
         $repository = Double::for(BatchRepository::class)->strict();
         $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
         $repository->expects('store')->with(Argument::same($pendingBatch))->returns($batch);
         $batch->expects('add')->with(Argument::type(Collection::class))->returns($batch);
         $container->instance(BatchRepository::class, $repository);
@@ -412,6 +414,7 @@ class BusPendingBatchTest extends TestCase
         $storedBatch = Double::for(Batch::class)->strict();
         $repository->expects('store')->returns($storedBatch);
         $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
         $storedBatch->expects('add')->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);
@@ -464,6 +467,7 @@ class BusPendingBatchTest extends TestCase
         $storedBatch = Double::for(Batch::class)->strict();
         $repository->expects('store')->returns($storedBatch);
         $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
         $storedBatch->expects('add')->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);
@@ -522,6 +526,7 @@ class BusPendingBatchTest extends TestCase
         $storedBatch = Double::for(Batch::class)->strict();
         $repository->expects('store')->with(Argument::same($pendingBatch))->returns($storedBatch);
         $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
         $storedBatch->expects('add')->with(Argument::type(Collection::class))->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);

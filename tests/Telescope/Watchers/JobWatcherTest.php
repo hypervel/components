@@ -230,6 +230,7 @@ class JobWatcherTest extends FeatureTestCase
     public function testJobRegistersProcessingEntryWithBatchFamilyHash(): void
     {
         $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
         $batch->expects('toArray')->returns(['foo' => 'bar']);
         $batchRepository = Double::for(BatchRepository::class)->strict();
         $batchRepository->expects('find')

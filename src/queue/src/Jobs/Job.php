@@ -7,6 +7,7 @@ namespace Hypervel\Queue\Jobs;
 use Closure;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
@@ -324,7 +325,11 @@ abstract class Job implements JobContract, JobLifecycleCallbacks
             $batchRepository = $this->resolve(BatchRepository::class);
 
             try {
-                $batchRepository->rollBack();
+                if ($batchRepository instanceof DatabaseBatchRepository) {
+                    $batchRepository->getConnection()->rollBack(toLevel: 0);
+                } else {
+                    $batchRepository->rollBack();
+                }
             } catch (Throwable $exception) {
                 if (Coroutine::causedByCancellation($exception)) {
                     throw $exception;

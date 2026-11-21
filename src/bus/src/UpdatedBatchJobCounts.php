@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
+use Hypervel\Support\CarbonImmutable;
+
 class UpdatedBatchJobCounts
 {
     /**
@@ -17,6 +19,8 @@ class UpdatedBatchJobCounts
         public int $failedJobs = 0,
         public ?bool $completedFirstPass = null,
         public ?int $totalJobs = null,
+        public ?int $outstandingFailedJobs = null,
+        public ?CarbonImmutable $finishedAt = null,
     ) {
     }
 

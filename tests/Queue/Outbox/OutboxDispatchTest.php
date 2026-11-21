@@ -28,11 +28,13 @@ use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
+use LogicException;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
@@ -43,6 +45,7 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
+#[ResetRefreshDatabaseState]
 class OutboxDispatchTest extends TestCase
 {
     use RefreshDatabase;
@@ -206,7 +209,7 @@ class OutboxDispatchTest extends TestCase
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
 
         try {
-            $queue->bulk($jobs);
+            $queue->bulk(array_combine(['first', 'second', 'third'], $jobs));
             $this->fail('Expected finalization to fail.');
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
@@ -366,6 +369,19 @@ class OutboxDispatchTest extends TestCase
     public static function deliveryTimes(): array
     {
         return [['none', null], ['zero', null], ['past', 0], ['future', 1]];
+    }
+
+    public function testInvalidDirectFifoDelayFailsBeforeStagingOtherJobs(): void
+    {
+        $queue = new SqsQueue(Double::for(SqsClient::class)->strict(), 'orders.fifo');
+        $queue->setContainer($this->app)->setConnectionName('sqs');
+        try {
+            $queue->bulk([(new OutboxDispatchJob)->viaOutbox()->delay(5), (new OutboxDispatchJob)->withoutOutbox()->delay(5)]);
+            $this->fail('Expected the direct FIFO delay to be rejected.');
+        } catch (LogicException $exception) {
+            $this->assertSame('SQS FIFO queues do not support per-message delays.', $exception->getMessage());
+        }
+        $this->assertSame(0, DB::table('job_outbox')->count());
     }
 
     #[DataProvider('sqsDelays')]

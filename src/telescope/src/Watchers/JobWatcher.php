@@ -250,7 +250,7 @@ class JobWatcher extends Watcher
         );
 
         if (! is_null($batchId)) {
-            $batch = app(BatchRepository::class)->find($batchId);
+            $batch = app(BatchRepository::class)->find($batchId)?->loadMissingJobCounts();
 
             if (is_null($batch)) {
                 return;

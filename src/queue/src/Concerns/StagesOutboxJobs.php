@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Concerns;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Queue\BatchEnqueueAttempt;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Outbox\OutboxDispatcher;
 use Hypervel\Support\Str;
@@ -39,7 +41,7 @@ trait StagesOutboxJobs
     /**
      * Run a child attempt or handler with its own forwarding context.
      *
-     * @param null|array{job: object|string, afterCommitHandled: bool} $forwarded
+     * @param null|array{job: object|string, afterCommitHandled: bool, onFailure?: Closure(?bool): void} $forwarded
      */
     protected function withOutboxForwarding(?array $forwarded, callable $callback): mixed
     {
@@ -59,6 +61,19 @@ trait StagesOutboxJobs
             $previous === null
                 ? CoroutineContext::forget(self::OUTBOX_FORWARDED_CONTEXT_KEY)
                 : CoroutineContext::set(self::OUTBOX_FORWARDED_CONTEXT_KEY, $previous);
+        }
+    }
+
+    /**
+     * Report a known single-send outcome to the failover attempt handling this job.
+     */
+    protected function reportForwardedFailure(array|object|string $job, bool $queued): void
+    {
+        if (is_object($job) && isset($job->batchId)) {
+            $forwarded = CoroutineContext::get(self::OUTBOX_FORWARDED_CONTEXT_KEY);
+            if (($forwarded['job'] ?? null) === $job && isset($forwarded['onFailure'])) {
+                ($forwarded['onFailure'])($queued);
+            }
         }
     }
 
@@ -121,24 +136,27 @@ trait StagesOutboxJobs
     /**
      * Stage selected jobs in owner groups and return the direct remainder.
      */
-    protected function stageOutboxJobs(array $jobs, mixed $data, ?string $queue): array
+    protected function stageOutboxJobs(array $jobs, mixed $data, ?string $queue, ?BatchEnqueueAttempt $attempt = null): array
     {
         $direct = $jobs;
         $selected = [];
 
         foreach ($jobs as $index => $job) {
             if ($this->shouldStageViaOutbox($job)) {
-                $selected[] = $job;
+                $selected[$index] = $job;
                 unset($direct[$index]);
             }
         }
 
+        if ($direct !== []) {
+            $this->validateBulkJobs($direct, $queue);
+        }
         if ($selected === []) {
             return $jobs;
         }
 
         $dispatcher = $this->container->make(OutboxDispatcher::class);
-        $prepared = $this->prepareBatchJobs($selected, $data, $queue);
+        $prepared = $this->prepareBatchJobsWithOffsets($selected, $data, $queue);
         $groups = [];
         $attempted = [];
 
@@ -170,6 +188,7 @@ trait StagesOutboxJobs
 
                 $attempted = array_fill_keys($group['members'], true);
                 $dispatcher->store($group['connection'], $rows, $groupJobs);
+                $attempt?->accepted($group['members']);
                 $accepted = [];
 
                 foreach ($group['members'] as $position => $index) {
@@ -198,7 +217,7 @@ trait StagesOutboxJobs
             throw $exception;
         }
 
-        return array_values($direct);
+        return $attempt === null ? array_values($direct) : $direct;
     }
 
     /**

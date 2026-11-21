@@ -196,6 +196,28 @@ class SyncQueue extends Queue implements QueueContract
     }
 
     /**
+     * Capture inline and scheduled jobs before the enrollment transaction commits.
+     */
+    protected function prepareBatchMember(object|string $job, mixed $data, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, int $offset): Closure
+    {
+        $payload = $this->createPayload($job, $queue, $data);
+
+        return static function (self $owner, BatchEnqueueAttempt $attempt) use ($job, $payload, $queue, $delay, $offset): void {
+            if ($owner instanceof CoroutineQueue && $delay !== null) {
+                $owner->scheduleJob($delay, $job, $payload, $queue);
+            } else {
+                if (! $owner instanceof CoroutineQueue) {
+                    // An inline handler may record its failure and then rethrow.
+                    $attempt->accepted([$offset]);
+                }
+                $owner->executePayload($payload, $queue);
+                $owner->acceptDispatchLocks($job);
+            }
+            $attempt->accepted([$offset]);
+        };
+    }
+
+    /**
      * Execute a given job synchronously.
      *
      * @throws Throwable
@@ -382,6 +404,22 @@ class SyncQueue extends Queue implements QueueContract
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->push($job, $data, $queue);
+    }
+
+    /**
+     * Preserve per-job transport overrides in custom queues.
+     */
+    protected function usesCustomBatchDelivery(): bool
+    {
+        return static::class !== self::class;
+    }
+
+    /**
+     * Allow inline jobs to run inside their enrollment transaction.
+     */
+    protected function batchWaitsForOwner(string $connection): bool
+    {
+        return false;
     }
 
     /**
