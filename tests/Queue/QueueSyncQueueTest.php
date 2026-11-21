@@ -41,10 +41,31 @@ use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class QueueSyncQueueTest extends TestCase
 {
     use VerifiesDoubles;
+
+    public function testBatchingCallsACustomBulkOverrideOnceAndRetainsAnUnacknowledgedSend(): void
+    {
+        $queue = new class extends SyncQueue {
+            public array $calls = [];
+
+            public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
+            {
+                $this->calls[] = [$jobs, $queue];
+                throw new RuntimeException('Lost the transport reply.');
+            }
+        };
+        $jobs = ['first', 'second'];
+        $result = $queue->bulkForBatch($jobs, static fn () => null, queue: 'imports');
+
+        $this->assertSame([[$jobs, 'imports']], $queue->calls);
+        $this->assertSame('Lost the transport reply.', $result->failure?->getMessage());
+        $this->assertSame([0, 1], $result->unknown);
+        $this->assertSame([], $result->rejected);
+    }
 
     public function testInspectionReturnsEmptyCollections(): void
     {
@@ -56,6 +77,34 @@ class QueueSyncQueueTest extends TestCase
         $this->assertTrue($queue->allPendingJobs()->isEmpty());
         $this->assertTrue($queue->allDelayedJobs()->isEmpty());
         $this->assertTrue($queue->allReservedJobs()->isEmpty());
+    }
+
+    public function testBatchDispatchHonorsACustomPushAfterTheOwningCommit(): void
+    {
+        $queue = new class extends SyncQueue {
+            public array $sent = [];
+
+            public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
+            {
+                $this->sent[] = $job;
+                return null;
+            }
+        };
+        $container = new Container;
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $queue->setContainer($container);
+        $transactions->begin('owner', 1);
+
+        $result = $queue->bulkForBatch(['first', 'second'], static fn () => null, batchTransactionConnection: 'owner');
+        $this->assertNull($result->failure);
+        $this->assertSame([], $queue->sent);
+        $transactions->commit('owner', 1, 0);
+        $this->assertSame(['first', 'second'], $queue->sent);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('beforeCommit()');
+        $queue->ensureBatchCanBeEnqueued([(object) ['afterCommit' => false]], 'owner', true);
     }
 
     /**
