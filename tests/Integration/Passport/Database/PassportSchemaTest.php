@@ -18,10 +18,12 @@ use Hypervel\Passport\Token;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use PDO;
 use PHPUnit\Framework\Attributes\TestWith;
 
+#[ResetRefreshDatabaseState]
 class PassportSchemaTest extends TestCase
 {
     use RefreshDatabase;
