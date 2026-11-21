@@ -291,7 +291,12 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
         $queueName = $this->resolveQueueName($queue);
 
         if (! $this->shouldStageViaOutbox($job)) {
-            $this->ensureDelayIsSupported($delay, $queueName);
+            try {
+                $this->ensureDelayIsSupported($delay, $queueName);
+            } catch (Throwable $failure) {
+                $this->reportForwardedFailure($job, false);
+                throw $failure;
+            }
         }
 
         return $this->enqueueUsing(

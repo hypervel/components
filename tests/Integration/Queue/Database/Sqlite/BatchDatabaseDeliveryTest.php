@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Queue\Database\Sqlite;
 
 use ArrayObject;
+use Aws\MockHandler;
 use Closure;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchNotFoundException;
@@ -197,6 +198,31 @@ class BatchDatabaseDeliveryTest extends TestCase
             $delivery->rollBack(0);
             DB::rollBack(0);
         }
+    }
+
+    public function testEarlierWorkFinishesWhenBothFailoverQueuesRefuseADelayedAddition(): void
+    {
+        config([
+            'queue.connections.failover.connections' => ['database', 'sqs'],
+            'queue.connections.sqs.queue' => 'orders.fifo',
+            'queue.connections.sqs.credentials' => false,
+            'queue.connections.sqs.handler' => new MockHandler,
+            'queue.connections.sqs.pool.fingerprint' => self::class,
+        ]);
+        $delivery = DB::connection('delivery');
+        $delivery->statement('create temporary table jobs (id integer primary key, queue text, payload text, attempts integer, reserved_at integer, available_at integer, created_at integer)');
+        $batch = Bus::batch([static fn () => null])->onConnection('failover')->dispatch();
+        $this->app->make('events')->listen(JobQueueing::class, static fn () => throw new RuntimeException('Primary refused before insert.'));
+
+        try {
+            $batch->add(CallQueuedClosure::create(static fn () => null)->delay(30));
+            $this->fail('Expected the delayed member to be refused.');
+        } catch (LogicException $exception) {
+            $this->assertSame('SQS FIFO queues do not support per-message delays.', $exception->getMessage());
+        }
+        $this->assertSame(1, $delivery->table('jobs')->count());
+        $this->app->make('queue')->connection('database')->pop()->fire();
+        $this->assertTrue($batch->fresh()->finished());
     }
 
     public function testInlineCancellationRollsBackEnrollment(): void
