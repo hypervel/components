@@ -395,9 +395,11 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             }
             throw $lastException ?? new RuntimeException('All failover queue connections failed.');
         } catch (Throwable $failure) {
-            $onFailure?->__invoke($outcome);
-
-            throw $failure;
+            try {
+                throw $failure;
+            } finally {
+                $onFailure?->__invoke($outcome);
+            }
         } finally {
             CoroutineContext::set($contextKey, [WeakReference::create($this), $failedQueues]);
         }

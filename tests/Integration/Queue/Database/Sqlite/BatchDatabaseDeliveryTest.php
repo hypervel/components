@@ -18,6 +18,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
@@ -174,6 +175,42 @@ class BatchDatabaseDeliveryTest extends TestCase
         }
         $this->assertSame(1, $target->table('jobs')->count());
         $this->assertSame(1, $batch->fresh()->pendingJobs);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFailoverUsesOnlyAChildThatCanKeepItsJobAfterEnrollmentCommits(bool $afterCommit): void
+    {
+        config(['queue.connections.failover.connections' => ['database', 'sync'], 'queue.connections.failover.after_commit' => $afterCommit]);
+        $delivery = DB::connection('delivery');
+        $delivery->statement('create temporary table jobs (id integer primary key, queue text, payload text, attempts integer, reserved_at integer, available_at integer, created_at integer)');
+        DB::beginTransaction();
+        $delivery->beginTransaction();
+        try {
+            $batch = Bus::batch([static fn () => null])->onConnection('failover')->dispatch();
+            DB::commit();
+            $this->assertSame(0, $delivery->table('jobs')->count());
+            $afterCommit ? $delivery->commit() : $delivery->rollBack();
+            $this->assertSame((int) $afterCommit, $delivery->table('jobs')->count());
+            $this->assertSame((int) $afterCommit, $batch->fresh()->pendingJobs);
+        } finally {
+            $delivery->rollBack(0);
+            DB::rollBack(0);
+        }
+    }
+
+    public function testInlineCancellationRollsBackEnrollment(): void
+    {
+        $failure = new CanceledException('Stopped before the handler ran.');
+        $this->app->make('events')->listen(JobProcessing::class, static fn () => throw $failure);
+        $batch = Bus::batch([])->onConnection('sync')->dispatch();
+        try {
+            $batch->add(static fn () => null);
+            $this->fail('Expected cancellation to reach the caller.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+        $this->assertSame(0, $batch->fresh()->totalJobs);
     }
 
     #[TestWith([true])]

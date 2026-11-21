@@ -17,6 +17,7 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\Queue\BatchEnqueueResult;
 use Hypervel\Queue\ClearableQueuePoolProxy;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Queue\Jobs\Job;
@@ -247,6 +248,21 @@ class QueuePoolProxyTest extends TestCase
         $pool = $pools->get($proxy->getPoolName());
         $this->assertSame(0, $pool->getBorrowedCount());
         $this->assertSame(0, $pool->getManagedCount());
+    }
+
+    public function testReleaseCancellationPreservesPartialBatchDelivery(): void
+    {
+        $queue = Double::for(new NullQueue)->passthru();
+        $queue->expects('bulkForBatch')->returns(new BatchEnqueueResult(new RuntimeException('Partial delivery'), [0], [1], [2]));
+        $cancellation = new CanceledException('Release cancelled');
+        [$proxy] = $this->proxy(static fn () => $queue, static fn () => throw $cancellation);
+
+        $result = $proxy->bulkForBatch(['sent', 'unknown', 'rejected'], static fn () => null);
+
+        $this->assertSame($cancellation, $result->failure);
+        $this->assertSame([0], $result->accepted);
+        $this->assertSame([1], $result->unknown);
+        $this->assertSame([2], $result->rejected);
     }
 
     public function testReleaseCancellationSupersedesAPopFailure(): void

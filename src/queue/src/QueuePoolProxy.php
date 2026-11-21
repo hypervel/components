@@ -263,7 +263,16 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, EnqueuesBatchJo
                 return BatchEnqueueResult::failed($failure, $jobs);
             }
 
-            return $result->failure === null ? new BatchEnqueueResult($failure, array_keys($jobs)) : $result;
+            if ($result->failure === null) {
+                return new BatchEnqueueResult($failure, array_keys($jobs));
+            }
+
+            return new BatchEnqueueResult(
+                Coroutine::preferCancellation($result->failure, $failure),
+                $result->accepted,
+                $result->unknown,
+                $result->rejected,
+            );
         }
     }
 

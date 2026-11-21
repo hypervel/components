@@ -330,7 +330,7 @@ class Batch implements Arrayable, JsonSerializable
 
             $result = $queue->bulkForBatch($jobs, $release, '', $destination, $owner);
             if ($result->failure !== null) {
-                if (count($result->rejected) === count($jobs)) {
+                if (count($result->rejected) === count($jobs) || ($database !== null && Coroutine::causedByCancellation($result->failure))) {
                     throw $result->failure;
                 }
                 $release($result->rejected);
