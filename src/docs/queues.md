@@ -2680,7 +2680,7 @@ $batch->cancelled();
 
 The batch counts each job's success once, even if the queue delivers it again. Once a job succeeds, a later failure from another copy of that job leaves the batch unchanged. Callbacks triggered by a success run in the worker that records it. If it stops after committing the count, callbacks it did not finish are not replayed.
 
-For a Redis-backed batch returned by `Bus::findBatch()`, the first read of a progress property loads the counts and finish time together. Use `fresh()` to read them again or check whether the batch still exists.
+For a Redis-backed batch returned by `Bus::findBatch()`, the first read of a progress property loads the counts and finish time together. Cancellation is read at lookup, so use `fresh()` to check its current state. If the batch is deleted before its first progress read, that read throws a `RuntimeException`.
 
 `$batch->failedJobIds` lists the queue ID of the latest failed delivery for each job that hasn't succeeded. The IDs have no guaranteed order. Use `$batch->fresh()->failedJobIds` to read the current list.
 
