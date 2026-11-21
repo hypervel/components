@@ -369,9 +369,13 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                             fn () => $this->manager->connection($connection)->{$method}(...$arguments),
                         );
                 } catch (Throwable $e) {
-                    // A later rejection cannot undo an earlier accepted or unacknowledged send.
-                    if ($childOutcome === true || ($childOutcome === null && $outcome === false)) {
-                        $outcome = $childOutcome;
+                    // A listener can throw after storage. Forwarding again would publish a second copy.
+                    if ($childOutcome === true) {
+                        $outcome = true;
+                        throw $e;
+                    }
+                    if ($childOutcome === null) {
+                        $outcome = null;
                     }
                     if (Coroutine::causedByCancellation($e) || ! $this->transactionCanContinueAfter($e)) {
                         throw $e;

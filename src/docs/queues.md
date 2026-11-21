@@ -2265,7 +2265,7 @@ Alternatively, define `withMessageGroups($notifiable, $channel)` and `withDedupl
 <a name="queue-failover"></a>
 ### Queue Failover
 
-The `failover` queue driver provides automatic failover functionality when pushing jobs to the queue. If the primary queue connection of the `failover` configuration fails for any reason, Hypervel will automatically attempt to push the job to the next configured connection in the list. This is particularly useful for ensuring high availability in production environments where queue reliability is critical.
+The `failover` queue driver provides automatic failover functionality when pushing jobs to the queue. If the primary queue connection fails to accept a job, Hypervel tries the next configured connection. This is particularly useful for ensuring high availability in production environments where queue reliability is critical.
 
 To configure a failover queue connection, specify the `failover` driver and provide an array of connection names to attempt in order. Hypervel includes the following connection by default:
 

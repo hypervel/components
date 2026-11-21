@@ -8,6 +8,7 @@ use ArrayObject;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Support\Facades\Bus;
@@ -89,11 +90,11 @@ class BatchChainRedeliveryTest extends TestCase
             'queue.connections.failover.connections' => ['primary', 'secondary'],
             'queue.connections.failover.after_commit' => false,
         ]);
-        $this->app->make('events')->listen(JobQueued::class, static function () {
+        DB::listen(static function (QueryExecuted $query): void {
             static $first = true;
-            if ($first) {
+            if ($first && str_starts_with($query->sql, 'insert into "jobs"')) {
                 $first = false;
-                throw new RuntimeException('Observer failed after the first queue accepted the job.');
+                throw new RuntimeException('The insert succeeded before the queue received its acknowledgement.');
             }
         });
 
@@ -106,6 +107,24 @@ class BatchChainRedeliveryTest extends TestCase
         $this->assertSame(1, $batch->fresh()->pendingJobs);
         Queue::connection('primary')->pop()->fire();
         $this->assertTrue($batch->fresh()->finished());
+    }
+
+    public function testFailoverKeepsAnAcknowledgedJobWhenItsQueuedListenerThrows(): void
+    {
+        config(['queue.connections.failover.connections' => ['database', 'sync']]);
+        $error = new RuntimeException('Queued listener failed.');
+        $this->app->make('events')->listen(JobQueued::class, static fn () => throw $error);
+        $batch = Bus::batch([])->onConnection('failover')->dispatch();
+
+        try {
+            $batch->add(new BatchChainJob('accepted'));
+            $this->fail('Expected the listener failure.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($error, $exception);
+        }
+
+        $this->assertSame(1, DB::table('jobs')->count());
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
     }
 
     public function testBatchRetryUsesTheLatestFailedCopyAndAlreadyQueuedCopiesCanStillWork(): void
