@@ -15,6 +15,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Bus\Fixtures\TestsBatchReopening;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
@@ -24,6 +25,7 @@ use function Hypervel\Coroutine\parallel;
 abstract class DatabaseBatchRepositoryTestCase extends TestCase
 {
     use DatabaseTruncation;
+    use TestsBatchReopening;
 
     /**
      * Give each competing operation its own session with a bounded lock wait.

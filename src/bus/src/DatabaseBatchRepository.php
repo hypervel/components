@@ -12,15 +12,19 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use RuntimeException;
 use Throwable;
 
 class DatabaseBatchRepository implements PrunableBatchRepository
 {
+    protected const string DRIVER = 'database';
+
     public const string DEFAULT_RESULTS_TABLE = 'job_batch_results';
+
+    public const string DEFAULT_DELETIONS_TABLE = 'job_batch_deletions';
 
     /**
      * Create a new batch repository instance.
@@ -31,6 +35,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
         protected string $table,
         protected ?string $connection = null,
         protected string $resultsTable = self::DEFAULT_RESULTS_TABLE,
+        protected string $deletionsTable = self::DEFAULT_DELETIONS_TABLE,
     ) {
     }
 
@@ -41,15 +46,29 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function get(int $limit = 50, mixed $before = null): array
     {
-        return $this->getConnection()->table($this->table)
+        $rows = $this->getConnection()->table($this->table)
             ->orderByDesc('id')
             ->limit($limit)
             ->when($before !== null && $before !== '', fn ($q) => $q->where('id', '<', $before))
-            ->get()
-            ->map(function ($batch) {
-                return $this->toBatch($batch);
-            })
-            ->all();
+            ->get();
+
+        return array_values($this->toBatches($rows->all()));
+    }
+
+    /**
+     * Hydrate a page of batches keyed by ID.
+     *
+     * @param array<array-key, object> $rows
+     * @return array<string, Batch>
+     */
+    protected function toBatches(array $rows): array
+    {
+        $batches = [];
+        foreach ($rows as $row) {
+            $batches[$row->id] = $this->toBatch($row);
+        }
+
+        return $batches;
     }
 
     /**
@@ -63,6 +82,24 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             ->first();
 
         return $batch ? $this->toBatch($batch) : null;
+    }
+
+    /**
+     * Load current progress for the requested batches in descending ID order.
+     *
+     * @param list<string> $ids
+     * @return list<Batch>
+     */
+    public function findMany(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = $this->getConnection()->table($this->table)->useWritePdo()
+            ->whereIn('id', $ids)->orderByDesc('id')->get();
+
+        return array_values($this->toBatches($rows->all()));
     }
 
     /**
@@ -89,10 +126,17 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function store(PendingBatch $batch): Batch
     {
-        $id = (string) Str::orderedUuid();
+        return $this->toBatch($this->insertBatch($batch));
+    }
 
-        $this->getConnection()->table($this->table)->insert([
-            'id' => $id,
+    /**
+     * Insert the batch and return its initial values.
+     */
+    protected function insertBatch(PendingBatch $batch): object
+    {
+        $row = [
+            'id' => (string) Str::orderedUuid(),
+            'driver' => static::DRIVER,
             'name' => $batch->name,
             'total_jobs' => 0,
             'pending_jobs' => 0,
@@ -102,15 +146,10 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             'created_at' => time(),
             'cancelled_at' => null,
             'finished_at' => null,
-        ]);
+        ];
+        $this->getConnection()->table($this->table)->insert($row);
 
-        $storedBatch = $this->find($id);
-
-        if ($storedBatch === null) {
-            throw new RuntimeException("Failed to retrieve stored batch [{$id}].");
-        }
-
-        return $storedBatch;
+        return (object) $row;
     }
 
     /**
@@ -118,11 +157,102 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function incrementTotalJobs(string $batchId, int $amount): void
     {
-        $this->getConnection()->table($this->table)->where('id', $batchId)->update([
-            'total_jobs' => new Expression('total_jobs + ' . $amount),
+        $this->updateEnrollment($batchId, $amount, [
+            'previous_first_pass_total' => new Expression('case when total_jobs > 0 and pending_jobs = outstanding_failed_jobs then total_jobs else previous_first_pass_total end'),
+            'previous_success_total' => new Expression('case when total_jobs > 0 and pending_jobs = 0 then total_jobs else previous_success_total end'),
             'pending_jobs' => new Expression('pending_jobs + ' . $amount),
+        ]);
+    }
+
+    /**
+     * Preserve the finish and previously reached callback totals so a rejected addition can be undone.
+     */
+    protected function updateEnrollment(string $batchId, int $amount, array $values): void
+    {
+        // MySQL and MariaDB read earlier assignments in SET, so sample the old row first.
+        $updated = $this->getConnection()->table($this->table)->where('id', $batchId)->update([
+            'previous_finished_total' => new Expression('case when finished_at is not null then total_jobs else previous_finished_total end'),
+            'previous_finished_at' => new Expression('coalesce(finished_at, previous_finished_at)'),
+            ...$values,
+            'total_jobs' => new Expression('total_jobs + ' . $amount),
             'finished_at' => null,
         ]);
+
+        if ($amount > 0 && $updated === 0) {
+            throw new BatchNotFoundException("Batch [{$batchId}] no longer exists.");
+        }
+    }
+
+    /**
+     * Reserve the SQLite writer before reading, as its grammar omits FOR UPDATE.
+     */
+    protected function lockParents(array $ids): Builder
+    {
+        $connection = $this->getConnection();
+        $query = $connection->table($this->table)->whereIn('id', $ids);
+        if ($connection instanceof SQLiteConnection) {
+            (clone $query)->update(['total_jobs' => new Expression('total_jobs')]);
+        }
+
+        return $query->orderBy('id')->lockForUpdate();
+    }
+
+    /**
+     * Withdraw jobs the queue definitely rejected and report newly reached completion conditions.
+     */
+    public function releaseJobs(string $batchId, int $count): ?UpdatedBatchJobCounts
+    {
+        $connection = $this->getConnection();
+
+        return $connection->transaction(function () use ($batchId, $count) {
+            $parent = $this->lockParents([$batchId]);
+            $row = (clone $parent)->first();
+
+            return $row === null ? null : $this->releaseFromBatch($parent, $row, $count);
+        });
+    }
+
+    /**
+     * Correct enrollment against results read under the parent lock.
+     */
+    protected function releaseFromBatch(Builder $parent, object $row, int $count): ?UpdatedBatchJobCounts
+    {
+        $total = (int) $row->total_jobs - $count;
+        $pending = (int) $row->pending_jobs - $count;
+        $outstanding = (int) $row->outstanding_failed_jobs;
+        $firstPass = $total > 0 && $pending === $outstanding && (int) $row->previous_first_pass_total !== $total;
+        $successful = $total > 0 && $pending === 0 && (int) $row->previous_success_total !== $total;
+
+        $values = ['total_jobs' => $total];
+        if (static::DRIVER === 'database') {
+            $values['pending_jobs'] = $pending;
+        }
+
+        if ($firstPass) {
+            $values['previous_first_pass_total'] = $total;
+        }
+        if ($successful) {
+            $values['previous_success_total'] = $total;
+        }
+
+        $finish = $row->finished_at;
+        if ($finish === null && $row->previous_finished_at !== null && (int) $row->previous_finished_total === $total) {
+            $finish = $values['finished_at'] = $row->previous_finished_at;
+        }
+        if ($finish === null && ($successful || ($firstPass && ($this->unserialize($row->options)['allowFailures'] ?? false) === true))) {
+            $finish = $values['finished_at'] = time();
+        }
+
+        $parent->update($values);
+
+        return $firstPass || $successful ? new UpdatedBatchJobCounts(
+            $pending,
+            (int) $row->failed_jobs,
+            $firstPass,
+            $total,
+            $outstanding,
+            $finish === null ? null : CarbonImmutable::createFromTimestamp((int) $finish, date_default_timezone_get()),
+        ) : null;
     }
 
     /**
@@ -310,6 +440,14 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     }
 
     /**
+     * Remove a failed dispatch only while it has no enrolled jobs.
+     */
+    public function deleteIfEmpty(string $batchId): void
+    {
+        $this->deleteBatches($this->getConnection()->table($this->table)->where('total_jobs', 0), [$batchId]);
+    }
+
+    /**
      * Prune all of the entries older than the given date.
      */
     public function prune(DateTimeInterface $before): int
@@ -342,6 +480,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     protected function pruneBatches(Builder $query): int
     {
         $total = 0;
+        $query->where('driver', static::DRIVER);
         $page = (clone $query)->select(['id', 'total_jobs'])->useWritePdo();
         $nested = $query->getConnection()->transactionLevel() > 0;
         $prunePage = function (Collection $batches) use ($query, $nested, &$total): void {
@@ -382,9 +521,8 @@ class DatabaseBatchRepository implements PrunableBatchRepository
         $connection = $query->getConnection();
 
         try {
-            return $connection->transaction(function () use ($connection, $query, $ids) {
-                $results = $connection->table($this->resultsTable)->whereIn('batch_id', $ids);
-                $results->delete();
+            return $connection->transaction(function () use ($query, $ids) {
+                $this->deleteJobResults($ids);
 
                 $deleted = (clone $query)->whereIn('id', $ids)->delete();
                 if ($deleted !== count($ids)) {
@@ -393,7 +531,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
                 }
 
                 // A result may have committed while the parent delete waited.
-                $results->delete();
+                $this->deleteJobResults($ids);
 
                 return $deleted;
             }, attempts: 3);
@@ -407,6 +545,51 @@ class DatabaseBatchRepository implements PrunableBatchRepository
 
             return $deleted;
         }
+    }
+
+    /**
+     * Record external cleanup in the transaction that deletes the parent.
+     */
+    protected function recordResultDeletions(array $ids): void
+    {
+        $connection = $this->resolver->connection($this->connection);
+        $connection->table($this->deletionsTable)->insert(array_map(
+            static fn ($id) => ['batch_id' => $id, 'driver' => static::DRIVER],
+            $ids,
+        ));
+        $connection->afterCommit(fn () => $this->completeResultDeletions($ids));
+    }
+
+    /**
+     * Recover this driver's committed cleanup work on a normal prune.
+     */
+    protected function drainResultDeletions(): void
+    {
+        // A prune inside a transaction can see its own uncommitted deletions.
+        $this->resolver->connection($this->connection)->afterCommitOrNow(function () {
+            $this->getConnection()->table($this->deletionsTable)->useWritePdo()
+                ->where('driver', static::DRIVER)->chunkById(100, function (Collection $rows) {
+                    $this->completeResultDeletions($rows->pluck('batch_id')->all());
+                }, 'batch_id');
+        });
+    }
+
+    /**
+     * Clear the cleanup records only after the driver has deleted the results.
+     */
+    private function completeResultDeletions(array $ids): void
+    {
+        $this->deleteJobResults($ids);
+        $this->getConnection()->table($this->deletionsTable)->where('driver', static::DRIVER)
+            ->whereIn('batch_id', $ids)->delete();
+    }
+
+    /**
+     * Delete this driver's results for the given batches.
+     */
+    protected function deleteJobResults(array $ids): void
+    {
+        $this->getConnection()->table($this->resultsTable)->whereIn('batch_id', $ids)->delete();
     }
 
     /**
@@ -474,9 +657,9 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             $batch->id,
             $batch->name,
             (int) $batch->total_jobs,
-            (int) $batch->pending_jobs,
-            (int) $batch->failed_jobs,
-            (int) $batch->outstanding_failed_jobs === 0 ? [] : null,
+            $batch->pending_jobs === null ? null : (int) $batch->pending_jobs,
+            $batch->failed_jobs === null ? null : (int) $batch->failed_jobs,
+            $batch->outstanding_failed_jobs !== null && (int) $batch->outstanding_failed_jobs === 0 ? [] : null,
             $this->unserialize($batch->options),
             CarbonImmutable::createFromTimestamp($batch->created_at, date_default_timezone_get()),
             $batch->cancelled_at ? CarbonImmutable::createFromTimestamp($batch->cancelled_at, date_default_timezone_get()) : $batch->cancelled_at,
