@@ -118,7 +118,7 @@ abstract class Queue implements EnqueuesBatchJobs
      */
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
-        return $this->enqueueBulk($jobs, $data, $this->normalizeQueue($queue), null);
+        return $this->enqueueBulk(array_values($jobs), $data, $this->normalizeQueue($queue), null);
     }
 
     /**
@@ -172,12 +172,20 @@ abstract class Queue implements EnqueuesBatchJobs
 
         try {
             if ($this->usesCustomBatchDelivery()) {
-                $send = static fn (self $owner) => $owner->bulk($jobs, $data, $queue);
-                if ($batchTransactionConnection === null) {
+                $send = static function (self $owner) use ($jobs, $data, $queue, $attempt) {
                     $attempt->attempting(array_keys($jobs));
+                    return $owner->bulk($jobs, $data, $queue);
+                };
+                if ($batchTransactionConnection === null) {
                     $send($this);
                 } else {
-                    $this->deferBatchEnqueueAfterCommit($this->container->make('db.transactions'), $jobs, $send, $batchTransactionConnection);
+                    $this->deferBatchEnqueueAfterCommit(
+                        $this->container->make('db.transactions'),
+                        $jobs,
+                        $send,
+                        $batchTransactionConnection,
+                        static fn (Throwable $failure) => $attempt->releaseRejected($failure, $jobs),
+                    );
                 }
             } else {
                 $this->enqueueBulk($jobs, $data, $this->normalizeQueue($queue), $attempt);
@@ -284,6 +292,18 @@ abstract class Queue implements EnqueuesBatchJobs
             }
             $attempt->accepted([$offset]);
         };
+    }
+
+    /**
+     * Give preparation hooks a list and restore the original offsets for delivery accounting.
+     */
+    protected function prepareBatchJobsWithOffsets(array $jobs, mixed $data, ?string $queue): array
+    {
+        if (array_is_list($jobs)) {
+            return $this->prepareBatchJobs($jobs, $data, $queue);
+        }
+
+        return array_combine(array_keys($jobs), $this->prepareBatchJobs(array_values($jobs), $data, $queue));
     }
 
     /**

@@ -2036,7 +2036,16 @@ class QueueSqsQueueTest extends TestCase
 
     public function testBatchEnrollmentKeepsUnknownEntriesAndRejectsUnattemptedChunks(): void
     {
-        $queue = new SqsQueue($this->sqs, $this->queueName, $this->prefix);
+        $queue = new class($this->sqs, $this->queueName, $this->prefix) extends SqsQueue {
+            public bool $receivedList = false;
+
+            protected function prepareBatchMessages(array $jobs, mixed $data, ?string $queue): array
+            {
+                $this->receivedList = array_is_list($jobs);
+
+                return array_values(parent::prepareBatchMessages($jobs, $data, $queue));
+            }
+        };
         $queue->setContainer(new Container);
         $queue->setConnectionName('sqs');
         $jobs = array_fill(2, 11, 'job');
@@ -2050,6 +2059,7 @@ class QueueSqsQueueTest extends TestCase
 
         $result = $queue->bulkForBatch($jobs, static fn () => null, queue: $this->queueName);
         $this->assertInstanceOf(SqsException::class, $result->failure);
+        $this->assertTrue($queue->receivedList);
         $this->assertSame(range(2, 9), $result->accepted);
         $this->assertSame([11], $result->unknown);
         $this->assertSame([10, 12], $result->rejected);

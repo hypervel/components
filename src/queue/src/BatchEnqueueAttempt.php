@@ -21,6 +21,8 @@ class BatchEnqueueAttempt
 
     /**
      * Track only this call and the callbacks registered for it.
+     *
+     * @param Closure(list<int>): void $onDeferredRejection
      */
     public function __construct(
         public readonly Closure $onDeferredRejection,

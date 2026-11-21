@@ -22,9 +22,6 @@ trait EnqueuesPreparedBatches
         }
 
         $this->validateBulkJobs($jobs, $queue);
-        if ($attempt === null) {
-            $jobs = array_values($jobs);
-        }
         $transactions = $this->container->has('db.transactions') ? $this->container->make('db.transactions') : null;
         $connection = $attempt?->batchTransactionConnection;
         if ($connection !== null && $this->batchWaitsForOwner($connection)) {
@@ -39,7 +36,7 @@ trait EnqueuesPreparedBatches
         }
 
         $result = $immediate === [] ? null : $this->publishPreparedBatch(
-            $this->prepareBatchJobs($immediate, $data, $queue),
+            $this->prepareBatchJobsWithOffsets($immediate, $data, $queue),
             $queue,
             $attempt,
         );
@@ -47,7 +44,7 @@ trait EnqueuesPreparedBatches
             return $result;
         }
 
-        $prepared = $this->prepareBatchJobs($deferred, $data, $queue);
+        $prepared = $this->prepareBatchJobsWithOffsets($deferred, $data, $queue);
         $later = $attempt === null ? null : new BatchEnqueueAttempt($attempt->onDeferredRejection, null);
         $this->deferBatchEnqueueAfterCommit(
             $transactions,

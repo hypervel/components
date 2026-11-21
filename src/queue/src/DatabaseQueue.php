@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
@@ -279,6 +280,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $this->ensureForwardedBatchCanBeStored($job);
         $queue = $this->normalizeQueue($queue);
 
         return $this->enqueueUsing(
@@ -308,6 +310,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $this->ensureForwardedBatchCanBeStored($job);
         $queue = $this->normalizeQueue($queue);
 
         return $this->enqueueUsing(
@@ -354,7 +357,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
     {
         if ($attempt === null || $this->usesCustomBatchWriter(self::class, 'enqueueBatch')) {
             $attempt?->attempting(array_keys($jobs));
-            $result = $this->enqueueBatch($jobs, $queue);
+            $result = $this->enqueueBatch(array_values($jobs), $queue);
             $attempt?->accepted(array_keys($jobs));
 
             return $result;
@@ -737,6 +740,25 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
         $queue = $this->normalizeQueue($queue);
 
         return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
+    }
+
+    /**
+     * Refuse a failover attempt whose insert could still roll back after the batch has committed.
+     */
+    private function ensureForwardedBatchCanBeStored(object|string $job): void
+    {
+        if (! isset($job->batchId)) {
+            return;
+        }
+
+        $forwarded = CoroutineContext::get(self::OUTBOX_FORWARDED_CONTEXT_KEY);
+        if (($forwarded['job'] ?? null) === $job && isset($forwarded['onFailure']) && $forwarded['afterCommitHandled']) {
+            $connection = $this->getDatabase();
+            if ($connection->hasApplicableTransaction()) {
+                $this->reportForwardedFailure($job, false);
+                throw new LogicException("Cannot deliver a batched job through failover while queue database [{$connection->getNameWithReadWriteType()}] has an open transaction.");
+            }
+        }
     }
 
     /**

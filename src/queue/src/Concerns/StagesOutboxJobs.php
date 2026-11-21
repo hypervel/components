@@ -153,7 +153,7 @@ trait StagesOutboxJobs
         }
 
         $dispatcher = $this->container->make(OutboxDispatcher::class);
-        $prepared = $this->prepareBatchJobs($selected, $data, $queue);
+        $prepared = $this->prepareBatchJobsWithOffsets($selected, $data, $queue);
         $groups = [];
         $attempted = [];
 

@@ -17,6 +17,10 @@ interface EnqueuesBatchJobs
 
     /**
      * Publish enrolled jobs and report confirmed or uncertain deliveries.
+     * Sends that survive a rollback must wait for the named enrollment transaction to commit.
+     *
+     * @param array<int, object|string> $jobs
+     * @param Closure(list<int>): void $onDeferredRejection
      */
     public function bulkForBatch(
         array $jobs,

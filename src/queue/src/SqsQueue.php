@@ -390,7 +390,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     {
         if ($attempt === null || $this->usesCustomBatchWriter(self::class, 'sendBatchedMessages')) {
             $attempt?->attempting(array_keys($jobs));
-            $this->sendBatchedMessages($jobs, $queue);
+            $this->sendBatchedMessages(array_values($jobs), $queue);
             $attempt?->accepted(array_keys($jobs));
         } else {
             $this->writePreparedMessages($jobs, $queue, $attempt);

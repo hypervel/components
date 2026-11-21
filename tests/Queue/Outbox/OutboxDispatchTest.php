@@ -206,7 +206,7 @@ class OutboxDispatchTest extends TestCase
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
 
         try {
-            $queue->bulk($jobs);
+            $queue->bulk(array_combine(['first', 'second', 'third'], $jobs));
             $this->fail('Expected finalization to fail.');
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);

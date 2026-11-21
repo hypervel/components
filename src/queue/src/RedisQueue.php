@@ -372,7 +372,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     {
         if ($attempt === null || $this->usesCustomBatchWriter(self::class, 'enqueueBatch')) {
             $attempt?->attempting(array_keys($jobs));
-            $this->enqueueBatch($jobs, $queue);
+            $this->enqueueBatch(array_values($jobs), $queue);
             $attempt?->accepted(array_keys($jobs));
         } else {
             $this->writePreparedJobs($jobs, $queue, $attempt);

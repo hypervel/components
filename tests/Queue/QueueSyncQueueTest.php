@@ -67,6 +67,30 @@ class QueueSyncQueueTest extends TestCase
         $this->assertSame([], $result->rejected);
     }
 
+    public function testCustomBulkReleasesDeferredJobsWhenTheQueueCannotBeReacquired(): void
+    {
+        $queue = new class extends SyncQueue {
+        };
+        $container = new Container;
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $queue->setContainer($container);
+        $failure = new RuntimeException('Queue unavailable.');
+        $queue->setAfterCommitDispatcher(static fn () => throw $failure);
+        $transactions->begin('owner', 1);
+        $rejected = [];
+        $queue->bulkForBatch(['first', 'second'], static function (array $offsets) use (&$rejected): void {
+            $rejected = $offsets;
+        }, batchTransactionConnection: 'owner');
+        try {
+            $transactions->commit('owner', 1, 0);
+            $this->fail('Expected queue reacquisition to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+        $this->assertSame([0, 1], $rejected);
+    }
+
     public function testInspectionReturnsEmptyCollections(): void
     {
         $queue = new SyncQueue;
