@@ -111,7 +111,6 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
             1,
             fn (): bool => true,
             beforeReady: fn () => posix_kill(getmypid(), SIGKILL),
-            timeout: 0.25,
         );
     }
 
@@ -124,7 +123,6 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
             $this->createState(),
             1,
             fn () => posix_kill(getmypid(), SIGKILL),
-            timeout: 0.25,
         );
     }
 
@@ -194,7 +192,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
                 return true;
             },
-            timeout: 0.05,
+            payloadTimeout: 0.05,
         );
     }
 
@@ -206,7 +204,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
         int $count,
         callable $callback,
         ?callable $beforeReady = null,
-        float $timeout = 5.0,
+        ?float $payloadTimeout = null,
     ): array {
         $ready = new Atomic(0);
         $start = new Atomic(0);
@@ -255,7 +253,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
         $results = [];
         $exception = null;
-        $deadline = hrtime(true) + (int) ($timeout * 1_000_000_000);
+        $deadline = hrtime(true) + 5_000_000_000;
 
         try {
             foreach ($processes as $process) {
@@ -271,6 +269,9 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
             $this->waitForReadyProcesses($ready, $count, $pids, $reaped, $deadline);
             $start->set(1);
+            if ($payloadTimeout !== null) {
+                $deadline = min($deadline, hrtime(true) + (int) ($payloadTimeout * 1_000_000_000));
+            }
 
             foreach ($pids as $pid => $process) {
                 $payload = $this->readChildPayload($process, $pid, $reaped, $deadline);
