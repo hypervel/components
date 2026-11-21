@@ -79,6 +79,35 @@ class BatchChainRedeliveryTest extends TestCase
         $this->assertSame(3, DB::table('job_batch_results')->count());
     }
 
+    public function testFailoverCopiesShareOneBatchPosition(): void
+    {
+        $this->app->instance(ArrayObject::class, new ArrayObject);
+        $database = config('queue.connections.database');
+        config([
+            'queue.connections.primary' => array_replace($database, ['queue' => 'primary', 'after_commit' => false]),
+            'queue.connections.secondary' => array_replace($database, ['queue' => 'secondary', 'after_commit' => false]),
+            'queue.connections.failover.connections' => ['primary', 'secondary'],
+            'queue.connections.failover.after_commit' => false,
+        ]);
+        $this->app->make('events')->listen(JobQueued::class, static function () {
+            static $first = true;
+            if ($first) {
+                $first = false;
+                throw new RuntimeException('Observer failed after the first queue accepted the job.');
+            }
+        });
+
+        $batch = Bus::batch([new BatchChainJob('A'), new BatchChainJob('B')])->onConnection('failover')->dispatch();
+        $original = Queue::connection('primary')->pop();
+        $copy = Queue::connection('secondary')->pop();
+        $this->assertNotSame($original->uuid(), $copy->uuid());
+        $original->fire();
+        $copy->fire();
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
+        Queue::connection('primary')->pop()->fire();
+        $this->assertTrue($batch->fresh()->finished());
+    }
+
     public function testBatchRetryUsesTheLatestFailedCopyAndAlreadyQueuedCopiesCanStillWork(): void
     {
         $handled = new ArrayObject;
