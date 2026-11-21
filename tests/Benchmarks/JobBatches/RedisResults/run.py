@@ -90,6 +90,7 @@ def main():
                     time.sleep(0.25)
                 config = output("docker", "exec", container, "redis-cli", "config", "get", "appendfsync", "appendonly","maxmemory-policy")
                 emit(engine=engine, redis=mode, config=config.splitlines(),
+                     image=output("docker", "inspect", "-f", "{{.Image}}", container),
                      version=output("docker", "exec", container, "redis-server", "--version"))
             ports["sql"] = ports["everysec"]
             if pg:
