@@ -67,6 +67,7 @@ Hypervel will continue to track and port Laravel features where they fit, while 
 - A dedicated [rate limiter](https://github.com/hypervel/components/blob/0.4/src/docs/rate-limiting.md).
 - [Layered cache stores](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#building-cache-stacks).
 - [Dual-mode Redis cache tags](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#redis-tag-modes).
+- [Redis-backed job batch results](https://github.com/hypervel/components/blob/0.4/src/docs/queues.md#storing-batch-results-in-redis) for processing large batches without updating a shared database row for every job completion.
 - Persistent [database](https://github.com/hypervel/components/blob/0.4/src/docs/database.md#connection-pooling) and [Redis](https://github.com/hypervel/components/blob/0.4/src/docs/redis.md#connection-pooling) connection pools.
 - [Object pooling](https://github.com/hypervel/components/blob/0.4/src/docs/pools.md#object-pools) for reusable SDK clients and other expensive objects.
 - [Aspect-oriented programming (AOP)](https://github.com/hypervel/components/blob/0.4/src/docs/aop.md) for intercepting method calls without modifying the target classes.

@@ -189,7 +189,7 @@ return [
 
     'batching' => [
         'driver' => env('QUEUE_BATCHING_DRIVER', 'database'),
-        'redis_connection' => env('REDIS_BATCHING_CONNECTION', env('REDIS_QUEUE_CONNECTION', 'queue')),
+        'redis_connection' => env('REDIS_QUEUE_BATCHING_CONNECTION', env('REDIS_QUEUE_CONNECTION', 'queue')),
         'database' => env('DB_CONNECTION', 'sqlite'),
         'table' => 'job_batches',
         'results_table' => 'job_batch_results',

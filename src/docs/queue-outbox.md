@@ -145,7 +145,7 @@ $batch = Bus::batch($jobs)
 $batch->add($moreJobs);
 ```
 
-The batch's outbox settings also apply to jobs added later, unless a job has explicitly configured its own settings. Outbox jobs are stored in the batch database in the same transaction that adds them to the batch, including when Redis stores job results. Include this database in `queue.outbox.databases`. If a job selects a different outbox database, Hypervel throws an exception before updating the batch. Jobs only need the `Batchable` trait to receive these settings; `Queueable` is not required.
+The batch's outbox settings also apply to jobs added later, unless a job has explicitly configured its own settings. Outbox jobs are stored in the batch database in the same transaction that adds them to the batch, including when [Redis stores job results](/docs/{{version}}/queues#storing-batch-results-in-redis). Include this database in `queue.outbox.databases`. If a job selects a different outbox database, Hypervel throws an exception before updating the batch. Jobs only need the `Batchable` trait to receive these settings; `Queueable` is not required.
 
 Chains retain their normal behavior. Selecting the outbox for the first job does not automatically select it for later jobs. Batch outbox defaults likewise apply only to the first job of each chain. Each later job is dispatched after its predecessor succeeds and uses its own selection or its queue connection's default.
 

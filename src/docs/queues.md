@@ -42,6 +42,7 @@
     - [Cancelling Batches](#cancelling-batches)
     - [Batch Failures](#batch-failures)
     - [Pruning Batches](#pruning-batches)
+    - [Storing Batch Results in Redis](#storing-batch-results-in-redis)
 - [Queueing Closures](#queueing-closures)
 - [Running the Queue Worker](#running-the-queue-worker)
     - [The `queue:work` Command](#the-queue-work-command)
@@ -1495,6 +1496,8 @@ Hypervel's shipped configuration enables this behavior for the background, defer
 
 After-commit work is associated with the most recently started open transaction and runs once it and every transaction enclosing it on the same connection have committed. Ordinary queue connections do not wait for transactions on other connections. If a job depends on work across connections, dispatch it only after the other dependencies have committed or while the transaction that will commit last remains open. The failover connection is an exception: it waits for every applicable transaction.
 
+For batched jobs, see [dispatching batches and database transactions](#dispatching-batches-and-database-transactions).
+
 > [!NOTE]
 > Setting the `after_commit` configuration option to `true` will also cause any queued event listeners, mailables, notifications, and broadcast events to be dispatched after the open parent database transactions have committed.
 
@@ -2433,19 +2436,13 @@ class SyncChatHistory implements ShouldQueue
 
 Hypervel's job batching feature allows you to easily execute a group of jobs in parallel and then perform some action when the batch of jobs has completed executing.
 
-Hypervel stores each batch and its callbacks in the `job_batches` SQL table. By default, it also stores job outcomes in `job_batch_results`. To install the batching tables, generate and run their migrations:
+The default Hypervel application includes migrations for the batching tables. If your application is missing them, generate and run them with the following Artisan commands:
 
 ```shell
 php artisan make:queue-batches-table
 
 php artisan migrate
 ```
-
-For large batches with many workers updating the same batch, you may set `QUEUE_BATCHING_DRIVER=redis`. Workers then record job outcomes and progress in Redis. The batch record stays in SQL. This setting is independent of your queue connection and applies to new batches. Inline `sync` queues and failover connections that can run jobs inline use database results so their updates can roll back with the jobs.
-
-Set `REDIS_BATCHING_CONNECTION` to select the Redis connection. Use persistent Redis storage with key eviction disabled, and keep existing batch keys accessible when changing connections. A Redis-backed batch can record a job's result only after any open transaction on its batch database has ended.
-
-External sends wait until the batch's job count commits. A database queue on a separate connection also waits automatically for a transaction on the batch database. If the queue's own database has an open transaction, dispatch after it commits, even when using `afterCommit()`. When dispatching inside an application transaction on the batch database, omit `beforeCommit()` for jobs that must wait. A delivery failure can then surface from the application's commit after its SQL writes have succeeded. If a queue may have accepted a job, the batch keeps that job counted. Use the [transactional outbox](/docs/{{version}}/queue-outbox) when a send must survive a crash after commit.
 
 <a name="defining-batchable-jobs"></a>
 ### Defining Batchable Jobs
@@ -2555,6 +2552,15 @@ $batch = Bus::batch([
     // All jobs completed successfully...
 })->onConnection('redis')->onQueue('imports')->dispatch();
 ```
+
+<a name="dispatching-batches-and-database-transactions"></a>
+#### Dispatching Batches and Database Transactions
+
+When you send batched jobs to a queue such as Redis or SQS, Hypervel waits for the transaction on the batch's database connection to commit. If it rolls back, the jobs are never sent. Omit [`beforeCommit()`](#specifying-commit-dispatch-behavior-inline) for jobs that must wait.
+
+A `database` queue on the batch's database connection can insert the jobs in the same transaction. A queue on a different database connection must wait for the batch transaction to commit. If that other connection has its own open transaction, dispatch after it commits, even when using `afterCommit()`.
+
+If the queue cannot confirm delivery, the job stays counted because a worker may still receive it. A delivery error can reach your application after the database commit has succeeded. To ensure jobs are delivered even if the process stops after commit, use the [transactional outbox](/docs/{{version}}/queue-outbox).
 
 <a name="chains-and-batches"></a>
 ### Chains and Batches
@@ -2680,7 +2686,7 @@ $batch->cancelled();
 
 The batch counts each job's success once, even if the queue delivers it again. Once a job succeeds, a later failure from another copy of that job leaves the batch unchanged. Callbacks triggered by a success run in the worker that records it. If it stops after committing the count, callbacks it did not finish are not replayed.
 
-For a Redis-backed batch returned by `Bus::findBatch()`, the first read of a progress property loads the counts and finish time together. Cancellation is read at lookup, so use `fresh()` to check its current state. If the batch is deleted before its first progress read, that read throws a `RuntimeException`.
+When you retrieve a [Redis-backed batch](#storing-batch-results-in-redis) with `Bus::findBatch()`, its counts and finish time are loaded together the first time you read one of them. If the batch was deleted in the meantime, reading its progress throws a `RuntimeException`. Use `fresh()` to check for changes, including cancellation.
 
 `$batch->failedJobIds` lists the queue ID of the latest failed delivery for each job that hasn't succeeded. The IDs have no guaranteed order. Use `$batch->fresh()->failedJobIds` to read the current list.
 
@@ -2784,7 +2790,7 @@ php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
 <a name="pruning-batches"></a>
 ### Pruning Batches
 
-Pruning a batch also removes its job results. To manage the size of both tables, you should [schedule](/docs/{{version}}/scheduling) the `queue:prune-batches` Artisan command to run daily:
+You should [schedule](/docs/{{version}}/scheduling) the `queue:prune-batches` Artisan command to run daily. It removes old batches and their results whether you store results in the database or Redis:
 
 ```php
 use Hypervel\Support\Facades\Schedule;
@@ -2799,8 +2805,6 @@ use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches --hours=48')->daily();
 ```
-
-The same command cleans up results for both batching drivers. With Redis, the `job_batch_deletions` table records pending cleanup so a later prune can finish an interrupted deletion.
 
 Sometimes, your `job_batches` table may accumulate batch records for batches that never finished, such as batches whose jobs were cleared from the queue before they could run. Batches that [allow failures](#allowing-failures) finish once every job has run, so they are pruned along with other finished batches. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
 
@@ -2817,6 +2821,21 @@ use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches --hours=48 --cancelled=72')->daily();
 ```
+
+<a name="storing-batch-results-in-redis"></a>
+### Storing Batch Results in Redis
+
+By default, Hypervel stores batches and their job results in your database. If many workers process the same batch, you may store job results in Redis to reduce contention on the batch's database row. Set the batching driver in your `.env` file:
+
+```ini
+QUEUE_BATCHING_DRIVER=redis
+```
+
+This setting applies to new batches. You can use Redis for results even when another queue driver delivers the jobs. The batch itself stays in your database. Batches on `sync` connections, or on failover connections that can run jobs synchronously, always store their results in the database so they can roll back with the jobs.
+
+Batch results use the Redis connection specified by `REDIS_QUEUE_CONNECTION`, which defaults to `queue`. To use a different connection, set `REDIS_QUEUE_BATCHING_CONNECTION`. Enable persistence on the Redis server and set its eviction policy to `noeviction`. This policy applies to every logical database on that server. If you change connections, keep existing batches' keys accessible on the new connection.
+
+If you [manually fail a job](#manually-failing-a-job) in a Redis-backed batch, call `$this->fail()` after any transaction on the batch's database connection has ended. Calling it inside that transaction throws a `LogicException` and the batch does not record the failure.
 
 <a name="queueing-closures"></a>
 ## Queueing Closures

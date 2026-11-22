@@ -306,7 +306,7 @@ class RedisBatchRepositoryTest extends TestCase
             'DB_POOLED_URL' => false,
             'QUEUE_CONNECTION' => 'database',
             'CACHE_STORE' => 'array',
-            'REDIS_BATCHING_CONNECTION' => 'default',
+            'REDIS_QUEUE_BATCHING_CONNECTION' => 'default',
             'REDIS_PREFIX' => config('database.redis.options.prefix'),
         ]);
         try {
