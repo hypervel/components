@@ -6,8 +6,12 @@ namespace Hypervel\Tests\PHPStan;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\PHPStan\Fixtures\Bootstrap\Billing\BillingServiceProvider;
 use Hypervel\Tests\PHPStan\Fixtures\Bootstrap\BootstrapFixtureServiceProvider;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
+
+use function Hypervel\Testbench\default_migration_path;
 
 class BootstrapTest extends TestCase
 {
@@ -61,6 +65,46 @@ class BootstrapTest extends TestCase
             $this->assertStringContainsString('/hypervel-components-testbench-', $boot['basePath']);
             $this->assertDirectoryDoesNotExist($boot['basePath']);
         }
+    }
+
+    #[DataProvider('migrationSettings')]
+    public function testPackageAnalysisRegistersTestbenchMigrations(string $settings, bool $listed, bool $defaults): void
+    {
+        $directory = $this->tempDir . '/migrations';
+        mkdir($directory);
+        file_put_contents($this->tempDir . '/testbench.yaml', str_replace('@path', $directory, $settings));
+
+        $process = $this->runBootstrap($this->tempDir, code: 'echo json_encode($app->make("migrator")->paths());');
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $paths = json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($listed, in_array($directory, $paths, true));
+        $this->assertSame($defaults, in_array(default_migration_path(), $paths, true));
+    }
+
+    /**
+     * Get migration settings for a package without discovered providers.
+     */
+    public static function migrationSettings(): array
+    {
+        return [
+            'listed and default' => ["migrations: ['@path']", true, true],
+            'disabled' => ['migrations: false', false, false],
+            'installation disabled' => ["migrations: ['@path']\nworkbench: {install: false}", true, false],
+            'defaults disabled' => ["migrations: ['@path']\nenv: {TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS: true}", true, false],
+        ];
+    }
+
+    public function testPackageAnalysisUsesItsShippedBlueprintDescriptions(): void
+    {
+        file_put_contents($this->tempDir . '/composer.json', json_encode([
+            'name' => 'acme/billing',
+            'extra' => ['hypervel' => ['providers' => [BillingServiceProvider::class]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $process = $this->analyse($this->tempDir, ['Billing'], ['Billing/extension.neon']);
+
+        $this->assertSame(['Usage.php:14 property.notFound', 'Usage.php:9 return.type'], $this->diagnostics($process));
     }
 
     public function testComponentsAnalysisBootsItsOwnProviders(): void
@@ -151,11 +195,13 @@ class BootstrapTest extends TestCase
      * Run PHPStan from the working path over the given bootstrap fixtures.
      *
      * @param list<string> $files
+     * @param list<string> $includes
      */
-    protected function analyse(string $workingPath, array $files): Process
+    protected function analyse(string $workingPath, array $files, array $includes = []): Process
     {
         $repositoryPath = dirname(__DIR__, 2);
         $fixturesPath = __DIR__ . '/Fixtures/Bootstrap';
+        $extensions = implode('', array_map(static fn (string $file): string => "\n    - {$fixturesPath}/{$file}", $includes));
         $paths = implode('', array_map(
             static fn (string $file): string => "\n        - {$fixturesPath}/{$file}",
             $files,
@@ -163,7 +209,7 @@ class BootstrapTest extends TestCase
 
         file_put_contents($workingPath . '/phpstan.neon', <<<NEON
             includes:
-                - {$repositoryPath}/src/phpstan/extension.neon
+                - {$repositoryPath}/src/phpstan/extension.neon{$extensions}
             parameters:
                 level: 5
                 tmpDir: {$workingPath}/cache
