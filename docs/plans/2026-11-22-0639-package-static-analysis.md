@@ -17,7 +17,7 @@ Distribution needs documentation only. PHPStan's extension installer discovers `
 
 All of the following are additive. No Laravel API or runtime behavior changes, and `Migrator` is untouched.
 
-- A public extension point: the `BlueprintMacroExtension` interface, the `BlueprintMacroCall` class, and the `hypervel.blueprintMacroExtension` tag.
+- A public extension point: the `BlueprintMacroExtension` and `BlueprintMacroExtensionWithInputs` interfaces, the `BlueprintMacroCall` class, and the `hypervel.blueprintMacroExtension` tag.
 - A `migrationConnections` parameter.
 - Analysis honors `shouldRun()`.
 - Package analysis reads Testbench's migration paths.
@@ -56,7 +56,7 @@ interface BlueprintMacroExtension
 
 | Method | Meaning |
 |---|---|
-| `name(int $position, string $parameter, ?string $default = null): ?string` | A string argument, by position or name. Returns `null` when the argument is not a literal or class constant (`getNameArgument()`). |
+| `name(int $position, string $parameter, ?string $default = null): ?string` | A string argument, by position or name. An explicit named argument after an unpack takes precedence. Returns `null` when the argument is not a literal or class constant (`getNameArgument()`). |
 | `creating(): bool` | Whether the call runs inside `Schema::create()`. |
 | `hasColumn(string $name): ?bool` | Match through `resolveColumnName()`. Return `true` for a known, typed column and `false` for a confirmed absence on a complete table. Return `null` for an ambiguous name, a column of unknown type (it may exist in only one branch), or an unlisted column on an incomplete table. |
 | `addColumn(string $type, ?string $name, bool $nullable = false, bool $unsigned = false): void` | Adds a column. `$type` is a Blueprint type such as `string`, `bigInteger` or `uuid`, lowercased for the reader's type tables. A `null` name adds an unnamed column, which keeps the known columns. |
@@ -70,7 +70,7 @@ Strings are the only argument type, because no describer needs another. There is
 
 **Ownership.** A description applies only while `Blueprint::$macros[$name]` is a Closure whose scope class equals the declared class. Public Blueprint methods take precedence over macros with the same name, even when the case differs. A macro that the application replaces makes the table unknown.
 
-Macro names are case-sensitive, as in `Macroable::hasMacro()`.
+Macro names are case-sensitive, as in `Macroable::hasMacro()`. Descriptions that use helper classes or configured values implement `BlueprintMacroExtensionWithInputs`. Its `getInputs()` returns the source classes and effective configuration once per matched extension. Helper files are table sources, and declared inputs are part of the migration cache key.
 
 **Composition.** Collect tagged extensions when analysis first needs the schema. If two extensions describe the same macro for the same live class, throw a `LogicException` naming both extensions then. Memoize the matched extensions and each live closure's return category for that analysis.
 
@@ -82,7 +82,7 @@ Macro names are case-sensitive, as in `Macroable::hasMacro()`.
 | `ColumnDefinition` or a subclass | Metadata such as `comment()` keeps the facts. An invoked `nullable`, `unsigned`, `type` or `change` makes the table unknown. A macro can return a column queued earlier, even when it added no columns itself. |
 | Every other declaration, or no declared return type | Any invoked link makes the table unknown. For example, a macro returning the Blueprint can be followed by `string('reference')`. |
 
-Keep the shared reader safeguards for Fluent mutators and dynamically named links. In `processColumnUpdate()`, keep each invoked link in the existing chain, using an unknown name for a dynamic link. Discard first-class callable links and omit unknown names from the named modifier map. Trim the foreign-key tail after a built-in foreign ID's `constrained()` or `references()` as today. After the ignored Blueprint methods return, an unknown name in the remaining chain makes the table unknown, alongside the existing `fill`, `set`, `offsetSet` and `offsetUnset` check. Use the remaining invoked links to decide whether a described macro was chained.
+Keep the shared reader safeguards for Fluent mutators and dynamically named links. In `processColumnUpdate()`, keep each invoked link in the existing chain, using an unknown name for a dynamic link. Discard first-class callable links and omit unknown names from the named modifier map. Trim the foreign-key tail after a built-in foreign ID's `constrained()` or `references()` as today. After the ignored Blueprint methods return, an unknown name in the remaining chain makes the table unknown, alongside `fill`, `set`, `offsetSet`, `offsetUnset`, `name`, `when` and `unless`. Use the remaining invoked links to decide whether a described macro was chained.
 
 **Built-in descriptions.** `#[AutowiredService]` classes in `src/phpstan/src/Schema/` replace the hardcoded cases with identical facts:
 - `NestedSetBlueprintMacros`, keyed to `NestedSetServiceProvider`:
@@ -111,9 +111,10 @@ class BillingBlueprintMacros implements BlueprintMacroExtension
             $call->addColumn('uuid', 'billing_customer_id', nullable: ! $call->creating());
         } else {
             // Amounts share the table's currency column.
-            $call->addColumn('decimal', $call->name(0, 'column'));
+            $column = $call->name(0, 'column');
+            $call->addColumn('decimal', $column);
 
-            if ($call->hasColumn('currency') === false) {
+            if ($call->creating() && $column !== null && $column !== 'currency' && $call->hasColumn('currency') === false) {
                 $call->addColumn('char', 'currency');
             }
         }
@@ -141,7 +142,7 @@ class BillingBlueprintMacros implements BlueprintMacroExtension
 | Any other declaration | Today's single-`return` evaluation, now also for inherited and trait methods. The string-return-type rule is kept. |
 | `false` | Unknown. |
 
-Keep the existing runtime-write check. Read the migration's own `$connection` declaration if present. Otherwise inspect the parent's effective property using its reflected default expression, as in `LegacyPropertyHelper`. Every migration inherits the framework's property, so a valid trait composition must agree with the effective default. In either position, read only a plain stored string or null literal. A typed property with no initializer, a locally declared get hook, a concrete inherited get hook, or an unreadable default leaves the connection unknown. A plain declaration satisfies an abstract get hook and supplies its own default. This also fixes the current reader taking a locally declared property's backing default as the result of its get hook. The framework base declares an explicit null default. Remove `inheritsFromMigration()` once both of its callers use effective declarations.
+Keep the existing runtime-write check. Read the migration's own `$connection` declaration if present. Otherwise read the effective property from the traits the migration uses, then its parent. PHP 8.5 lets a trait override an inherited default. In all cases, read only a plain stored string or null literal. A typed property with no initializer, a locally declared get hook, a concrete inherited get hook, or an unreadable default leaves the connection unknown. A plain declaration satisfies an abstract get hook and supplies its own default. This also fixes the current reader taking a locally declared property's backing default as the result of its get hook. The framework base declares an explicit null default. Remove `inheritsFromMigration()` once both of its callers use effective declarations.
 
 `addClassStatements()` already records the migration's parents and traits as sources. Mapping keys are base migration classes. A base that imports the getter from a trait can be mapped because `findDeclaredMethod()` reports the using class. A trait used directly by the migration follows the ordinary getter evaluator. Unsupported trait method adaptations stay unknown.
 
@@ -174,7 +175,7 @@ A string value replaces normally: a package entry and an application entry with 
 
 ### 3. `shouldRun()`
 
-`addClassStatements()` mirrors `Migrator::runUp()`: only a `Migration` subclass can skip itself. Apply a plain migration object unconditionally. If the base cannot be resolved, a guard that could skip allows for both outcomes. For a known subclass, decide the guard as below, then find `up()`, then resolve the connection if the body will be read. Keep parent and trait source tracking even for skipped migrations.
+`addClassStatements()` mirrors `Migrator::runUp()`: only a `Migration` subclass can skip itself. Apply a plain migration object unconditionally. If the base cannot be resolved, a guard that could skip allows for both outcomes. For a known subclass, decide the guard as below, then find `up()`, then resolve the connection if the body will be read. Keep parent and trait source tracking even for skipped migrations. An abstract declaration is never a migration entrypoint.
 
 | Result | Action |
 |---|---|
@@ -218,10 +219,10 @@ return Testbench::create(
 
 `src/phpstan/`:
 
-- **`src/Schema/BlueprintMacroExtension.php`, `BlueprintMacroCall.php`, `NestedSetBlueprintMacros.php`, `SearchableBlueprintMacros.php`:** new, as designed above.
+- **`src/Schema/BlueprintMacroExtension.php`, `BlueprintMacroExtensionWithInputs.php`, `BlueprintMacroCall.php`, `NestedSetBlueprintMacros.php`, `SearchableBlueprintMacros.php`:** new, as designed above.
 - **`src/Properties/MigrationHelper.php`:**
   - Inject `PHPStan\DependencyInjection\Container` and use its public `getServicesByTag(BlueprintMacroExtension::TAG)` at the first schema load. PHPStan validates tagged services against the extension interface.
-  - Match and memoize the live macros by exact name, with their registering class, extension and return category. Pass these records to the aggregator. In `getSchemaConfiguration()`, fingerprint the name, registering class, extension class and return category using scalar values. A return type can change chain behavior even if both classes keep the same names.
+  - Match and memoize the live macros by exact name, with their registering class, extension and return category. Pass these records to the aggregator. In `getSchemaConfiguration()`, fingerprint the name, registering class, extension class, return category and declared inputs. A return type can change chain behavior even if both classes keep the same names.
 - **`src/Properties/SchemaAggregator.php`:**
   - The constructor takes the described macros. Connection opt-ins go through the existing `ConnectionConfigResolver`.
   - Remove `KNOWN_MACROS`, `$knownMacros`, `getKnownMacros()`, `callsKnownMacro()`, the four macro switch cases, and the `NestedSet`, `NestedSetServiceProvider` and `SearchableSchema` imports.
@@ -295,7 +296,7 @@ Tests that register macros save and restore `Blueprint::$macros`, as `itForgetsT
     - **Chains:** `billingCustomer()->cascadeOnDelete()` and `invoiceReference()->comment()` keep the facts. A column modifier makes the table unknown, including when the macro returns a previously queued column. Cover a Blueprint-returning or untyped macro followed by `string('foo')` with a test-local macro and describer. Cover a discarded first-class link in the same cases. Add a dynamic built-in column modifier to the existing Fluent-mutator cases.
     - **Undescribed macro:** forgets the table, unless an existing test already covers it.
     - **Sources:** assert the describer file is a source of the affected table and the resolved connection service's implementation is a global schema source.
-    - **Connections:** rename `itReadsOnlyTheConnectionInheritedFromMigration` and assert the target for readable inherited getters and property defaults. Use `DefinesConnection` on `ConnectionPropertyMigration` for a valid trait composition with the same `'pgsql'` default. Cover a child's literal override, a typed property without an initializer, and a get hook declared locally or inherited through a plain redeclaration. Uninitialized and hooked reads must resolve as unknown. Keep the runtime-write, unreadable-getter and unsupported method-adaptation cases. Cover a mapped base, an override below it, and the sentinel counter staying zero.
+    - **Connections:** rename `itReadsOnlyTheConnectionInheritedFromMigration` and assert the target for readable inherited getters and property defaults. Use `DefinesConnection` to cover both a compatible 8.4 composition and a trait overriding its parent's default on 8.5. Cover a child's literal override, a typed property without an initializer, and a get hook declared locally or inherited through a plain redeclaration. Uninitialized and hooked reads must resolve as unknown. Keep the runtime-write, unreadable-getter and unsupported method-adaptation cases. Cover a mapped base, an override below it, and the sentinel counter staying zero.
     - **`shouldRun()`:**
       - literal `true` and `false`;
       - a false guard on a plain migration object still applies, and one on an unresolved base merges;

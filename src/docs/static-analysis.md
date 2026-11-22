@@ -695,7 +695,7 @@ A `relation-of<User, 'posts'>` is the relation the model's relationship method d
 
 To analyze a package, install `hypervel/testbench` as a development dependency. PHPStan boots your package's providers and uses the environment and discovery settings in `testbench.yaml`. If a provider registers a service or macro only when a feature is enabled, enable it in the YAML file's `env` section. Authentication types come from this application, where `AUTH_MODEL` or the workbench `User` model selects the user model.
 
-PHPStan reads the migrations listed under `migrations` as well as Testbench's default migrations. Set `workbench.install` to `false` or `TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS` to `true` to omit the defaults. Setting `migrations: false` turns off both the listed and default Testbench migrations. Migrations registered by providers are still available.
+PHPStan reads the migrations listed under `migrations` as well as Testbench's default migrations. Use a package-relative path such as `workbench/database/migrations` for your package's migrations. Testbench resolves paths starting with `./` or `../` from the test application's base directory. Set `workbench.install` to `false` or `TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS` to `true` to omit the defaults. Setting `migrations: false` turns off both the listed and default Testbench migrations. Migrations registered by providers are still available.
 
 <a name="shipping-analysis-support"></a>
 ### Shipping Analysis Support
@@ -742,9 +742,10 @@ class BillingBlueprintMacros implements BlueprintMacroExtension
         } elseif ($macro === 'billingCustomer') {
             $call->addColumn('uuid', 'billing_customer_id', nullable: ! $call->creating());
         } else {
-            $call->addColumn('decimal', $call->name(0, 'column'));
+            $column = $call->name(0, 'column');
+            $call->addColumn('decimal', $column);
 
-            if ($call->hasColumn('currency') === false) {
+            if ($call->creating() && $column !== null && $column !== 'currency' && $call->hasColumn('currency') === false) {
                 $call->addColumn('char', 'currency');
             }
         }
@@ -763,6 +764,8 @@ services:
 
 Map each macro name to the class that defines its closure. Macro names are case-sensitive. If an application replaces the closure with one from another class, PHPStan stops using the package's description. Only one extension may describe a given live macro.
 
+If a description uses helper classes or configured values, implement `BlueprintMacroExtensionWithInputs`. Return those classes and values from `getInputs()`, for example `['classes' => [BillingColumns::class], 'configuration' => ['currency' => $this->currencyColumn]]`. PHPStan uses these inputs to refresh cached column information.
+
 Use `name($position, $parameter, $default)` to read a positional or named string argument. An omitted argument uses the optional default, and an unreadable argument returns `null`. Use Blueprint type names with `addColumn($type, $name, nullable: ..., unsigned: ...)`, or call `dropColumn($name)`. Adding a column with an unknown name preserves the known columns. Dropping one with an unknown name makes the table unknown. `hasColumn()` sees the table as the macro found it, including earlier calls in the same callback. It returns `null` when presence is uncertain.
 
 Declare the closure's return type. A foreign-key or index chain such as `billingCustomer()->cascadeOnDelete()` keeps the column facts. A column's `comment()` does too, while a column-changing modifier such as `nullable()` makes the table unknown. PHPStan also makes the table unknown when a chained call follows an untyped macro or one that returns the Blueprint.
@@ -770,7 +773,7 @@ Declare the closure's return type. A foreign-key or index chain such as `billing
 <a name="migration-connections"></a>
 ### Migration Connections
 
-PHPStan reads a migration's `getConnection()`, including one inherited from a base class or trait, when it returns a literal name, the connection property, or a supported configuration read. For example, `return config('billing.connection', config()->string('database.default'));` selects the configured connection. The connection property may have a plain string or null default on the migration or its base class.
+PHPStan reads a migration's `getConnection()`, including one inherited from a base class or trait, when it returns a literal name, the connection property, or a supported configuration read. For example, `return config('billing.connection', config()->string('database.default'));` selects the configured connection. The connection property may have a plain string or null default on the migration, a trait it uses, or its base class.
 
 When migrations inherit a getter that calls a service, map the base class that declares the getter to the service in `extension.neon`:
 
