@@ -12,6 +12,7 @@ use Hypervel\Database\Schema\IndexDefinition;
 use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\PHPStan\Schema\BlueprintMacroExtension;
+use Hypervel\PHPStan\Schema\BlueprintMacroExtensionWithInputs;
 use Hypervel\PHPStan\Support\DirectoryResolver;
 use Hypervel\PHPStan\Support\RecursiveDirectoryIterator;
 use LogicException;
@@ -41,7 +42,7 @@ use function str_ends_with;
 use function uasort;
 
 /**
- * @phpstan-type BlueprintMacro array{owner: class-string, extension: BlueprintMacroExtension, returns: 'command'|'column'|'unknown', sources: list<string>}
+ * @phpstan-type BlueprintMacro array{owner: class-string, extension: BlueprintMacroExtension, returns: 'command'|'column'|'unknown', sources: list<string>, inputs: array{classes?: list<class-string>, configuration?: array<string, scalar|null>}}
  */
 #[AutowiredService]
 class MigrationHelper
@@ -94,6 +95,7 @@ class MigrationHelper
 
         foreach ($this->phpstanContainer->getServicesByTag(BlueprintMacroExtension::TAG) as $extension) {
             $sources = null;
+            $inputs = [];
 
             foreach ($extension->getMacros() as $name => $owner) {
                 $closure = $closures[$name] ?? null;
@@ -119,8 +121,15 @@ class MigrationHelper
                     is_a($type, ColumnDefinition::class, true) => 'column',
                     default => 'unknown',
                 };
-                $sources ??= SourceFiles::forInstance($this->reflectionProvider, $this->reflectionProvider->getClass($extension::class), null);
-                $macros[$name] = ['owner' => $owner, 'extension' => $extension, 'returns' => $returns, 'sources' => $sources];
+                if ($sources === null) {
+                    $inputs = $extension instanceof BlueprintMacroExtensionWithInputs ? $extension->getInputs() : [];
+                    $sources = [];
+                    foreach ([$extension::class, ...($inputs['classes'] ?? [])] as $class) {
+                        array_push($sources, ...SourceFiles::forInstance($this->reflectionProvider, $this->reflectionProvider->getClass($class), null));
+                    }
+                }
+
+                $macros[$name] = ['owner' => $owner, 'extension' => $extension, 'returns' => $returns, 'sources' => $sources, 'inputs' => $inputs];
             }
         }
 
@@ -133,7 +142,7 @@ class MigrationHelper
     public function getSchemaConfiguration(): array
     {
         return ['blueprintMacros' => array_map(
-            static fn (array $macro): array => [$macro['owner'], $macro['extension']::class, $macro['returns']],
+            static fn (array $macro): array => [$macro['owner'], $macro['extension']::class, $macro['returns'], $macro['inputs']],
             $this->getBlueprintMacros(),
         )];
     }

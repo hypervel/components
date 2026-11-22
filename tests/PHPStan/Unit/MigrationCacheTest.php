@@ -14,6 +14,9 @@ use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\MigrationCache;
 use Hypervel\PHPStan\Properties\SchemaConnection;
 use Hypervel\PHPStan\Properties\SchemaTable;
+use Hypervel\PHPStan\Schema\BlueprintMacroCall;
+use Hypervel\PHPStan\Schema\BlueprintMacroExtension;
+use Hypervel\PHPStan\Schema\BlueprintMacroExtensionWithInputs;
 use Hypervel\Scout\SearchableSchema;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\PHPStan\Fixtures\CreatesMigrationHelpers;
@@ -21,6 +24,9 @@ use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingConfiguration;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingMigration;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\ReboundBillingConfiguration;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\SentinelMigration;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPStan\DependencyInjection\Container as PHPStanContainer;
 use PHPStan\Testing\PHPStanTestCase;
 use ReflectionProperty;
 use SplFileInfo;
@@ -35,6 +41,7 @@ use function unlink;
 class MigrationCacheTest extends PHPStanTestCase
 {
     use CreatesMigrationHelpers;
+    use VerifiesDoubles;
 
     protected string $cacheDirectory;
 
@@ -316,6 +323,24 @@ class MigrationCacheTest extends PHPStanTestCase
         $this->assertSame(1, $replacement->calls);
     }
 
+    public function testChangingAMacroDescriptionInputInvalidatesTheEntry(): void
+    {
+        $aggregations = 0;
+
+        foreach (['search_vector', 'search_vector', 'document_vector'] as $column) {
+            $container = Double::for(PHPStanContainer::class)->strict();
+            $container->expects('getServicesByTag')->with(BlueprintMacroExtension::TAG)->returns([new ConfigurableSearchableMacro($column)]);
+            $configuration = $this->createMigrationHelper(extensions: $container)->getSchemaConfiguration();
+            $this->cache->remember([], [], $configuration, function () use (&$aggregations): array {
+                ++$aggregations;
+
+                return self::schema([]);
+            });
+        }
+
+        $this->assertSame(2, $aggregations);
+    }
+
     public function testReplacingAKnownSchemaMacroInvalidatesTheEntry(): void
     {
         $migrationFiles = [new SplFileInfo($this->createTempFile('mig1.php'))];
@@ -401,5 +426,39 @@ class MigrationCacheTest extends PHPStanTestCase
     public static function getAdditionalConfigFiles(): array
     {
         return [__DIR__ . '/../phpstan-tests.neon'];
+    }
+}
+
+class ConfigurableSearchableMacro implements BlueprintMacroExtensionWithInputs
+{
+    /**
+     * Create a description with the given default vector column.
+     */
+    public function __construct(private string $column)
+    {
+    }
+
+    /**
+     * Get the macro described by this extension.
+     */
+    public function getMacros(): array
+    {
+        return ['searchable' => SearchableSchema::class];
+    }
+
+    /**
+     * Get the configuration that determines the column name.
+     */
+    public function getInputs(): array
+    {
+        return ['configuration' => ['column' => $this->column]];
+    }
+
+    /**
+     * Describe the search vector column.
+     */
+    public function apply(string $macro, BlueprintMacroCall $call): void
+    {
+        $call->addColumn('tsvector', $call->name(3, 'tsvector', $this->column));
     }
 }

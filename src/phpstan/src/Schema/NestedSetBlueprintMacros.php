@@ -9,7 +9,7 @@ use Hypervel\NestedSet\NestedSetServiceProvider;
 use PHPStan\DependencyInjection\AutowiredService;
 
 #[AutowiredService]
-class NestedSetBlueprintMacros implements BlueprintMacroExtension
+class NestedSetBlueprintMacros implements BlueprintMacroExtensionWithInputs
 {
     /**
      * Get the nested set macros.
@@ -17,6 +17,14 @@ class NestedSetBlueprintMacros implements BlueprintMacroExtension
     public function getMacros(): array
     {
         return array_fill_keys(['nestedSet', 'integerNestedSet', 'uuidNestedSet', 'ulidNestedSet', 'dropNestedSet'], NestedSetServiceProvider::class);
+    }
+
+    /**
+     * Get the class that defines the nested set columns.
+     */
+    public function getInputs(): array
+    {
+        return ['classes' => [NestedSet::class]];
     }
 
     /**
