@@ -57,6 +57,7 @@ Hypervel will continue to track and port Laravel features where they fit, while 
 
 - [Native WebSocket support](https://github.com/hypervel/components/blob/0.4/src/docs/websockets.md), integrated with Hypervel's routing, middleware, dependency injection, and events.
 - [Reverb powered by Swoole's built-in WebSocket server](https://github.com/hypervel/components/blob/0.4/src/docs/reverb.md), running alongside your application with no separate deployment and scaling across multiple workers.
+- A [transactional queue outbox](https://github.com/hypervel/components/blob/0.4/src/docs/queue-outbox.md) that stores jobs in the same transaction as your database changes, so they survive an application crash or queue outage after commit.
 - [gRPC client and server support](https://github.com/hypervel/components/blob/0.4/src/docs/grpc.md).
 - [OpenTelemetry integration](https://github.com/hypervel/components/blob/0.4/src/docs/opentelemetry.md) for metrics, traces, and logs.
 - [API integrations and SDKs](https://github.com/hypervel/components/blob/0.4/src/docs/saloon.md), built on Hypervel's HTTP client with coroutine concurrency, caching, rate limiting, and Telescope support.
