@@ -1,8 +1,8 @@
 # Static analysis support for packages
 
-## Status and purpose
+Implemented. The remaining [abstract get hook test cases](../todo.md#testing) depend on a PHPStan reflection fix.
 
-Implementation has not started.
+## Purpose
 
 Packages that analyze themselves, and applications that analyze code using packages, lose schema facts in four places. This plan fixes those places and documents how packages ship PHPStan support:
 
@@ -33,9 +33,11 @@ namespace Hypervel\PHPStan\Schema;
 
 use PHPStan\DependencyInjection\ExtensionInterface;
 
-#[ExtensionInterface('hypervel.blueprintMacroExtension')]
+#[ExtensionInterface(self::TAG)]
 interface BlueprintMacroExtension
 {
+    public const string TAG = 'hypervel.blueprintMacroExtension';
+
     /**
      * Get the described macros, with the class whose code registers each.
      *
@@ -66,7 +68,7 @@ The call sees the table at the start of the macro, including earlier statements 
 
 Strings are the only argument type, because no describer needs another. There is no "unknown" method: an undescribable call means the macro isn't described, which keeps today's behavior of forgetting the table.
 
-**Ownership.** A description applies only while `Blueprint::$macros[$name]` is a Closure whose scope class equals the declared class. This generalizes today's `getKnownMacros()`. A macro that the application replaces makes the table unknown.
+**Ownership.** A description applies only while `Blueprint::$macros[$name]` is a Closure whose scope class equals the declared class. Public Blueprint methods take precedence over macros with the same name, even when the case differs. A macro that the application replaces makes the table unknown.
 
 Macro names are case-sensitive, as in `Macroable::hasMacro()`.
 
@@ -139,7 +141,7 @@ class BillingBlueprintMacros implements BlueprintMacroExtension
 | Any other declaration | Today's single-`return` evaluation, now also for inherited and trait methods. The string-return-type rule is kept. |
 | `false` | Unknown. |
 
-Keep the existing runtime-write check. Read the migration's own `$connection` declaration if present. Otherwise inspect the parent's effective property using its reflected default expression, as in `LegacyPropertyHelper`. Every migration inherits the framework's property, so a valid trait composition must agree with the effective default. In either position, read only a plain stored string or null literal. A typed property with no initializer, a get hook, or an unreadable default leaves the connection unknown. This also fixes the current reader taking a locally declared property's backing default as the result of its get hook. The framework base declares an explicit null default. Remove `inheritsFromMigration()` once both of its callers use effective declarations.
+Keep the existing runtime-write check. Read the migration's own `$connection` declaration if present. Otherwise inspect the parent's effective property using its reflected default expression, as in `LegacyPropertyHelper`. Every migration inherits the framework's property, so a valid trait composition must agree with the effective default. In either position, read only a plain stored string or null literal. A typed property with no initializer, a locally declared get hook, a concrete inherited get hook, or an unreadable default leaves the connection unknown. A plain declaration satisfies an abstract get hook and supplies its own default. This also fixes the current reader taking a locally declared property's backing default as the result of its get hook. The framework base declares an explicit null default. Remove `inheritsFromMigration()` once both of its callers use effective declarations.
 
 `addClassStatements()` already records the migration's parents and traits as sources. Mapping keys are base migration classes. A base that imports the getter from a trait can be mapped because `findDeclaredMethod()` reports the using class. A trait used directly by the migration follows the ordinary getter evaluator. Unsupported trait method adaptations stay unknown.
 
@@ -161,7 +163,7 @@ A string value replaces normally: a package entry and an application entry with 
   - A string or `null` result is known; anything else is unknown. Apply the getter's existing non-nullable `string` rule before treating a null result as the default connection.
   - Mappings no selected migration uses never instantiate their service.
 - **Cache:** key `resolvedConnections` by mapped migration class. Store the result and concrete service class so a rebinding that returns the same name still refreshes the source dependencies. On a warm run compare only the recorded mappings, after checking the stored config reads and source hashes. An edit to an inherited guard can skip the migration just as a changed config flag can.
-- **Sources:** record the files of the actual resolved service class (`$instance::class`, via `SourceFiles::forClass()`) as global schema sources when a mapping is used. A container binding can replace the named service with another implementation.
+- **Sources:** record the resolved implementation's files via `SourceFiles::forInstance()` when a mapping is used. Its methods and property defaults, including referenced constants, can decide the connection. These are global schema sources.
 - **Migration files** are parsed, never loaded.
 - **Overrides:** an override below the mapped class is read normally.
 - **Unlisted getters:** unlisted getters the reader can't evaluate keep today's behavior. They are unknown and never run.
@@ -172,7 +174,7 @@ A string value replaces normally: a package entry and an application entry with 
 
 ### 3. `shouldRun()`
 
-`addClassStatements()` finds and evaluates `shouldRun()` first, then finds `up()`, then resolves the connection if the body will be read. Keep parent and trait source tracking even for a skipped migration, since their guards can change. A false guard skips even an unreadable `up()` and never resolves the migration's mapped service.
+`addClassStatements()` mirrors `Migrator::runUp()`: only a `Migration` subclass can skip itself. Apply a plain migration object unconditionally. If the base cannot be resolved, a guard that could skip allows for both outcomes. For a known subclass, decide the guard as below, then find `up()`, then resolve the connection if the body will be read. Keep parent and trait source tracking even for skipped migrations.
 
 | Result | Action |
 |---|---|
@@ -218,7 +220,7 @@ return Testbench::create(
 
 - **`src/Schema/BlueprintMacroExtension.php`, `BlueprintMacroCall.php`, `NestedSetBlueprintMacros.php`, `SearchableBlueprintMacros.php`:** new, as designed above.
 - **`src/Properties/MigrationHelper.php`:**
-  - Inject `PHPStan\DependencyInjection\Container`. In `getBlueprintMacros()` use its public `getExtensionsCollection(BlueprintMacroExtension::class)->getAll()`. PHPStan rejects the constructor collection attribute on services discovered through `attributeServicesDirectories`.
+  - Inject `PHPStan\DependencyInjection\Container` and use its public `getServicesByTag(BlueprintMacroExtension::TAG)` at the first schema load. PHPStan validates tagged services against the extension interface.
   - Match and memoize the live macros by exact name, with their registering class, extension and return category. Pass these records to the aggregator. In `getSchemaConfiguration()`, fingerprint the name, registering class, extension class and return category using scalar values. A return type can change chain behavior even if both classes keep the same names.
 - **`src/Properties/SchemaAggregator.php`:**
   - The constructor takes the described macros. Connection opt-ins go through the existing `ConnectionConfigResolver`.
@@ -226,14 +228,14 @@ return Testbench::create(
   - Dispatch described macros at the top of `processStatementAlterMethod()`'s `default` branch. It returns `false` when a `dropColumn(null)` or the chain rule makes the table unknown.
   - Add `creating: bool` to `TableScope`, set in `alterTable()`.
   - Make the connection and `shouldRun()` changes above.
-  - Record each applied extension's class files through `addSources(..., $table)`. Model lookups already track the table's sources, schema guards promote them when they decide another table's facts, and the migration cache hashes them.
+  - Include each matched extension's `SourceFiles::forInstance()` files in its memoized record. Record them on the affected table when applied. Model lookups already track the table's sources, schema guards promote them when they decide another table's facts, and the migration cache hashes them.
 - **`src/Properties/ConnectionConfigResolver.php`:**
   - In `getSchemaConfiguration()`, replace `macros` with the configured `migrationConnections`.
   - Add `getConfiguredBoolean()`.
   - Inject `#[AutowiredParameter] array $migrationConnections`.
   - Add `resolveMigrationConnection(string $class): ?array{bool, ?string}`, which returns `null` for an unmapped class, plus its `resolvedConnections` record and accessor.
-- **`src/Properties/ModelPropertyHelper.php`:** pass `connectionConfigResolver->getSchemaConfiguration() + migrationHelper->getSchemaConfiguration()` to `remember()`.
-- **`src/Properties/MigrationCache.php`:** store and compare `configuredBooleans` and `resolvedConnections`, and bump the format version.
+- **`src/Properties/ModelPropertyHelper.php`:** pass both helpers' schema configuration to `remember()`. Load schema facts only if PHPStan sees the actual migration implementation. Its stub validator can see a stub declaring `Migration` or no declaration at all. Leave schema facts unknown there so stub-only reflection cannot read or populate the application's migration cache.
+- **`src/Properties/MigrationCache.php`:** store and compare `configuredBooleans` and `resolvedConnections`, and bump the format version. Include the installed PHPStan version in the fingerprint because its parser and reflection determine schema facts.
 - **`src/ApplicationResolver.php`:** add the resolving callback.
 - **`extension.neon`:** add `migrationConnections: []` and its schema.
 
@@ -293,14 +295,15 @@ Tests that register macros save and restore `Blueprint::$macros`, as `itForgetsT
     - **Chains:** `billingCustomer()->cascadeOnDelete()` and `invoiceReference()->comment()` keep the facts. A column modifier makes the table unknown, including when the macro returns a previously queued column. Cover a Blueprint-returning or untyped macro followed by `string('foo')` with a test-local macro and describer. Cover a discarded first-class link in the same cases. Add a dynamic built-in column modifier to the existing Fluent-mutator cases.
     - **Undescribed macro:** forgets the table, unless an existing test already covers it.
     - **Sources:** assert the describer file is a source of the affected table and the resolved connection service's implementation is a global schema source.
-    - **Connections:** rename `itReadsOnlyTheConnectionInheritedFromMigration` and assert the target for readable inherited getters and property defaults. Use `DefinesConnection` on `ConnectionPropertyMigration` for a valid trait composition with the same `'pgsql'` default. Cover a child's literal override, a typed property without an initializer, and a locally declared property whose get hook returns a different name from its backing default. The last two must resolve as unknown. Keep the runtime-write, unreadable-getter and unsupported method-adaptation cases. Cover a mapped base, an override below it, and the sentinel counter staying zero.
+    - **Connections:** rename `itReadsOnlyTheConnectionInheritedFromMigration` and assert the target for readable inherited getters and property defaults. Use `DefinesConnection` on `ConnectionPropertyMigration` for a valid trait composition with the same `'pgsql'` default. Cover a child's literal override, a typed property without an initializer, and a get hook declared locally or inherited through a plain redeclaration. Uninitialized and hooked reads must resolve as unknown. Keep the runtime-write, unreadable-getter and unsupported method-adaptation cases. Cover a mapped base, an override below it, and the sentinel counter staying zero.
     - **`shouldRun()`:**
       - literal `true` and `false`;
+      - a false guard on a plain migration object still applies, and one on an unresolved base merges;
       - `Config::boolean('billing.enabled')` both ways (`OverridesConfig`);
       - an absent key with a `false` default skips;
       - an absent key without a default, or a non-boolean value, merges;
       - an inherited `shouldRun()` and a false guard on a mapped migration whose service must never be resolved.
-- **`Unit/MigrationHelperTest.php`:** `getBlueprintMacros()` matches live macros, excludes a replaced closure, and throws for conflicting describers.
+- **`Unit/MigrationHelperTest.php`:** `getBlueprintMacros()` matches live macros, excludes a replaced closure, and throws for conflicting describers. The reader also verifies a macro registration cannot replace a public Blueprint method.
 - **`Unit/ConnectionConfigResolverTest.php`:**
   - `getConfiguredBoolean()` records booleans.
   - `resolveMigrationConnection()`:
@@ -317,6 +320,7 @@ Tests that register macros save and restore `Blueprint::$macros`, as `itForgetsT
   - `migrations: false`;
   - `workbench: {install: false}` with a listed path and no discovered Testbench provider (the listed path survives and defaults are absent);
   - `TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS: true` through `testbench.yaml`'s `env`.
+- **`Unit/ModelPropertyHelperTest.php`:** a reflected migration stub from a different file leaves model facts unknown and never enters migration discovery or caching.
 - **`BootstrapTest.php`, public entry point:**
   - Analyze the billing package as its author does: a temporary package whose `composer.json` declares `BillingServiceProvider`, with the package's `extension.neon` included. `analyse()` gains an `$includes` argument for this.
   - Expect exactly `Usage.php` `return.type` (the attribute is a `string`) and `property.notFound` (the misspelling).
@@ -325,5 +329,4 @@ Tests that register macros save and restore `Blueprint::$macros`, as `itForgetsT
 ## Verification
 
 - Run each changed or new test file immediately.
-- Then run `composer test:phpstan`, then `composer analyse`. Treat any diagnostic newly reported because components' analysis now reads Testbench's default migrations as a finding: investigate it, don't suppress it.
-- Finish with `composer lint:fix` before review.
+- Run `composer lint:fix`, then `composer analyse`, then `composer test:phpstan`. Treat any diagnostic newly reported because components' analysis now reads Testbench's default migrations as a finding: investigate it, don't suppress it.
