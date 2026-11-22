@@ -1718,9 +1718,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
                 }
             }
 
-            return new class extends Migration {
-                public function shouldRun(): bool { return false; }
-            };
+            return new class extends Migration {};
             PHP);
 
         $this->assertSame([], $aggregator->connections);
