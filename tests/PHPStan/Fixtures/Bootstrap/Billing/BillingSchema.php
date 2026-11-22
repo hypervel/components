@@ -7,7 +7,6 @@ namespace Hypervel\Tests\PHPStan\Fixtures\Bootstrap\Billing;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Database\Schema\ForeignKeyDefinition;
-use Hypervel\Support\Facades\Schema;
 
 class BillingSchema
 {
@@ -27,9 +26,10 @@ class BillingSchema
         Blueprint::macro('currencyAmount', function (string $column): ColumnDefinition {
             $amount = $this->decimal($column);
 
-            $queued = array_any($this->getColumns(), static fn (ColumnDefinition $definition): bool => $definition->get('name') === 'currency');
-
-            if (! $queued && ($this->creating() || ! Schema::hasColumn($this->getTable(), 'currency'))) {
+            if ($this->creating() && ! array_any(
+                $this->getColumns(),
+                static fn (ColumnDefinition $definition): bool => $definition->get('name') === 'currency',
+            )) {
                 $this->char('currency', 3);
             }
 

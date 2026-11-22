@@ -27,9 +27,10 @@ class BillingBlueprintMacros implements BlueprintMacroExtension
         } elseif ($macro === 'billingCustomer') {
             $call->addColumn('uuid', 'billing_customer_id', nullable: ! $call->creating());
         } else {
-            $call->addColumn('decimal', $call->name(0, 'column'));
+            $column = $call->name(0, 'column');
+            $call->addColumn('decimal', $column);
 
-            if ($call->hasColumn('currency') === false) {
+            if ($call->creating() && $column !== null && $column !== 'currency' && $call->hasColumn('currency') === false) {
                 $call->addColumn('char', 'currency');
             }
         }
