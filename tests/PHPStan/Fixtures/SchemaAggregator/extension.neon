@@ -1,0 +1,7 @@
+includes:
+    - ../Bootstrap/Billing/extension.neon
+
+services:
+    -
+        class: Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\ChainBlueprintMacros
+        tags: [hypervel.blueprintMacroExtension]

@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\Properties;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Migrations\Migration;
 use Hypervel\PHPStan\Properties\Schema\DataTypeToPhpTypeConverter;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
@@ -25,6 +26,7 @@ use PHPStan\Type\NullType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\TypeUtils;
+use ReflectionClass;
 use ReflectionException;
 use ReflectionNamedType;
 
@@ -596,13 +598,23 @@ class ModelPropertyHelper
     {
         $this->migrationsLoaded = true;
 
+        // Stub validation sees only stubs, which may declare Migration themselves. Facts read there
+        // cannot be used by, or cached for, the application.
+        $migrationFile = $this->reflectionProvider->hasClass(Migration::class)
+            ? $this->reflectionProvider->getClass(Migration::class)->getFileName()
+            : null;
+
+        if ($migrationFile === null || realpath($migrationFile) !== (new ReflectionClass(Migration::class))->getFileName()) {
+            return;
+        }
+
         $migrationFiles = $this->migrationHelper->getMigrationFiles();
         $schemaFiles = $this->squashedMigrationHelper->getSchemaFiles();
 
         ['connections' => $this->connections, 'sources' => $this->schemaSources] = $this->migrationCache->remember(
             $migrationFiles,
             $schemaFiles,
-            $this->connectionConfigResolver->getSchemaConfiguration(),
+            $this->connectionConfigResolver->getSchemaConfiguration() + $this->migrationHelper->getSchemaConfiguration(),
             function (): array {
                 // Migrations apply on top of the schema dumps, as migrate loads a dump first.
                 $aggregator = $this->migrationHelper->aggregate($this->squashedMigrationHelper->initializeConnections());

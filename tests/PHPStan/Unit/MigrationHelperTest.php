@@ -4,16 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Unit;
 
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
-use Hypervel\PHPStan\Properties\MigrationHelper;
 use Hypervel\PHPStan\Properties\SchemaConnection;
+use Hypervel\PHPStan\Schema\BlueprintMacroExtension;
+use Hypervel\Tests\PHPStan\Fixtures\Bootstrap\Billing\BillingBlueprintMacros;
+use Hypervel\Tests\PHPStan\Fixtures\Bootstrap\Billing\BillingSchema;
+use Hypervel\Tests\PHPStan\Fixtures\CreatesMigrationHelpers;
 use Hypervel\Tests\PHPStan\Fixtures\ReadsSchemaFacts;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingConfiguration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\ReboundBillingConfiguration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\SentinelMigration;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use LogicException;
+use PHPStan\DependencyInjection\Container;
 use PHPStan\File\FileHelper;
-use PHPStan\Parser\Parser;
-use PHPStan\Reflection\InitializerExprTypeResolver;
-use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Testing\PHPStanTestCase;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionClass;
+use ReflectionProperty;
 
 /**
  * Unlike upstream, the facts belong to the connection each migration runs on, the routed default
@@ -21,48 +31,69 @@ use PHPUnit\Framework\Attributes\Test;
  */
 class MigrationHelperTest extends PHPStanTestCase
 {
+    use CreatesMigrationHelpers;
     use ReadsSchemaFacts;
-
-    private Parser $parser;
-
-    private FileHelper $fileHelper;
-
-    private ReflectionProvider $reflectionProvider;
-
-    private InitializerExprTypeResolver $initializerExprTypeResolver;
-
-    private ConnectionConfigResolver $connectionConfigResolver;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->parser = self::getContainer()->getService('currentPhpVersionSimpleDirectParser');
-        $this->fileHelper = self::getContainer()->getByType(FileHelper::class);
-        $this->reflectionProvider = $this->createReflectionProvider();
-        $this->initializerExprTypeResolver = self::getContainer()->getByType(InitializerExprTypeResolver::class);
-        $this->connectionConfigResolver = self::getContainer()->getByType(ConnectionConfigResolver::class);
-    }
+    use VerifiesDoubles;
 
     /** @return string[] */
     public static function getAdditionalConfigFiles(): array
     {
-        return [__DIR__ . '/../phpstan-tests.neon'];
+        return [__DIR__ . '/../phpstan-tests.neon', __DIR__ . '/../Fixtures/Bootstrap/Billing/extension.neon'];
+    }
+
+    #[Test]
+    public function itMatchesLiveBlueprintMacrosAndRejectsConflictingDescriptions(): void
+    {
+        $property = new ReflectionProperty(Blueprint::class, 'macros');
+        $original = $property->getValue();
+
+        try {
+            BillingSchema::register();
+            $helper = $this->createMigrationHelper();
+            $this->assertSame(BillingSchema::class, $helper->getBlueprintMacros()['invoiceReference']['owner']);
+            Blueprint::macro('invoiceReference', static function (): void {});
+            $this->assertArrayNotHasKey('invoiceReference', $this->createMigrationHelper()->getBlueprintMacros());
+
+            $container = Double::for(Container::class)->strict();
+            $container->expects('getServicesByTag')->with(BlueprintMacroExtension::TAG)->returns([new BillingBlueprintMacros, new DuplicateBillingMacros]);
+
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage(sprintf('Blueprint macro [billingCustomer] registered by [%s] is described by both [%s] and [%s].', BillingSchema::class, BillingBlueprintMacros::class, DuplicateBillingMacros::class));
+            $this->createMigrationHelper(extensions: $container)->getBlueprintMacros();
+        } finally {
+            $property->setValue(null, $original);
+        }
+    }
+
+    #[Test]
+    public function itTracksTheImplementationOfAMappedMigrationService(): void
+    {
+        $resolver = new ConnectionConfigResolver([SentinelMigration::class => BillingConfiguration::class . '@connection']);
+        $container = clone $resolver->getContainer();
+        $container->instance(BillingConfiguration::class, new ReboundBillingConfiguration('mysql'));
+        $resolver->setContainer($container);
+        $helper = $this->createMigrationHelper([__DIR__ . '/../Fixtures/SchemaAggregator/Migrations'], resolver: $resolver);
+
+        $aggregated = $helper->aggregate();
+
+        $this->assertSame(['name' => ['string', false]], $this->describeColumns($aggregated->connections, 'mapped', 'mysql'));
+        $this->assertArrayHasKey((new ReflectionClass(ReboundBillingConfiguration::class))->getFileName(), $aggregated->sources);
+        $this->assertSame(0, SentinelMigration::$executions);
     }
 
     #[Test]
     public function itKeepsAMigrationDirectoryThatDoesNotExist(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/missing'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/missing']);
 
-        self::assertSame([$this->fileHelper->absolutizePath(__DIR__ . '/data/missing') => '*.[pP][hH][pP]'], $migrationHelper->getMigrationPaths());
+        self::assertSame([self::getContainer()->getByType(FileHelper::class)->absolutizePath(__DIR__ . '/data/missing') => '*.[pP][hH][pP]'], $migrationHelper->getMigrationPaths());
         self::assertSame([], $migrationHelper->getMigrationFiles());
     }
 
     #[Test]
     public function itHasNoMigrationDirectoriesWhenTheMigrationScanIsDisabled(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/basic_migration'], $this->fileHelper, true, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/basic_migration'], disableScan: true);
 
         self::assertSame([], $migrationHelper->getMigrationPaths());
     }
@@ -70,7 +101,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itWillReturnEmptyArrayIfMigrationsPathIsNotADirectory(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, ['foobar'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper(['foobar']);
 
         self::assertSame([], $migrationHelper->initializeConnections());
     }
@@ -78,7 +109,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanReadBasicMigrationsAndCreateTableStructure(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/basic_migration'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/basic_migration']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -88,7 +119,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanReadSchemaDefinitionsFromAnyMethodInClass(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migrations_with_different_methods'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migrations_with_different_methods']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -98,7 +129,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanReadSchemaDefinitionsWithMultipleCreateAndDropMethodsForOneTable(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/complex_migrations'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/complex_migrations']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -118,10 +149,10 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanReadAdditionalDirectories(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [
+        $migrationHelper = $this->createMigrationHelper([
             __DIR__ . '/data/basic_migration',
             __DIR__ . '/data/additional_migrations',
-        ], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        ]);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -133,9 +164,9 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleUseOfAfterMethodInMigration(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [
+        $migrationHelper = $this->createMigrationHelper([
             __DIR__ . '/data/migrations_using_after_method',
-        ], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        ]);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -152,9 +183,9 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleAlterTableAndColumnRename(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [
+        $migrationHelper = $this->createMigrationHelper([
             __DIR__ . '/data/rename_migrations',
-        ], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        ]);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -168,7 +199,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithSoftDeletes(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migrations_using_soft_deletes'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migrations_using_soft_deletes']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -180,7 +211,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithSoftDeletesTz(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migrations_using_soft_deletes_tz'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migrations_using_soft_deletes_tz']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -192,7 +223,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithNullableTimestampsTz(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migrations_using_nullable_timestamps_tz'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migrations_using_nullable_timestamps_tz']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -202,7 +233,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithDefaultArguments(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migration_with_default_arguments'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migration_with_default_arguments']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -229,7 +260,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleConnectionBeforeSchemaCreate(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migration_with_schema_connection'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migration_with_schema_connection']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -247,10 +278,10 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanDisableMigrationScanning(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [
+        $migrationHelper = $this->createMigrationHelper([
             __DIR__ . '/data/basic_migration',
             __DIR__ . '/data/additional_migrations',
-        ], $this->fileHelper, true, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        ], disableScan: true);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -260,7 +291,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleNullableInMigrations(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migrations_using_nullable'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migrations_using_nullable']);
 
         $columns = $this->describeColumns($migrationHelper->initializeConnections(), 'users');
 
@@ -289,9 +320,9 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithArrayPassedToDropColumn(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [
+        $migrationHelper = $this->createMigrationHelper([
             __DIR__ . '/data/migrations_using_drop_column',
-        ], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        ]);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -301,9 +332,9 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithDropTimestamps(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [
+        $migrationHelper = $this->createMigrationHelper([
             __DIR__ . '/data/migrations_using_drop_timestamps',
-        ], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        ]);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -318,9 +349,9 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithDropRememberToken(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [
+        $migrationHelper = $this->createMigrationHelper([
             __DIR__ . '/data/migrations_using_drop_remember_token',
-        ], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        ]);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -335,7 +366,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithIfStatements(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/conditional_migrations'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/conditional_migrations']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -351,7 +382,7 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itCanHandleMigrationsWithConstAsTable(): void
     {
-        $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migration_with_const'], $this->fileHelper, false, $this->reflectionProvider, $this->initializerExprTypeResolver, $this->connectionConfigResolver);
+        $migrationHelper = $this->createMigrationHelper([__DIR__ . '/data/migration_with_const']);
 
         $connections = $migrationHelper->initializeConnections();
 
@@ -364,21 +395,17 @@ class MigrationHelperTest extends PHPStanTestCase
     #[Test]
     public function itResolvesForeignIdForColumnTypeUsingTablePhpAttribute(): void
     {
-        $migrationHelper = new MigrationHelper(
-            $this->parser,
-            [
-                __DIR__ . '/data/basic_migration',
-                __DIR__ . '/data/migration_with_foreign_id_for',
-            ],
-            $this->fileHelper,
-            false,
-            $this->reflectionProvider,
-            $this->initializerExprTypeResolver,
-            $this->connectionConfigResolver,
-        );
+        $migrationHelper = $this->createMigrationHelper([
+            __DIR__ . '/data/basic_migration',
+            __DIR__ . '/data/migration_with_foreign_id_for',
+        ]);
 
         $connections = $migrationHelper->initializeConnections();
 
         self::assertSame(['string', false], $this->describeColumns($connections, 'articles')['member_with_custom_key_uuid']);
     }
+}
+
+class DuplicateBillingMacros extends BillingBlueprintMacros
+{
 }

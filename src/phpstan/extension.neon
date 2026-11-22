@@ -21,6 +21,7 @@ parameters:
     noUnnecessaryEnumerableToArrayCalls: true
     squashedMigrationsPath: []
     databaseMigrationsPath: []
+    migrationConnections: []
     disableMigrationScan: false
     disableSchemaScan: false
     configDirectories: []
@@ -85,6 +86,7 @@ parametersSchema:
     noUnnecessaryCollectionCallExcept: listOf(string())
     noUnnecessaryEnumerableToArrayCalls: bool()
     databaseMigrationsPath: listOf(string())
+    migrationConnections: arrayOf(string(), string())
     disableMigrationScan: bool()
     configDirectories: listOf(string())
     viewDirectories: listOf(string())
