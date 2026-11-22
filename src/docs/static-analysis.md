@@ -93,20 +93,18 @@ New applications include the package already, so you may run `composer analyse` 
 composer require hypervel/phpstan --dev
 ```
 
-Next, include the extension and the bundled deprecation rules in your `phpstan.neon` file:
+When Composer asks whether to allow `phpstan/extension-installer`, answer yes and commit the updated `composer.json` so CI can use the same setting. The installer loads Hypervel's extension, its bundled deprecation rules, and PHPStan configuration shipped by other installed packages. If your `phpstan.neon` already includes any of those files, remove the duplicate includes. To skip a package's configuration, add its Composer package name to the `extra.phpstan/extension-installer.ignore` list in your `composer.json`.
+
+Set the analysis level and paths in `phpstan.neon`:
 
 ```neon
-includes:
-    - vendor/hypervel/phpstan/extension.neon
-    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
-
 parameters:
     level: 5
     paths:
         - app
 ```
 
-If your project uses the [PHPStan extension installer](https://github.com/phpstan/extension-installer), it loads both extensions automatically, so you should omit the `includes` entries. Once configured, you may analyze your application:
+If you disable the installer, add `vendor/hypervel/phpstan/extension.neon` and `vendor/phpstan/phpstan-deprecation-rules/rules.neon` to `includes` yourself. To analyze your application, run:
 
 ```shell
 ./vendor/bin/phpstan analyse
@@ -712,7 +710,7 @@ You may ship a PHPStan configuration file with your package. For example, to dis
 }
 ```
 
-New Hypervel applications use PHPStan's extension installer, which loads this file automatically from installed packages. Projects without the installer can include it from `vendor/acme/billing/extension.neon` in their PHPStan config. Include it only once. To analyze the package itself, include `extension.neon` in its own `phpstan.neon`, since the installer only discovers dependencies.
+PHPStan's extension installer loads this file automatically when your package is installed as a dependency. Projects that disable the installer can include it from `vendor/acme/billing/extension.neon` in their PHPStan config. Include it only once. To analyze the package itself, include `extension.neon` in its own `phpstan.neon`, since the installer only discovers dependencies.
 
 The file may configure `hypervel/phpstan`, register PHPStan services, or load stubs. Maps such as `eloquentBuilderMacros` combine distinct keys. An application's own entry wins for the same key. Classes referenced by the file belong in the package's Composer `autoload` so they are available to consumers. Projects using Hypervel's analysis features should install `hypervel/phpstan` as a development dependency. If the package specifies `phpstan/phpstan` in `require`, the installer needs a version constraint with both a lower and an upper bound.
 
@@ -1733,4 +1731,4 @@ Code inside a deprecated method, class or trait may use other deprecated APIs wi
 
 Deprecation checks do not cover methods and properties reached through proxies such as `$users->each`, `optional($user)` or `$user->when($active)`.
 
-To disable deprecation reporting, remove the `rules.neon` include. If you use the extension installer, add `phpstan/phpstan-deprecation-rules` to the `extra.phpstan/extension-installer.ignore` list in your `composer.json` file instead.
+To disable deprecation reporting, add `phpstan/phpstan-deprecation-rules` to the `extra.phpstan/extension-installer.ignore` list in your `composer.json`. If you load extensions manually, remove the deprecation rules' `rules.neon` include.
