@@ -7,6 +7,7 @@ namespace Hypervel\Tests\PHPStan\Unit;
 use Hypervel\Database\Eloquent\Concerns\HasUniqueStringIds;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\NestedSet\NestedSet;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\SchemaAggregator;
 use Hypervel\PHPStan\Properties\SchemaConnection;
@@ -397,6 +398,8 @@ class SchemaAggregatorTest extends PHPStanTestCase
         $this->assertSame($bounds + ['parent_id' => ['string', true]], $this->columns($aggregator, 'ulid_categories'));
         $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'flat_categories'));
         $this->assertTrue($this->table($aggregator, 'flat_categories')->complete);
+        [$source] = $this->fileNames(NestedSet::class);
+        $this->assertArrayHasKey($source, $this->table($aggregator, 'categories')->sources);
     }
 
     #[Test]
@@ -407,7 +410,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
                 $table->string('title');
                 $table->searchable(['title']);
                 $table->searchable(['title'], tsvector: 'title_vector');
-                $table->searchable(['title'], tsvector: 'body_vector');
+                $table->searchable(...[['title']], tsvector: 'body_vector');
             });
 
             Schema::table('posts', fn (Blueprint $table) => $table->dropSearchable(tsvector: 'title_vector'));
@@ -473,6 +476,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
                     $table->string($name);
                     $table->currencyAmount($name);
                 });
+                Schema::create('aliased', fn (Blueprint $table) => $table->currencyAmount('currency'));
                 Schema::create('credits', function (Blueprint $table) {
                     if ($unknown) {
                         $table->string('currency');
@@ -493,12 +497,20 @@ class SchemaAggregatorTest extends PHPStanTestCase
         ], $this->columns($aggregator, 'invoices'));
         $this->assertSame(['string', true], $this->columns($aggregator, 'history')['billing_customer_id']);
         $this->assertSame(['string', false], $this->columns($aggregator, 'history')['currency']);
+        $this->assertSame(['currency' => ['numeric-string', false]], $this->columns($aggregator, 'aliased'));
         $this->assertSame(['invoice_reference' => ['string', false]], $this->columns($aggregator, 'adjustments'));
         $this->assertFalse($this->table($aggregator, 'adjustments')->complete);
         $this->assertSame([null, true], $this->columns($aggregator, 'credits')['currency']);
         [$source] = $this->fileNames(BillingBlueprintMacros::class);
         $this->assertArrayHasKey($source, $this->table($aggregator, 'invoices')->sources);
         $this->assertArrayNotHasKey($source, $aggregator->sources);
+        $this->aggregate(<<<'PHP'
+            Schema::table('history', function (Blueprint $table) {
+                $table->dropColumn('currency');
+                $table->currencyAmount('adjustment');
+            });
+            PHP, aggregator: $aggregator);
+        $this->assertArrayNotHasKey('currency', $this->columns($aggregator, 'history'));
     }
 
     #[Test]
@@ -513,6 +525,8 @@ class SchemaAggregatorTest extends PHPStanTestCase
                 'sameBlueprint()->string("extra")' => false,
                 'sameBlueprint()->string(...)' => true,
                 'firstColumn()->nullable()' => false,
+                'firstColumn()->name("renamed")' => false,
+                'firstColumn()->when(true, fn ($column) => $column->nullable())' => false,
                 'firstColumn()->comment("key")' => true,
             ] as $chain => $complete) {
                 $aggregator = $this->aggregate(<<<PHP
@@ -1630,6 +1644,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
                 'trait config getter' => ['Migration', 'use UsesBillingConnection;', 'pgsql'],
                 'trait method' => ['Migration', 'use ChoosesConnection;', 'pgsql'],
                 'nested trait method' => ['Migration', 'use NestedChoosesConnection;', 'pgsql'],
+                'trait overriding parent default' => ['Migration', 'use DefinesConnection;', 'pgsql'],
                 'trait property' => ['ConnectionPropertyMigration', 'use DefinesConnection;', 'pgsql'],
                 'runtime writer' => ['ConnectionWritingMigration', '', null],
                 'uninitialized' => ['Migration', 'protected ?string $connection;', null],
@@ -1691,6 +1706,24 @@ class SchemaAggregatorTest extends PHPStanTestCase
         $this->assertSame([], $resolver->getResolvedConnections());
         $this->assertSame([], $aggregator->connections);
         $this->assertSame(0, SentinelMigration::$executions);
+    }
+
+    #[Test]
+    public function itDoesNotApplyAbstractMigrationDeclarations(): void
+    {
+        $aggregator = $this->apply(<<<'PHP'
+            abstract class AbstractMigration extends Migration {
+                public function up(): void {
+                    Schema::connection('mysql')->create('skipped', fn (Blueprint $table) => $table->id());
+                }
+            }
+
+            return new class extends Migration {
+                public function shouldRun(): bool { return false; }
+            };
+            PHP);
+
+        $this->assertSame([], $aggregator->connections);
     }
 
     #[Test]

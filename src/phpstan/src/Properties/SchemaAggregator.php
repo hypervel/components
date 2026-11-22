@@ -237,7 +237,9 @@ class SchemaAggregator
         $classes = $nodeFinder->findInstanceOf($stmts, PhpParser\Node\Stmt\Class_::class);
 
         foreach ($classes as $stmt) {
-            $this->addClassStatements($stmt);
+            if (! $stmt->isAbstract()) {
+                $this->addClassStatements($stmt);
+            }
         }
     }
 
@@ -481,11 +483,28 @@ class SchemaAggregator
             }
         }
 
-        if ($inherited === null || ! $inherited->hasDefaultValue()) {
+        // PHP 8.5 lets a trait replace an inherited default. The writer check already ruled out unreadable traits.
+        $effective = $inherited;
+        foreach ($class->getTraitUses() as $use) {
+            foreach ($use->traits as $name) {
+                $trait = $this->reflectionProvider->getClass($name->toString());
+                if ($trait->hasNativeProperty('connection')) {
+                    $effective = $trait->getNativeProperty('connection')->getNativeReflection();
+
+                    if ($effective->getHook(PropertyHookType::Get)?->isAbstract() === false) {
+                        return [false, null];
+                    }
+
+                    break 2;
+                }
+            }
+        }
+
+        if ($effective === null || ! $effective->hasDefaultValue()) {
             return [false, null];
         }
 
-        return $this->literalConnectionDefault($inherited->getBetterReflection()->getDefaultValueExpression());
+        return $this->literalConnectionDefault($effective->getBetterReflection()->getDefaultValueExpression());
     }
 
     /**
@@ -2062,10 +2081,10 @@ class SchemaAggregator
             return;
         }
 
-        // removeColumn() returns the Blueprint, so the calls chained after it change the table too. The column's
-        // Fluent mutators can set any attribute, including its type and nullability.
+        // removeColumn() returns the Blueprint. Fluent mutators can rename or retype a column,
+        // and conditional callbacks can apply any modifier.
         if (($method === 'removecolumn' && $chain !== [])
-            || array_any($chain, static fn (array $link): bool => in_array($link[0], [null, 'fill', 'set', 'offsetset', 'offsetunset'], true))) {
+            || array_any($chain, static fn (array $link): bool => in_array($link[0], [null, 'fill', 'set', 'offsetset', 'offsetunset', 'name', 'when', 'unless'], true))) {
             $this->forgetTableByKey($tableScope['connection'], $tableScope['key']);
 
             return;
@@ -2735,7 +2754,7 @@ class SchemaAggregator
     /**
      * Get the expression a call passes for a parameter, by name or position.
      *
-     * An unpacked argument stands for its position and every later one, so its value is not constant.
+     * An unpack may supply any remaining position unless the call names the parameter explicitly.
      */
     private function getArgument(PhpParser\Node\Expr\CallLike $call, int $position, string $parameter): ?PhpParser\Node\Expr
     {
@@ -2743,17 +2762,16 @@ class SchemaAggregator
             return null;
         }
 
+        $unpacked = null;
         foreach ($call->getArgs() as $index => $argument) {
-            $matches = $argument->name !== null
-                ? $argument->name->toString() === $parameter
-                : $index === $position || ($argument->unpack && $index < $position);
-
-            if ($matches) {
+            if ($argument->unpack) {
+                $unpacked ??= $argument->value;
+            } elseif ($argument->name !== null ? $argument->name->toString() === $parameter : $index === $position) {
                 return $argument->value;
             }
         }
 
-        return null;
+        return $unpacked;
     }
 
     /**
