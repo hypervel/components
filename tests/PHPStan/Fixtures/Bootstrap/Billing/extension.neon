@@ -1,0 +1,4 @@
+services:
+    -
+        class: Hypervel\Tests\PHPStan\Fixtures\Bootstrap\Billing\BillingBlueprintMacros
+        tags: [hypervel.blueprintMacroExtension]
