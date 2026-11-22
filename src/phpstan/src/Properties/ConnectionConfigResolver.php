@@ -11,8 +11,10 @@ use Hypervel\Database\Connectors\Connector;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use PDO;
+use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
 
 use function array_combine;
@@ -58,6 +60,23 @@ class ConnectionConfigResolver
 
     /** @var array<string, array{bool, null|false|string}> each config key read as a connection name, with its state */
     private array $configuredNames = [];
+
+    /** @var array<string, array{bool, ?bool}> each guard config key, with its presence and boolean value */
+    private array $configuredBooleans = [];
+
+    /** @var array<string, array{service: class-string, result: array{bool, ?string}}> each mapped migration class used, with the service and result of its callback */
+    private array $resolvedConnections = [];
+
+    /**
+     * Create a connection configuration resolver.
+     *
+     * @param array<string, string> $migrationConnections
+     */
+    public function __construct(
+        #[AutowiredParameter]
+        private array $migrationConnections,
+    ) {
+    }
 
     /**
      * Get the facts of a connection name, or null when its configuration cannot be resolved.
@@ -120,6 +139,70 @@ class ConnectionConfigResolver
     }
 
     /**
+     * Read a migration guard's config key, preserving the distinction between missing and non-boolean.
+     *
+     * @return array{bool, ?bool}
+     */
+    public function getConfiguredBoolean(string $key): array
+    {
+        $value = $this->config($key);
+
+        return $this->configuredBooleans[$key] = [
+            $this->getContainer()->make('config')->has($key),
+            is_bool($value) ? $value : null,
+        ];
+    }
+
+    /**
+     * Get the config values read by migration guards.
+     *
+     * @return array<string, array{bool, ?bool}>
+     */
+    public function getConfiguredBooleans(): array
+    {
+        return $this->configuredBooleans;
+    }
+
+    /**
+     * Resolve a mapped migration getter once, returning null when it has no mapping.
+     *
+     * @return null|array{bool, ?string}
+     */
+    public function resolveMigrationConnection(string $class): ?array
+    {
+        if (! isset($this->migrationConnections[$class])) {
+            return null;
+        }
+
+        if (! isset($this->resolvedConnections[$class])) {
+            [$service, $method] = Str::parseCallback($this->migrationConnections[$class]);
+
+            if ($method === null || $method === '') {
+                throw new InvalidArgumentException("The migrationConnections entry for [{$class}] must specify a Class@method callback.");
+            }
+
+            $instance = $this->getContainer()->make($service);
+            $name = $instance->{$method}();
+            $this->resolvedConnections[$class] = [
+                'service' => $instance::class,
+                'result' => [is_string($name) || $name === null, is_string($name) ? $name : null],
+            ];
+        }
+
+        return $this->resolvedConnections[$class]['result'];
+    }
+
+    /**
+     * Get the connection callbacks used during aggregation and the classes that supplied their results.
+     *
+     * @return array<string, array{service: class-string, result: array{bool, ?string}}>
+     */
+    public function getResolvedConnections(): array
+    {
+        return $this->resolvedConnections;
+    }
+
+    /**
      * Get the config keys read so far.
      *
      * @return list<string>
@@ -156,7 +239,7 @@ class ConnectionConfigResolver
                 ];
             }, $names)),
             'morphKeyType' => Builder::$defaultMorphKeyType,
-            'macros' => SchemaAggregator::getKnownMacros(),
+            'migrationConnections' => $this->migrationConnections,
         ];
     }
 

@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Properties;
 
-use Closure;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
-use Hypervel\NestedSet\NestedSet;
-use Hypervel\NestedSet\NestedSetServiceProvider;
 use Hypervel\PHPStan\Reflection\SourceFiles;
+use Hypervel\PHPStan\Schema\BlueprintMacroCall;
 use Hypervel\SchemaParser\ColumnType;
 use Hypervel\SchemaParser\ParseException;
 use Hypervel\SchemaParser\View;
-use Hypervel\Scout\SearchableSchema;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -27,9 +24,8 @@ use PHPStan\Parser\ParserErrorsException;
 use PHPStan\Reflection\InitializerExprContext;
 use PHPStan\Reflection\InitializerExprTypeResolver;
 use PHPStan\Reflection\ReflectionProvider;
+use PropertyHookType;
 use ReflectionException;
-use ReflectionFunction;
-use ReflectionProperty;
 use WeakMap;
 
 use function array_any;
@@ -52,8 +48,6 @@ use function str_contains;
 use function str_starts_with;
 use function strtolower;
 
-use const ARRAY_FILTER_USE_BOTH;
-
 /**
  * Applies migrations to the schema facts of the connections they run on.
  *
@@ -63,13 +57,13 @@ use const ARRAY_FILTER_USE_BOTH;
  * A state is a copy of the facts: the connections, whether an earlier migration could have changed
  * any connection, and the morph key type. A scope holds the migration class, the class declaring the
  * body being applied (null for the migration class itself), the connection its statements default to
- * (null when it is unknown), inside a Blueprint callback the table it changes, with a copy of it as it
- * was before the callback, and the Blueprint's variable, and the local variables holding
- * Schema builders: those whose calls are followed, and those that escape, whose uses make the connections
- * they select unknown.
+ * (null when it is unknown), and the local variables holding Schema builders. A builder that escapes
+ * makes the connection it selects unknown. A Blueprint callback also tracks its variable, whether it
+ * creates the table, and which table it changes. Schema checks use the table's state before the callback.
  *
  * @phpstan-type State array{array<string, SchemaConnection>, bool, ?string}
- * @phpstan-type TableScope array{connection: ConnectionConfig, key: string, before: ?SchemaTable, variable: string}
+ * @phpstan-import-type BlueprintMacro from MigrationHelper
+ * @phpstan-type TableScope array{connection: ConnectionConfig, key: string, before: ?SchemaTable, variable: string, creating: bool}
  * @phpstan-type BuilderVariables array{builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  * @phpstan-type Scope array{class: PhpParser\Node\Stmt\Class_, declaring: ?string, connection: ?ConnectionConfig, table: ?TableScope, builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  *
@@ -136,14 +130,6 @@ class SchemaAggregator
     /** Blueprint methods whose third parameter decides whether the column is unsigned. */
     private const array SIGNABLE_COLUMN_METHODS = ['biginteger', 'integer', 'mediuminteger', 'smallinteger', 'tinyinteger'];
 
-    /** The first-party Blueprint macros whose schema changes are known, with the class registering each. */
-    private const array KNOWN_MACROS = [
-        'dropNestedSet' => NestedSetServiceProvider::class, 'integerNestedSet' => NestedSetServiceProvider::class,
-        'nestedSet' => NestedSetServiceProvider::class, 'ulidNestedSet' => NestedSetServiceProvider::class,
-        'uuidNestedSet' => NestedSetServiceProvider::class, 'dropSearchable' => SearchableSchema::class,
-        'searchable' => SearchableSchema::class,
-    ];
-
     /** Blueprint methods that add a nullable column. */
     private const array NULLABLE_COLUMN_METHODS = ['remembertoken', 'softdeletes', 'softdeletesdatetime', 'softdeletestz'];
 
@@ -202,9 +188,6 @@ class SchemaAggregator
     /** The type of the key columns morphs() adds, or null when a migration changed it to an unknown value. */
     private ?string $morphKeyType;
 
-    /** @var list<string> the known first-party Blueprint macros the booted application registers */
-    private array $knownMacros;
-
     /** @var array<string, true> the declarations of the helper methods being applied, to stop recursion */
     private array $appliedMethods = [];
 
@@ -227,6 +210,7 @@ class SchemaAggregator
     /**
      * Create a new schema aggregator instance.
      *
+     * @param array<string, BlueprintMacro> $blueprintMacros
      * @param array<string, SchemaConnection> $connections the schema facts, by owning connection
      */
     public function __construct(
@@ -234,29 +218,10 @@ class SchemaAggregator
         private InitializerExprTypeResolver $initializerExprTypeResolver,
         private ConnectionConfigResolver $connectionConfigResolver,
         private Parser $parser,
+        private array $blueprintMacros,
         public array $connections = [],
     ) {
         $this->morphKeyType = Builder::$defaultMorphKeyType;
-        $this->knownMacros = self::getKnownMacros();
-    }
-
-    /**
-     * Get the known first-party Blueprint macros the booted application registers.
-     *
-     * An application may replace one with its own macro, whose schema changes are unknown.
-     *
-     * @return list<string>
-     */
-    public static function getKnownMacros(): array
-    {
-        $macros = (new ReflectionProperty(Blueprint::class, 'macros'))->getValue();
-
-        return array_keys(array_filter(
-            self::KNOWN_MACROS,
-            static fn (string $class, string $name): bool => ($macros[$name] ?? null) instanceof Closure
-                && (new ReflectionFunction($macros[$name]))->getClosureScopeClass()?->getName() === $class,
-            ARRAY_FILTER_USE_BOTH,
-        ));
     }
 
     /**
@@ -272,7 +237,9 @@ class SchemaAggregator
         $classes = $nodeFinder->findInstanceOf($stmts, PhpParser\Node\Stmt\Class_::class);
 
         foreach ($classes as $stmt) {
-            $this->addClassStatements($stmt);
+            if (! $stmt->isAbstract()) {
+                $this->addClassStatements($stmt);
+            }
         }
     }
 
@@ -325,8 +292,13 @@ class SchemaAggregator
             }
         }
 
-        $scope = ['class' => $class, 'declaring' => null, 'connection' => $this->getMigrationConnection($class), 'table' => null, 'builders' => [], 'escaped' => []];
-        $up = $this->findMethod($scope, null, 'up');
+        $shouldRun = $this->evaluateShouldRun($class);
+
+        if ($shouldRun === false) {
+            return;
+        }
+
+        $up = $this->findMethod($class, null, 'up');
 
         if ($up === false) {
             $this->invalidate();
@@ -338,7 +310,68 @@ class SchemaAggregator
             return;
         }
 
-        $this->applyBody($up[0]->stmts, $this->getFunctionScope($up[0], ['declaring' => $up[1]] + $scope));
+        $before = $shouldRun === null ? $this->snapshot() : null;
+        $scope = ['class' => $class, 'declaring' => $up[1], 'connection' => $this->getMigrationConnection($class), 'table' => null, 'builders' => [], 'escaped' => []];
+        $this->applyBody($up[0]->stmts, $this->getFunctionScope($up[0], $scope));
+
+        if ($before !== null) {
+            $this->restore($this->mergeStates($before, $this->snapshot()));
+        }
+    }
+
+    /**
+     * Decide whether the migrator runs up(), or return null when either outcome is possible.
+     */
+    private function evaluateShouldRun(PhpParser\Node\Stmt\Class_ $class): ?bool
+    {
+        if ($class->extends === null) {
+            return true;
+        }
+
+        $parent = $class->extends->toString();
+        $knownParent = $this->reflectionProvider->hasClass($parent);
+
+        if ($knownParent && ! $this->reflectionProvider->getClass($parent)->is(Migration::class)) {
+            return true;
+        }
+
+        $guard = $this->findMethod($class, null, 'shouldRun');
+
+        if ($guard === null) {
+            return true;
+        }
+
+        $expression = $guard === false ? null : $this->returnedExpression($guard[0]);
+
+        if ($expression === null) {
+            return null;
+        }
+
+        $decision = $this->resolveBoolean($expression);
+
+        if ($decision === null) {
+            $read = $this->getConfigRead($expression);
+
+            if ($read === null || ! in_array($read[0], ['get', 'boolean'], true)) {
+                return null;
+            }
+
+            [$present, $value] = $this->connectionConfigResolver->getConfiguredBoolean($read[1]);
+            $decision = $present || $read[2] === null ? $value : $this->resolveBoolean($read[2]);
+        }
+
+        // The migrator honors a false guard only on Migration subclasses, and the parent may be unknown.
+        return ! $knownParent && $decision === false ? null : $decision;
+    }
+
+    /**
+     * Get the expression returned by a single-statement migration getter.
+     */
+    private function returnedExpression(PhpParser\Node\Stmt\ClassMethod $method): ?PhpParser\Node\Expr
+    {
+        $statements = $method->stmts ?? [];
+
+        return count($statements) === 1 && $statements[0] instanceof PhpParser\Node\Stmt\Return_ ? $statements[0]->expr : null;
     }
 
     /**
@@ -381,39 +414,38 @@ class SchemaAggregator
     /**
      * Evaluate the connection name a migration's getConnection() returns: whether it is known, and the name.
      *
-     * Only an override that returns one expression is read. An inherited method is read only when it
-     * is Migration's own, which returns the connection property.
-     *
      * @return array{bool, ?string}
      */
     private function evaluateGetConnection(PhpParser\Node\Stmt\Class_ $class): array
     {
-        $method = $class->getMethod('getConnection');
+        $getter = $this->findMethod($class, null, 'getConnection');
 
-        if ($method === null) {
-            return $this->inheritsFromMigration($class, 'getConnection') ? $this->evaluateConnectionProperty($class) : [false, null];
-        }
-
-        $stmts = $method->stmts ?? [];
-
-        if (count($stmts) !== 1 || ! $stmts[0] instanceof PhpParser\Node\Stmt\Return_ || $stmts[0]->expr === null) {
+        if ($getter === false) {
             return [false, null];
         }
 
-        [$known, $name] = $this->evaluateConnectionName($stmts[0]->expr, $class, false);
+        if ($getter === null) {
+            return $this->evaluateConnectionProperty($class);
+        }
+
+        [$method, $declaring] = $getter;
+        $result = $declaring === null ? null : $this->connectionConfigResolver->resolveMigrationConnection($declaring);
+
+        if ($result === null) {
+            $expression = $this->returnedExpression($method);
+            $result = $expression === null ? [false, null] : $this->evaluateConnectionName($expression, $class, false);
+        }
 
         // A string return type throws on null rather than selecting the default connection.
-        if ($name === null && $method->returnType instanceof PhpParser\Node\Identifier && $method->returnType->toLowerString() === 'string') {
+        if ($result[1] === null && $method->returnType instanceof PhpParser\Node\Identifier && $method->returnType->toLowerString() === 'string') {
             return [false, null];
         }
 
-        return [$known, $name];
+        return $result;
     }
 
     /**
      * Evaluate a migration's connection property: whether its value is known, and the value.
-     *
-     * Its declared default is read, or Migration's own null default when it is inherited from Migration.
      *
      * @return array{bool, ?string}
      */
@@ -423,19 +455,70 @@ class SchemaAggregator
             return [false, null];
         }
 
+        $inherited = null;
+        if ($class->extends !== null && $this->reflectionProvider->hasClass($class->extends->toString())) {
+            $parent = $this->reflectionProvider->getClass($class->extends->toString());
+            if ($parent->hasNativeProperty('connection')) {
+                $inherited = $parent->getNativeProperty('connection')->getNativeReflection();
+            }
+        }
+
+        // A plain redeclaration keeps a concrete parent getter, even when it supplies a different default.
+        if ($inherited?->getHook(PropertyHookType::Get)?->isAbstract() === false) {
+            return [false, null];
+        }
+
         foreach ($class->getProperties() as $property) {
-            foreach ($property->props as $prop) {
-                if ($prop->name->toString() === 'connection') {
-                    return match (true) {
-                        $prop->default === null || $this->isNullLiteral($prop->default) => [true, null],
-                        $prop->default instanceof PhpParser\Node\Scalar\String_ => [true, $prop->default->value],
-                        default => [false, null],
-                    };
+            foreach ($property->props as $item) {
+                if ($item->name->toString() !== 'connection') {
+                    continue;
+                }
+
+                if (($item->default === null && $property->type !== null)
+                    || array_any($property->hooks, static fn (PhpParser\Node\PropertyHook $hook): bool => $hook->name->toLowerString() === 'get')) {
+                    return [false, null];
+                }
+
+                return $this->literalConnectionDefault($item->default);
+            }
+        }
+
+        // PHP 8.5 lets a trait replace an inherited default. The writer check already ruled out unreadable traits.
+        $effective = $inherited;
+        foreach ($class->getTraitUses() as $use) {
+            foreach ($use->traits as $name) {
+                $trait = $this->reflectionProvider->getClass($name->toString());
+                if ($trait->hasNativeProperty('connection')) {
+                    $effective = $trait->getNativeProperty('connection')->getNativeReflection();
+
+                    if ($effective->getHook(PropertyHookType::Get)?->isAbstract() === false) {
+                        return [false, null];
+                    }
+
+                    break 2;
                 }
             }
         }
 
-        return $this->inheritsFromMigration($class, 'connection') ? [true, null] : [false, null];
+        if ($effective === null || ! $effective->hasDefaultValue()) {
+            return [false, null];
+        }
+
+        return $this->literalConnectionDefault($effective->getBetterReflection()->getDefaultValueExpression());
+    }
+
+    /**
+     * Read a stored migration connection default.
+     *
+     * @return array{bool, ?string}
+     */
+    private function literalConnectionDefault(?PhpParser\Node\Expr $default): array
+    {
+        return match (true) {
+            $default === null || $this->isNullLiteral($default) => [true, null],
+            $default instanceof PhpParser\Node\Scalar\String_ => [true, $default->value],
+            default => [false, null],
+        };
     }
 
     /**
@@ -541,46 +624,6 @@ class SchemaAggregator
     }
 
     /**
-     * Determine whether a class inherits a method, or the property when no method is named, from
-     * Migration itself rather than from a class between them or a trait it uses.
-     */
-    private function inheritsFromMigration(PhpParser\Node\Stmt\Class_ $class, string $member): bool
-    {
-        if ($class->extends === null || ! $this->reflectionProvider->hasClass($class->extends->toString())) {
-            return false;
-        }
-
-        // A trait's member, or a member an alias names, is not read, as for a method found through findMethod().
-        foreach ($class->getTraitUses() as $traitUse) {
-            foreach ($traitUse->adaptations as $adaptation) {
-                if ($adaptation instanceof PhpParser\Node\Stmt\TraitUseAdaptation\Alias
-                    && $adaptation->newName?->toLowerString() === strtolower($member)) {
-                    return false;
-                }
-            }
-
-            foreach ($traitUse->traits as $trait) {
-                if (! $this->reflectionProvider->hasClass($trait->toString())) {
-                    return false;
-                }
-
-                $traitReflection = $this->reflectionProvider->getClass($trait->toString());
-
-                if ($member === 'connection' ? $traitReflection->hasNativeProperty($member) : $traitReflection->hasNativeMethod($member)) {
-                    return false;
-                }
-            }
-        }
-
-        $parent = $this->reflectionProvider->getClass($class->extends->toString());
-        $declaringClass = $member === 'connection'
-            ? ($parent->hasNativeProperty($member) ? $parent->getNativeProperty($member)->getDeclaringClass() : null)
-            : ($parent->hasNativeMethod($member) ? $parent->getNativeMethod($member)->getDeclaringClass() : null);
-
-        return $declaringClass?->getName() === Migration::class;
-    }
-
-    /**
      * Evaluate a connection name expression: whether its value is known, and the value.
      *
      * Only string and null literals, the migration's connection property and getConnection(), config
@@ -613,35 +656,20 @@ class SchemaAggregator
 
         if ($method && $expr instanceof PhpParser\Node\Expr\MethodCall && $this->isThis($expr->var)
             && $expr->name instanceof PhpParser\Node\Identifier && $expr->name->toLowerString() === 'getconnection'
-            && $expr->getArgs() === [] && ! $expr->isFirstClassCallable()) {
+            && ! $expr->isFirstClassCallable() && $expr->getArgs() === []) {
             return $this->evaluateGetConnection($class);
         }
 
-        // config('key'), config()->get('key') or config()->string('key'), and the same Config facade methods.
-        $repository = ($expr instanceof PhpParser\Node\Expr\MethodCall && $expr->var instanceof PhpParser\Node\Expr\FuncCall
-                && $this->isConfigFunction($expr->var) && $expr->var->getArgs() === [])
-            || ($expr instanceof PhpParser\Node\Expr\StaticCall && $this->isFacade($expr->class, Config::class));
-        $read = match (true) {
-            $expr instanceof PhpParser\Node\Expr\FuncCall && $this->isConfigFunction($expr) => 'get',
-            $repository && $expr->name instanceof PhpParser\Node\Identifier => $expr->name->toLowerString(),
-            default => null,
-        };
+        $read = $this->getConfigRead($expr);
 
-        if (! in_array($read, ['get', 'string'], true)) {
+        if ($read === null || ! in_array($read[0], ['get', 'string'], true)) {
             return [false, null];
         }
 
-        /** @var PhpParser\Node\Expr\FuncCall|PhpParser\Node\Expr\MethodCall|PhpParser\Node\Expr\StaticCall $expr */
-        $key = $this->getArgument($expr, 0, 'key');
-
-        if (! $key instanceof PhpParser\Node\Scalar\String_) {
-            return [false, null];
-        }
-
-        [$present, $value] = $this->connectionConfigResolver->getConfiguredName($key->value);
+        [$accessor, $key, $default] = $read;
+        [$present, $value] = $this->connectionConfigResolver->getConfiguredName($key);
 
         if (! $present) {
-            $default = $this->getArgument($expr, 1, 'default');
             [$known, $value] = $default === null ? [true, null] : $this->evaluateConnectionName($default, $class, $method);
 
             if (! $known) {
@@ -650,7 +678,35 @@ class SchemaAggregator
         }
 
         // A value that is not a name is unknown, and Repository::string() throws for anything but a string.
-        return $value === false || ($read === 'string' && $value === null) ? [false, null] : [true, $value];
+        return $value === false || ($accessor === 'string' && $value === null) ? [false, null] : [true, $value];
+    }
+
+    /**
+     * Read a config accessor, literal key and optional default from a migration expression.
+     *
+     * @return null|array{string, string, ?PhpParser\Node\Expr}
+     */
+    private function getConfigRead(PhpParser\Node\Expr $expr): ?array
+    {
+        if ($expr instanceof PhpParser\Node\Expr\FuncCall && $this->isConfigFunction($expr)) {
+            $accessor = 'get';
+        } elseif (($expr instanceof PhpParser\Node\Expr\MethodCall && $expr->var instanceof PhpParser\Node\Expr\FuncCall
+                && $this->isConfigFunction($expr->var) && $expr->var->getArgs() === [])
+            || ($expr instanceof PhpParser\Node\Expr\StaticCall && $this->isFacade($expr->class, Config::class))) {
+            if (! $expr->name instanceof PhpParser\Node\Identifier) {
+                return null;
+            }
+
+            $accessor = $expr->name->toLowerString();
+        } else {
+            return null;
+        }
+
+        $key = $this->getArgument($expr, 0, 'key');
+
+        return $key instanceof PhpParser\Node\Scalar\String_
+            ? [$accessor, $key->value, $this->getArgument($expr, 1, 'default')]
+            : null;
     }
 
     /**
@@ -1170,7 +1226,7 @@ class SchemaAggregator
                 }
             }
 
-            return $this->findMethod($scope, null, $name);
+            return $this->findMethod($scope['class'], null, $name);
         }
 
         if ($class === 'parent') {
@@ -1182,7 +1238,7 @@ class SchemaAggregator
             return $parent === null ? null : $this->findDeclaredMethod($parent, $name);
         }
 
-        return $this->findMethod($scope, $class === 'self' ? $scope['declaring'] : null, $name);
+        return $this->findMethod($scope['class'], $class === 'self' ? $scope['declaring'] : null, $name);
     }
 
     /**
@@ -1238,18 +1294,16 @@ class SchemaAggregator
      * Migration's own methods are not returned, since they change no schema. The migration's traits are
      * followed only without conflict resolution or aliases.
      *
-     * @param Scope $scope
      * @param null|string $className the class to look the method up on, or null for the migration
      * @return null|array{PhpParser\Node\Stmt\ClassMethod, ?string}|false null when there is none, false when its
      *                                                                    body cannot be read
      */
-    private function findMethod(array $scope, ?string $className, string $name): false|array|null
+    private function findMethod(PhpParser\Node\Stmt\Class_ $class, ?string $className, string $name): false|array|null
     {
         if ($className !== null) {
             return $this->findDeclaredMethod($className, $name);
         }
 
-        $class = $scope['class'];
         $method = $class->getMethod($name);
 
         if ($method !== null) {
@@ -1930,7 +1984,7 @@ class SchemaAggregator
         /** @var PhpParser\Node\Expr\ArrowFunction|PhpParser\Node\Expr\Closure $callback */
         $this->applyBody(
             $this->getUpdateStatements($callback),
-            ['table' => ['connection' => $connection, 'key' => $key, 'before' => $before, 'variable' => $variable]] + $scope,
+            ['table' => ['connection' => $connection, 'key' => $key, 'before' => $before, 'variable' => $variable, 'creating' => $creating]] + $scope,
         );
     }
 
@@ -1955,7 +2009,7 @@ class SchemaAggregator
      * Apply a statement of a Blueprint callback to its table.
      *
      * Only a call chain on the Blueprint is followed: its first call, with the last nullable(), unsigned()
-     * and type() modifiers of the chain. A method it does not know, such as a macro, or a name that
+     * and type() modifiers of the chain. An unknown method, such as a macro without a description, or a name that
      * is not constant makes the table unknown. Other statements make the table unknown when they use
      * the Blueprint. Creating a first-class callable runs nothing.
      *
@@ -1982,8 +2036,8 @@ class SchemaAggregator
         $chain = [];
 
         while ($call instanceof PhpParser\Node\Expr\MethodCall && $call->var instanceof PhpParser\Node\Expr\MethodCall) {
-            if ($call->name instanceof PhpParser\Node\Identifier && ! $call->isFirstClassCallable()) {
-                $chain[] = [$call->name->toLowerString(), $call];
+            if (! $call->isFirstClassCallable()) {
+                $chain[] = [$call->name instanceof PhpParser\Node\Identifier ? $call->name->toLowerString() : null, $call];
             }
 
             $call = $call->var;
@@ -2006,7 +2060,9 @@ class SchemaAggregator
 
         foreach ($chain as [$name, $modifier]) {
             // The outermost modifier runs last, so it decides.
-            $modifiers[$name] ??= $modifier;
+            if ($name !== null) {
+                $modifiers[$name] ??= $modifier;
+            }
         }
 
         if (! $call instanceof PhpParser\Node\Expr\MethodCall
@@ -2025,10 +2081,10 @@ class SchemaAggregator
             return;
         }
 
-        // removeColumn() returns the Blueprint, so the calls chained after it change the table too. The column's
-        // Fluent mutators can set any attribute, including its type and nullability.
-        if (($method === 'removecolumn' && $call !== $expr)
-            || array_any($chain, static fn (array $link): bool => in_array($link[0], ['fill', 'set', 'offsetset', 'offsetunset'], true))) {
+        // removeColumn() returns the Blueprint. Fluent mutators can rename or retype a column,
+        // and conditional callbacks can apply any modifier.
+        if (($method === 'removecolumn' && $chain !== [])
+            || array_any($chain, static fn (array $link): bool => in_array($link[0], [null, 'fill', 'set', 'offsetset', 'offsetunset', 'name', 'when', 'unless'], true))) {
             $this->forgetTableByKey($tableScope['connection'], $tableScope['key']);
 
             return;
@@ -2178,43 +2234,6 @@ class SchemaAggregator
                 $this->setColumn($connection, $table, 'updated_at', $type, false, true);
 
                 return true;
-            case 'nestedset':
-            case 'integernestedset':
-            case 'uuidnestedset':
-            case 'ulidnestedset':
-                // Nested-set's scopes only choose the indexes.
-                if (! $this->callsKnownMacro($call)) {
-                    return false;
-                }
-
-                $this->setColumn($connection, $table, NestedSet::LFT, 'integer', true, false);
-                $this->setColumn($connection, $table, NestedSet::RGT, 'integer', true, false);
-                $this->setColumn($connection, $table, NestedSet::DEPTH, 'smallinteger', true, false);
-                [$parentType, $parentUnsigned] = match ($method) {
-                    'nestedset' => ['biginteger', true],
-                    'integernestedset' => ['integer', true],
-                    'uuidnestedset' => ['uuid', false],
-                    default => ['char', false],
-                };
-
-                $this->setColumn($connection, $table, NestedSet::PARENT_ID, $parentType, $parentUnsigned, true);
-
-                return true;
-            case 'searchable':
-                // Scout's indexes and the pg_trgm extension add no columns or relations.
-                if (! $this->callsKnownMacro($call)) {
-                    return false;
-                }
-
-                $name = $this->getNameArgument($call, 3, 'tsvector', 'search_vector', $table);
-
-                if ($name === null) {
-                    return $this->addUnnamedColumn($table, false);
-                }
-
-                $this->setColumn($connection, $table, $name, 'tsvector', false, false);
-
-                return true;
             case 'renamecolumn':
                 $from = $this->getNameArgument($call, 0, 'from', table: $table);
                 $from = $from === null ? null : $this->resolveColumnName($connection, $table, $from);
@@ -2269,23 +2288,11 @@ class SchemaAggregator
                 $columns = $name === null ? [null] : ["{$name}_type", "{$name}_id"];
 
                 break;
-            case 'dropnestedset':
-                if (! $this->callsKnownMacro($call)) {
-                    return false;
-                }
-
-                $columns = NestedSet::getDefaultColumns();
-
-                break;
-            case 'dropsearchable':
-                if (! $this->callsKnownMacro($call)) {
-                    return false;
-                }
-
-                $columns = [$this->getNameArgument($call, 1, 'tsvector', 'search_vector', $table)];
-
-                break;
             default:
+                if ($call->name instanceof PhpParser\Node\Identifier && isset($this->blueprintMacros[$call->name->toString()])) {
+                    return $this->applyBlueprintMacro($call->name->toString(), $call, $table, $modifiers, $tableScope);
+                }
+
                 $columns = match ($method) {
                     'dropcolumn' => $this->getColumnNames($call, $table),
                     'dropconstrainedforeignid' => [$this->getNameArgument($call, 0, 'column', table: $table)],
@@ -2388,11 +2395,58 @@ class SchemaAggregator
     }
 
     /**
-     * Determine if a Blueprint call reaches a known first-party macro.
+     * Apply a described macro, or return false when its effects or chained calls make the table unknown.
+     *
+     * @param array<string, PhpParser\Node\Expr\MethodCall> $modifiers
+     * @param TableScope $scope
      */
-    private function callsKnownMacro(PhpParser\Node\Expr\MethodCall $call): bool
+    private function applyBlueprintMacro(string $name, PhpParser\Node\Expr\MethodCall $call, SchemaTable $table, array $modifiers, array $scope): bool
     {
-        return $call->name instanceof PhpParser\Node\Identifier && in_array($call->name->toString(), $this->knownMacros, true);
+        $macro = $this->blueprintMacros[$name];
+        $this->addSources($macro['sources'], $table);
+
+        if (($macro['returns'] === 'unknown' && $modifiers !== [])
+            || ($macro['returns'] === 'column' && array_intersect_key($modifiers, ['nullable' => true, 'unsigned' => true, 'type' => true, 'change' => true]) !== [])) {
+            return false;
+        }
+
+        $connection = $scope['connection'];
+        $description = new BlueprintMacroCall(
+            $scope['creating'],
+            fn (int $position, string $parameter, ?string $default): ?string => $this->getNameArgument($call, $position, $parameter, $default, $table),
+            function (string $column) use ($table, $connection): ?bool {
+                $stored = $this->resolveColumnName($connection, $table, $column);
+
+                if ($stored === null || isset($table->columns[$stored])) {
+                    return $stored !== null && $table->columns[$stored]->type !== null ? true : null;
+                }
+
+                return $table->complete ? false : null;
+            },
+        );
+        $macro['extension']->apply($name, $description);
+
+        foreach ($description->changes as $change) {
+            $column = $change['name'];
+
+            if (isset($change['type'])) {
+                if ($column === null) {
+                    $this->addUnnamedColumn($table, false);
+                } else {
+                    $this->setColumn($connection, $table, $column, strtolower($change['type']), $change['unsigned'], $change['nullable']);
+                }
+            } else {
+                $stored = $column === null ? null : $this->resolveColumnName($connection, $table, $column);
+
+                if ($stored === null) {
+                    return false;
+                }
+
+                $table->dropColumn($stored);
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -2700,7 +2754,7 @@ class SchemaAggregator
     /**
      * Get the expression a call passes for a parameter, by name or position.
      *
-     * An unpacked argument stands for its position and every later one, so its value is not constant.
+     * An unpack may supply any remaining position unless the call names the parameter explicitly.
      */
     private function getArgument(PhpParser\Node\Expr\CallLike $call, int $position, string $parameter): ?PhpParser\Node\Expr
     {
@@ -2708,17 +2762,16 @@ class SchemaAggregator
             return null;
         }
 
+        $unpacked = null;
         foreach ($call->getArgs() as $index => $argument) {
-            $matches = $argument->name !== null
-                ? $argument->name->toString() === $parameter
-                : $index === $position || ($argument->unpack && $index < $position);
-
-            if ($matches) {
+            if ($argument->unpack) {
+                $unpacked ??= $argument->value;
+            } elseif ($argument->name !== null ? $argument->name->toString() === $parameter : $index === $position) {
                 return $argument->value;
             }
         }
 
-        return null;
+        return $unpacked;
     }
 
     /**

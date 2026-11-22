@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config;
 use Hypervel\Testbench\Foundation\Application as Testbench;
+use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 
 use function define;
 use function defined;
@@ -43,9 +44,15 @@ class ApplicationResolver
 
         // Boot the disposable runtime copy, so analysis never writes caches into committed files, and
         // discover the package's own providers and aliases as an installing application would.
-        return Testbench::create(options: [
-            'extra' => $config->getExtraAttributes(),
-            'discovers_root_package' => true,
-        ]);
+        return Testbench::create(
+            resolvingCallback: static function (Application $app) use ($config): void {
+                $app->instance(Config::class, $config);
+                (new LoadMigrationsFromArray($config['migrations'] ?? []))->bootstrap($app);
+            },
+            options: [
+                'extra' => $config->getExtraAttributes(),
+                'discovers_root_package' => true,
+            ],
+        );
     }
 }

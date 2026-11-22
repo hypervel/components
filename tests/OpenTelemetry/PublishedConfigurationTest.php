@@ -143,6 +143,10 @@ class PublishedConfigurationTest extends TestCase
         $this->assertSame(1234, $configuration['metrics']['export_interval']);
         $this->assertSame('delta', $configuration['metrics']['temporality']);
         $this->assertSame('traceidratio', $configuration['traces']['sampler']);
+        $this->assertSame('App\Tracing\CustomSampler', $this->withEnvironment(
+            ['OTEL_TRACES_SAMPLER' => 'App\Tracing\CustomSampler'],
+            fn (): string => $this->publishedConfiguration()['traces']['sampler'],
+        ));
         $this->assertSame(0.25, $configuration['traces']['sampler_arg']);
         $this->assertSame('http/json', $configuration['exporters']['otlp']['protocol']);
         $this->assertSame([

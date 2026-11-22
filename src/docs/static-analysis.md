@@ -2,7 +2,6 @@
 
 - [Introduction](#introduction)
 - [Installation](#installation)
-    - [Analyzing Packages](#analyzing-packages)
     - [Checking Test Doubles](#checking-test-doubles)
     - [Runtime Requirements](#runtime-requirements)
 - [Configuration](#configuration)
@@ -24,6 +23,11 @@
     - [The `collection-of` Type](#collection-of)
     - [The `builder-of` Type](#builder-of)
     - [The `relation-of` Type](#relation-of)
+- [Packages](#packages)
+    - [Analyzing Packages](#analyzing-packages)
+    - [Shipping Analysis Support](#shipping-analysis-support)
+    - [Describing Blueprint Macros](#describing-blueprint-macros)
+    - [Migration Connections](#migration-connections)
 - [Fixing and Ignoring Diagnostics](#fixing-and-ignoring-diagnostics)
     - [Environment Variables](#environment-variables)
     - [Casting Environment Variables](#casting-environment-variables)
@@ -110,11 +114,6 @@ If your project uses the [PHPStan extension installer](https://github.com/phpsta
 
 You should load the extension whenever you analyze Hypervel code. Without it, PHPStan cannot resolve some framework PHPDoc types, such as eager loading arrays, and falls back to the native declarations.
 
-<a name="analyzing-packages"></a>
-### Analyzing Packages
-
-To analyze a package, install `hypervel/testbench` as a development dependency. PHPStan uses the providers, configuration and package discovery settings in your `testbench.yaml` file, just like your package's tests. Authentication types come from the Testbench application, where `AUTH_MODEL` or the workbench `User` model selects the user model.
-
 <a name="checking-test-doubles"></a>
 ### Checking Test Doubles
 
@@ -190,6 +189,7 @@ Parameters that accept directories take absolute paths, or paths relative to the
 | `checkBindingCycles` | `true` | [Binding Cycles](#binding-cycles) |
 | `checkBindWhenConditions` | `true` | [Conditional Bindings](#conditional-bindings) |
 | `databaseMigrationsPath` | `[]` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
+| `migrationConnections` | `[]` | [Migration Connections](#migration-connections) |
 | `squashedMigrationsPath` | `[]` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
 | `disableMigrationScan` | `false` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
 | `disableSchemaScan` | `false` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
@@ -368,7 +368,9 @@ $schema->create('events', function (Blueprint $table) {
 });
 ```
 
-Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. The nested set and Scout `searchable` schema macros are the exception: their columns are read like any other column. A `switch` statement whose case can end early, such as through a `break` inside an `if`, makes the tables it changes unknown. When a migration, its base class or one of its traits assigns the `$connection` property outside the `down` method, such as in a constructor, the connection its calls use by default is unknown. A trait method a migration renames with `as` or selects with `insteadof`, or a method called by a dynamic name such as `$this->{$method}()`, makes every connection's schema unknown. A dynamic method name on the `Schema` facade or a schema builder, such as `Schema::{$method}()`, makes that connection's schema unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
+Dynamic migration code can limit attribute typing. Loops, helpers that receive a blueprint, and Blueprint macros without a [description](#describing-blueprint-macros) make the table unknown. The nested set and Scout `searchable` macros already have descriptions. A `switch` statement whose case can end early, such as through a `break` inside an `if`, makes the tables it changes unknown. PHPStan uses the [migration's effective getter](#migration-connections) to select its connection. When a migration, its base class or one of its traits assigns the `$connection` property outside the `down` method, such as in a constructor, the connection its calls use by default is unknown. A trait method a migration renames with `as` or selects with `insteadof`, or a method called by a dynamic name such as `$this->{$method}()`, makes every connection's schema unknown. A dynamic method name on the `Schema` facade or a schema builder, such as `Schema::{$method}()`, makes that connection's schema unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
+
+A migration whose `shouldRun()` returns `false` is skipped. PHPStan reads literal booleans and boolean configuration values with literal keys. For guards it cannot read, it allows for both outcomes.
 
 Use the `Schema` and `DB` facades for schema changes. Unlike a schema builder, a database connection stored in a variable is not followed, so `$connection = DB::connection('analytics')` makes that connection's schema unknown, even if the connection only updates rows. Schema changes through connections obtained in other ways, such as from a property or `app('db')`, are not followed either. To target another database or schema, configure a connection and select it instead of relying on `USE` or `SET search_path` across separate SQL calls.
 
@@ -684,6 +686,104 @@ A relationship the analysis cannot resolve, such as a name that is not staticall
 ### The `relation-of` Type
 
 A `relation-of<User, 'posts'>` is the relation the model's relationship method declares, such as `HasMany<Post, User>`. Like `builder-of`, it accepts template types, nested paths and column lists. When the name may be one of several relationships, the type is a union of their relations, so code receiving it must work with each of them. A relationship the analysis cannot resolve gives `Relation<*, *, *>`.
+
+<a name="packages"></a>
+## Packages
+
+<a name="analyzing-packages"></a>
+### Analyzing Packages
+
+To analyze a package, install `hypervel/testbench` as a development dependency. PHPStan boots your package's providers and uses the environment and discovery settings in `testbench.yaml`. If a provider registers a service or macro only when a feature is enabled, enable it in the YAML file's `env` section. Authentication types come from this application, where `AUTH_MODEL` or the workbench `User` model selects the user model.
+
+PHPStan reads the migrations listed under `migrations` as well as Testbench's default migrations. Use a package-relative path such as `workbench/database/migrations` for your package's migrations. Testbench resolves paths starting with `./` or `../` from the test application's base directory. Set `workbench.install` to `false` or `TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS` to `true` to omit the defaults. Setting `migrations: false` turns off both the listed and default Testbench migrations. Migrations registered by providers are still available.
+
+<a name="shipping-analysis-support"></a>
+### Shipping Analysis Support
+
+You may ship a PHPStan configuration file with your package. For example, to distribute an `extension.neon` file from the package root, add it to `composer.json`:
+
+```json
+{
+    "extra": {
+        "phpstan": {
+            "includes": ["extension.neon"]
+        }
+    }
+}
+```
+
+New Hypervel applications use PHPStan's extension installer, which loads this file automatically from installed packages. Projects without the installer can include it from `vendor/acme/billing/extension.neon` in their PHPStan config. Include it only once. To analyze the package itself, include `extension.neon` in its own `phpstan.neon`, since the installer only discovers dependencies.
+
+The file may configure `hypervel/phpstan`, register PHPStan services, or load stubs. Maps such as `eloquentBuilderMacros` combine distinct keys. An application's own entry wins for the same key. Classes referenced by the file belong in the package's Composer `autoload` so they are available to consumers. Projects using Hypervel's analysis features should install `hypervel/phpstan` as a development dependency. If the package specifies `phpstan/phpstan` in `require`, the installer needs a version constraint with both a lower and an upper bound.
+
+<a name="describing-blueprint-macros"></a>
+### Describing Blueprint Macros
+
+PHPStan discovers the signatures of [macros registered during boot](#configuration-and-services). To also infer model properties from a Blueprint macro, describe the columns it adds or drops. For example, a billing package could describe its invoice reference, customer and amount columns:
+
+```php
+namespace Acme\Billing\PHPStan;
+
+use Acme\Billing\BillingSchema;
+use Hypervel\PHPStan\Schema\BlueprintMacroCall;
+use Hypervel\PHPStan\Schema\BlueprintMacroExtension;
+
+class BillingBlueprintMacros implements BlueprintMacroExtension
+{
+    public function getMacros(): array
+    {
+        return array_fill_keys(['invoiceReference', 'billingCustomer', 'currencyAmount'], BillingSchema::class);
+    }
+
+    public function apply(string $macro, BlueprintMacroCall $call): void
+    {
+        if ($macro === 'invoiceReference') {
+            $call->addColumn('string', 'invoice_reference');
+        } elseif ($macro === 'billingCustomer') {
+            $call->addColumn('uuid', 'billing_customer_id', nullable: ! $call->creating());
+        } else {
+            $column = $call->name(0, 'column');
+            $call->addColumn('decimal', $column);
+
+            if ($call->creating() && $column !== null && $column !== 'currency' && $call->hasColumn('currency') === false) {
+                $call->addColumn('char', 'currency');
+            }
+        }
+    }
+}
+```
+
+Register the description in the package's `extension.neon`:
+
+```neon
+services:
+    -
+        class: Acme\Billing\PHPStan\BillingBlueprintMacros
+        tags: [hypervel.blueprintMacroExtension]
+```
+
+Map each macro name to the class that defines its closure. Macro names are case-sensitive. If an application replaces the closure with one from another class, PHPStan stops using the package's description. Only one extension may describe a given live macro.
+
+If a description uses helper classes or configured values, implement `BlueprintMacroExtensionWithInputs`. Return those classes and values from `getInputs()`, for example `['classes' => [BillingColumns::class], 'configuration' => ['currency' => $this->currencyColumn]]`. PHPStan uses these inputs to refresh cached column information.
+
+Use `name($position, $parameter, $default)` to read a positional or named string argument. An omitted argument uses the optional default, and an unreadable argument returns `null`. Use Blueprint type names with `addColumn($type, $name, nullable: ..., unsigned: ...)`, or call `dropColumn($name)`. Adding a column with an unknown name preserves the known columns. Dropping one with an unknown name makes the table unknown. `hasColumn()` sees the table as the macro found it, including earlier calls in the same callback. It returns `null` when presence is uncertain.
+
+Declare the closure's return type. A foreign-key or index chain such as `billingCustomer()->cascadeOnDelete()` keeps the column facts. A column's `comment()` does too, while a column-changing modifier such as `nullable()` makes the table unknown. PHPStan also makes the table unknown when a chained call follows an untyped macro or one that returns the Blueprint.
+
+<a name="migration-connections"></a>
+### Migration Connections
+
+PHPStan reads a migration's `getConnection()`, including one inherited from a base class or trait, when it returns a literal name, the connection property, or a supported configuration read. For example, `return config('billing.connection', config()->string('database.default'));` selects the configured connection. The connection property may have a plain string or null default on the migration, a trait it uses, or its base class.
+
+When migrations inherit a getter that calls a service, map the base class that declares the getter to the service in `extension.neon`:
+
+```neon
+parameters:
+    migrationConnections:
+        Acme\Billing\Database\BillingMigration: Acme\Billing\BillingConfiguration@connection
+```
+
+PHPStan resolves the service from the application container and calls the named method once when a selected migration uses the mapped getter. Return a connection name or `null` for the default. A base class may import its getter from a trait. A getter used directly from a trait or overridden by a child is read on its own. PHPStan never instantiates the migration or runs its getter.
 
 <a name="fixing-and-ignoring-diagnostics"></a>
 ## Fixing and Ignoring Diagnostics

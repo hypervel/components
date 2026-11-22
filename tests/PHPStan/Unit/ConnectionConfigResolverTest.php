@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Unit;
 
+use Hypervel\Container\Container;
 use Hypervel\PHPStan\Properties\ConnectionConfig;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\Tests\PHPStan\Fixtures\OverridesConfig;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingConfiguration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingMigration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\SentinelMigration;
+use InvalidArgumentException;
 use PDO;
 use PHPStan\Testing\PHPStanTestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -29,7 +34,7 @@ class ConnectionConfigResolverTest extends PHPStanTestCase
             'read' => ['host' => 'replica', 'options' => [PDO::ATTR_STRINGIFY_FETCHES => true]],
             'write' => ['host' => 'primary'],
         ]], function (): void {
-            $resolver = new ConnectionConfigResolver;
+            $resolver = new ConnectionConfigResolver([]);
             $stringified = fn (string $name): array => array_map(
                 static fn (array $options): mixed => $options[PDO::ATTR_STRINGIFY_FETCHES],
                 $this->connection($resolver, $name)->fetchOptions,
@@ -51,7 +56,7 @@ class ConnectionConfigResolverTest extends PHPStanTestCase
             'database.connections.pooled' => ['driver' => 'mysql', 'database' => 'app', 'read' => ['host' => 'replica'], 'write' => ['host' => 'primary']],
             'database.connections.diverging' => ['driver' => 'mysql', 'database' => 'app', 'read' => ['database' => 'reporting'], 'write' => ['host' => 'primary']],
         ], function (): void {
-            $resolver = new ConnectionConfigResolver;
+            $resolver = new ConnectionConfigResolver([]);
 
             $this->assertSame('app', $this->connection($resolver, 'pooled')->defaultSchema);
             $this->assertNull($resolver->connection('diverging'));
@@ -69,11 +74,64 @@ class ConnectionConfigResolverTest extends PHPStanTestCase
             'database.connections.pooler' => ['driver' => 'pgsql', 'database' => 'app', 'migrations_connection' => 'direct'],
             'database.connections.direct' => ['driver' => 'pgsql', 'database' => 'app'],
         ], function (): void {
-            $resolver = new ConnectionConfigResolver;
+            $resolver = new ConnectionConfigResolver([]);
 
             $this->assertSame('direct', $this->connection($resolver, 'pooler')->owner);
             $this->assertSame('direct', $this->connection($resolver, 'direct')->owner);
         });
+    }
+
+    #[Test]
+    public function itRecordsTheBooleanInputsOfMigrationGuards(): void
+    {
+        $this->withConfig(['billing.enabled' => false, 'billing.invalid' => 'true'], function (): void {
+            $resolver = new ConnectionConfigResolver([]);
+
+            foreach (['billing.enabled', 'billing.invalid', 'billing.missing'] as $key) {
+                $resolver->getConfiguredBoolean($key);
+            }
+
+            $this->assertSame([
+                'billing.enabled' => [true, false],
+                'billing.invalid' => [true, null],
+                'billing.missing' => [false, null],
+            ], $resolver->getConfiguredBooleans());
+            $this->assertSame(array_keys($resolver->getConfiguredBooleans()), $resolver->getConsumedKeys());
+        });
+    }
+
+    #[Test]
+    public function itResolvesOnlyUsedMigrationCallbacksAndKeepsTheirResults(): void
+    {
+        $resolver = new ConnectionConfigResolver([
+            BillingMigration::class => 'billing.config@connection',
+            SentinelMigration::class => BillingConfiguration::class . '@connection',
+        ]);
+        $container = new Container;
+        $service = new BillingConfiguration(null);
+        $container->instance('billing.config', $service);
+        $resolver->setContainer($container);
+        $instances = BillingConfiguration::$instances;
+
+        $this->assertNull($resolver->resolveMigrationConnection('unmapped'));
+        $this->assertSame([true, null], $resolver->resolveMigrationConnection(BillingMigration::class));
+        $service->name = 5;
+        $this->assertSame([true, null], $resolver->resolveMigrationConnection(BillingMigration::class));
+        $this->assertSame(1, $service->calls);
+        $this->assertSame($instances, BillingConfiguration::$instances);
+
+        $container->instance(BillingConfiguration::class, $service);
+        $this->assertSame([false, null], $resolver->resolveMigrationConnection(SentinelMigration::class));
+    }
+
+    #[Test]
+    public function itRequiresAMethodOnAMappedConnectionCallback(): void
+    {
+        $resolver = new ConnectionConfigResolver([BillingMigration::class => BillingConfiguration::class]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(BillingMigration::class);
+        $resolver->resolveMigrationConnection(BillingMigration::class);
     }
 
     /**

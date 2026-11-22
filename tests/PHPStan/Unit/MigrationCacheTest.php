@@ -4,16 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Unit;
 
+use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\MigrationCache;
 use Hypervel\PHPStan\Properties\SchemaConnection;
 use Hypervel\PHPStan\Properties\SchemaTable;
+use Hypervel\PHPStan\Schema\BlueprintMacroCall;
+use Hypervel\PHPStan\Schema\BlueprintMacroExtension;
+use Hypervel\PHPStan\Schema\BlueprintMacroExtensionWithInputs;
+use Hypervel\Scout\SearchableSchema;
 use Hypervel\Testing\ParallelTesting;
-use Hypervel\Tests\PHPStan\TestCase;
+use Hypervel\Tests\PHPStan\Fixtures\CreatesMigrationHelpers;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingConfiguration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingMigration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\ReboundBillingConfiguration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\SentinelMigration;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPStan\DependencyInjection\Container as PHPStanContainer;
+use PHPStan\Testing\PHPStanTestCase;
 use ReflectionProperty;
 use SplFileInfo;
 
@@ -24,8 +38,11 @@ use function mkdir;
 use function touch;
 use function unlink;
 
-class MigrationCacheTest extends TestCase
+class MigrationCacheTest extends PHPStanTestCase
 {
+    use CreatesMigrationHelpers;
+    use VerifiesDoubles;
+
     protected string $cacheDirectory;
 
     protected Repository $config;
@@ -46,7 +63,7 @@ class MigrationCacheTest extends TestCase
         $this->config = new Repository;
         $container->instance('config', $this->config);
 
-        $this->resolver = new ConnectionConfigResolver;
+        $this->resolver = new ConnectionConfigResolver([]);
         $this->resolver->setContainer($container);
         $this->cache = new MigrationCache($this->resolver, $this->cacheDirectory, true);
     }
@@ -254,7 +271,7 @@ class MigrationCacheTest extends TestCase
 
         $container = new Container;
         $container->instance('config', $this->config);
-        $resolver = new ConnectionConfigResolver;
+        $resolver = new ConnectionConfigResolver([]);
         $resolver->setContainer($container);
 
         (new MigrationCache($resolver, $this->cacheDirectory, true))->remember($migrationFiles, [], [], function (): never {
@@ -264,10 +281,66 @@ class MigrationCacheTest extends TestCase
         $this->assertSame(['analytics.connection'], $resolver->getConsumedKeys());
     }
 
-    /**
-     * An application macro replacing a first-party schema macro makes its changes unknown, so the entry
-     * aggregated with the first-party macro no longer applies.
-     */
+    public function testGuardAndMappedServiceChangesInvalidateOnlyUsedConnections(): void
+    {
+        $mapping = [
+            BillingMigration::class => BillingConfiguration::class . '@connection',
+            SentinelMigration::class => 'unused@connection',
+        ];
+        $service = new BillingConfiguration('mysql');
+        $this->config->set('billing.enabled', true);
+        $aggregations = 0;
+
+        $remember = function (BillingConfiguration $service) use ($mapping, &$aggregations): void {
+            $container = new Container;
+            $container->instance('config', $this->config);
+            $container->instance(BillingConfiguration::class, $service);
+            $resolver = new ConnectionConfigResolver($mapping);
+            $resolver->setContainer($container);
+            (new MigrationCache($resolver, $this->cacheDirectory, true))->remember([], [], $mapping, function () use ($resolver, &$aggregations): array {
+                ++$aggregations;
+                if ($resolver->getConfiguredBoolean('billing.enabled')[1]) {
+                    $resolver->resolveMigrationConnection(BillingMigration::class);
+                }
+
+                return self::schema([]);
+            });
+        };
+
+        $remember($service);
+        $remember($service);
+        $this->assertSame(1, $aggregations);
+        $service->name = null;
+        $remember($service);
+        $this->assertSame(2, $aggregations);
+        $replacement = new ReboundBillingConfiguration(null);
+        $remember($replacement);
+        $this->assertSame(3, $aggregations);
+        $this->config->set('billing.enabled', false);
+        $remember($replacement);
+        $remember($replacement);
+        $this->assertSame(4, $aggregations);
+        $this->assertSame(1, $replacement->calls);
+    }
+
+    public function testChangingAMacroDescriptionInputInvalidatesTheEntry(): void
+    {
+        $aggregations = 0;
+
+        foreach (['search_vector', 'search_vector', 'document_vector'] as $column) {
+            $container = Double::for(PHPStanContainer::class)->strict();
+            $container->expects('getServicesByTag')->with(BlueprintMacroExtension::TAG)->returns([new ConfigurableSearchableMacro($column)]);
+            $configuration = $this->createMigrationHelper(extensions: $container)->getSchemaConfiguration();
+            $this->cache->remember([], [], $configuration, function () use (&$aggregations): array {
+                ++$aggregations;
+
+                return self::schema([]);
+            });
+        }
+
+        $this->assertSame(2, $aggregations);
+    }
+
     public function testReplacingAKnownSchemaMacroInvalidatesTheEntry(): void
     {
         $migrationFiles = [new SplFileInfo($this->createTempFile('mig1.php'))];
@@ -278,18 +351,23 @@ class MigrationCacheTest extends TestCase
             return self::schema([]);
         };
 
-        $this->cache->remember($migrationFiles, [], $this->resolver->getSchemaConfiguration(), $aggregate);
+        $remember = fn () => $this->cache->remember($migrationFiles, [], $this->createMigrationHelper()->getSchemaConfiguration(), $aggregate);
+        $remember();
 
         $macro = (new ReflectionProperty(Blueprint::class, 'macros'))->getValue()['searchable'];
         Blueprint::macro('searchable', function (): void {});
 
         try {
-            $this->cache->remember($migrationFiles, [], $this->resolver->getSchemaConfiguration(), $aggregate);
+            $remember();
+            Blueprint::macro('searchable', Closure::bind(static fn (): ColumnDefinition => new ColumnDefinition, null, SearchableSchema::class));
+            $remember();
+            Blueprint::macro('searchable', $macro);
+            $remember();
         } finally {
             Blueprint::macro('searchable', $macro);
         }
 
-        $this->assertSame(2, $calls);
+        $this->assertSame(4, $calls);
     }
 
     /**
@@ -342,5 +420,45 @@ class MigrationCacheTest extends TestCase
         touch($path);
 
         return $path;
+    }
+
+    /** @return string[] */
+    public static function getAdditionalConfigFiles(): array
+    {
+        return [__DIR__ . '/../phpstan-tests.neon'];
+    }
+}
+
+class ConfigurableSearchableMacro implements BlueprintMacroExtensionWithInputs
+{
+    /**
+     * Create a description with the given default vector column.
+     */
+    public function __construct(private string $column)
+    {
+    }
+
+    /**
+     * Get the macro described by this extension.
+     */
+    public function getMacros(): array
+    {
+        return ['searchable' => SearchableSchema::class];
+    }
+
+    /**
+     * Get the configuration that determines the column name.
+     */
+    public function getInputs(): array
+    {
+        return ['configuration' => ['column' => $this->column]];
+    }
+
+    /**
+     * Describe the search vector column.
+     */
+    public function apply(string $macro, BlueprintMacroCall $call): void
+    {
+        $call->addColumn('tsvector', $call->name(3, 'tsvector', $this->column));
     }
 }

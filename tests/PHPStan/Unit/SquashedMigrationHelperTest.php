@@ -246,6 +246,7 @@ class SquashedMigrationHelperTest extends PHPStanTestCase
                 self::getContainer()->getByType(ReflectionProvider::class),
                 self::getContainer()->getByType(InitializerExprTypeResolver::class),
                 self::getContainer()->getByType(ConnectionConfigResolver::class),
+                self::getContainer(),
             ))->initializeConnections();
         } finally {
             config(['database.default' => $default]);

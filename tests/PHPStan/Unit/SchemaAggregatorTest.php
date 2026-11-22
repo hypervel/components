@@ -7,19 +7,26 @@ namespace Hypervel\Tests\PHPStan\Unit;
 use Hypervel\Database\Eloquent\Concerns\HasUniqueStringIds;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\NestedSet\NestedSet;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\SchemaAggregator;
 use Hypervel\PHPStan\Properties\SchemaConnection;
 use Hypervel\PHPStan\Properties\SchemaTable;
 use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingIntegerKeyType;
+use Hypervel\Tests\PHPStan\Fixtures\Bootstrap\Billing\BillingBlueprintMacros;
+use Hypervel\Tests\PHPStan\Fixtures\Bootstrap\Billing\BillingSchema;
+use Hypervel\Tests\PHPStan\Fixtures\CreatesMigrationHelpers;
 use Hypervel\Tests\PHPStan\Fixtures\OverridesConfig;
 use Hypervel\Tests\PHPStan\Fixtures\ReadsSchemaFacts;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\Author;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\BillingConfiguration;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\ChainBlueprintMacros;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\ConnectionPropertyMigration;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\Constants;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\InheritedConstants;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\KeyedByUuid;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\Person;
+use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\SentinelMigration;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\TypedConstants;
 use PHPStan\Parser\Parser;
 use PHPStan\Reflection\InitializerExprTypeResolver;
@@ -34,6 +41,7 @@ use function array_map;
 
 class SchemaAggregatorTest extends PHPStanTestCase
 {
+    use CreatesMigrationHelpers;
     use OverridesConfig;
     use ReadsSchemaFacts;
 
@@ -390,6 +398,8 @@ class SchemaAggregatorTest extends PHPStanTestCase
         $this->assertSame($bounds + ['parent_id' => ['string', true]], $this->columns($aggregator, 'ulid_categories'));
         $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'flat_categories'));
         $this->assertTrue($this->table($aggregator, 'flat_categories')->complete);
+        [$source] = $this->fileNames(NestedSet::class);
+        $this->assertArrayHasKey($source, $this->table($aggregator, 'categories')->sources);
     }
 
     #[Test]
@@ -400,7 +410,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
                 $table->string('title');
                 $table->searchable(['title']);
                 $table->searchable(['title'], tsvector: 'title_vector');
-                $table->searchable(['title'], tsvector: 'body_vector');
+                $table->searchable(...[['title']], tsvector: 'body_vector');
             });
 
             Schema::table('posts', fn (Blueprint $table) => $table->dropSearchable(tsvector: 'title_vector'));
@@ -441,6 +451,99 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
         $this->assertSame([], $this->columns($aggregator, 'posts', 'pgsql'));
         $this->assertFalse($this->table($aggregator, 'posts', 'pgsql')->complete);
+    }
+
+    #[Test]
+    public function itReadsBillingMacrosInBlueprintOrder(): void
+    {
+        $property = new ReflectionProperty(Blueprint::class, 'macros');
+        $original = $property->getValue();
+
+        try {
+            BillingSchema::register();
+            $aggregator = $this->aggregate(<<<'PHP'
+                Schema::create('invoices', function (Blueprint $table) {
+                    $table->invoiceReference()->comment('external key');
+                    $table->billingCustomer()->cascadeOnDelete();
+                    $table->string('currency')->nullable();
+                    $table->currencyAmount(column: 'net');
+                    $table->currencyAmount('gross');
+                });
+                Schema::create('history', fn (Blueprint $table) => $table->currencyAmount('total'));
+                Schema::table('history', fn (Blueprint $table) => $table->billingCustomer());
+                Schema::create('adjustments', function (Blueprint $table) {
+                    $table->invoiceReference();
+                    $table->string($name);
+                    $table->currencyAmount($name);
+                });
+                Schema::create('aliased', fn (Blueprint $table) => $table->currencyAmount('currency'));
+                Schema::create('credits', function (Blueprint $table) {
+                    if ($unknown) {
+                        $table->string('currency');
+                    }
+                    $table->currencyAmount('amount');
+                });
+                PHP);
+        } finally {
+            $property->setValue(null, $original);
+        }
+
+        $this->assertSame([
+            'invoice_reference' => ['string', false],
+            'billing_customer_id' => ['string', false],
+            'currency' => ['string', true],
+            'net' => ['numeric-string', false],
+            'gross' => ['numeric-string', false],
+        ], $this->columns($aggregator, 'invoices'));
+        $this->assertSame(['string', true], $this->columns($aggregator, 'history')['billing_customer_id']);
+        $this->assertSame(['string', false], $this->columns($aggregator, 'history')['currency']);
+        $this->assertSame(['currency' => ['numeric-string', false]], $this->columns($aggregator, 'aliased'));
+        $this->assertSame(['invoice_reference' => ['string', false]], $this->columns($aggregator, 'adjustments'));
+        $this->assertFalse($this->table($aggregator, 'adjustments')->complete);
+        $this->assertSame([null, true], $this->columns($aggregator, 'credits')['currency']);
+        [$source] = $this->fileNames(BillingBlueprintMacros::class);
+        $this->assertArrayHasKey($source, $this->table($aggregator, 'invoices')->sources);
+        $this->assertArrayNotHasKey($source, $aggregator->sources);
+        $this->aggregate(<<<'PHP'
+            Schema::table('history', function (Blueprint $table) {
+                $table->dropColumn('currency');
+                $table->currencyAmount('adjustment');
+            });
+            PHP, aggregator: $aggregator);
+        $this->assertArrayNotHasKey('currency', $this->columns($aggregator, 'history'));
+    }
+
+    #[Test]
+    public function itOnlyAppliesInvokedLinksAfterDescribedMacros(): void
+    {
+        $property = new ReflectionProperty(Blueprint::class, 'macros');
+        $original = $property->getValue();
+
+        try {
+            ChainBlueprintMacros::register();
+            foreach ([
+                'sameBlueprint()->string("extra")' => false,
+                'sameBlueprint()->string(...)' => true,
+                'firstColumn()->nullable()' => false,
+                'firstColumn()->name("renamed")' => false,
+                'firstColumn()->when(true, fn ($column) => $column->nullable())' => false,
+                'firstColumn()->comment("key")' => true,
+            ] as $chain => $complete) {
+                $aggregator = $this->aggregate(<<<PHP
+                    Schema::create('posts', function (Blueprint \$table) {
+                        \$table->string('title');
+                        \$table->string('dropped');
+                        \$table->dropColumn('dropped');
+                        \$table->{$chain};
+                    });
+                    PHP);
+
+                $this->assertSame($complete, $this->table($aggregator, 'posts')->complete, $chain);
+                $this->assertSame($complete ? ['title' => ['string', false]] : [], $this->columns($aggregator, 'posts'), $chain);
+            }
+        } finally {
+            $property->setValue(null, $original);
+        }
     }
 
     /**
@@ -679,6 +782,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
             'set' => "\$table->string('name')->set('type', 'integer');",
             'offsetSet' => "\$table->string('name')->offsetSet('nullable', true);",
             'offsetUnset' => "\$table->string('name')->nullable()->offsetUnset('nullable');",
+            'dynamic' => "\$table->string('name')->{\$modifier}();",
             'foreign key' => "\$table->foreignId('user_id')->constrained()->fill(['onDelete' => 'cascade']);",
         ] as $case => $statement) {
             $aggregator = $this->aggregate(<<<PHP
@@ -750,7 +854,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
             Schema::table('users', function (Blueprint $table) {
                 $table->integer('name')->change();
-                $table->removeColumn('name');
+                $table->removeColumn('name')->string(...);
             });
         PHP);
 
@@ -1525,42 +1629,145 @@ class SchemaAggregatorTest extends PHPStanTestCase
         }
     }
 
-    /**
-     * A class between the migration and Migration, or a trait the migration uses, can choose the connection in a
-     * way the analysis does not read.
-     */
     #[Test]
-    public function itReadsOnlyTheConnectionInheritedFromMigration(): void
+    public function itReadsTheEffectiveMigrationConnection(): void
     {
-        $migrations = [
-            'Migration' => ['Migration', ''],
-            'ConnectionPropertyMigration' => ['ConnectionPropertyMigration', ''],
-            'ConnectionMethodMigration' => ['ConnectionMethodMigration', ''],
-            'ConnectionWritingMigration' => ['ConnectionWritingMigration', ''],
-            'trait method' => ['Migration', 'use ChoosesConnection;'],
-            'nested trait method' => ['Migration', 'use NestedChoosesConnection;'],
-            'trait property' => ['Migration', 'use DefinesConnection;'],
-            'trait alias' => ['Migration', 'use NamesConnection { connectionName as getConnection; }'],
-        ];
+        $default = config('database.default');
 
-        foreach ($migrations as $case => [$parent, $members]) {
-            $aggregator = $this->apply(<<<PHP
-                return new class extends {$parent}
-                {
-                    {$members}
+        $this->withConfig(['billing.connection' => 'pgsql'], function () use ($default): void {
+            foreach ([
+                'framework default' => ['Migration', '', $default],
+                'inherited property' => ['ConnectionPropertyMigration', '', 'pgsql'],
+                'child property' => ['ConnectionPropertyMigration', 'protected ?string $connection = "mysql";', 'mysql'],
+                'inherited getter' => ['ConnectionMethodMigration', '', 'pgsql'],
+                'inherited config getter' => ['BillingMigration', '', 'pgsql'],
+                'trait config getter' => ['Migration', 'use UsesBillingConnection;', 'pgsql'],
+                'trait method' => ['Migration', 'use ChoosesConnection;', 'pgsql'],
+                'nested trait method' => ['Migration', 'use NestedChoosesConnection;', 'pgsql'],
+                'trait overriding parent default' => ['Migration', 'use DefinesConnection;', 'pgsql'],
+                'trait property' => ['ConnectionPropertyMigration', 'use DefinesConnection;', 'pgsql'],
+                'runtime writer' => ['ConnectionWritingMigration', '', null],
+                'uninitialized' => ['Migration', 'protected ?string $connection;', null],
+                'local hook' => ['Migration', 'protected ?string $connection = null { get => $this->connection ?? "pgsql"; }', null],
+                'inherited hook' => ['HookedConnectionMigration', 'protected ?string $connection = null;', null],
+                'unreadable inherited getter' => ['SentinelMigration', '', null],
+                'trait alias' => ['Migration', 'use NamesConnection { connectionName as getConnection; }', null],
+            ] as $case => [$parent, $members, $target]) {
+                $aggregator = $this->apply(<<<PHP
+                    return new class extends {$parent} {
+                        {$members}
+                        public function up(): void
+                        {
+                            Schema::create('posts', fn (Blueprint \$table) => \$table->string('title'));
+                        }
+                    };
+                    PHP, $this->aggregate("Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));", $default));
 
-                    public function up(): void
-                    {
-                        Schema::create('posts', fn (Blueprint \$table) => \$table->string('title'));
-                    }
-                };
-            PHP, $this->aggregate("Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));", config('database.default')));
+                $this->assertSame($target !== null, $this->schema($aggregator, $default)->complete, $case);
+                $this->assertSame($target === null ? null : ['title' => ['string', false]], $this->columns($aggregator, 'posts', $target ?? $default), $case);
+            }
+        });
+    }
 
-            $known = $case === 'Migration';
+    #[Test]
+    public function itUsesMappedConnectionsOnlyForTheEffectiveGetter(): void
+    {
+        $resolver = new ConnectionConfigResolver([SentinelMigration::class => BillingConfiguration::class . '@connection']);
+        $aggregator = $this->apply(<<<'PHP'
+            return new class extends SentinelMigration {
+                public function up(): void {
+                    Schema::connection($this->getConnection())->create('mapped', fn (Blueprint $table) => $table->string('name'));
+                }
+            };
+            PHP, resolver: $resolver);
+        $this->apply(<<<'PHP'
+            return new class extends SentinelMigration {
+                public function getConnection(): string { return 'mysql'; }
+                public function up(): void { Schema::create('local', fn (Blueprint $table) => $table->string('name')); }
+            };
+            PHP, $aggregator);
 
-            $this->assertSame($known, $this->schema($aggregator, config('database.default'))->complete, $case);
-            $this->assertSame($known ? ['title' => ['string', false]] : null, $this->columns($aggregator, 'posts', config('database.default')), $case);
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'mapped', 'pgsql'));
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'local'));
+        $this->assertSame(0, SentinelMigration::$executions);
+    }
+
+    #[Test]
+    public function itSkipsMappedServicesBehindAFalseGuard(): void
+    {
+        $resolver = new ConnectionConfigResolver([SentinelMigration::class => BillingConfiguration::class . '@connection']);
+        $aggregator = $this->apply(<<<'PHP'
+            return new class extends SentinelMigration {
+                public function shouldRun(): bool { return false; }
+                public function up(): void { Schema::create('skipped', fn (Blueprint $table) => $table->id()); }
+            };
+            PHP, resolver: $resolver);
+
+        $this->assertSame([], $resolver->getResolvedConnections());
+        $this->assertSame([], $aggregator->connections);
+        $this->assertSame(0, SentinelMigration::$executions);
+    }
+
+    #[Test]
+    public function itDoesNotApplyAbstractMigrationDeclarations(): void
+    {
+        $aggregator = $this->apply(<<<'PHP'
+            abstract class AbstractMigration extends Migration {
+                public function up(): void {
+                    Schema::connection('mysql')->create('skipped', fn (Blueprint $table) => $table->id());
+                }
+            }
+
+            return new class extends Migration {};
+            PHP);
+
+        $this->assertSame([], $aggregator->connections);
+    }
+
+    #[Test]
+    #[DataProvider('migrationGuards')]
+    public function itAppliesOnlyTheOutcomesAllowedByTheMigrationGuard(string $parent, string $guard, array $config, ?bool $runs): void
+    {
+        $aggregator = $this->aggregate("Schema::create('posts', fn (Blueprint \$table) => \$table->string('title'));");
+
+        $this->withConfig($config, fn () => $this->apply(<<<PHP
+            return new class {$parent} {
+                {$guard}
+                public function up(): void {
+                    Schema::connection('mysql')->table('posts', fn (Blueprint \$table) => \$table->string('extra'));
+                }
+            };
+            PHP, $aggregator));
+
+        $expected = ['title' => ['string', false]];
+        if ($runs !== false) {
+            $expected['extra'] = $runs === true ? ['string', false] : [null, true];
         }
+
+        $this->assertSame($expected, $this->columns($aggregator, 'posts'));
+    }
+
+    /**
+     * Get readable and undecidable migration guards.
+     */
+    public static function migrationGuards(): iterable
+    {
+        foreach ([
+            'literal true' => ['true', [], true],
+            'literal false' => ['false', [], false],
+            'enabled in config' => ['Config::boolean("billing.enabled")', ['billing.enabled' => true], true],
+            'disabled in config' => ['Config::boolean("billing.enabled")', ['billing.enabled' => false], false],
+            'missing key with default' => ['config("billing.missing", false)', [], false],
+            'missing key without default' => ['config()->get("billing.missing")', [], null],
+            'non-boolean config value' => ['Config::get("billing.enabled", false)', ['billing.enabled' => 1], null],
+            'service call' => ['app("feature")->enabled()', [], null],
+        ] as $case => [$expression, $config, $runs]) {
+            yield $case => ['extends Migration', "public function shouldRun(): bool { return {$expression}; }", $config, $runs];
+        }
+
+        yield 'inherited guard' => ['extends BillingMigration', '', ['billing.enabled' => false], false];
+        yield 'plain object' => ['', 'public function shouldRun(): bool { return false; }', [], true];
+        yield 'unknown parent' => ['extends UnresolvedMigration', 'public function shouldRun(): bool { return false; }', [], null];
     }
 
     /**
@@ -1841,7 +2048,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
     /** @return string[] */
     public static function getAdditionalConfigFiles(): array
     {
-        return [__DIR__ . '/../phpstan-tests.neon'];
+        return [__DIR__ . '/../phpstan-tests.neon', __DIR__ . '/../Fixtures/SchemaAggregator/extension.neon'];
     }
 
     /**
@@ -1869,7 +2076,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
     /**
      * Apply a migration file's statements, in the fixture namespace with its imports, to the aggregator.
      */
-    private function apply(string $statements, ?SchemaAggregator $aggregator = null): SchemaAggregator
+    private function apply(string $statements, ?SchemaAggregator $aggregator = null, ?ConnectionConfigResolver $resolver = null): SchemaAggregator
     {
         /** @var Parser $parser */
         $parser = self::getContainer()->getService('currentPhpVersionSimpleDirectParser');
@@ -1877,8 +2084,9 @@ class SchemaAggregatorTest extends PHPStanTestCase
         $aggregator ??= new SchemaAggregator(
             $this->createReflectionProvider(),
             self::getContainer()->getByType(InitializerExprTypeResolver::class),
-            self::getContainer()->getByType(ConnectionConfigResolver::class),
+            $resolver ?? self::getContainer()->getByType(ConnectionConfigResolver::class),
             $parser,
+            $this->createMigrationHelper()->getBlueprintMacros(),
         );
 
         $aggregator->addStatements($parser->parseString(<<<PHP

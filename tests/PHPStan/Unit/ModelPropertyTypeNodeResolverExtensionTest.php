@@ -35,8 +35,8 @@ class ModelPropertyTypeNodeResolverExtensionTest extends PHPStanTestCase
 
         $migrationPaths = $container->getByType(MigrationHelper::class)->getMigrationPaths();
 
-        // The workbench migrations a provider loads and the application's migrations.
-        self::assertCount(2, $migrationPaths);
+        // The provider and application paths, plus the paths registered from Testbench's configuration.
+        self::assertCount(4, $migrationPaths);
 
         foreach ($migrationPaths as $directory => $pattern) {
             self::assertSame('*_*.php', $pattern);

@@ -11,6 +11,7 @@ use App\MemberWithNonIncrementingStringKey;
 use App\MemberWithoutTimestampsAttribute;
 use App\MemberWithoutTimestampsTable;
 use App\UuidModel;
+use Hypervel\Database\Migrations\Migration;
 use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\MigrationCache;
 use Hypervel\PHPStan\Properties\MigrationHelper;
@@ -22,6 +23,8 @@ use Hypervel\PHPStan\Properties\SquashedMigrationHelper;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Tests\PHPStan\Fixtures\OverridesConfig;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ModelCastsParsing\UnknownCastsModel;
 use ModelCastsParsing\VirtualCastModel;
 use PDO;
@@ -45,11 +48,13 @@ use PHPStan\Type\VerbosityLevel;
 use PHPUnit\Framework\Attributes\Test;
 use SplFileInfo;
 
+use function Hypervel\Testbench\default_migration_path;
 use function sys_get_temp_dir;
 
 class ModelPropertyHelperTest extends PHPStanTestCase
 {
     use OverridesConfig;
+    use VerifiesDoubles;
 
     private ReflectionProvider $reflectionProvider;
 
@@ -134,7 +139,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
         $this->withConfig(['database.connections.' . config('database.default') . '.options' => [PDO::ATTR_CASE => PDO::CASE_UPPER]], function (): void {
             $modelPropertyHelper = $this->buildModelPropertyHelper(
                 [__DIR__ . '/data/basic_migration'],
-                connectionConfigResolver: new ConnectionConfigResolver,
+                connectionConfigResolver: new ConnectionConfigResolver([]),
             );
             $member = $this->reflectionProvider->getClass(Member::class);
 
@@ -164,7 +169,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
                 $this->withConfig(['database.connections.' . config('database.default') . '.options' => [PDO::ATTR_ORACLE_NULLS => $nulls, PDO::ATTR_CASE => $case]], function () use ($castPayload, $castExtra, $payloadName, $extraName): void {
                     $modelPropertyHelper = $this->buildModelPropertyHelper(
                         [__DIR__ . '/data/fetch_options_migration'],
-                        connectionConfigResolver: new ConnectionConfigResolver,
+                        connectionConfigResolver: new ConnectionConfigResolver([]),
                     );
                     $member = $this->reflectionProvider->getClass(MemberWithJsonCasts::class);
 
@@ -176,7 +181,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
             $this->withConfig(['database.connections.' . config('database.default') . '.options' => [PDO::ATTR_ORACLE_NULLS => $nulls]], function () use ($createdAt, $payload, $extra): void {
                 $modelPropertyHelper = $this->buildModelPropertyHelper(
                     [__DIR__ . '/data/fetch_options_migration'],
-                    connectionConfigResolver: new ConnectionConfigResolver,
+                    connectionConfigResolver: new ConnectionConfigResolver([]),
                 );
                 $member = $this->reflectionProvider->getClass(Member::class);
 
@@ -187,7 +192,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
                 self::assertFalse($modelPropertyHelper->getDatabaseProperty($member, 'created_at')->getWritableType()->accepts(new NullType, true)->yes());
 
                 // A known type the driver's mapping does not cover reads as an unknown one.
-                $connectionConfigResolver = new ConnectionConfigResolver;
+                $connectionConfigResolver = new ConnectionConfigResolver([]);
                 $dumpedPropertyHelper = $this->buildModelPropertyHelper(
                     [],
                     new MigrationHelper(
@@ -198,6 +203,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
                         $this->reflectionProvider,
                         self::getContainer()->getByType(InitializerExprTypeResolver::class),
                         $connectionConfigResolver,
+                        self::getContainer(),
                     ),
                     [__DIR__ . '/data/schema/unmapped_type'],
                     $connectionConfigResolver,
@@ -228,7 +234,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
     #[Test]
     public function itLoadsMigrationsOnlyOnceWhenNoTablesAreFound(): void
     {
-        $migrationHelper = new class($this->parser, ['foobar'], $this->fileHelper, false, $this->reflectionProvider, self::getContainer()->getByType(InitializerExprTypeResolver::class), self::getContainer()->getByType(ConnectionConfigResolver::class)) extends MigrationHelper {
+        $migrationHelper = new class($this->parser, ['foobar'], $this->fileHelper, false, $this->reflectionProvider, self::getContainer()->getByType(InitializerExprTypeResolver::class), self::getContainer()->getByType(ConnectionConfigResolver::class), self::getContainer()) extends MigrationHelper {
             public int $migrationFileLookups = 0;
 
             /** @return SplFileInfo[] */
@@ -265,6 +271,23 @@ class ModelPropertyHelperTest extends PHPStanTestCase
     }
 
     #[Test]
+    public function itLeavesTheSchemaUnknownWhenOnlyAMigrationStubIsVisible(): void
+    {
+        $member = $this->reflectionProvider->getClass(Member::class);
+        $stubProvider = Double::for(ReflectionProvider::class)->strict();
+        $stubProvider->expects('hasClass')->with(Migration::class)->returns(true);
+        $stubProvider->expects('getClass')->with(Migration::class)->returns($member);
+        $migrations = Double::for(MigrationHelper::class)->strict();
+        $cache = Double::for(MigrationCache::class)->strict();
+
+        $helper = $this->buildModelPropertyHelper([], $migrations, reflectionProvider: $stubProvider, migrationCache: $cache);
+
+        $this->assertTrue($helper->hasDatabaseProperty($member, 'email')->maybe());
+        $migrations->unused();
+        $cache->unused();
+    }
+
+    #[Test]
     public function itTracksTheSchemaDirectoriesForFilesUsingAModel(): void
     {
         $container = self::getContainer();
@@ -272,7 +295,11 @@ class ModelPropertyHelperTest extends PHPStanTestCase
 
         $expected = [];
 
-        foreach ($container->getByType(MigrationHelper::class)->getMigrationPaths() as $directory => $pattern) {
+        $paths = $container->getByType(MigrationHelper::class)->getMigrationPaths();
+        self::assertArrayHasKey(default_migration_path(), $paths);
+        self::assertArrayHasKey('workbench/database/migrations', $paths);
+
+        foreach ($paths as $directory => $pattern) {
             self::assertSame('*_*.php', $pattern);
             $expected[] = ValueDependencyCollector::getId(DirectoryResultCacheValueExtension::class, $collector->getDirectoryKey($directory, $pattern));
         }
@@ -281,8 +308,8 @@ class ModelPropertyHelperTest extends PHPStanTestCase
             $expected[] = ValueDependencyCollector::getId(DirectoryResultCacheValueExtension::class, $collector->getDirectoryKey($directory, '*'));
         }
 
-        // The application's migration and schema directories, and the workbench migrations a provider loads.
-        self::assertCount(3, $expected);
+        // App migrations and dumps, the provider path, and both Testbench paths.
+        self::assertCount(5, $expected);
 
         $usingModel = $this->analyseValueDependencies(__DIR__ . '/data/model-schema-dependency.php');
 
@@ -319,6 +346,8 @@ class ModelPropertyHelperTest extends PHPStanTestCase
         ?MigrationHelper $migrationHelper = null,
         array $schemaPaths = [],
         ?ConnectionConfigResolver $connectionConfigResolver = null,
+        ?ReflectionProvider $reflectionProvider = null,
+        ?MigrationCache $migrationCache = null,
     ): ModelPropertyHelper {
         $connectionConfigResolver ??= self::getContainer()->getByType(ConnectionConfigResolver::class);
 
@@ -330,6 +359,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
             $this->reflectionProvider,
             self::getContainer()->getByType(InitializerExprTypeResolver::class),
             $connectionConfigResolver,
+            self::getContainer(),
         );
 
         $squashedMigrationHelper = new SquashedMigrationHelper(
@@ -356,9 +386,9 @@ class ModelPropertyHelperTest extends PHPStanTestCase
             $squashedMigrationHelper,
             $modelCastHelper,
             $modelHelper,
-            new MigrationCache($connectionConfigResolver, sys_get_temp_dir(), false),
+            $migrationCache ?? new MigrationCache($connectionConfigResolver, sys_get_temp_dir(), false),
             self::getContainer()->getByType(DeclarationDependencyTracker::class),
-            $this->reflectionProvider,
+            $reflectionProvider ?? $this->reflectionProvider,
             $connectionConfigResolver,
             self::getContainer()->getByType(DataTypeToPhpTypeConverter::class),
             self::getContainer()->getByType(ConfigSourceResolver::class),

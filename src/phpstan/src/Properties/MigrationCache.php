@@ -44,7 +44,7 @@ class MigrationCache
     private const string CACHE_PREFIX = 'hypervel_migrations_';
 
     /** Bump when the serialized entry, SchemaConnection/SchemaTable/SchemaColumn or the aggregation logic changes. */
-    private const string CACHE_FORMAT_VERSION = '10';
+    private const string CACHE_FORMAT_VERSION = '11';
 
     /**
      * Create a new migration cache instance.
@@ -120,6 +120,8 @@ class MigrationCache
 
             file_put_contents($tempPath, serialize([
                 'configuredNames' => $this->connectionConfigResolver->getConfiguredNames(),
+                'configuredBooleans' => $this->connectionConfigResolver->getConfiguredBooleans(),
+                'resolvedConnections' => $this->connectionConfigResolver->getResolvedConnections(),
                 'sourceHashes' => $sourceHashes,
                 ...$schema,
             ]));
@@ -146,7 +148,7 @@ class MigrationCache
             return null;
         }
 
-        /** @var array{configuredNames: array<string, array{bool, null|false|string}>, sourceHashes: array<string, false|string>, connections: array<string, SchemaConnection>, sources: array<string, true>}|false $data */
+        /** @var array{configuredNames: array<string, array{bool, null|false|string}>, configuredBooleans: array<string, array{bool, ?bool}>, resolvedConnections: array<string, array{service: class-string, result: array{bool, ?string}}>, sourceHashes: array<string, false|string>, connections: array<string, SchemaConnection>, sources: array<string, true>}|false $data */
         $data = @unserialize($content);
 
         if (! is_array($data)) {
@@ -159,8 +161,23 @@ class MigrationCache
             }
         }
 
+        foreach ($data['configuredBooleans'] as $key => $state) {
+            if ($this->connectionConfigResolver->getConfiguredBoolean($key) !== $state) {
+                return null;
+            }
+        }
+
         foreach ($data['sourceHashes'] as $source => $hash) {
             if (self::hashSource($source) !== $hash) {
+                return null;
+            }
+        }
+
+        // A changed guard or its source can make the migration skip the callback entirely.
+        foreach ($data['resolvedConnections'] as $class => $state) {
+            $this->connectionConfigResolver->resolveMigrationConnection($class);
+
+            if ($this->connectionConfigResolver->getResolvedConnections()[$class] !== $state) {
                 return null;
             }
         }
@@ -211,6 +228,7 @@ class MigrationCache
             PHP_VERSION,
             self::packageVersion('hypervel/phpstan'),
             self::packageVersion('hypervel/schema-parser'),
+            self::packageVersion('phpstan/phpstan'),
             serialize($configuration),
             ...$metadata,
         ]));
