@@ -90,9 +90,9 @@ class Horizon
     #[BootOnly]
     public static function use(string $connection): void
     {
-        $config = config("database.redis.{$connection}");
+        $config = config()->nullableArray("database.redis.{$connection}", null);
 
-        if (! is_array($config)) {
+        if ($config === null) {
             throw new Exception("Redis connection [{$connection}] has not been configured.");
         }
 

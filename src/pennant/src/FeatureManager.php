@@ -449,7 +449,7 @@ class FeatureManager
      */
     protected function getConfig(string $name): ?array
     {
-        return $this->container->make('config')->get("pennant.stores.{$name}");
+        return $this->container->make('config')->nullableArray("pennant.stores.{$name}", null);
     }
 
     /**

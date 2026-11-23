@@ -662,7 +662,7 @@ class SchemaAggregator
 
         $read = $this->getConfigRead($expr);
 
-        if ($read === null || ! in_array($read[0], ['get', 'string'], true)) {
+        if ($read === null || ! in_array($read[0], ['get', 'string', 'nullablestring'], true)) {
             return [false, null];
         }
 
@@ -670,6 +670,10 @@ class SchemaAggregator
         [$present, $value] = $this->connectionConfigResolver->getConfiguredName($key);
 
         if (! $present) {
+            if ($accessor === 'nullablestring' && $default === null) {
+                return [false, null];
+            }
+
             [$known, $value] = $default === null ? [true, null] : $this->evaluateConnectionName($default, $class, $method);
 
             if (! $known) {

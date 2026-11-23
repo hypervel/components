@@ -17,9 +17,21 @@ final class Configured
      */
     public static function string(string $key, ?string $default = null): ?string
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (Diagnostics treat values of the wrong type as missing.)
         $value = config($key);
 
         return is_string($value) && $value !== '' ? $value : $default;
+    }
+
+    /**
+     * Get a configuration record, treating malformed records as missing during diagnostics.
+     */
+    public static function array(string $key): ?array
+    {
+        // @phpstan-ignore hypervel.untypedConfigRead (Diagnostics inspect malformed configuration records.)
+        $value = config($key);
+
+        return is_array($value) ? $value : null;
     }
 
     /**
@@ -34,6 +46,7 @@ final class Configured
     {
         return array_values(array_filter(
             $keys,
+            // @phpstan-ignore hypervel.untypedConfigRead (Required configuration values can have several types.)
             static fn (string $key): bool => blank(config($key)),
         ));
     }

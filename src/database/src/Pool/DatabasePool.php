@@ -73,7 +73,7 @@ class DatabasePool extends ConnectionPool
         }
 
         /** @var array<string, mixed> $config */
-        $config = $configService->get($key);
+        $config = $configService->array($key);
 
         /** @var ConnectionFactory $factory */
         $factory = $container->make('db.factory');

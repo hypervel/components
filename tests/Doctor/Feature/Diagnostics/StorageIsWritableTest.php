@@ -60,6 +60,12 @@ class StorageIsWritableTest extends TestCase
 
     public function testReportsMissingWritableStorageDirectories(): void
     {
+        $cachePath = $this->basePath . '/file-cache';
+        config([
+            'cache.default' => 'file',
+            'cache.stores.file' => ['driver' => 'file', 'path' => $cachePath, 'lock_path' => false],
+        ]);
+
         $report = $this->app->make(Doctor::class)
             ->only('StorageIsWritable')->run();
 
@@ -67,6 +73,7 @@ class StorageIsWritableTest extends TestCase
 
         $this->assertSame('fail', $outcome->result->status->value);
         $this->assertStringContainsString($this->basePath . '/storage: directory does not exist', $outcome->result->details);
+        $this->assertStringContainsString($cachePath . ': directory does not exist', $outcome->result->details);
         $this->assertSame('Make the storage directories writable?', $outcome->result->confirmation);
         $this->assertSame('Ensure the listed storage and bootstrap cache directories exist and are writable by the PHP process.', $outcome->result->remediation);
     }

@@ -102,9 +102,9 @@ trait RefreshDatabase
     {
         $config = $this->app->make('config');
         $name ??= $this->getRefreshConnection();
-        $configuration = $config->get("database.connections.{$name}");
+        $configuration = $config->nullableArray("database.connections.{$name}", null);
 
-        return is_array($configuration)
+        return $configuration !== null
             && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 

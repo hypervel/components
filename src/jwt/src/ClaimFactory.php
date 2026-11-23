@@ -34,8 +34,7 @@ class ClaimFactory
      */
     public function __construct(Repository $config)
     {
-        /** @var null|string $issuer */
-        $issuer = $config->get('jwt.issuer');
+        $issuer = $config->nullableString('jwt.issuer');
 
         $this->issuer = ($issuer === null || $issuer === '') ? null : $issuer;
         $this->lockSubject = $config->boolean('jwt.lock_subject');

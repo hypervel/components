@@ -62,9 +62,9 @@ class SanctumServiceProvider extends ServiceProvider
                     continue;
                 }
 
-                $provider = $config->get("auth.providers.{$providerName}");
+                $provider = $config->nullableArray("auth.providers.{$providerName}", null);
 
-                if (! is_array($provider) || ($provider['driver'] ?? null) !== 'eloquent') {
+                if (($provider['driver'] ?? null) !== 'eloquent') {
                     continue;
                 }
 
@@ -123,11 +123,7 @@ class SanctumServiceProvider extends ServiceProvider
             return;
         }
 
-        $store = $config->get('sanctum.cache.store');
-
-        if (! is_string($store) && $store !== null) {
-            throw new InvalidArgumentException('Sanctum cache store must be a string or null.');
-        }
+        $store = $config->nullableString('sanctum.cache.store', null);
 
         $ttl = $config->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL);
 
@@ -221,7 +217,7 @@ class SanctumServiceProvider extends ServiceProvider
             app: $app,
             sessionGuards: $sessionGuards,
             events: $app->bound('events') ? $app->make('events') : null,
-            expiration: $app->make('config')->get('sanctum.expiration'),
+            expiration: $app->make('config')->nullableInteger('sanctum.expiration'),
             trackLastUsedAt: $app->make('config')->boolean('sanctum.last_used_at'),
         );
     }

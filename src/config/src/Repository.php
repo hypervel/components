@@ -12,6 +12,7 @@ use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use stdClass;
 
 class Repository implements ArrayAccess, ConfigContract
 {
@@ -47,6 +48,22 @@ class Repository implements ArrayAccess, ConfigContract
         }
 
         return Arr::get($this->items, $key, $default);
+    }
+
+    /**
+     * Get a required configuration value, including a configured null.
+     */
+    private function getRequired(string $key): mixed
+    {
+        static $missing = new stdClass;
+
+        $value = $this->get($key, $missing);
+
+        if ($value === $missing) {
+            throw new InvalidArgumentException(sprintf('Configuration value for key [%s] is not defined.', $key));
+        }
+
+        return $value;
     }
 
     /**
@@ -87,6 +104,27 @@ class Repository implements ArrayAccess, ConfigContract
     }
 
     /**
+     * Get the specified nullable string configuration value.
+     *
+     * Without a default the key must be present, even if its value is null.
+     *
+     * @param null|(Closure():(null|string))|string $default
+     * @throws InvalidArgumentException
+     */
+    public function nullableString(string $key, mixed $default = null): ?string
+    {
+        $value = func_num_args() === 1 ? $this->getRequired($key) : $this->get($key, $default);
+
+        if ($value !== null && ! is_string($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Configuration value for key [%s] must be a string or null, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
      * Get the specified integer configuration value.
      *
      * @param null|(Closure():(null|int))|int $default
@@ -99,6 +137,27 @@ class Repository implements ArrayAccess, ConfigContract
         if (! is_int($value)) {
             throw new InvalidArgumentException(
                 sprintf('Configuration value for key [%s] must be an integer, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Get the specified nullable integer configuration value.
+     *
+     * Without a default the key must be present, even if its value is null.
+     *
+     * @param null|(Closure():(null|int))|int $default
+     * @throws InvalidArgumentException
+     */
+    public function nullableInteger(string $key, mixed $default = null): ?int
+    {
+        $value = func_num_args() === 1 ? $this->getRequired($key) : $this->get($key, $default);
+
+        if ($value !== null && ! is_int($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Configuration value for key [%s] must be an integer or null, %s given.', $key, gettype($value))
             );
         }
 
@@ -125,6 +184,27 @@ class Repository implements ArrayAccess, ConfigContract
     }
 
     /**
+     * Get the specified nullable float configuration value.
+     *
+     * Without a default the key must be present, even if its value is null.
+     *
+     * @param null|(Closure():(null|float))|float $default
+     * @throws InvalidArgumentException
+     */
+    public function nullableFloat(string $key, mixed $default = null): ?float
+    {
+        $value = func_num_args() === 1 ? $this->getRequired($key) : $this->get($key, $default);
+
+        if ($value !== null && ! is_float($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Configuration value for key [%s] must be a float or null, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
      * Get the specified boolean configuration value.
      *
      * @param null|bool|(Closure():(null|bool)) $default
@@ -137,6 +217,27 @@ class Repository implements ArrayAccess, ConfigContract
         if (! is_bool($value)) {
             throw new InvalidArgumentException(
                 sprintf('Configuration value for key [%s] must be a boolean, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Get the specified nullable boolean configuration value.
+     *
+     * Without a default the key must be present, even if its value is null.
+     *
+     * @param null|bool|(Closure():(null|bool)) $default
+     * @throws InvalidArgumentException
+     */
+    public function nullableBoolean(string $key, mixed $default = null): ?bool
+    {
+        $value = func_num_args() === 1 ? $this->getRequired($key) : $this->get($key, $default);
+
+        if ($value !== null && ! is_bool($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Configuration value for key [%s] must be a boolean or null, %s given.', $key, gettype($value))
             );
         }
 
@@ -157,6 +258,28 @@ class Repository implements ArrayAccess, ConfigContract
         if (! is_array($value)) {
             throw new InvalidArgumentException(
                 sprintf('Configuration value for key [%s] must be an array, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Get the specified nullable array configuration value.
+     *
+     * Without a default the key must be present, even if its value is null.
+     *
+     * @param null|array<array-key, mixed>|(Closure():(null|array<array-key, mixed>)) $default
+     * @return null|array<array-key, mixed>
+     * @throws InvalidArgumentException
+     */
+    public function nullableArray(string $key, mixed $default = null): ?array
+    {
+        $value = func_num_args() === 1 ? $this->getRequired($key) : $this->get($key, $default);
+
+        if ($value !== null && ! is_array($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Configuration value for key [%s] must be an array or null, %s given.', $key, gettype($value))
             );
         }
 

@@ -22,8 +22,10 @@ class ConfigTypeRuleTest extends RuleTestCase
             ["Config key 'test.foo' is not an integer, so integer() throws. Correct the config value or use the getter that matches its type.", 14],
             ["Config key 'test.foo' is not an array, so array() throws. Correct the config value or use the getter that matches its type.", 16],
             ["Config key 'auth.defaults.guard' is not a float, so float() throws. Correct the config value or use the getter that matches its type.", 17],
-            ["Config key 'test.missing' is not a boolean, so boolean() throws. Correct the config value or use the getter that matches its type.", 31],
+            ["Config key 'test.missing' is not defined, so boolean() throws. Check the key and its configuration.", 31],
             ["Config key 'test.foo' is not an integer, so integer() throws. Correct the config value or use the getter that matches its type.", 40],
+            ["Config key 'test.missing' is not defined, so nullableInteger() throws. Check the key and its configuration.", 57],
+            ["Config key 'test.foo' is not an integer or null, so nullableInteger() throws. Correct the config value or use the getter that matches its type.", 58],
         ]);
     }
 

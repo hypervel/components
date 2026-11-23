@@ -263,7 +263,7 @@ trait CreatesMercureDrivers
     protected function mercureClaims(array $config): array
     {
         $claims = $config['claims'] ?? [];
-        $appUrl = $this->app->make('config')->get('app.url');
+        $appUrl = $this->app->make('config')->nullableString('app.url', null);
         $url = ($config['url'] ?? null) ?: (($config['public_url'] ?? null) ?: '/.well-known/mercure');
 
         $claims['aud'] = ($claims['aud'] ?? null) ?: (($config['public_url'] ?? null) ?: $url);

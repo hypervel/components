@@ -10,6 +10,7 @@ includes:
 parameters:
   tmpDir: .cache/phpstan
   level: 5
+  noUntypedConfigReads: true
   parallel:
     jobSize: 20
     maximumNumberOfProcesses: 32

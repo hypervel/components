@@ -741,7 +741,7 @@ class Migrator
 
         if ($name === null) {
             $name = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
-                ?? $config->get('database.default');
+                ?? $config->nullableString('database.default', null);
         }
 
         if ($name === null || $name === '') {

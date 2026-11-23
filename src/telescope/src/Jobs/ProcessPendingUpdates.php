@@ -39,7 +39,7 @@ class ProcessPendingUpdates implements ShouldQueue
     {
         ++$this->attempt;
 
-        $delay = config('telescope.queue.delay');
+        $delay = config()->nullableInteger('telescope.queue.delay', null);
 
         $repository->update($this->pendingUpdates)?->whenNotEmpty(
             fn ($pendingUpdates) => static::dispatchIf(
@@ -47,10 +47,10 @@ class ProcessPendingUpdates implements ShouldQueue
                 $pendingUpdates,
                 $this->attempt
             )->onConnection(
-                config('telescope.queue.connection')
+                config()->nullableString('telescope.queue.connection', null)
             )->onQueue(
-                config('telescope.queue.queue')
-            )->delay(is_numeric($delay) && $delay > 0 ? now()->addSeconds($delay) : null),
+                config()->nullableString('telescope.queue.queue', null)
+            )->delay($delay !== null && $delay > 0 ? now()->addSeconds($delay) : null),
         );
     }
 }

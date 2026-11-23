@@ -233,7 +233,7 @@ trait InteractsWithRedis
     {
         $config = $this->app->make('config');
 
-        if ($config->get("database.redis.{$name}") !== null) {
+        if ($config->nullableArray("database.redis.{$name}", null) !== null) {
             return $name;
         }
 
