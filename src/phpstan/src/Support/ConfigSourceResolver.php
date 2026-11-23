@@ -125,7 +125,8 @@ class ConfigSourceResolver
      */
     private const array READ_METHODS = [
         'all', 'array', 'boolean', 'collection', 'float', 'get', 'getmany',
-        'has', 'integer', 'offsetexists', 'offsetget', 'string',
+        'has', 'integer', 'nullablearray', 'nullableboolean', 'nullablefloat', 'nullableinteger', 'nullablestring',
+        'offsetexists', 'offsetget', 'string',
     ];
 
     /** @var null|list<string> */

@@ -375,6 +375,7 @@ class ConnectionConfigResolver
     {
         $this->consumedKeys[$key] = true;
 
+        // @phpstan-ignore hypervel.untypedConfigRead (Track the raw application value before interpreting migration and connection settings.)
         return $this->getContainer()->make('config')->get($key);
     }
 }
