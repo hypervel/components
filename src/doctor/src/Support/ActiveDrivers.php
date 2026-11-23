@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Support;
 
-use Hypervel\Session\SessionManager;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ConfigurationUrlParser;
 use InvalidArgumentException;
@@ -103,7 +102,8 @@ final class ActiveDrivers
         }
 
         $configuration = self::mailerConfiguration($mailer);
-        $transport = $configuration['transport'] ?? $mailer;
+        // Hypervel requires an explicit transport, including one supplied by a mail URL.
+        $transport = $configuration['transport'] ?? null;
 
         if (! in_array($transport, ['failover', 'roundrobin'], true)) {
             return [$mailer];
@@ -191,9 +191,9 @@ final class ActiveDrivers
                 continue;
             }
 
-            $connection = $configuration['connection'] ?? 'default';
-            $connections[] = $connection;
-            $connections[] = $configuration['lock_connection'] ?? $connection;
+            $connection = $configuration['connection'] ?? null;
+            $connections[] = RedisConnections::name($connection);
+            $connections[] = RedisConnections::name($configuration['lock_connection'] ?? $connection);
         }
 
         $queue = Configured::string('queue.default');
@@ -202,12 +202,12 @@ final class ActiveDrivers
             $configuration = Configured::array("queue.connections.{$name}");
 
             if (($configuration['driver'] ?? null) === 'redis') {
-                $connections[] = $configuration['connection'] ?? 'default';
+                $connections[] = RedisConnections::name($configuration['connection'] ?? null);
             }
         }
 
         if (Configured::string('session.driver') === 'redis') {
-            $connections[] = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
+            $connections[] = RedisConnections::sessionName();
         }
 
         return array_values(array_unique($connections));

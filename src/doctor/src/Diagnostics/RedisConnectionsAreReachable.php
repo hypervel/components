@@ -11,7 +11,7 @@ use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Doctor\Support\Details;
-use Hypervel\Support\Facades\Redis;
+use Hypervel\Doctor\Support\RedisConnections;
 use Throwable;
 
 class RedisConnectionsAreReachable extends Diagnostic
@@ -52,10 +52,7 @@ class RedisConnectionsAreReachable extends Diagnostic
 
         foreach ($connections as $connection) {
             try {
-                // phpredis returns false instead of throwing for ERR replies such as "max number of clients reached".
-                if (Redis::connection($connection)->ping() === false) {
-                    $failures[$connection] = 'The Redis server returned an error for PING.';
-                }
+                RedisConnections::ensureReachable($connection, includeName: false);
             } catch (Throwable $e) {
                 if (Coroutine::causedByCancellation($e)) {
                     throw $e;
