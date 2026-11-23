@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use __PHP_Incomplete_Class;
+use Closure;
+use ErrorException;
 use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
@@ -17,6 +19,7 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
@@ -25,7 +28,9 @@ use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
+use RuntimeException;
 use stdClass;
 use TypeError;
 
@@ -361,7 +366,7 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertSame(8, $row['used_count']);
     }
 
-    public function testLruHitMetadataCanCreateExpiredShellRowAfterConcurrentDelete(): void
+    public function testLruHitDoesNotRecreateADeletedRow(): void
     {
         $state = $this->createState();
         $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LRU, 0.05);
@@ -371,12 +376,6 @@ class CacheSwooleStoreTest extends TestCase
 
         $store->recordHitForTableKey($tableKey);
 
-        $row = $state->table()->get($tableKey);
-
-        $this->assertNotFalse($row);
-        $this->assertSame('', $row['value']);
-        $this->assertSame(0.0, $row['expiration']);
-        $this->assertNull($store->get('foo'));
         $this->assertFalse($state->table()->get($tableKey));
     }
 
@@ -400,7 +399,7 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertFalse($state->table()->get($tableKey));
     }
 
-    public function testExpiredGetDeletesPhysicalRowAfterLockedRecheck(): void
+    public function testExpiredGetDeletesTheExpiredPhysicalRow(): void
     {
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -501,19 +500,25 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testFlushDeletesUserRowsAndPreservesControlRows(): void
     {
-        $state = $this->createState();
+        $state = $this->createState(conflictProportion: 1.0);
         $store = $this->createStore($state);
 
-        $store->put('foo', 'bar', 5);
         $store->interval('interval', fn () => 'value', 1);
         $this->assertTrue($store->lock('lock', 60)->acquire());
+        $expectedCount = $state->table()->count();
+        $store->put('foo', 'bar', 5);
         $state->table()->set('legacy-row', [
             'value' => serialize('legacy'),
             'expiration' => time() + 100,
         ]);
 
+        for ($index = 0; $index < 110; ++$index) {
+            $this->assertTrue($store->forever("collision-{$index}", $index));
+        }
+
         $this->assertTrue($store->flush());
 
+        $this->assertSame($expectedCount, $state->table()->count());
         $this->assertNull($store->get('foo'));
         $this->assertFalse($state->table()->get('legacy-row'));
         $this->assertNotFalse($state->table()->get($this->tableKey($store, 'intervalKey', 'interval')));
@@ -523,18 +528,23 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testFlushLocksDeletesLockRowsAndPreservesCacheAndIntervalRows(): void
     {
-        $state = $this->createState();
+        $state = $this->createState(conflictProportion: 1.0);
         $store = $this->createStore($state);
 
         $store->put('foo', 'bar', 5);
         $store->interval('interval', fn () => 'value', 1);
-        $this->assertTrue($store->lock('lock', 60, 'owner-1')->acquire());
+        $expectedCount = $state->table()->count();
+
+        for ($index = 0; $index < 110; ++$index) {
+            $this->assertTrue($store->lock("lock-{$index}", 60, 'owner-1')->acquire());
+        }
 
         $this->assertTrue($store->flushLocks());
 
+        $this->assertSame($expectedCount, $state->table()->count());
         $this->assertSame('bar', $store->get('foo'));
         $this->assertSame('value', $store->get('interval'));
-        $this->assertTrue($store->lock('lock', 60, 'owner-2')->acquire());
+        $this->assertTrue($store->lock('lock-0', 60, 'owner-2')->acquire());
     }
 
     public function testExpiredAtWithMicrosecond(): void
@@ -781,6 +791,142 @@ class CacheSwooleStoreTest extends TestCase
         $store->evictRecords();
 
         $this->assertFalse($state->table()->get($this->tableKey($store, 'lockKey', 'expired')));
+    }
+
+    public function testHitBetweenEvictionRecheckAndDeletionPreservesTheRow(): void
+    {
+        $state = $this->createState();
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LFU, 0.05);
+        $store->forever('candidate', 'value');
+        $key = $store->userTableKey('candidate');
+        $fingerprint = $store->fingerprintFor($state->table()->get($key));
+        $store->afterRead = fn () => $store->recordHitForTableKey($key);
+
+        $this->assertFalse($store->forgetCandidate($key, $fingerprint));
+        $this->assertSame('value', $store->get('candidate'));
+    }
+
+    public function testStaleScanPreservesRenewedCacheAndLockRows(): void
+    {
+        $original = $this->createState();
+        $state = new class($original->table(), $original->hashSeed()) extends SwooleTableState {
+            public ?Closure $beforeLock = null;
+
+            /**
+             * Run the competing writer before acquiring the requested stripe.
+             */
+            public function withRowLock(string $key, callable $callback): mixed
+            {
+                if ($beforeLock = $this->beforeLock) {
+                    $this->beforeLock = null;
+                    $beforeLock();
+                }
+
+                return parent::withRowLock($key, $callback);
+            }
+        };
+        $store = $this->createStore($state);
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+        $store->put('item', 'old', 1);
+        $store->acquireLock('lock', 'old', 1);
+        CarbonImmutable::setTestNow('2000-01-01 00:00:02');
+        $state->beforeLock = function () use ($store): void {
+            $store->forever('item', 'replacement');
+            $this->assertTrue($store->acquireLock('lock', 'replacement', 60));
+        };
+
+        $store->evictRecords();
+
+        $this->assertSame('replacement', $store->get('item'));
+        $this->assertSame('replacement', $store->getLockOwner('lock'));
+    }
+
+    #[DataProvider('conditionalWrites')]
+    public function testConditionalWriteReportsQuietAllocationFailure(string $operation): void
+    {
+        $state = $this->createState(rows: 64, bytes: 256);
+        $store = $this->createStore($state);
+        $this->fillTable($state);
+        $previous = ini_set('swoole.display_errors', '0');
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessageIsOrContains('full while writing [missing]');
+
+            match ($operation) {
+                'increment' => $store->increment('missing'),
+                'add' => $store->add('missing', 1, 60),
+                'lock' => $store->acquireLock('missing', 'owner', 60),
+            };
+        } finally {
+            ini_set('swoole.display_errors', $previous);
+        }
+    }
+
+    /**
+     * List operations that distinguish contention from a failed write.
+     */
+    public static function conditionalWrites(): array
+    {
+        return [['increment'], ['add'], ['lock']];
+    }
+
+    public function testPutPropagatesTheAllocationWarningForFailover(): void
+    {
+        $state = $this->createState(rows: 64, bytes: 256);
+        $store = $this->createStore($state);
+        $this->fillTable($state);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessageIsOrContains('unable to allocate memory');
+        $this->withProductionWarnings(fn () => $store->put('missing', 1, 60));
+    }
+
+    public function testFailedLfuAccountingStillReturnsTheReadValue(): void
+    {
+        $state = $this->createState(rows: 64, bytes: 256);
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LFU, 0.05);
+        $store->forever('hit', 'value');
+        $store->afterRead = function () use ($state, $store): void {
+            $store->forget('hit');
+            $this->fillTable($state);
+        };
+
+        $this->assertSame('value', $this->withProductionWarnings(fn () => $store->get('hit')));
+        $this->assertNull($store->get('hit'));
+    }
+
+    /**
+     * Run an operation with framework warning conversion enabled.
+     */
+    private function withProductionWarnings(Closure $operation): mixed
+    {
+        $displayErrors = ini_set('swoole.display_errors', '1');
+        $reporting = error_reporting(-1);
+        set_error_handler([new HandleExceptions, 'handleError']);
+
+        try {
+            return $operation();
+        } finally {
+            restore_error_handler();
+            error_reporting($reporting);
+            ini_set('swoole.display_errors', $displayErrors);
+        }
+    }
+
+    /**
+     * Fill the buckets and collision pool so every new key needs unavailable storage.
+     */
+    private function fillTable(SwooleTableState $state): void
+    {
+        $table = $state->table();
+        $capacity = $table->getSize() + $table->stats()['total_slice_num'];
+
+        for ($index = 0; $table->count() < $capacity && $index < 10_000; ++$index) {
+            @$table->set("filler:{$index}", []);
+        }
+
+        $this->assertSame($capacity, $table->count());
     }
 
     public function testTouchPreservesValueAndChangesExpiration(): void
@@ -1058,6 +1204,23 @@ class CacheSwooleStoreTest extends TestCase
 
 class SwooleStoreEvictionProbe extends SwooleStore
 {
+    public ?Closure $afterRead = null;
+
+    /**
+     * Expose the interval between taking a snapshot and acting on it.
+     */
+    protected function rawGet(string $key): array|false
+    {
+        $record = parent::rawGet($key);
+
+        if ($afterRead = $this->afterRead) {
+            $this->afterRead = null;
+            $afterRead();
+        }
+
+        return $record;
+    }
+
     public function removeOnePolicyBatch(): int
     {
         return $this->removeRecordsByEvictionPolicy();
