@@ -97,6 +97,14 @@ class Validator implements ValidatorContract
     protected array|object|string|null $currentRule = null;
 
     /**
+     * The declaration available to the database check being dispatched.
+     *
+     * A subclass can call the parent check more than once. Each call takes this
+     * declaration before running its hooks, so nested lookups use their own filters.
+     */
+    private DatabaseRulePlan|Exists|Unique|null $dispatchedDatabaseRule = null;
+
+    /**
      * The conditions read from the database rule builder that is validating.
      *
      * A failure reports these instead of reading the builder a second time, and the
@@ -1136,12 +1144,13 @@ class Validator implements ValidatorContract
      */
     protected function validateAttribute(string $attribute, array|object|string $rule): void
     {
-        // Laravel leaves the last rule active. Restore the enclosing check for nested
-        // validation and clear the rule after a top-level check so later lookups start fresh.
+        // Unlike Laravel, restore the enclosing rule when a subclass validates a nested attribute.
         $outerRule = $this->currentRule;
+        $outerDatabaseRule = $this->dispatchedDatabaseRule;
         $outerConditions = $this->currentRuleConditions;
 
         $this->currentRule = $declaration = $rule;
+        $this->dispatchedDatabaseRule = null;
         $this->currentRuleConditions = null;
 
         try {
@@ -1186,7 +1195,19 @@ class Validator implements ValidatorContract
 
             $this->numericRules = $this->defaultNumericRules;
 
-            if ($validatable && ! $this->{$method}($attribute, $value, $parameters, $this)) {
+            if (! $validatable) {
+                return;
+            }
+
+            if ($declaration instanceof DatabaseRulePlan || $declaration instanceof Exists || $declaration instanceof Unique) {
+                $this->dispatchedDatabaseRule = $declaration;
+            }
+
+            $passes = $this->{$method}($attribute, $value, $parameters, $this);
+            // Report outside the check so message code cannot inherit its declaration.
+            $this->dispatchedDatabaseRule = null;
+
+            if (! $passes) {
                 // Database rules execute from their header and typed conditions, but failed()
                 // and message replacers receive the complete parameter list as in Laravel.
                 $this->addFailure($attribute, $rule, match (true) {
@@ -1202,6 +1223,7 @@ class Validator implements ValidatorContract
             }
         } finally {
             $this->currentRule = $outerRule;
+            $this->dispatchedDatabaseRule = $outerDatabaseRule;
             $this->currentRuleConditions = $outerConditions;
         }
     }

@@ -19,9 +19,8 @@ final readonly class DelegatedCheck
      *                         Rule objects dispatched via validateUsingCustomRule().
      * @param array<int, mixed> $parameters parsed rule parameters
      * @param mixed $originalRule The exploded rule, or its plain structured values in a cached base plan.
-     *                            Set as $this->currentRule before dispatch so validateExists/
-     *                            validateUnique can read the captured DatabaseRulePlan. Validator
-     *                            subclasses retain their original rule objects instead.
+     *                            Base validators dispatch the captured DatabaseRulePlan for database
+     *                            checks. Validator subclasses retain their original rule objects.
      */
     public function __construct(
         public string $ruleName,

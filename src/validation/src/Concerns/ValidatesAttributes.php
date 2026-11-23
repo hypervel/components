@@ -1172,32 +1172,28 @@ trait ValidatesAttributes
     {
         $verifier = $this->getPresenceVerifier();
 
-        $rule = $this->currentRule;
-
-        // As in Laravel, parameters after the header pass through the hook and combine with the
-        // rule's own conditions, so validator subclasses can scope a fluent rule either way.
-        $conditions = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
-
-        if ($rule instanceof DatabaseRulePlan) {
-            $conditions = $conditions->merge($rule->conditions);
-        } elseif ($rule instanceof Exists) {
-            $conditions = $conditions->merge($this->currentRuleConditions = $rule->queryConditions());
-        }
-
-        $query = new PresenceQuery($connection, $table, $column, $conditions);
-
-        // A query callback may run another database check by hand, which must not inherit this
-        // rule. A subclass may still query again or read the rule once the verifier returns.
-        $ruleConditions = $this->currentRuleConditions;
-        $this->currentRule = $this->currentRuleConditions = null;
+        $rule = $this->dispatchedDatabaseRule;
+        $this->dispatchedDatabaseRule = null;
 
         try {
+            // As in Laravel, parameters after the header pass through the hook and combine with the
+            // rule's own conditions, so validator subclasses can scope a fluent rule either way.
+            $conditions = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
+
+            if ($rule instanceof DatabaseRulePlan) {
+                $conditions = $conditions->merge($rule->conditions);
+            } elseif ($rule instanceof Exists) {
+                $this->currentRuleConditions = $rule->queryConditions();
+                $conditions = $conditions->merge($this->currentRuleConditions);
+            }
+
+            $query = new PresenceQuery($connection, $table, $column, $conditions);
+
             return is_array($value)
                 ? $verifier->getMultiCount($query, $value)
                 : $verifier->getCount($query, $value);
         } finally {
-            $this->currentRule = $rule;
-            $this->currentRuleConditions = $ruleConditions;
+            $this->dispatchedDatabaseRule = $rule;
         }
     }
 
@@ -1234,37 +1230,37 @@ trait ValidatesAttributes
         // data store like Redis, etc. We will use it to determine uniqueness.
         $verifier = $this->getPresenceVerifier();
 
-        $rule = $this->currentRule;
-        $declared = match (true) {
-            $rule instanceof DatabaseRulePlan => $rule->conditions,
-            $rule instanceof Unique => $rule->queryConditions(),
-            default => null,
-        };
-
-        // getUniqueExtra() consults a builder's conditions, and a failure reports them.
-        $this->currentRuleConditions = $rule instanceof Unique ? $declared : null;
-
-        // As in Laravel, parameters after the header pass through the hook and combine with the
-        // rule's own conditions, so validator subclasses can scope a fluent rule either way.
-        $conditions = $this->getUniqueExtra($parameters);
-
-        if ($declared !== null) {
-            $conditions = $conditions->merge($declared);
-        }
-
-        // A query callback may run another database check by hand, which must not inherit this
-        // rule. A subclass may still query again or read the rule once the verifier returns.
-        $ruleConditions = $this->currentRuleConditions;
-        $this->currentRule = $this->currentRuleConditions = null;
+        $rule = $this->dispatchedDatabaseRule;
+        $this->dispatchedDatabaseRule = null;
+        $conditionsToRestore = $this->currentRuleConditions;
+        $this->currentRuleConditions = null;
 
         try {
+            $declared = match (true) {
+                $rule instanceof DatabaseRulePlan => $rule->conditions,
+                $rule instanceof Unique => $rule->queryConditions(),
+                default => null,
+            };
+
+            if ($rule instanceof Unique) {
+                $this->currentRuleConditions = $conditionsToRestore = $declared;
+            }
+
+            // As in Laravel, parameters after the header pass through the hook and combine with the
+            // rule's own conditions, so validator subclasses can scope a fluent rule either way.
+            $conditions = $this->getUniqueExtra($parameters);
+            if ($declared !== null) {
+                $conditions = $conditions->merge($declared);
+            }
+
             return $verifier->getCount(
                 new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),
                 $value,
             ) === 0;
         } finally {
-            $this->currentRule = $rule;
-            $this->currentRuleConditions = $ruleConditions;
+            $this->dispatchedDatabaseRule = $rule;
+            // A failure needs the builder conditions we read. A manual lookup restores the enclosing snapshot.
+            $this->currentRuleConditions = $conditionsToRestore;
         }
     }
 

@@ -255,40 +255,30 @@ trait FormatsMessages
      */
     public function makeReplacements(string $message, string $attribute, string $rule, array $parameters): string
     {
-        // A formatter or replacer can run its own database check on this validator.
-        $currentRule = $this->currentRule;
-        $currentRuleConditions = $this->currentRuleConditions;
-        $this->currentRule = $this->currentRuleConditions = null;
+        $message = $this->replaceAttributePlaceholder(
+            $message,
+            $this->getDisplayableAttribute($attribute)
+        );
 
-        try {
-            $message = $this->replaceAttributePlaceholder(
+        $message = $this->replaceInputPlaceholder($message, $attribute);
+        $message = $this->replaceIndexPlaceholder($message, $attribute);
+        $message = $this->replacePositionPlaceholder($message, $attribute);
+        $message = $this->replaceOrdinalPositionPlaceholder($message, $attribute);
+
+        if (isset($this->replacers[Str::snake($rule)])) {
+            return $this->callReplacer(
                 $message,
-                $this->getDisplayableAttribute($attribute)
+                $this->replacePlaceholderInString($attribute),
+                Str::snake($rule),
+                $this->dependsOnOtherFields($rule) ? $this->replaceDotPlaceholderInParameters($parameters) : $parameters,
+                $this
             );
-
-            $message = $this->replaceInputPlaceholder($message, $attribute);
-            $message = $this->replaceIndexPlaceholder($message, $attribute);
-            $message = $this->replacePositionPlaceholder($message, $attribute);
-            $message = $this->replaceOrdinalPositionPlaceholder($message, $attribute);
-
-            if (isset($this->replacers[Str::snake($rule)])) {
-                return $this->callReplacer(
-                    $message,
-                    $this->replacePlaceholderInString($attribute),
-                    Str::snake($rule),
-                    $this->dependsOnOtherFields($rule) ? $this->replaceDotPlaceholderInParameters($parameters) : $parameters,
-                    $this
-                );
-            }
-            if (method_exists($this, $replacer = "replace{$rule}")) {
-                return $this->{$replacer}($message, $attribute, $rule, $parameters);
-            }
-
-            return $message;
-        } finally {
-            $this->currentRule = $currentRule;
-            $this->currentRuleConditions = $currentRuleConditions;
         }
+        if (method_exists($this, $replacer = "replace{$rule}")) {
+            return $this->{$replacer}($message, $attribute, $rule, $parameters);
+        }
+
+        return $message;
     }
 
     /**

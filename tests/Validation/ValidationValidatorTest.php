@@ -5354,6 +5354,8 @@ class ValidationValidatorTest extends TestCase
     public function testDatabaseRuleConditionsSurviveValidationInsideAConditionHook(): void
     {
         $reentrant = new class($this->getArrayTranslator(), [], []) extends Validator {
+            private int $scopeCalls = 0;
+
             /**
              * Validate another attribute before resolving the unique rule's extra conditions.
              */
@@ -5370,6 +5372,10 @@ class ValidationValidatorTest extends TestCase
             protected function getExtraConditions(array $segments): DatabaseConditions
             {
                 $this->validateAttribute('other', 'string');
+                if (++$this->scopeCalls > 1) {
+                    throw new RuntimeException('A header-only unique check re-entered the outer condition hook.');
+                }
+                $this->validateUnique('slug', 'core', ['teams', 'slug']);
 
                 return new DatabaseConditions(
                     ...parent::getExtraConditions($segments)->all(),
@@ -5390,6 +5396,12 @@ class ValidationValidatorTest extends TestCase
         ] as [$rule, $query, $count]) {
             $validator = new $reentrant($this->getArrayTranslator(), ['email' => 'foo', 'other' => 'bar'], ['email' => [$rule]]);
             $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(
+                null,
+                'teams',
+                'slug',
+                new DatabaseConditions,
+            )), 'core')->returns(1);
             $verifier->expects('getCount')->with($this->matchingPresenceQuery($query), 'foo')->returns($count);
             $validator->setPresenceVerifier($verifier);
 
@@ -5640,7 +5652,17 @@ class ValidationValidatorTest extends TestCase
 
     public function testDatabaseLookupsWhileFormattingAnErrorUseTheirOwnConditions(): void
     {
-        $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {};
+        $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {
+            /**
+             * Select the message according to whether any tenant owns the email.
+             */
+            protected function getMessage(string $attribute, string $rule): string
+            {
+                return $this->validateExists($attribute, $this->getValue($attribute), ['users', 'email'])
+                    ? parent::getMessage($attribute, $rule)
+                    : 'Email is missing.';
+            }
+        };
 
         foreach ([
             [Validator::class, 'exists:users,email,tenant_id,42'],
@@ -5659,7 +5681,7 @@ class ValidationValidatorTest extends TestCase
                 'email',
                 new DatabaseConditions(new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42')),
             )), 'taken@example.com')->returns(0);
-            $verifier->expects('getCount')->times(2)->with($this->matchingPresenceQuery(new PresenceQuery(
+            $verifier->expects('getCount')->times($class === Validator::class ? 2 : 3)->with($this->matchingPresenceQuery(new PresenceQuery(
                 null,
                 'users',
                 'email',
