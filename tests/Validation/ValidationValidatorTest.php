@@ -5327,21 +5327,28 @@ class ValidationValidatorTest extends TestCase
             }
 
             /**
-             * Validate another attribute before resolving the shared extra conditions.
+             * Validate another attribute before scoping the shared extra conditions.
              */
             protected function getExtraConditions(array $segments): DatabaseConditions
             {
                 $this->validateAttribute('other', 'string');
 
-                return parent::getExtraConditions($segments);
+                return new DatabaseConditions(
+                    ...parent::getExtraConditions($segments)->all(),
+                    ...[new DatabaseCondition('active', DatabaseConditionOperator::Equals, '1')],
+                );
             }
         };
 
-        $tenant = new DatabaseConditions(new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42'));
+        // The hook's scope and the rule's own condition both survive the nested checks.
+        $conditions = new DatabaseConditions(
+            new DatabaseCondition('active', DatabaseConditionOperator::Equals, '1'),
+            new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42'),
+        );
 
         foreach ([
-            [(new Unique('users', 'email'))->where('tenant_id', 42), new PresenceQuery(null, 'users', 'email', $tenant, null, 'id'), 0],
-            [(new Exists('users', 'email'))->where('tenant_id', 42), new PresenceQuery(null, 'users', 'email', $tenant), 1],
+            [(new Unique('users', 'email'))->where('tenant_id', 42), new PresenceQuery(null, 'users', 'email', $conditions, null, 'id'), 0],
+            [(new Exists('users', 'email'))->where('tenant_id', 42), new PresenceQuery(null, 'users', 'email', $conditions), 1],
         ] as [$rule, $query, $count]) {
             $validator = new $reentrant($this->getArrayTranslator(), ['email' => 'foo', 'other' => 'bar'], ['email' => [$rule]]);
             $verifier = Double::for(PresenceVerifierInterface::class)->strict();
@@ -5350,6 +5357,56 @@ class ValidationValidatorTest extends TestCase
 
             $this->assertTrue($validator->passes());
         }
+    }
+
+    public function testFailedDatabaseRuleReportsItsOwnConditionsAfterANestedCheck(): void
+    {
+        $nested = new class($this->getArrayTranslator(), [], []) extends Validator {
+            /**
+             * Validate another database attribute while a database rule is being checked.
+             */
+            public function validateOwner(): void
+            {
+                $this->validateAttribute('owner', (new Exists('users', 'owner_id'))->where('active', 1));
+            }
+        };
+
+        // Run the query callbacks as a database verifier would; only the outer check fails.
+        $verifier = new class implements PresenceVerifierInterface {
+            /**
+             * Count the matching records after invoking the query callbacks.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
+            {
+                foreach ($query->conditions->all() as $condition) {
+                    if ($condition instanceof Closure) {
+                        $condition();
+                    }
+                }
+
+                return $query->column === 'id' ? 0 : 1;
+            }
+
+            /**
+             * Count the matching records for the given values.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
+            {
+                return 0;
+            }
+        };
+
+        $validator = null;
+        $rule = (new Exists('users', 'id'))
+            ->where('tenant_id', 42)
+            ->where(function () use (&$validator): void {
+                $validator->validateOwner();
+            });
+        $validator = new $nested($this->getArrayTranslator(), ['id' => 2, 'owner' => 1], ['id' => [$rule]]);
+        $validator->setPresenceVerifier($verifier);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['id' => ['Exists' => ['users', 'id', 'tenant_id', '42']]], $validator->failed());
     }
 
     public function testManualDatabaseValidationDoesNotReuseThePreviousRuleConditions(): void

@@ -509,10 +509,6 @@ class Validator implements ValidatorContract
                 }
             }
 
-            // A validate*() method called by an after hook or after this run is not validating
-            // the last rule, so it must not inherit that rule's declared database conditions.
-            $this->currentRule = null;
-
             foreach ($this->after as $after) {
                 $after();
             }
@@ -1137,63 +1133,74 @@ class Validator implements ValidatorContract
      */
     protected function validateAttribute(string $attribute, array|object|string $rule): void
     {
+        // Unlike Laravel, the current rule only lasts for its own check. A hook or query callback
+        // may validate another attribute, and a validate*() method may be called once the run
+        // has finished; neither may see or replace the rule and conditions of another check.
+        $outerRule = $this->currentRule;
+        $outerConditions = $this->currentRuleConditions;
+
         $this->currentRule = $declaration = $rule;
         $this->currentRuleConditions = null;
 
-        [$rule, $parameters] = $this->parseRuleDeclaration($rule);
+        try {
+            [$rule, $parameters] = $this->parseRuleDeclaration($rule);
 
-        if ($rule === '') {
-            return;
-        }
-
-        // First we will get the correct keys for the given attribute in case the field is nested in
-        // an array. Then we determine if the given rule accepts other field names as parameters.
-        // If so, resolve those field references without rewriting literal comparison values.
-        if ($this->dependsOnOtherFields($rule)) {
-            $parameters = $this->replaceFieldsInParameters($rule, $parameters, $this->getExplicitKeys($attribute));
-        }
-
-        $value = $this->getValue($attribute);
-
-        // If the attribute is a file, we will verify that the file upload was actually successful
-        // and if it wasn't we will add a failure for the attribute. Files may not successfully
-        // upload if they are too large based on PHP's settings so we will bail in this case.
-        if ($value instanceof UploadedFile && ! $value->isValid()
-            && $this->hasRule($attribute, array_merge($this->fileRules, $this->implicitRules))
-        ) {
-            $this->addFailure($attribute, 'uploaded', []);
-            return;
-        }
-
-        // If we have made it this far we will make sure the attribute is validatable and if it is
-        // we will call the validation method with the attribute. If a method returns false the
-        // attribute is invalid and we will add a failure message for this failing attribute.
-        $validatable = $this->isValidatable($rule, $attribute, $value);
-
-        if ($rule instanceof RuleContract) {
-            if ($validatable) {
-                $this->validateUsingCustomRule($attribute, $value, $rule);
+            if ($rule === '') {
+                return;
             }
-            return;
-        }
 
-        $method = "validate{$rule}";
+            // First we will get the correct keys for the given attribute in case the field is nested in
+            // an array. Then we determine if the given rule accepts other field names as parameters.
+            // If so, resolve those field references without rewriting literal comparison values.
+            if ($this->dependsOnOtherFields($rule)) {
+                $parameters = $this->replaceFieldsInParameters($rule, $parameters, $this->getExplicitKeys($attribute));
+            }
 
-        $this->numericRules = $this->defaultNumericRules;
+            $value = $this->getValue($attribute);
 
-        if ($validatable && ! $this->{$method}($attribute, $value, $parameters, $this)) {
-            // Database rules execute from their header and typed conditions, but failed()
-            // and message replacers receive the complete parameter list as in Laravel.
-            $this->addFailure($attribute, $rule, match (true) {
-                $declaration instanceof DatabaseRulePlan => $declaration->failureParameters($parameters),
-                // A check that failed before querying has not read the builder's conditions yet.
-                $declaration instanceof Exists, $declaration instanceof Unique => (new DatabaseRulePlan(
-                    $rule,
-                    $parameters,
-                    $this->currentRuleConditions ?? $declaration->queryConditions(),
-                ))->failureParameters($parameters),
-                default => $parameters,
-            });
+            // If the attribute is a file, we will verify that the file upload was actually successful
+            // and if it wasn't we will add a failure for the attribute. Files may not successfully
+            // upload if they are too large based on PHP's settings so we will bail in this case.
+            if ($value instanceof UploadedFile && ! $value->isValid()
+                && $this->hasRule($attribute, array_merge($this->fileRules, $this->implicitRules))
+            ) {
+                $this->addFailure($attribute, 'uploaded', []);
+                return;
+            }
+
+            // If we have made it this far we will make sure the attribute is validatable and if it is
+            // we will call the validation method with the attribute. If a method returns false the
+            // attribute is invalid and we will add a failure message for this failing attribute.
+            $validatable = $this->isValidatable($rule, $attribute, $value);
+
+            if ($rule instanceof RuleContract) {
+                if ($validatable) {
+                    $this->validateUsingCustomRule($attribute, $value, $rule);
+                }
+                return;
+            }
+
+            $method = "validate{$rule}";
+
+            $this->numericRules = $this->defaultNumericRules;
+
+            if ($validatable && ! $this->{$method}($attribute, $value, $parameters, $this)) {
+                // Database rules execute from their header and typed conditions, but failed()
+                // and message replacers receive the complete parameter list as in Laravel.
+                $this->addFailure($attribute, $rule, match (true) {
+                    $declaration instanceof DatabaseRulePlan => $declaration->failureParameters($parameters),
+                    // A check that failed before querying has not read the builder's conditions yet.
+                    $declaration instanceof Exists, $declaration instanceof Unique => (new DatabaseRulePlan(
+                        $rule,
+                        $parameters,
+                        $this->currentRuleConditions ?? $declaration->queryConditions(),
+                    ))->failureParameters($parameters),
+                    default => $parameters,
+                });
+            }
+        } finally {
+            $this->currentRule = $outerRule;
+            $this->currentRuleConditions = $outerConditions;
         }
     }
 
