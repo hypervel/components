@@ -205,6 +205,8 @@ class Validator implements ValidatorContract
 
     /**
      * All of the custom replacer extensions.
+     *
+     * @var array<string, Closure|string>
      */
     public array $replacers = [];
 
@@ -1134,9 +1136,8 @@ class Validator implements ValidatorContract
      */
     protected function validateAttribute(string $attribute, array|object|string $rule): void
     {
-        // Unlike Laravel, the current rule only lasts for its own check. A hook or query callback
-        // may validate another attribute, and a validate*() method may be called once the run
-        // has finished; neither may see or replace the rule and conditions of another check.
+        // Laravel leaves the last rule active. Restore the enclosing check for nested
+        // validation and clear the rule after a top-level check so later lookups start fresh.
         $outerRule = $this->currentRule;
         $outerConditions = $this->currentRuleConditions;
 
@@ -1941,6 +1942,8 @@ class Validator implements ValidatorContract
 
     /**
      * Register an array of custom validator message replacers.
+     *
+     * @param array<string, Closure|string> $replacers
      */
     public function addReplacers(array $replacers): void
     {

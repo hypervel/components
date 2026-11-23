@@ -255,30 +255,40 @@ trait FormatsMessages
      */
     public function makeReplacements(string $message, string $attribute, string $rule, array $parameters): string
     {
-        $message = $this->replaceAttributePlaceholder(
-            $message,
-            $this->getDisplayableAttribute($attribute)
-        );
+        // A formatter or replacer can run its own database check on this validator.
+        $currentRule = $this->currentRule;
+        $currentRuleConditions = $this->currentRuleConditions;
+        $this->currentRule = $this->currentRuleConditions = null;
 
-        $message = $this->replaceInputPlaceholder($message, $attribute);
-        $message = $this->replaceIndexPlaceholder($message, $attribute);
-        $message = $this->replacePositionPlaceholder($message, $attribute);
-        $message = $this->replaceOrdinalPositionPlaceholder($message, $attribute);
-
-        if (isset($this->replacers[Str::snake($rule)])) {
-            return $this->callReplacer(
+        try {
+            $message = $this->replaceAttributePlaceholder(
                 $message,
-                $this->replacePlaceholderInString($attribute),
-                Str::snake($rule),
-                $this->dependsOnOtherFields($rule) ? $this->replaceDotPlaceholderInParameters($parameters) : $parameters,
-                $this
+                $this->getDisplayableAttribute($attribute)
             );
-        }
-        if (method_exists($this, $replacer = "replace{$rule}")) {
-            return $this->{$replacer}($message, $attribute, $rule, $parameters);
-        }
 
-        return $message;
+            $message = $this->replaceInputPlaceholder($message, $attribute);
+            $message = $this->replaceIndexPlaceholder($message, $attribute);
+            $message = $this->replacePositionPlaceholder($message, $attribute);
+            $message = $this->replaceOrdinalPositionPlaceholder($message, $attribute);
+
+            if (isset($this->replacers[Str::snake($rule)])) {
+                return $this->callReplacer(
+                    $message,
+                    $this->replacePlaceholderInString($attribute),
+                    Str::snake($rule),
+                    $this->dependsOnOtherFields($rule) ? $this->replaceDotPlaceholderInParameters($parameters) : $parameters,
+                    $this
+                );
+            }
+            if (method_exists($this, $replacer = "replace{$rule}")) {
+                return $this->{$replacer}($message, $attribute, $rule, $parameters);
+            }
+
+            return $message;
+        } finally {
+            $this->currentRule = $currentRule;
+            $this->currentRuleConditions = $currentRuleConditions;
+        }
     }
 
     /**
@@ -544,18 +554,15 @@ trait FormatsMessages
     /**
      * Call a custom validator message replacer.
      */
-    protected function callReplacer(string $message, string $attribute, string $rule, array $parameters, Validator $validator): ?string
+    protected function callReplacer(string $message, string $attribute, string $rule, array $parameters, Validator $validator): string
     {
         $callback = $this->replacers[$rule];
 
         if ($callback instanceof Closure) {
             return $callback(...func_get_args());
         }
-        if (is_string($callback)) {
-            return $this->callClassBasedReplacer($callback, $message, $attribute, $rule, $parameters, $validator);
-        }
 
-        return null;
+        return $this->callClassBasedReplacer($callback, $message, $attribute, $rule, $parameters, $validator);
     }
 
     /**

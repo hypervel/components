@@ -5313,6 +5313,8 @@ class ValidationValidatorTest extends TestCase
         };
 
         $scoped = new DatabaseConditions($tenant, $active);
+        $allowedRoles = new DatabaseCondition('role', DatabaseConditionOperator::In, ['admin']);
+        $excludedRoles = new DatabaseCondition('role', DatabaseConditionOperator::NotIn, ['guest']);
         $unique = fn (): Unique => (new Unique('users', 'email'))->where('active', true);
         $exists = fn (): Exists => (new Exists('users', 'email'))->where('active', true);
 
@@ -5322,8 +5324,20 @@ class ValidationValidatorTest extends TestCase
             [$extraConditionsScoped::class, $unique(), new PresenceQuery(null, 'users', 'email', $scoped, null, 'id'), 0],
             [$extraConditionsScoped::class, $exists(), new PresenceQuery(null, 'users', 'email', $scoped), 1],
             [$uniqueExtraScoped::class, $unique(), new PresenceQuery(null, 'users', 'email', $scoped, null, 'id'), 0],
-            // As in Laravel, a unique rule without extra conditions does not reach the shared hook.
+            // Only comparison and null predicates on a fluent unique rule trigger the shared hook.
             [$extraConditionsScoped::class, new Unique('users', 'email'), new PresenceQuery(null, 'users', 'email', new DatabaseConditions, null, 'id'), 0],
+            [
+                $extraConditionsScoped::class,
+                (new Unique('users', 'email'))->whereIn('role', ['admin'])->whereNotIn('role', ['guest']),
+                new PresenceQuery(null, 'users', 'email', new DatabaseConditions($allowedRoles, $excludedRoles), null, 'id'),
+                0,
+            ],
+            [
+                $extraConditionsScoped::class,
+                $unique()->whereIn('role', ['admin']),
+                new PresenceQuery(null, 'users', 'email', new DatabaseConditions($tenant, $active, $allowedRoles), null, 'id'),
+                0,
+            ],
             // A getUniqueExtra() override decides whether the shared hook applies to unique rules.
             [$globallyUnique::class, $unique(), new PresenceQuery(null, 'users', 'email', new DatabaseConditions($active), null, 'id'), 0],
             [$globallyUnique::class, $exists(), new PresenceQuery(null, 'users', 'email', $scoped), 1],
@@ -5621,6 +5635,45 @@ class ValidationValidatorTest extends TestCase
 
             $this->assertTrue($validator->passes());
             $this->assertFalse($manual);
+        }
+    }
+
+    public function testDatabaseLookupsWhileFormattingAnErrorUseTheirOwnConditions(): void
+    {
+        $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {};
+
+        foreach ([
+            [Validator::class, 'exists:users,email,tenant_id,42'],
+            [$customValidator::class, (new Exists('users', 'email'))->where('tenant_id', 42)],
+        ] as [$class, $rule]) {
+            $validator = new $class(
+                $this->getArrayTranslator(),
+                ['items' => [['email' => 'taken@example.com']]],
+                ['items.*.email' => [$rule]],
+                ['exists' => ':attribute'],
+            );
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(
+                null,
+                'users',
+                'email',
+                new DatabaseConditions(new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42')),
+            )), 'taken@example.com')->returns(0);
+            $verifier->expects('getCount')->times(2)->with($this->matchingPresenceQuery(new PresenceQuery(
+                null,
+                'users',
+                'email',
+                new DatabaseConditions,
+            )), 'taken@example.com')->returns(1);
+            $validator->setPresenceVerifier($verifier);
+
+            $existsElsewhere = fn (): bool => $validator->validateExists('email', 'taken@example.com', ['users', 'email']);
+            $validator->setImplicitAttributesFormatter(fn (string $attribute): string => $existsElsewhere() ? 'Email' : $attribute);
+            $validator->addReplacer('exists', fn (string $message): string => $existsElsewhere() ? "{$message} exists elsewhere." : $message);
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame('Email exists elsewhere.', $validator->errors()->first('items.0.email'));
+            $this->assertSame(['items.0.email' => ['Exists' => ['users', 'email', 'tenant_id', '42']]], $validator->failed());
         }
     }
 
