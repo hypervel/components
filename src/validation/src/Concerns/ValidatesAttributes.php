@@ -1172,11 +1172,16 @@ trait ValidatesAttributes
     {
         $verifier = $this->getPresenceVerifier();
 
-        $conditions = match (true) {
-            $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
-            $this->currentRule instanceof Exists => $this->currentRuleConditions = $this->currentRule->queryConditions(),
-            default => $this->getExtraConditions(array_values(array_slice($parameters, 2))),
-        };
+        // As in Laravel, parameters after the header pass through the hook and combine with the
+        // rule's own conditions, so validator subclasses can scope a fluent rule either way.
+        $conditions = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
+
+        if ($this->currentRule instanceof DatabaseRulePlan) {
+            $conditions = $conditions->merge($this->currentRule->conditions);
+        } elseif ($this->currentRule instanceof Exists) {
+            $conditions = $conditions->merge($this->currentRuleConditions = $this->currentRule->queryConditions());
+        }
+
         $query = new PresenceQuery($connection, $table, $column, $conditions);
 
         return is_array($value)
@@ -1217,11 +1222,15 @@ trait ValidatesAttributes
         // data store like Redis, etc. We will use it to determine uniqueness.
         $verifier = $this->getPresenceVerifier();
 
-        $conditions = match (true) {
-            $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
-            $this->currentRule instanceof Unique => $this->currentRuleConditions = $this->currentRule->queryConditions(),
-            default => $this->getUniqueExtra($parameters),
-        };
+        // As in Laravel, parameters after the header pass through the hook and combine with the
+        // rule's own conditions, so validator subclasses can scope a fluent rule either way.
+        $conditions = $this->getUniqueExtra($parameters);
+
+        if ($this->currentRule instanceof DatabaseRulePlan) {
+            $conditions = $conditions->merge($this->currentRule->conditions);
+        } elseif ($this->currentRule instanceof Unique) {
+            $conditions = $conditions->merge($this->currentRuleConditions = $this->currentRule->queryConditions());
+        }
 
         return $verifier->getCount(
             new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),

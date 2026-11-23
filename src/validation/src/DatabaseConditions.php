@@ -55,6 +55,18 @@ final readonly class DatabaseConditions
     }
 
     /**
+     * Append the given conditions, reusing either set when the other is empty.
+     */
+    public function merge(self $conditions): self
+    {
+        return match (true) {
+            $conditions->conditions === [] => $this,
+            $this->conditions === [] => $conditions,
+            default => new self(...$this->conditions, ...$conditions->conditions),
+        };
+    }
+
+    /**
      * Capture membership values and detach their references for the current run.
      */
     public function prepare(): self

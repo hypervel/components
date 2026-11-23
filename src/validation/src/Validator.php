@@ -509,6 +509,10 @@ class Validator implements ValidatorContract
                 }
             }
 
+            // A validate*() method called by an after hook or after this run is not validating
+            // the last rule, so it must not inherit that rule's declared database conditions.
+            $this->currentRule = null;
+
             foreach ($this->after as $after) {
                 $after();
             }
