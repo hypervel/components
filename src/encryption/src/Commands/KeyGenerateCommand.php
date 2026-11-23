@@ -77,7 +77,7 @@ class KeyGenerateCommand extends Command
      */
     protected function setKeyInEnvironmentFile(#[SensitiveParameter] string $key): bool
     {
-        $currentKey = $this->hypervel->make('config')->get('app.key') ?? '';
+        $currentKey = $this->hypervel->make('config')->nullableString('app.key') ?? '';
 
         if (strlen($currentKey) !== 0 && (! $this->confirmToProceed())) {
             return false;
@@ -124,7 +124,7 @@ class KeyGenerateCommand extends Command
      */
     protected function keyReplacementPattern(): string
     {
-        $escaped = preg_quote($this->hypervel->make('config')->get('app.key') ?? '', '/');
+        $escaped = preg_quote($this->hypervel->make('config')->nullableString('app.key') ?? '', '/');
 
         return "/^(?:[ \\t]*export[ \\t]+)?\\KAPP_KEY=([\"']?){$escaped}\\1(?=[ \\t]*(?:#.*)?\\r?$)/m";
     }

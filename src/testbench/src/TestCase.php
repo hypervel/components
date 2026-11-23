@@ -93,7 +93,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
 
             $this->preservePackageManifestCache();
 
-            $this->baseUrl = config()->get('app.url') ?? $this->baseUrl;
+            $this->baseUrl = config()->nullableString('app.url') ?? $this->baseUrl;
 
             // Execute BeforeEach attributes INSIDE coroutine context
             // (matches where setUpTraits runs in Foundation TestCase)

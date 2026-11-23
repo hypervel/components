@@ -55,7 +55,7 @@ abstract class IntegrationTestCase extends TestCase
         $config->set('horizon.prefix', static::HORIZON_PREFIX);
         $config->set('horizon.middleware', [Authenticate::class]);
 
-        $queueConfig = $this->originalQueueConfig = $config->get('queue', []);
+        $queueConfig = $this->originalQueueConfig = $config->array('queue');
         $queueConfig['default'] = 'redis';
         $queueConfig['connections']['redis'] = [
             'driver' => 'redis',

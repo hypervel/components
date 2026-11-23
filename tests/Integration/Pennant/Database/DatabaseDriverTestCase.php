@@ -27,7 +27,7 @@ abstract class DatabaseDriverTestCase extends DatabaseTestCase
         $config = $app->make('config');
 
         $config->set('pennant.default', 'database');
-        $config->set('database.connections.competitor', $config->get('database.connections.' . $config->string('database.default')));
+        $config->set('database.connections.competitor', $config->array('database.connections.' . $config->string('database.default')));
     }
 
     protected function afterRefreshingDatabase(): void

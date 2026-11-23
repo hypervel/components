@@ -592,6 +592,7 @@ trait Promptable
             }
         }
 
+        // @phpstan-ignore hypervel.untypedConfigRead (The default selection accepts provider names, enum cases and failover lists.)
         $resolved = $provider ?? config('ai.default');
 
         if (is_array($resolved) && array_intersect(array_keys($resolved), ['text', 'image', 'audio', 'transcription', 'embedding', 'reranking', 'classification'])) {

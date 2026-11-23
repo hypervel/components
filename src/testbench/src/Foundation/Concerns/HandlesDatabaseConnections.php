@@ -48,6 +48,7 @@ trait HandlesDatabaseConnections
                         $port = Env::get($environmentVariable);
 
                         if ($port === null || $port === '') {
+                            // @phpstan-ignore hypervel.untypedConfigRead (The original database port can be a number, a string, or null.)
                             return [$name => $config->get($name)];
                         }
 
@@ -74,7 +75,7 @@ trait HandlesDatabaseConnections
                         ->transform(static fn (string $value): mixed => Env::get("{$keyword}_{$value}"))
                         ->first(
                             $options['rules'] ?? static fn ($value): bool => ! empty($value) && \is_string($value)
-                        ) ?? $config->get($name);
+                        ) ?? $config->get($name); // @phpstan-ignore hypervel.untypedConfigRead (An absent environment override preserves the original field type.)
 
                     return [$name => $configuration];
                 })->all(),
