@@ -38,7 +38,7 @@ class StartSsr extends Command
         }
 
         $bundle = (new BundleDetector)->detect();
-        $configuredBundle = config('inertia.ssr.bundle');
+        $configuredBundle = config()->nullableString('inertia.ssr.bundle');
 
         if ($bundle === null) {
             $this->error(

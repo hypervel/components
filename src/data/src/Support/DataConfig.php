@@ -112,8 +112,9 @@ class DataConfig
      */
     public function __construct(Repository $config)
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (Date formats may be a string or a non-empty list of strings.)
         $this->dateFormats = self::normalizeDateFormats($config->get('data.date_format'));
-        $this->dateTimezone = self::nullableString($config, 'data.date_timezone');
+        $this->dateTimezone = $config->nullableString('data.date_timezone');
         $this->validationStrategy = ValidationStrategy::from($config->string('data.validation_strategy'));
         $this->inputNameMapper = self::nameMapper($config, 'data.name_mapping_strategy.input');
         $this->outputNameMapper = self::nameMapper($config, 'data.name_mapping_strategy.output');
@@ -133,7 +134,7 @@ class DataConfig
             Normalizer::class,
             'data.normalizers',
         );
-        $this->wrap = self::nullableString($config, 'data.wrap');
+        $this->wrap = $config->nullableString('data.wrap');
         $this->maxTransformationDepth = self::nullablePositiveInteger(
             $config,
             'data.max_transformation_depth',
@@ -247,38 +248,13 @@ class DataConfig
     }
 
     /**
-     * Get a nullable string configuration value.
-     */
-    private static function nullableString(Repository $config, string $key): ?string
-    {
-        if (! $config->has($key)) {
-            throw new InvalidArgumentException("Configuration [{$key}] is required.");
-        }
-
-        $value = $config->get($key);
-
-        if ($value !== null && ! is_string($value)) {
-            throw new InvalidArgumentException(sprintf(
-                'Configuration [%s] must be a string or null.',
-                $key,
-            ));
-        }
-
-        return $value;
-    }
-
-    /**
      * Get a nullable positive integer configuration value.
      */
     private static function nullablePositiveInteger(Repository $config, string $key): ?int
     {
-        if (! $config->has($key)) {
-            throw new InvalidArgumentException("Configuration [{$key}] is required.");
-        }
+        $value = $config->nullableInteger($key);
 
-        $value = $config->get($key);
-
-        if ($value !== null && (! is_int($value) || $value < 1)) {
+        if ($value !== null && $value < 1) {
             throw new InvalidArgumentException(sprintf(
                 'Configuration [%s] must be a positive integer or null.',
                 $key,
@@ -295,7 +271,7 @@ class DataConfig
      */
     private static function nameMapper(Repository $config, string $key): ?string
     {
-        $mapper = self::nullableString($config, $key);
+        $mapper = $config->nullableString($key);
 
         if ($mapper !== null) {
             self::ensureExtension($mapper, NameMapper::class, $key);

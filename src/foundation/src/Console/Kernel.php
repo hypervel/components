@@ -335,7 +335,7 @@ class Kernel implements KernelContract
     {
         $config = $this->app->make('config');
 
-        return $config->get('app.schedule_timezone', $config->string('app.timezone'));
+        return $config->nullableString('app.schedule_timezone', $config->string('app.timezone'));
     }
 
     /**
@@ -343,7 +343,7 @@ class Kernel implements KernelContract
      */
     protected function scheduleCache(): ?string
     {
-        return $this->app->make('config')->get('cache.schedule_store');
+        return $this->app->make('config')->nullableString('cache.schedule_store');
     }
 
     /**

@@ -70,8 +70,10 @@ class Middleware
      */
     private function computeVersion(): ?string
     {
-        if (config('app.asset_url')) {
-            return hash('xxh128', (string) config('app.asset_url'));
+        $assetUrl = config()->nullableString('app.asset_url');
+
+        if ($assetUrl) {
+            return hash('xxh128', $assetUrl);
         }
 
         if (file_exists($manifest = public_path('build/manifest.json'))) {

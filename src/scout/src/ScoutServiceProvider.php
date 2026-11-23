@@ -97,13 +97,13 @@ class ScoutServiceProvider extends ServiceProvider
                 'apiKey' => $config->string('scout.algolia.secret'),
             ]);
 
-            if (is_int($connectTimeout = $config->get('scout.algolia.connect_timeout'))) {
+            if (($connectTimeout = $config->nullableInteger('scout.algolia.connect_timeout', null)) !== null) {
                 $algoliaConfig->setConnectTimeout($connectTimeout);
             }
-            if (is_int($readTimeout = $config->get('scout.algolia.read_timeout'))) {
+            if (($readTimeout = $config->nullableInteger('scout.algolia.read_timeout', null)) !== null) {
                 $algoliaConfig->setReadTimeout($readTimeout);
             }
-            if (is_int($writeTimeout = $config->get('scout.algolia.write_timeout'))) {
+            if (($writeTimeout = $config->nullableInteger('scout.algolia.write_timeout', null)) !== null) {
                 $algoliaConfig->setWriteTimeout($writeTimeout);
             }
 
@@ -143,7 +143,7 @@ class ScoutServiceProvider extends ServiceProvider
             // CurlHttpClient). Mirrors the Typesense binding's defensive pattern.
             return new MeilisearchClient(
                 $config->string('scout.meilisearch.host', 'http://localhost:7700'),
-                $config->get('scout.meilisearch.key'),
+                $config->nullableString('scout.meilisearch.key', null),
                 new GuzzleClient($guzzleOptions),
                 clientAgents: [sprintf('Meilisearch Hypervel Scout (v%s)', HypervelApplication::VERSION)],
             );

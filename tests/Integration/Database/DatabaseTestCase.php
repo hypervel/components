@@ -30,9 +30,9 @@ abstract class DatabaseTestCase extends TestCase
         parent::defineEnvironment($app);
 
         $config = $app->make('config');
-        $connection = $config->get('database.default');
+        $connection = $config->string('database.default');
 
-        $this->driver = $config->get("database.connections.{$connection}.driver", 'sqlite');
+        $this->driver = $config->string("database.connections.{$connection}.driver", 'sqlite');
     }
 
     /**
