@@ -80,7 +80,7 @@ class TypedConfigGetterRule implements Rule
             ))
                 ->identifier('hypervel.typedConfigGetter')
                 ->tip(sprintf(
-                    'Use config()->%1$s(), Config::%1$s() or the repository\'s %1$s(), which return the value\'s type and throw if the configuration changes it.',
+                    'Use config()->%1$s(), Config::%1$s() or the repository\'s %1$s(). Without a default, the key must exist. If the key may be omitted, pass its documented fallback. If omission means null, use a nullable getter with an explicit null.',
                     $getter,
                 ))
                 ->build(),

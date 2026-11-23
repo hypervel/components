@@ -73,7 +73,7 @@ class NoUntypedConfigReadsRule implements Rule
         return [
             RuleErrorBuilder::message($message)
                 ->identifier('hypervel.untypedConfigRead')
-                ->tip('For values no single getter covers or raw values needed for diagnostics, keep the generic read and explain why with a local @phpstan-ignore hypervel.untypedConfigRead (reason).')
+                ->tip('Without a default, the key must exist. If the key may be omitted, pass its documented fallback. If omission means null, use a nullable getter with an explicit null. If no typed getter covers the values you accept, or you need to inspect malformed input, keep the untyped config read and explain why with a local @phpstan-ignore hypervel.untypedConfigRead (reason).')
                 ->build(),
         ];
     }

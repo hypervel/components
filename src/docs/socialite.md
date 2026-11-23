@@ -351,7 +351,7 @@ public function boot(): void
     Socialite::extend('acme', function (Container $app) {
         return Socialite::buildOAuth2Provider(
             AcmeProvider::class,
-            $app->make('config')->get('services.acme')
+            $app->make('config')->nullableArray('services.acme', null)
         );
     });
 }

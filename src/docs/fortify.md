@@ -507,8 +507,7 @@ class User extends Authenticatable implements PasskeyUser
 Fortify's passkeys configuration options may be customized using the `passkeys` configuration array in your application's `config/fortify.php` file:
 
 ```php
-/** @var null|string $appUrl */
-$appUrl = config('app.url');
+$appUrl = config()->nullableString('app.url');
 $defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
 $defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
 
@@ -518,7 +517,7 @@ return [
     'passkeys' => [
         'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
         'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
-        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config()->nullableString('app.key')),
         'timeout' => (int) env('PASSKEYS_TIMEOUT', 60_000),
     ],
 ];
@@ -531,7 +530,7 @@ The `relying_party_id` should match your application's domain. The `allowed_orig
 
 Each passkey member may be omitted. Fortify then uses these same application-derived identity values and a 60-second WebAuthn timeout. Explicit null or empty identity values remain explicit and are rejected when a WebAuthn operation first needs them; a configured timeout must be a positive integer.
 
-When your application has no canonical `app.url`, configure `PASSKEYS_RELYING_PARTY_ID` and `PASSKEYS_ALLOWED_ORIGINS` explicitly. Fortify will still boot without them, but a WebAuthn operation will reject the missing values when it first needs them.
+When your application sets `app.url` to null because it has no canonical URL, configure `PASSKEYS_RELYING_PARTY_ID` and `PASSKEYS_ALLOWED_ORIGINS` explicitly. Fortify will still boot without them, but a WebAuthn operation will reject the missing values when it first needs them.
 
 Set `PASSKEYS_ALLOWED_ORIGINS` to a comma-separated list when WebAuthn ceremonies should be accepted from more than one origin, such as `https://example.com,https://www.example.com`.
 

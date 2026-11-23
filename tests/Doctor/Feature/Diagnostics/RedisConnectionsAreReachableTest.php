@@ -135,6 +135,39 @@ class RedisConnectionsAreReachableTest extends TestCase
         $this->assertSame('skip', $result->status->value);
     }
 
+    public function testReportsConnectionsWhoseServerRejectsThePing(): void
+    {
+        config([
+            'cache.default' => 'redis',
+            'cache.stores.redis' => [
+                'driver' => 'redis',
+                'connection' => 'default',
+            ],
+        ]);
+        Redis::swap(new class {
+            /**
+             * Resolve a connection whose server rejects the probe.
+             */
+            public function connection(string $name): object
+            {
+                return new class {
+                    /**
+                     * Reject the reachability probe.
+                     */
+                    public function ping(): false
+                    {
+                        return false;
+                    }
+                };
+            }
+        });
+
+        $result = (new RedisConnectionsAreReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertStringContainsString('The Redis server returned an error for PING.', $result->details);
+    }
+
     public function testLinksToRedisConfigurationWhenAnActiveConnectionCannotBeReached(): void
     {
         config([

@@ -168,12 +168,13 @@ Custom diagnostics may branch on the current mode. Here, a `sync` queue connecti
 ```php
 use Hypervel\Doctor\EnvironmentMode;
 use Hypervel\Doctor\Results\DiagnosticResult;
+use Hypervel\Doctor\Support\Configured;
 
 public function check(): DiagnosticResult
 {
     $connection = config()->string('queue.default');
 
-    if (config("queue.connections.{$connection}.driver") !== 'sync') {
+    if (Configured::string("queue.connections.{$connection}.driver") !== 'sync') {
         return $this->skip('not-sync');
     }
 

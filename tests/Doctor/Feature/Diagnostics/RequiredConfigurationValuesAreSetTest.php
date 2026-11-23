@@ -20,6 +20,45 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         $this->assertSame('pass', $result->status->value);
     }
 
+    #[DataProvider('requiredDefaults')]
+    public function testReportsBlankRequiredDefaultsInsteadOfAssumingADriver(string $key, string $feature, ?string $value): void
+    {
+        config([$key => $value]);
+
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame("- {$key} ({$feature})", $result->details);
+    }
+
+    /**
+     * Provide required default keys, the features that need them, and unusable values.
+     */
+    public static function requiredDefaults(): array
+    {
+        return [
+            'blank broadcaster' => ['broadcasting.default', 'default broadcaster', ''],
+            'null broadcaster' => ['broadcasting.default', 'default broadcaster', null],
+            'blank filesystem disk' => ['filesystems.default', 'default filesystem disk', ''],
+            'null filesystem disk' => ['filesystems.default', 'default filesystem disk', null],
+            'blank mailer' => ['mail.default', 'default mailer', ''],
+            'null mailer' => ['mail.default', 'default mailer', null],
+            'blank queue connection' => ['queue.default', 'default queue connection', ''],
+            'null queue connection' => ['queue.default', 'default queue connection', null],
+        ];
+    }
+
+    public function testDoesNotAssumeAStackChannelWithoutADefaultLogChannel(): void
+    {
+        config([
+            'logging.default' => '',
+            'logging.channels.stack' => ['driver' => 'stack', 'channels' => ['slack']],
+            'logging.channels.slack' => ['driver' => 'slack', 'url' => null],
+        ]);
+
+        $this->assertSame('pass', (new RequiredConfigurationValuesAreSet)->check()->status->value);
+    }
+
     public function testReportsMissingCredentialsForTheActivePusherBroadcastConnection(): void
     {
         config([

@@ -1981,7 +1981,7 @@ The `<x-inertia::head>` Blade component accepts fallback content via its slot. T
 <head>
     @vite('resources/js/app.js')
     <x-inertia::head>
-        <title>{{ config('app.name') }}</title>
+        <title>{{ config()->string('app.name') }}</title>
         <meta name="description" content="My application description">
     </x-inertia::head>
 </head>
@@ -1998,7 +1998,7 @@ You may add the `data-inertia` attribute to elements in your Blade template to h
 ```blade
 <head>
     @vite('resources/js/app.js')
-    <title>{{ config('app.name') }}</title>
+    <title>{{ config()->string('app.name') }}</title>
     <meta data-inertia="description" name="description" content="My application description">
 </head>
 ```
@@ -8342,7 +8342,7 @@ class HandleInertiaRequests extends Middleware
     {
         return array_merge(parent::share($request), [
             // Synchronously...
-            'appName' => config('app.name'),
+            'appName' => config()->string('app.name'),
 
             // Lazily...
             'auth.user' => fn () => $request->user()
@@ -8360,7 +8360,7 @@ use Hypervel\Http\Request;
 use Hypervel\Inertia\Inertia;
 
 // Synchronously...
-Inertia::share('appName', config('app.name'));
+Inertia::share('appName', config()->string('app.name'));
 
 // Lazily...
 Inertia::share('user', fn (Request $request) => $request->user()

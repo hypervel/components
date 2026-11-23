@@ -2551,13 +2551,15 @@ $collection = collect(['Taylor', 'Abigail']);
 <a name="method-config"></a>
 #### `config()` {.collection-method}
 
-The `config` function gets the value of a [configuration](/docs/{{version}}/configuration) variable. The configuration values may be accessed using "dot" syntax, which includes the name of the file and the option you wish to access. You may also provide a default value that will be returned if the configuration option does not exist:
+The `config` function gives you access to the configuration repository. Use a [typed getter](/docs/{{version}}/configuration#typed-configuration-values) with the file name and key in "dot" syntax. You may pass a default for an optional setting:
 
 ```php
-$value = config('app.timezone');
+$timezone = config()->string('app.timezone');
 
-$value = config('app.timezone', $default);
+$channel = config()->nullableArray('logging.channels.audit', null);
 ```
+
+Passing a key directly, as in `config('app.timezone')`, returns its value without checking its type.
 
 You may set configuration variables at runtime by passing an array of key / value pairs. In Hypervel, configuration values are shared by the worker process, so this should only be done during application bootstrap or in tests. To store request-specific values, use the [context](#method-context) function:
 

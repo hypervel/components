@@ -58,7 +58,7 @@ parameters:
     noMutableDates: true
     checkConfigEnvCasts: true
     checkTypedConfigGetters: true
-    noUntypedConfigReads: false
+    noUntypedConfigReads: true
     checkObserverAttributes: true
     # Off by default: existing migrations should not be edited.
     checkMigrationColumnTypes: false

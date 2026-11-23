@@ -309,18 +309,16 @@ php artisan env:decrypt --path=/secure/envs --filename=.env
 <a name="accessing-configuration-values"></a>
 ## Accessing Configuration Values
 
-You may easily access your configuration values using the `Config` facade or global `config` function from anywhere in your application. The configuration values may be accessed using "dot" syntax, which includes the name of the file and option you wish to access. A default value may also be specified and will be returned if the configuration option does not exist:
+Use the `Config` facade or the `config()` helper to read a setting by its file name and key using "dot" syntax. Choose a [typed getter](#typed-configuration-values) that accepts the setting's values:
 
 ```php
 use Hypervel\Support\Facades\Config;
 
-$value = Config::get('app.timezone');
-
-$value = config('app.timezone');
-
-// Retrieve a default value if the configuration value does not exist...
-$value = config('app.timezone', 'Asia/Seoul');
+$timezone = Config::string('app.timezone');
+$debug = config()->boolean('app.debug');
 ```
+
+You may also read a value without checking its type using `Config::get('app.timezone')` or `config('app.timezone')`. Hypervel's PHPStan extension reports untyped config reads by default. See [Typed Configuration Getters](/docs/{{version}}/static-analysis#typed-configuration-getters) for exceptions and how to turn the check off.
 
 To set configuration values at runtime, you may invoke the `Config` facade's `set` method or pass an array to the `config` function:
 
