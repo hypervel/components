@@ -748,7 +748,6 @@ class PhpRedisClusterConnectionTest extends TestCase
         [$host, $port] = $server->hostAndPort();
         $server->start(static function ($client) use (&$bytes): void {
             $bytes = stream_get_contents($client, 2);
-            fwrite($client, "-ERR test endpoint is not a Redis Cluster\r\n");
         });
 
         try {
