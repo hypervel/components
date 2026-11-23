@@ -871,7 +871,7 @@ You should only read environment variables in your configuration files. Once you
 ],
 
 // Elsewhere in your application...
-$key = config()->string('services.billing.key');
+$key = config()->nullableString('services.billing.key');
 ```
 
 The check covers direct calls to `env`, `env_array`, `env_or_fail`, `app_id`, `Env::get`, `Env::getArray` and `Env::getOrFail`. Configuration files, including those merged or published by packages, are allowed. Dynamic calls, `getenv()` and `$_ENV` are not checked.
