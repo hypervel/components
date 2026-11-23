@@ -229,6 +229,8 @@ When a Swoole store is used in a cache stack, `bytes` must be large enough for t
 
 When you call `add` with a positive TTL, it returns `false` if the item already exists. Likewise, calling `get` on a lock returns `false` if the lock is already held. If the table has no room to add the item, acquire the lock, or store the result of an `increment` or `decrement`, Hypervel throws an exception.
 
+When flushing a large Swoole table with `flush` or `flushLocks`, choose a time when traffic is low. If another worker waits more than one second to write to the table or remove an expired item during a read, it throws an exception.
+
 <a name="cache-intervals"></a>
 #### Cache Intervals
 
