@@ -842,25 +842,20 @@ class CacheSwooleStoreTest extends TestCase
     }
 
     #[DataProvider('conditionalWrites')]
-    public function testConditionalWriteReportsQuietAllocationFailure(string $operation): void
+    public function testConditionalWriteReportsAllocationFailure(string $operation, string $displayErrors): void
     {
         $state = $this->createState(rows: 64, bytes: 256);
         $store = $this->createStore($state);
         $this->fillTable($state);
-        $previous = ini_set('swoole.display_errors', '0');
 
-        try {
-            $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessageIsOrContains('full while writing [missing]');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('full while writing [missing]');
 
-            match ($operation) {
-                'increment' => $store->increment('missing'),
-                'add' => $store->add('missing', 1, 60),
-                'lock' => $store->acquireLock('missing', 'owner', 60),
-            };
-        } finally {
-            ini_set('swoole.display_errors', $previous);
-        }
+        $this->withProductionWarnings(fn () => match ($operation) {
+            'increment' => $store->increment('missing'),
+            'add' => $store->add('missing', 1, 60),
+            'lock' => $store->acquireLock('missing', 'owner', 60),
+        }, $displayErrors);
     }
 
     /**
@@ -868,7 +863,11 @@ class CacheSwooleStoreTest extends TestCase
      */
     public static function conditionalWrites(): array
     {
-        return [['increment'], ['add'], ['lock']];
+        return [
+            ['increment', '0'], ['increment', '1'],
+            ['add', '0'], ['add', '1'],
+            ['lock', '0'], ['lock', '1'],
+        ];
     }
 
     public function testPutPropagatesTheAllocationWarningForFailover(): void
@@ -899,9 +898,9 @@ class CacheSwooleStoreTest extends TestCase
     /**
      * Run an operation with framework warning conversion enabled.
      */
-    private function withProductionWarnings(Closure $operation): mixed
+    private function withProductionWarnings(Closure $operation, string $displayErrors = '1'): mixed
     {
-        $displayErrors = ini_set('swoole.display_errors', '1');
+        $previous = ini_set('swoole.display_errors', $displayErrors);
         $reporting = error_reporting(-1);
         set_error_handler([new HandleExceptions, 'handleError']);
 
@@ -910,7 +909,7 @@ class CacheSwooleStoreTest extends TestCase
         } finally {
             restore_error_handler();
             error_reporting($reporting);
-            ini_set('swoole.display_errors', $displayErrors);
+            ini_set('swoole.display_errors', $previous);
         }
     }
 

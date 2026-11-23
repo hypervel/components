@@ -798,7 +798,8 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function putSerializedOrFail(string $key, string $tableKey, string $serialized, float $expiration): void
     {
-        if (! $this->rawPutSerialized($tableKey, $serialized, $expiration)) {
+        // Report the logical key even when Swoole emits an allocation warning.
+        if (! @$this->rawPutSerialized($tableKey, $serialized, $expiration)) {
             throw new RuntimeException("The Swoole cache table is full while writing [{$key}]. Check rows and conflict_proportion in cache.swoole_tables.");
         }
     }
