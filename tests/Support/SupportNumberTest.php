@@ -494,6 +494,40 @@ class SupportNumberTest extends TestCase
         $this->assertSame(1234.56, Number::parseFloat('1 234,56', locale: 'fr'));
     }
 
+    public function testToStringPreservesFloatPrecision(): void
+    {
+        $this->assertSame('5', Number::toString(5));
+        $this->assertSame('007', Number::toString('007'));
+        $this->assertSame('5', Number::toString(5.0));
+        $this->assertSame('-0', Number::toString(-0.0));
+        $this->assertSame('19.99', Number::toString(19.99));
+        $this->assertSame('1.234567890123456', Number::toString(1.234567890123456));
+        $this->assertSame('0.30000000000000004', Number::toString(0.1 + 0.2));
+        $this->assertSame('1.0e+25', Number::toString(1e25));
+        $this->assertSame('1.5e-10', Number::toString(1.5e-10));
+        $this->assertSame('NAN', Number::toString(NAN));
+        $this->assertSame('INF', Number::toString(INF));
+        $this->assertSame('-INF', Number::toString(-INF));
+    }
+
+    public function testToStringIgnoresSerializePrecision(): void
+    {
+        $serializePrecision = ini_get('serialize_precision');
+
+        try {
+            foreach (['17', '6'] as $configured) {
+                ini_set('serialize_precision', $configured);
+
+                $this->assertSame('19.99', Number::toString(19.99));
+                $this->assertSame('1234567.89', Number::toString(1234567.89));
+                $this->assertSame('0.30000000000000004', Number::toString(0.1 + 0.2));
+                $this->assertSame('1.0e+25', Number::toString(1e25));
+            }
+        } finally {
+            ini_set('serialize_precision', $serializePrecision);
+        }
+    }
+
     public function testFlushStateClearsMacros(): void
     {
         Number::macro('foo', fn () => 'bar');

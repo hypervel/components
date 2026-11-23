@@ -1172,16 +1172,29 @@ trait ValidatesAttributes
     {
         $verifier = $this->getPresenceVerifier();
 
-        $conditions = match (true) {
-            $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
-            $this->currentRule instanceof Exists => $this->currentRule->queryConditions(),
-            default => $this->getExtraConditions(array_values(array_slice($parameters, 2))),
-        };
-        $query = new PresenceQuery($connection, $table, $column, $conditions);
+        $rule = $this->dispatchedDatabaseRule;
+        $this->dispatchedDatabaseRule = null;
 
-        return is_array($value)
-            ? $verifier->getMultiCount($query, $value)
-            : $verifier->getCount($query, $value);
+        try {
+            // As in Laravel, parameters after the header pass through the hook and combine with the
+            // rule's own conditions, so validator subclasses can scope a fluent rule either way.
+            $conditions = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
+
+            if ($rule instanceof DatabaseRulePlan) {
+                $conditions = $conditions->merge($rule->conditions);
+            } elseif ($rule instanceof Exists) {
+                $this->currentRuleConditions = $rule->queryConditions();
+                $conditions = $conditions->merge($this->currentRuleConditions);
+            }
+
+            $query = new PresenceQuery($connection, $table, $column, $conditions);
+
+            return is_array($value)
+                ? $verifier->getMultiCount($query, $value)
+                : $verifier->getCount($query, $value);
+        } finally {
+            $this->dispatchedDatabaseRule = $rule;
+        }
     }
 
     /**
@@ -1217,16 +1230,38 @@ trait ValidatesAttributes
         // data store like Redis, etc. We will use it to determine uniqueness.
         $verifier = $this->getPresenceVerifier();
 
-        $conditions = match (true) {
-            $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
-            $this->currentRule instanceof Unique => $this->currentRule->queryConditions(),
-            default => $this->getUniqueExtra($parameters),
-        };
+        $rule = $this->dispatchedDatabaseRule;
+        $this->dispatchedDatabaseRule = null;
+        $conditionsToRestore = $this->currentRuleConditions;
+        $this->currentRuleConditions = null;
 
-        return $verifier->getCount(
-            new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),
-            $value,
-        ) === 0;
+        try {
+            $declared = match (true) {
+                $rule instanceof DatabaseRulePlan => $rule->conditions,
+                $rule instanceof Unique => $rule->queryConditions(),
+                default => null,
+            };
+
+            if ($rule instanceof Unique) {
+                $this->currentRuleConditions = $conditionsToRestore = $declared;
+            }
+
+            // As in Laravel, parameters after the header pass through the hook and combine with the
+            // rule's own conditions, so validator subclasses can scope a fluent rule either way.
+            $conditions = $this->getUniqueExtra($parameters);
+            if ($declared !== null) {
+                $conditions = $conditions->merge($declared);
+            }
+
+            return $verifier->getCount(
+                new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),
+                $value,
+            ) === 0;
+        } finally {
+            $this->dispatchedDatabaseRule = $rule;
+            // A failure needs the builder conditions we read. A manual lookup restores the enclosing snapshot.
+            $this->currentRuleConditions = $conditionsToRestore;
+        }
     }
 
     /**
@@ -1274,6 +1309,14 @@ trait ValidatesAttributes
     {
         if (isset($parameters[4])) {
             return $this->getExtraConditions(array_slice($parameters, 4));
+        }
+
+        // Laravel passes comparisons and null checks to the shared hook as rule-string
+        // parameters. Here they stay typed and merge separately, so the hook receives no segments.
+        if ($this->currentRuleConditions !== null
+            && array_any($this->currentRuleConditions->all(), static fn (mixed $condition): bool => $condition instanceof DatabaseCondition && ! $condition->operator->isMembership())
+        ) {
+            return $this->getExtraConditions([]);
         }
 
         return new DatabaseConditions;

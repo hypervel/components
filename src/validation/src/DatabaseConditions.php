@@ -6,6 +6,8 @@ namespace Hypervel\Validation;
 
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Number;
+use LogicException;
 
 use function Hypervel\Support\enum_value;
 
@@ -54,6 +56,18 @@ final readonly class DatabaseConditions
     }
 
     /**
+     * Append the given conditions, reusing either set when the other is empty.
+     */
+    public function merge(self $conditions): self
+    {
+        return match (true) {
+            $conditions->conditions === [] => $this,
+            $this->conditions === [] => $conditions,
+            default => new self(...$this->conditions, ...$conditions->conditions),
+        };
+    }
+
+    /**
      * Capture membership values and detach their references for the current run.
      */
     public function prepare(): self
@@ -71,6 +85,56 @@ final readonly class DatabaseConditions
         }
 
         return $prepared === null ? $this : new self(...$prepared);
+    }
+
+    /**
+     * Render the predicates as the extra column/value pairs of a legacy rule.
+     *
+     * @param bool $omitOpaqueOperands Leave out an operand without a string form, such as a query expression, instead of throwing
+     * @return list<string>
+     *
+     * @throws LogicException
+     */
+    public function toParameters(bool $omitOpaqueOperands = false): array
+    {
+        $parameters = [];
+
+        foreach ($this->conditions as $condition) {
+            if ($condition instanceof Closure) {
+                continue;
+            }
+
+            // A rule string that silently lost this predicate would validate against more rows
+            // than the rule declares, so only a failure report may leave it out.
+            if (! $condition->operator->isMembership() && is_object($condition->value)) {
+                if ($omitOpaqueOperands) {
+                    continue;
+                }
+
+                throw new LogicException("The database rule condition on [{$condition->column}] cannot be converted to a string. Pass the rule object to the validator instead.");
+            }
+
+            $operand = match (true) {
+                is_bool($condition->value) => (int) $condition->value,
+                is_float($condition->value) => Number::toString($condition->value),
+                default => $condition->value,
+            };
+
+            // Membership predicates, like callbacks, have no legacy string representation.
+            $value = match ($condition->operator) {
+                DatabaseConditionOperator::Equals => (string) $operand,
+                DatabaseConditionOperator::NotEquals => '!' . $operand,
+                DatabaseConditionOperator::IsNull => 'NULL',
+                DatabaseConditionOperator::IsNotNull => 'NOT_NULL',
+                DatabaseConditionOperator::In, DatabaseConditionOperator::NotIn => null,
+            };
+
+            if ($value !== null) {
+                array_push($parameters, $condition->column, $value);
+            }
+        }
+
+        return $parameters;
     }
 
     /**
