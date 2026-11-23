@@ -72,7 +72,7 @@ final readonly class DatabaseRulePlan
             $header[2] ??= 'NULL';
         }
 
-        return [...$header, ...$this->conditions->toParameters()];
+        return [...$header, ...$this->conditions->toParameters(omitOpaqueOperands: true)];
     }
 
     /**

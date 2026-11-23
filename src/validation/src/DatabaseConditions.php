@@ -7,6 +7,7 @@ namespace Hypervel\Validation;
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Number;
+use LogicException;
 
 use function Hypervel\Support\enum_value;
 
@@ -89,16 +90,31 @@ final readonly class DatabaseConditions
     /**
      * Render the predicates as the extra column/value pairs of a legacy rule.
      *
+     * @param bool $omitOpaqueOperands Leave out an operand without a string form, such as a query expression, instead of throwing
      * @return list<string>
+     *
+     * @throws LogicException
      */
-    public function toParameters(): array
+    public function toParameters(bool $omitOpaqueOperands = false): array
     {
         $parameters = [];
 
         foreach ($this->conditions as $condition) {
-            // Callbacks and opaque operands such as query expressions have no legacy form.
-            if ($condition instanceof Closure || is_object($condition->value)) {
+            if ($condition instanceof Closure) {
                 continue;
+            }
+
+            $membership = $condition->operator === DatabaseConditionOperator::In
+                || $condition->operator === DatabaseConditionOperator::NotIn;
+
+            // A rule string that silently lost this predicate would validate against more rows
+            // than the rule declares, so only a failure report may leave it out.
+            if (! $membership && is_object($condition->value)) {
+                if ($omitOpaqueOperands) {
+                    continue;
+                }
+
+                throw new LogicException("The database rule condition on [{$condition->column}] cannot be converted to a string. Pass the rule object to the validator instead.");
             }
 
             $operand = match (true) {

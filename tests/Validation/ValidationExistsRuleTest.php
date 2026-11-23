@@ -14,6 +14,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Validator;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use UnitEnum;
 
@@ -49,11 +50,6 @@ class ValidationExistsRuleTest extends TestCase
             ->whereNot('score', 1.234567890123457);
         $this->assertSame('exists:table,id,score,"1.234567890123456",score,"!1.234567890123457"', (string) $rule);
 
-        $rule = (new Exists('table', 'id'))
-            ->where('total', new Expression('1 + 1'))
-            ->where('foo', 'bar');
-        $this->assertSame('exists:table,id,foo,"bar"', (string) $rule);
-
         $rule = new Exists(User::class);
         $rule->where('foo', 'bar');
         $this->assertSame('exists:table,NULL,foo,"bar"', (string) $rule);
@@ -85,6 +81,18 @@ class ValidationExistsRuleTest extends TestCase
         $rule = new Exists(ClassWithRequiredConstructorParameters::class, 'column');
         $rule->where('foo', 'bar');
         $this->assertSame('exists:' . ClassWithRequiredConstructorParameters::class . ',column,foo,"bar"', (string) $rule);
+    }
+
+    public function testItRefusesToFormatAConditionWithoutAStringForm(): void
+    {
+        $rule = (new Exists('table', 'id'))
+            ->where('foo', 'bar')
+            ->where('total', new Expression('1 + 1'));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('The database rule condition on [total] cannot be converted to a string.');
+
+        (string) $rule;
     }
 
     public function testItChoosesValidRecordsUsingWhereInRule(): void
