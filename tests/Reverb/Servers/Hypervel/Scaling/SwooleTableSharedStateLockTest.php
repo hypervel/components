@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
+use Closure;
 use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
@@ -23,21 +24,20 @@ class SwooleTableSharedStateLockTest extends TestCase
 
     protected bool $runTestsInCoroutine = false;
 
-    public function testFailedLockRowsAreReportedOnlyAfterTheirStripeIsReleased(): void
+    public function testRejectedAdmissionDoesNotConsumeAReleasedSlot(): void
     {
         $locks = new ProbeStripedLock;
-        $state = $this->createState(ReportingProbeSharedState::class, $locks);
+        $state = $this->createState(SwooleTableSharedState::class, $locks);
+        $this->assertTrue($state->acquireConnectionSlot('app', 1));
 
-        $this->assertFalse($state->tryCacheMissLock('app', 'channel'));
-        $state->setSmoothingPending('app', 'channel', 1_000);
-        $state->setMemberSmoothingPending('app', 'channel', 'user', 1_000);
+        $admitted = false;
+        $locks->afterRelease = function () use ($state, &$admitted): void {
+            $state->releaseConnectionSlot('app');
+            $admitted = $state->acquireConnectionSlot('app', 1);
+        };
 
-        $this->assertSame(['m', 'h', 'p'], array_map(
-            static fn (string $key): string => $key[0],
-            $state->reportedKeys,
-        ));
-        $this->assertSame([33, 33, 33], array_map('strlen', $state->reportedKeys));
-        $this->assertFalse($state->reportedWhileLocked);
+        $this->assertFalse($state->acquireConnectionSlot('app', 1));
+        $this->assertTrue($admitted);
     }
 
     public function testPresenceMutationAcquiresSharedStripeOnlyOnce(): void
@@ -100,26 +100,6 @@ class SwooleTableSharedStateLockTest extends TestCase
         $this->trackSwooleTable($table, $lockTable);
 
         return new $class($table, $lockTable, $locks);
-    }
-}
-
-class ReportingProbeSharedState extends SwooleTableSharedState
-{
-    /** @var list<string> */
-    public array $reportedKeys = [];
-
-    public bool $reportedWhileLocked = false;
-
-    protected function setLockRow(string $key, float $timestamp): bool
-    {
-        return false;
-    }
-
-    protected function reportFullLockTable(string $key): void
-    {
-        $this->reportedKeys[] = $key;
-        $this->reportedWhileLocked = $this->reportedWhileLocked
-            || $this->locks->isLocked($key);
     }
 }
 
@@ -197,6 +177,8 @@ class AtomicPresenceProbeSharedState extends SwooleTableSharedState
 
 class ProbeStripedLock extends StripedLock
 {
+    public ?Closure $afterRelease = null;
+
     public int $acquisitions = 0;
 
     public int $releases = 0;
@@ -204,11 +186,6 @@ class ProbeStripedLock extends StripedLock
     public function stripe(string $key): int
     {
         return $this->lockIndexFor($key);
-    }
-
-    public function isLocked(string $key): bool
-    {
-        return $this->lockFor($key)->get() !== 0;
     }
 
     protected function acquire(Atomic $lock): void
@@ -221,5 +198,10 @@ class ProbeStripedLock extends StripedLock
     {
         ++$this->releases;
         parent::release($lock);
+
+        if ($callback = $this->afterRelease) {
+            $this->afterRelease = null;
+            $callback();
+        }
     }
 }

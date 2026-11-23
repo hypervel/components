@@ -8,6 +8,7 @@ use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Table;
 
@@ -231,6 +232,31 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertSame(0, $state->table()->count());
     }
 
+    #[DataProvider('warningModes')]
+    public function testMemberAllocationFailurePreservesChannelCount(string $displayErrors): void
+    {
+        $state = $this->createState(64, 64);
+        $previous = ini_set('swoole.display_errors', $displayErrors);
+        $subscriptions = 0;
+
+        try {
+            for ($index = 0; $index < 200; ++$index) {
+                $state->subscribe('app', 'presence', "user-{$index}");
+                ++$subscriptions;
+            }
+            $this->fail('Expected the bounded counter table to fill.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('swoole_shared_state.rows', $exception->getMessage());
+        } finally {
+            ini_set('swoole.display_errors', $previous);
+        }
+
+        // Both rows exist. The preceding capacity error must not turn a duplicate into a failure.
+        $state->subscribe('app', 'presence', 'user-0');
+        $this->assertSame($subscriptions + 1, $state->getSubscriptionCount('app', 'presence'));
+        $this->assertSame(2, $state->getUserSubscriptionCount('app', 'presence', 'user-0'));
+    }
+
     // ── Subscription count ────────────────────────────────────────────
 
     public function testSubscribeReturnsCorrectSubscriptionCount(): void
@@ -428,26 +454,77 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     // ── Lock table capacity ───────────────────────────────────────────
 
-    public function testTryLockReturnsFalseWhenLockTableFull(): void
+    #[DataProvider('warningModes')]
+    public function testFullWebhookTableReportsThrottleAndSmoothingFailures(string $displayErrors): void
     {
         $state = $this->createState(1024, 4);
+        $table = $state->lockTable();
+        $capacity = $table->getSize() + $table->stats()['total_slice_num'];
 
-        Log::shouldReceive('error')
-            ->once()
-            ->withArgs(fn (string $message): bool => str_contains($message, 'swoole_shared_state.lock_rows'));
+        for ($index = 0; $table->count() < $capacity && $index < 10_000; ++$index) {
+            @$table->set("filler:{$index}", []);
+        }
+        $this->assertSame($capacity, $table->count());
 
-        // Fill the lock table past capacity — Swoole hash tables can hold
-        // more than `size` rows via chaining, so use many iterations.
-        $hitCapacity = false;
-
-        for ($i = 0; $i < 10_000; ++$i) {
-            if (! $state->tryCacheMissLock('app1', "channel-{$i}", 60000)) {
-                $hitCapacity = true;
-                break;
-            }
+        foreach (['m', 'h', 'p'] as $prefix) {
+            Log::shouldReceive('error')->once()->withArgs(
+                fn (string $message): bool => str_contains($message, 'swoole_shared_state.lock_rows')
+                    && str_contains($message, "key [{$prefix}"),
+            );
         }
 
-        $this->assertTrue($hitCapacity, 'Lock table should eventually return false when full');
+        $previous = ini_set('swoole.display_errors', $displayErrors);
+
+        try {
+            $this->assertFalse($state->tryCacheMissLock('app', 'channel'));
+            $state->setSmoothingPending('app', 'channel', 1_000);
+            $state->setMemberSmoothingPending('app', 'channel', 'user', 1_000);
+        } finally {
+            ini_set('swoole.display_errors', $previous);
+        }
+    }
+
+    /**
+     * Exercise both settings for Swoole's allocation warnings.
+     */
+    public static function warningModes(): array
+    {
+        return [['1'], ['0']];
+    }
+
+    public function testExpiredThrottleRechecksAConcurrentClearOrRenewal(): void
+    {
+        $table = new class(64) extends Table {
+            public bool $clearOnCompare = true;
+
+            /**
+             * Interleave a competing mutation after the throttle read.
+             */
+            public function cmpset(string $key, array $expected, array $values): bool
+            {
+                if ($this->clearOnCompare) {
+                    $this->del($key);
+                } else {
+                    $this->set($key, ['locked_at' => microtime(true)]);
+                }
+
+                return parent::cmpset($key, $expected, $values);
+            }
+        };
+        $table->column('locked_at', Table::TYPE_FLOAT);
+        $table->create();
+        $this->trackSwooleTable($table);
+        $state = new SwooleTableSharedState($this->state->table(), $table, new StripedLock);
+
+        $this->assertTrue($state->tryCacheMissLock('app', 'channel'));
+        $key = array_key_first(iterator_to_array($table));
+
+        $table->set($key, ['locked_at' => 0.0]);
+        $this->assertTrue($state->tryCacheMissLock('app', 'channel'));
+
+        $table->clearOnCompare = false;
+        $table->set($key, ['locked_at' => 0.0]);
+        $this->assertFalse($state->tryCacheMissLock('app', 'channel'));
     }
 
     /**
