@@ -2089,7 +2089,7 @@ use Hypervel\Mcp\Client;
 use Hypervel\Support\Facades\Auth;
 
 $client = Client::web('https://api.githubcopilot.com/mcp/')->withToken(
-    config('services.github_mcp.token'),
+    config()->string('services.github_mcp.token'),
 );
 
 $client = Client::web('https://api.githubcopilot.com/mcp/')->withToken(
@@ -2126,8 +2126,8 @@ use Hypervel\Support\Facades\Auth;
 
 Mcp::registerClient('projects', fn () => Client::web('https://projects.example.com/mcp')
     ->withOAuth(
-        clientId: config('services.projects.client_id'),
-        clientSecret: config('services.projects.client_secret'),
+        clientId: config()->nullableString('services.projects.client_id', null),
+        clientSecret: config()->nullableString('services.projects.client_secret', null),
     )
     ->withToken(fn () => Auth::user()->projects_token));
 ```

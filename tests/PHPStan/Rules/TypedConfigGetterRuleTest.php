@@ -25,7 +25,7 @@ class TypedConfigGetterRuleTest extends RuleTestCase
         $error = static fn (string $key, string $description, string $getter, int $line): array => [
             sprintf('Config key %s always holds %s, so read it with %s().', $key, $description, $getter),
             $line,
-            sprintf("Use config()->%1\$s(), Config::%1\$s() or the repository's %1\$s(), which return the value's type and throw if the configuration changes it.", $getter),
+            sprintf("Use config()->%1\$s(), Config::%1\$s() or the repository's %1\$s(). Without a default, the key must exist. If the key may be omitted, pass its documented fallback. If omission means null, use a nullable getter with an explicit null.", $getter),
         ];
 
         // The analyzer tests boot a Testbench package application.
@@ -66,6 +66,6 @@ class TypedConfigGetterRuleTest extends RuleTestCase
 
     public static function getAdditionalConfigFiles(): array
     {
-        return [__DIR__ . '/phpstan-rules.neon'];
+        return [__DIR__ . '/allow-untyped-config-reads.neon'];
     }
 }
