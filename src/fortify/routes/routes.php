@@ -27,9 +27,9 @@ use Hypervel\Passkeys\Http\Controllers\PasskeyRegistrationController;
 use Hypervel\Support\Facades\Route;
 
 $middleware = config()->array('fortify.middleware');
-$guard = config()->get('fortify.guard');
+$guard = config()->nullableString('fortify.guard');
 
-if (is_string($guard) && $guard !== '') {
+if ($guard !== null && $guard !== '') {
     $middleware[] = 'auth.guard:' . $guard;
 }
 
@@ -44,9 +44,9 @@ Route::group(['middleware' => $middleware], function () {
             ->name('login');
     }
 
-    $limiter = config()->get('fortify.limiters.login');
-    $twoFactorLimiter = config()->get('fortify.limiters.two-factor');
-    $passkeyLimiter = config()->get('fortify.limiters.passkeys');
+    $limiter = config()->nullableString('fortify.limiters.login', null);
+    $twoFactorLimiter = config()->nullableString('fortify.limiters.two-factor', null);
+    $passkeyLimiter = config()->nullableString('fortify.limiters.passkeys', null);
     $verificationLimiter = config()->string('fortify.limiters.verification', '6,1');
 
     Route::post(RoutePath::for('login', '/login'), [AuthenticatedSessionController::class, 'store'])

@@ -68,7 +68,7 @@ class SigningKey extends Model
      */
     public function getConnectionName(): ?string
     {
-        return parent::getConnectionName() ?? config('passport.connection');
+        return parent::getConnectionName() ?? config()->nullableString('passport.connection');
     }
 
     /**
