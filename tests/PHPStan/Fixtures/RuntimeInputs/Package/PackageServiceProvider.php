@@ -14,9 +14,9 @@ class PackageServiceProvider extends ServiceProvider
     public function register(): void
     {
         $config = $this->app->make('config');
-        $french = $config->get('package.greeter') === 'french'
-            || $config->get('database.connections.mysql.database') === 'french'
-            || $config->get('database.default') === 'sqlite';
+        $french = $config->string('package.greeter') === 'french'
+            || $config->string('database.connections.mysql.database') === 'french'
+            || $config->string('database.default') === 'sqlite';
 
         $this->app->bind(Greeter::class, $french ? FrenchGreeter::class : EnglishGreeter::class);
     }

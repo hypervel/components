@@ -39,7 +39,7 @@ class NoUntypedConfigReadsRuleTest extends PHPStanTestCase
             }
 
             $this->assertSame('hypervel.untypedConfigRead', $error->getIdentifier());
-            $this->assertStringContainsString('@phpstan-ignore hypervel.untypedConfigRead (reason)', $error->getTip());
+            $this->assertSame('Without a default, the key must exist. If the key may be omitted, pass its documented fallback. If omission means null, use a nullable getter with an explicit null. If no typed getter covers the values you accept, or you need to inspect malformed input, keep the untyped config read and explain why with a local @phpstan-ignore hypervel.untypedConfigRead (reason).', $error->getTip());
             $reads[] = $error->getLine();
             if ($error->getLine() === 19) {
                 $this->assertSame($package
@@ -61,6 +61,6 @@ class NoUntypedConfigReadsRuleTest extends PHPStanTestCase
 
     public static function getAdditionalConfigFiles(): array
     {
-        return [__DIR__ . '/strict-config-reads.neon'];
+        return [__DIR__ . '/phpstan-rules.neon'];
     }
 }
