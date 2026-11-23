@@ -29,7 +29,6 @@ class FilesystemDisksAreReachable extends Diagnostic
     {
         return [
             'not-configured' => 'The application does not have a default filesystem disk configured.',
-            'disk-missing' => 'The default filesystem disk [{disk}] is not configured.',
             'unreachable' => Message::make(
                 summary: 'The application cannot reach the default filesystem disk [{disk}].',
                 remediation: 'Check filesystem disk roots, credentials, and network access.',
@@ -49,14 +48,8 @@ class FilesystemDisksAreReachable extends Diagnostic
             return $this->skip('not-configured');
         }
 
-        $configuration = $this->configuration($disk);
-
-        if ($configuration === null) {
-            return $this->skip('disk-missing', ['disk' => $disk]);
-        }
-
         try {
-            $this->probe($disk, $configuration);
+            $this->probe($disk);
         } catch (Throwable $e) {
             if (Coroutine::causedByCancellation($e)) {
                 throw $e;
@@ -71,17 +64,18 @@ class FilesystemDisksAreReachable extends Diagnostic
 
     /**
      * Probe a filesystem disk.
-     *
-     * @param array<string, mixed> $configuration
      */
-    private function probe(string $disk, array $configuration): void
+    private function probe(string $disk): void
     {
+        $configuration = Configured::array("filesystems.disks.{$disk}");
+
         if (($configuration['driver'] ?? null) === 'local') {
             $this->probeLocalDisk($configuration);
 
             return;
         }
 
+        // Storage::set() can register a working disk without a configuration record.
         Storage::disk($disk)->exists('.hypervel-doctor');
     }
 
@@ -101,15 +95,5 @@ class FilesystemDisksAreReachable extends Diagnostic
         if (! is_dir($root) || ! is_readable($root)) {
             throw new RuntimeException(sprintf('The local disk root [%s] is not readable.', $root));
         }
-    }
-
-    /**
-     * Get the default filesystem disk configuration.
-     *
-     * @return null|array<string, mixed>
-     */
-    private function configuration(string $disk): ?array
-    {
-        return Configured::array("filesystems.disks.{$disk}");
     }
 }

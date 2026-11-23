@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 use Hypervel\Doctor\Diagnostics\FilesystemDisksAreReachable;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Support\Facades\File;
+use Hypervel\Support\Facades\Storage;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
 
@@ -62,7 +63,7 @@ class FilesystemDisksAreReachableTest extends TestCase
         $this->assertSame('The application can reach the default filesystem disk.', $result->summary);
     }
 
-    public function testSkipsWhenTheDefaultFilesystemDiskIsNotConfigured(): void
+    public function testReportsAnUndefinedDefaultDisk(): void
     {
         config([
             'filesystems.default' => 'missing',
@@ -76,9 +77,17 @@ class FilesystemDisksAreReachableTest extends TestCase
 
         $result = (new FilesystemDisksAreReachable)->check();
 
-        $this->assertSame('skip', $result->status->value);
-        $this->assertSame('The default filesystem disk [missing] is not configured.', $result->summary);
-        $this->assertNull($result->details);
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('Disk [missing] does not have a configured driver.', $result->details);
+    }
+
+    public function testProbesADiskRegisteredWithoutAConfigurationRecord(): void
+    {
+        config(['filesystems.default' => 'registered']);
+        Storage::set('registered', Storage::build(['driver' => 'local', 'root' => $this->root]));
+
+        $result = (new FilesystemDisksAreReachable)->check();
+        $this->assertSame('pass', $result->status->value);
     }
 
     public function testLinksToFilesystemConfigurationWhenTheDefaultDiskCannotBeReached(): void
