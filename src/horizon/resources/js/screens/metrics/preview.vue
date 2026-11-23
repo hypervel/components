@@ -85,7 +85,6 @@
                         {
                             label: label,
                             data: data.map((entry) => entry[attribute]),
-                            lineTension: 0,
                             backgroundColor: 'transparent',
                             pointBackgroundColor: '#fff',
                             pointBorderColor: '#7746ec',
