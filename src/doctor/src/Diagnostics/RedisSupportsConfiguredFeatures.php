@@ -13,8 +13,8 @@ use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Doctor\Support\Configured;
 use Hypervel\Doctor\Support\Details;
+use Hypervel\Doctor\Support\RedisConnections;
 use Hypervel\Redis\RedisRequirements;
-use Hypervel\Session\SessionManager;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -117,12 +117,12 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
             $mode = $mode instanceof TagMode ? $mode : TagMode::fromConfig($mode);
 
             if ($mode === TagMode::Any) {
-                $connections[] = $configuration['connection'] ?? 'default';
+                $connections[] = RedisConnections::name($configuration['connection'] ?? null);
             }
         }
 
         if (Configured::string('session.driver') === 'redis' && config()->boolean('session.track_user_sessions')) {
-            $connections[] = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
+            $connections[] = RedisConnections::sessionName();
         }
 
         return array_values(array_unique($connections));

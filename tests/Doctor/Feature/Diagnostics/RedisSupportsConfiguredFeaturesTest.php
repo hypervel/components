@@ -51,12 +51,12 @@ class RedisSupportsConfiguredFeaturesTest extends TestCase
 
     #[RequiresPhpExtension('redis', '>=' . RedisRequirements::HASH_FIELD_EXPIRATION_PHPREDIS_VERSION)]
     #[DataProvider('activeFeatures')]
-    public function testOnlyChecksServersForActiveHashFieldFeatures(TagMode|string $mode, bool $trackSessions, array $servers, string $status): void
+    public function testOnlyChecksServersForActiveHashFieldFeatures(TagMode|string $mode, bool $trackSessions, array $servers, string $status, string $cacheConnection = 'data'): void
     {
         config([
             'cache.default' => 'stack',
             'cache.stores.stack' => ['driver' => 'stack', 'stores' => ['array', 'feature-cache']],
-            'cache.stores.feature-cache' => ['driver' => 'redis', 'connection' => 'data', 'lock_connection' => 'locks', 'tag_mode' => $mode],
+            'cache.stores.feature-cache' => ['driver' => 'redis', 'connection' => $cacheConnection, 'lock_connection' => 'locks', 'tag_mode' => $mode],
             'session.driver' => 'redis',
             'session.connection' => 'data',
             'session.track_user_sessions' => $trackSessions,
@@ -81,6 +81,7 @@ class RedisSupportsConfiguredFeaturesTest extends TestCase
         return [
             'any-tag cache' => ['any', false, ['data' => ['redis_version' => '7.4.0']], 'fail'],
             'enum any-tag cache' => [TagMode::Any, false, ['data' => ['redis_version' => '8.0.0']], 'pass'],
+            'empty cache connection uses default' => ['any', false, ['default' => ['redis_version' => '8.0.0']], 'pass', ''],
             'session tracking' => ['all', true, ['data' => ['redis_version' => '7.4.0']], 'fail'],
             'shared feature connection on Valkey' => ['any', true, ['data' => ['valkey_version' => '9.0.0', 'redis_version' => '7.2.0']], 'pass'],
             'no hash-field features' => ['all', false, [], 'pass'],
