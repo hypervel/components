@@ -63,7 +63,7 @@
         "hypervel/guzzle-promises": "^3.1",
         "laravel/agent-detector": "^2.0.5",
         "laravel/serializable-closure": "^2.0.11",
-        "lcobucci/jwt": "^5.6",
+        "lcobucci/jwt": "^5.7",
         "league/commonmark": "^2.10.3",
         "league/flysystem": "^3.25.1",
         "league/flysystem-aws-s3-v3": "^3.25.1",
