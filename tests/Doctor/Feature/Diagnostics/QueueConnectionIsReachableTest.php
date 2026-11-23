@@ -9,14 +9,15 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Doctor\Diagnostics\QueueConnectionIsReachable;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Support\Facades\Queue;
-use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Doctor\Fixtures\RedisPingServer;
 use Hypervel\Tests\Doctor\TestCase;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class QueueConnectionIsReachableTest extends TestCase
@@ -109,34 +110,18 @@ class QueueConnectionIsReachableTest extends TestCase
         ];
     }
 
-    public function testReportsRedisQueuesWhenTheServerRejectsThePing(): void
+    #[TestWith(['queue', 'queue'])]
+    #[TestWith(['', 'default'])]
+    public function testReportsRedisQueuesWhenTheServerRejectsThePing(string $configured, string $expected): void
     {
         config([
             'queue.default' => 'redis',
-            'queue.connections.redis' => ['driver' => 'redis', 'connection' => 'queue'],
+            'queue.connections.redis' => ['driver' => 'redis', 'connection' => $configured],
         ]);
-        Redis::swap(new class {
-            /**
-             * Resolve a connection whose server rejects the probe.
-             */
-            public function connection(string $name): object
-            {
-                return new class {
-                    /**
-                     * Reject the reachability probe.
-                     */
-                    public function ping(): false
-                    {
-                        return false;
-                    }
-                };
-            }
-        });
-
-        $result = (new QueueConnectionIsReachable)->check();
+        $result = RedisPingServer::check(new QueueConnectionIsReachable, $expected, '-ERR max number of clients reached');
 
         $this->assertSame('fail', $result->status->value);
-        $this->assertStringContainsString('Redis connection [queue] returned an error for PING.', $result->details);
+        $this->assertSame("[redis]: Redis connection [{$expected}] rejected PING: ERR max number of clients reached", $result->details);
     }
 
     public function testBuiltInNullConnectionNeedsNoConfigurationRecord(): void
