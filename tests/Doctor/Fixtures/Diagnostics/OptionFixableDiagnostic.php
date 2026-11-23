@@ -20,7 +20,7 @@ class OptionFixableDiagnostic extends Diagnostic implements Fixable
      */
     public function check(): DiagnosticResult
     {
-        if (config('doctor-testing.option-fixed') !== null) {
+        if (config()->nullableString('doctor-testing.option-fixed', null) !== null) {
             return DiagnosticResult::pass('The option diagnostic is fixed.');
         }
 

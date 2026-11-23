@@ -10,6 +10,7 @@ use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\ActiveDrivers;
+use Hypervel\Doctor\Support\Configured;
 
 class QueueConnectionIsAsynchronous extends Diagnostic
 {
@@ -47,9 +48,9 @@ class QueueConnectionIsAsynchronous extends Diagnostic
      */
     public function check(): DiagnosticResult
     {
-        $connection = config('queue.default');
+        $connection = Configured::string('queue.default');
 
-        if (! is_string($connection) || $connection === '') {
+        if ($connection === null) {
             return $this->skip('not-configured');
         }
 
