@@ -353,7 +353,7 @@ public function boot(): void
 Now, when users of your package execute Hypervel's `vendor:publish` command, your file will be copied to the specified publish location. Once your configuration has been published, its values may be accessed like any other configuration file:
 
 ```php
-$value = config('courier.option');
+$sender = config()->string('courier.sender');
 ```
 
 > [!WARNING]

@@ -160,7 +160,7 @@ Parameters that accept directories take absolute paths, or paths relative to the
 | `checkConfigTypes` | `true` | [Configuration Values](#configuration-values) |
 | `configDirectories` | `[]` | [Configuration Values](#configuration-values) |
 | `checkTypedConfigGetters` | `true` | [Typed Configuration Getters](#typed-configuration-getters) |
-| `noUntypedConfigReads` | `false` | [Typed Configuration Getters](#typed-configuration-getters) |
+| `noUntypedConfigReads` | `true` | [Typed Configuration Getters](#typed-configuration-getters) |
 | `noUnnecessaryEnumerableToArrayCalls` | `true` | [Converting Collections to Arrays](#converting-collections-to-arrays) |
 | `noMutableDates` | `true` | [Mutable Dates](#mutable-dates) |
 | `checkDiscardedDates` | `true` | [Discarded Dates](#discarded-dates) |
@@ -772,7 +772,7 @@ Declare the closure's return type. A foreign-key or index chain such as `billing
 <a name="migration-connections"></a>
 ### Migration Connections
 
-PHPStan reads a migration's `getConnection()`, including one inherited from a base class or trait, when it returns a literal name, the connection property, or a supported configuration read. For example, `return config('billing.connection', config()->string('database.default'));` selects the configured connection. The connection property may have a plain string or null default on the migration, a trait it uses, or its base class.
+PHPStan reads a migration's `getConnection()`, including one inherited from a base class or trait, when it returns a literal name, the connection property, or a supported configuration read. For example, `return config()->nullableString('billing.connection', config()->string('database.default'));` selects the configured connection. The connection property may have a plain string or null default on the migration, a trait it uses, or its base class.
 
 When migrations inherit a getter that calls a service, map the base class that declares the getter to the service in `extension.neon`:
 
@@ -871,7 +871,7 @@ You should only read environment variables in your configuration files. Once you
 ],
 
 // Elsewhere in your application...
-$key = config('services.billing.key');
+$key = config()->nullableString('services.billing.key');
 ```
 
 The check covers direct calls to `env`, `env_array`, `env_or_fail`, `app_id`, `Env::get`, `Env::getArray` and `Env::getOrFail`. Configuration files, including those merged or published by packages, are allowed. Dynamic calls, `getenv()` and `$_ENV` are not checked.
@@ -926,24 +926,23 @@ parameters:
 <a name="typed-configuration-getters"></a>
 ### Typed Configuration Getters
 
-When a configuration key always holds a string, integer, float, boolean or array, read it using the matching [typed getter](/docs/{{version}}/configuration#typed-configuration-values). The getter returns that type and throws an exception if the configured value has another type:
+By default, Hypervel reports untyped config reads in applications and packages as `hypervel.untypedConfigRead`. The rule checks `config('key')` and calls to `get()` or `getMany()` on the `Config` facade or a configuration repository. It also checks injected repositories, variable keys and multi-key reads. Array access such as `$config['app.name']` is outside this check.
+
+Choose a [typed getter](/docs/{{version}}/configuration#typed-configuration-values) that matches the values the caller accepts. When analysis can determine the type from the application's configuration, the message names the getter. Without a default, the key must exist. If the setting may be omitted, pass its documented fallback:
 
 ```php
 $name = config()->string('app.name');
+$audit = config()->nullableArray('logging.channels.audit', null);
 ```
 
-Reading such a key using `config('key')`, `Config::get()` or the application repository's `get` method is reported when the read can use a matching typed getter. If the value can also be null, the analysis recommends the corresponding nullable getter. A value known only to be null gives no indication which getter to use.
-
-Only your application's configuration repository is checked, as described in [Configuration and Services](#configuration-and-services). The check does not run when you analyze a package, since the applications using it may give its keys other values. You may disable the check using the `checkTypedConfigGetters` parameter.
-
-Enable `noUntypedConfigReads` to require typed reads in an application or package, including on injected repositories. This rule reports keyed `config()` reads and calls to `get()` or `getMany()` on the Config facade or a config repository. It also checks variable keys and multi-key reads. The rule skips array access such as `$config['app.name']`. A reported read uses the single identifier `hypervel.untypedConfigRead` even when both checks are enabled.
-
-Choose a getter from the values the caller accepts. A nullable getter without a default throws when the key is missing and accepts a configured null. When no getter covers the setting's supported values, or a diagnostic needs to inspect malformed input, keep the generic read and explain why at the call:
+If no typed getter covers the accepted values, or you need to inspect malformed input, keep the untyped config read and explain why at the call:
 
 ```php
 // @phpstan-ignore hypervel.untypedConfigRead (The editor can be a name or an array of options.)
 $editor = config('app.editor');
 ```
+
+To report only reads for which Hypervel can recommend a getter, set `noUntypedConfigReads: false` in your PHPStan parameters. The narrower `checkTypedConfigGetters` rule recommends getters only for known keys on the application's own repository, including nullable getters when the value can also be null. Set both parameters to `false` to disable both checks.
 
 <a name="array-keys"></a>
 ### Array Keys

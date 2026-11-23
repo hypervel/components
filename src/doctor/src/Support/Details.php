@@ -35,7 +35,8 @@ final class Details
      */
     public static function processOutput(string $output, string $errorOutput, string $fallback): string
     {
-        $output = trim($errorOutput !== '' ? $errorOutput : $output);
+        $errorOutput = trim($errorOutput);
+        $output = $errorOutput !== '' ? $errorOutput : trim($output);
 
         return $output === '' ? $fallback : $output;
     }

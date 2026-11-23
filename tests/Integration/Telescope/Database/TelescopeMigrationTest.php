@@ -27,6 +27,15 @@ class TelescopeMigrationTest extends DatabaseTestCase
         );
     }
 
+    public function testPublishedMigrationUsesTheDefaultConnectionWithoutTelescopeConfiguration(): void
+    {
+        config(['telescope' => []]);
+
+        $migration = require dirname(__DIR__, 4) . '/src/telescope/database/migrations/2025_02_08_000000_create_telescope_entries_table.php';
+
+        $this->assertNull($migration->getConnection());
+    }
+
     public function testFamilyHashIndexUsesAvailableSparseIndexSupport(): void
     {
         $index = array_find(

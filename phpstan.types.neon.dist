@@ -17,3 +17,4 @@ parameters:
     checkModelMethodVisibility: false
     noUnnecessaryEnumerableToArrayCalls: false
     noEnvCallsOutsideOfConfig: false
+    noUntypedConfigReads: false
