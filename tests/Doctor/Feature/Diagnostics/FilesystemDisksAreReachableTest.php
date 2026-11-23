@@ -6,9 +6,14 @@ namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 
 use Hypervel\Doctor\Diagnostics\FilesystemDisksAreReachable;
 use Hypervel\Doctor\Results\Link;
+use Hypervel\Filesystem\LocalFilesystemAdapter;
 use Hypervel\Support\Facades\File;
+use Hypervel\Support\Facades\Storage;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
+use League\Flysystem\Filesystem;
+use League\Flysystem\Local\LocalFilesystemAdapter as LocalAdapter;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class FilesystemDisksAreReachableTest extends TestCase
 {
@@ -62,23 +67,50 @@ class FilesystemDisksAreReachableTest extends TestCase
         $this->assertSame('The application can reach the default filesystem disk.', $result->summary);
     }
 
-    public function testSkipsWhenTheDefaultFilesystemDiskIsNotConfigured(): void
+    #[TestWith([null])]
+    #[TestWith([[]])]
+    public function testReportsADefaultDiskWithoutADriver(?array $record): void
     {
-        config([
-            'filesystems.default' => 'missing',
-            'filesystems.disks' => [
-                'doctor' => [
-                    'driver' => 'local',
-                    'root' => $this->root,
-                ],
-            ],
-        ]);
+        config(['filesystems.default' => 'missing', 'filesystems.disks' => $record === null ? [] : ['missing' => $record]]);
 
         $result = (new FilesystemDisksAreReachable)->check();
 
-        $this->assertSame('skip', $result->status->value);
-        $this->assertSame('The default filesystem disk [missing] is not configured.', $result->summary);
-        $this->assertNull($result->details);
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('The default filesystem disk [missing] does not have a configured driver.', $result->summary);
+        $this->assertStringContainsString('FILESYSTEM_DISK', $result->remediation);
+    }
+
+    public function testProbesADiskRegisteredWithoutAConfigurationRecord(): void
+    {
+        config(['filesystems.default' => 'registered']);
+        $adapter = new LocalAdapter($this->root);
+        Storage::set('registered', new LocalFilesystemAdapter(new Filesystem($adapter), $adapter));
+
+        $result = (new FilesystemDisksAreReachable)->check();
+        $this->assertSame('pass', $result->status->value);
+
+        File::deleteDirectory($this->root);
+        $result = (new FilesystemDisksAreReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('The registered local disk root does not exist.', $result->details);
+        $this->assertDirectoryDoesNotExist($this->root);
+    }
+
+    public function testChecksTheRootOfTheRegisteredDiskWhenItReplacesAConfiguredDisk(): void
+    {
+        config([
+            'filesystems.default' => 'registered',
+            'filesystems.disks.registered' => ['driver' => 'local', 'root' => $this->root],
+        ]);
+        $missing = $this->root . '/missing';
+        Storage::set('registered', Storage::build(['driver' => 'local', 'root' => $missing, 'lazy_root_creation' => true]));
+
+        $result = (new FilesystemDisksAreReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertStringContainsString($missing, $result->details);
+        $this->assertDirectoryDoesNotExist($missing);
     }
 
     public function testLinksToFilesystemConfigurationWhenTheDefaultDiskCannotBeReached(): void

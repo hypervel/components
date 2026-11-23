@@ -124,7 +124,7 @@ class StorageIsWritable extends Diagnostic implements Fixable
         $default = Configured::string('cache.default');
 
         foreach ($default === null ? [] : ActiveDrivers::cacheStores($default) as $store) {
-            if (Configured::string("cache.stores.{$store}.driver") === 'file'
+            if ($store !== 'null' && Configured::string("cache.stores.{$store}.driver") === 'file'
                 && ($path = Configured::string("cache.stores.{$store}.path")) !== null) {
                 $paths[] = $path;
                 $paths[] = Configured::string("cache.stores.{$store}.lock_path") ?? $path;

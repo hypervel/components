@@ -361,7 +361,7 @@ The `Configured` helper reads configuration defensively. Diagnostics must be abl
 ```php
 use Hypervel\Doctor\Support\Configured;
 
-$connection = Configured::string('queue.default', 'database');
+$connection = Configured::string('queue.default');
 ```
 
 `Configured::missing()` returns the given keys that do not hold a usable value. Null values, blank strings, and empty arrays are treated as missing, so a "package requires these configuration values" diagnostic reduces to:
@@ -388,10 +388,13 @@ Default configuration values often point at wrapper drivers: the default log cha
 
 ```php
 use Hypervel\Doctor\Support\ActiveDrivers;
+use Hypervel\Doctor\Support\Configured;
 
-$channels = ActiveDrivers::logChannels(Configured::string('logging.default', 'stack'));
+$channel = Configured::string('logging.default');
+$channels = $channel === null ? [] : ActiveDrivers::logChannels($channel);
 
-$mailers = ActiveDrivers::mailers(Configured::string('mail.default', 'log'));
+$mailer = Configured::string('mail.default');
+$mailers = $mailer === null ? [] : ActiveDrivers::mailers($mailer);
 
 $stores = ActiveDrivers::cacheStores(config()->string('cache.default'));
 

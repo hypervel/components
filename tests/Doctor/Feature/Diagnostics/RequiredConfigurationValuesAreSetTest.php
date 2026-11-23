@@ -21,7 +21,7 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
     }
 
     #[DataProvider('requiredDefaults')]
-    public function testReportsBlankRequiredDefaultsInsteadOfAssumingADriver(string $key, string $feature, ?string $value): void
+    public function testReportsUnusableRequiredDefaults(string $key, string $feature, string|bool|null $value): void
     {
         config([$key => $value]);
 
@@ -39,12 +39,22 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         return [
             'blank broadcaster' => ['broadcasting.default', 'default broadcaster', ''],
             'null broadcaster' => ['broadcasting.default', 'default broadcaster', null],
+            'null cache store' => ['cache.default', 'default cache store', null],
+            'blank cache store' => ['cache.default', 'default cache store', ''],
+            'boolean cache store' => ['cache.default', 'default cache store', true],
+            'null database connection' => ['database.default', 'default database connection', null],
+            'blank database connection' => ['database.default', 'default database connection', ''],
+            'boolean database connection' => ['database.default', 'default database connection', false],
             'blank filesystem disk' => ['filesystems.default', 'default filesystem disk', ''],
             'null filesystem disk' => ['filesystems.default', 'default filesystem disk', null],
             'blank mailer' => ['mail.default', 'default mailer', ''],
             'null mailer' => ['mail.default', 'default mailer', null],
             'blank queue connection' => ['queue.default', 'default queue connection', ''],
             'null queue connection' => ['queue.default', 'default queue connection', null],
+            'blank session driver' => ['session.driver', 'session driver', ''],
+            'boolean session driver' => ['session.driver', 'session driver', false],
+            'spaces for log channel' => ['logging.default', 'default log channel', '   '],
+            'boolean log channel' => ['logging.default', 'default log channel', false],
         ];
     }
 
@@ -54,6 +64,79 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
             'logging.default' => '',
             'logging.channels.stack' => ['driver' => 'stack', 'channels' => ['slack']],
             'logging.channels.slack' => ['driver' => 'slack', 'url' => null],
+        ]);
+
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('- logging.default (default log channel)', $result->details);
+    }
+
+    #[TestWith(['testing', 'pass'])]
+    #[TestWith(['production', 'fail'])]
+    public function testNullLogChannelUsesTheTestingFallback(string $environment, string $status): void
+    {
+        $this->app->instance('env', $environment);
+        config(['logging.default' => null]);
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+        $this->assertSame($status, $result->status->value);
+        if ($status === 'fail') {
+            $this->assertSame('- logging.default (default log channel)', $result->details);
+        }
+    }
+
+    public function testAcceptsDisabledSessionsAndTheBuiltInNullBroadcaster(): void
+    {
+        config([
+            'session.driver' => null,
+            'broadcasting.default' => 'null',
+            'broadcasting.connections' => [],
+        ]);
+        $this->assertSame('pass', (new RequiredConfigurationValuesAreSet)->check()->status->value);
+    }
+
+    #[TestWith(['mail.default', 'typo', 'mail.mailers.typo'])]
+    #[TestWith(['broadcasting.default', '  ', 'broadcasting.connections.  '])]
+    #[TestWith(['logging.default', 'typo', 'logging.channels.typo'])]
+    #[TestWith(['logging.channels.stack.channels', ['typo'], 'logging.channels.typo'])]
+    public function testReportsUndefinedNamedRecords(string $key, string|array $value, string $record): void
+    {
+        config(['logging.default' => 'stack', $key => $value]);
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+        $this->assertSame('fail', $result->status->value);
+        $this->assertStringContainsString($record, $result->details);
+    }
+
+    #[TestWith(['broadcasting', 'connections.pusher', 'pusher', 'driver'])]
+    #[TestWith(['logging', 'channels.slack', 'slack', 'driver'])]
+    #[TestWith(['mail', 'mailers.smtp', 'smtp', 'transport'])]
+    public function testReportsTheMissingDriverInsteadOfGuessingItFromTheName(string $group, string $record, string $name, string $key): void
+    {
+        config(["{$group}.default" => $name, "{$group}.{$record}" => []]);
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+        $this->assertSame('fail', $result->status->value);
+        $this->assertStringContainsString("{$group}.{$record}.{$key}", $result->details);
+    }
+
+    public function testAcceptsCustomDriverNames(): void
+    {
+        config([
+            'broadcasting.default' => 'custom',
+            'broadcasting.connections.custom.driver' => 'application',
+            'mail.default' => 'custom',
+            'mail.mailers.custom.transport' => 'application',
+            'logging.default' => 'custom',
+            'logging.channels.custom.driver' => 'application',
+        ]);
+        $this->assertSame('pass', (new RequiredConfigurationValuesAreSet)->check()->status->value);
+    }
+
+    public function testDoesNotInferDiskOrQueueCredentialsFromTheConnectionName(): void
+    {
+        config([
+            'filesystems.default' => 's3',
+            'filesystems.disks.s3' => [],
+            'queue.default' => 'sqs',
+            'queue.connections.sqs' => ['overflow' => ['enabled' => true, 'store' => '']],
         ]);
 
         $this->assertSame('pass', (new RequiredConfigurationValuesAreSet)->check()->status->value);
@@ -179,7 +262,7 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
     public function testRequiresTheWebhookUrlForActiveSlackLogChannels(array|string $channels): void
     {
         config([
-            'logging.default' => 'stack',
+            'logging.default' => ' stack ',
             'logging.channels.stack.driver' => 'stack',
             'logging.channels.stack.channels' => $channels,
             'logging.channels.single.driver' => 'single',
@@ -203,6 +286,22 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
             'comma separated' => ['single, alerts '],
             'enum' => [['single', DoctorLogChannel::Alerts]],
         ];
+    }
+
+    #[TestWith(['single,'])]
+    #[TestWith([['single', null]])]
+    public function testReportsTheStackContainingABlankOrRecursiveMember(string|array $channels): void
+    {
+        config([
+            'logging.default' => 'stack',
+            'logging.channels.stack.channels' => ['nested'],
+            'logging.channels.nested' => ['driver' => 'stack', 'channels' => $channels],
+        ]);
+
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('- logging.channels.nested.channels (log stack)', $result->details);
     }
 
     public function testIgnoresInactiveLogChannels(): void
@@ -425,7 +524,7 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
     }
 
     #[DataProvider('effectiveMailerConfigurations')]
-    public function testChecksTheMailFactorysEffectiveConfiguration(array $mailer, array $services, string $status, ?string $missing): void
+    public function testChecksTheMailFactorysEffectiveConfiguration(array $mailer, array $services, string $status, string|array|null $missing): void
     {
         config([
             'mail.default' => 'selected',
@@ -437,8 +536,8 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
 
         $this->assertSame($status, $result->status->value, $result->details ?? '');
 
-        if ($missing !== null) {
-            $this->assertStringContainsString($missing, $result->details);
+        foreach ((array) $missing as $key) {
+            $this->assertStringContainsString($key, $result->details);
         }
     }
 
@@ -450,7 +549,9 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         return [
             'SMTP URL supplies transport and host' => [['url' => 'smtp://mail.example.test:587'], [], 'pass', null],
             'URL overrides wrapper transport' => [['transport' => 'failover', 'url' => 'smtp://mail.example.test', 'mailers' => ['missing']], [], 'pass', null],
-            'undefined failover child preserves other missing credentials' => [['transport' => 'failover', 'mailers' => ['missing', 'postmark']], [], 'fail', 'services.postmark.key'],
+            'undefined failover child preserves other missing credentials' => [['transport' => 'failover', 'mailers' => ['missing', 'postmark']], [], 'fail', ['mail.mailers.missing', 'services.postmark.key']],
+            'blank child alongside a valid mailer' => [['transport' => 'failover', 'mailers' => ['log', '']], [], 'fail', 'mail.mailers.selected.mailers'],
+            'cycle alongside a valid mailer' => [['transport' => 'roundrobin', 'mailers' => ['selected', 'log']], [], 'fail', 'mail.mailers.selected.mailers'],
             'URL query overrides an existing host' => [['transport' => 'smtp', 'host' => 'original', 'url' => 'smtp://mail.example.test?host='], [], 'fail', 'mail.mailers.selected.host'],
             'Resend mailer key' => [['transport' => 'resend', 'key' => 'key'], [], 'pass', null],
             'Resend null falls back' => [['transport' => 'resend', 'key' => null], ['resend' => ['key' => 'service-key']], 'pass', null],
@@ -461,6 +562,19 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
             'Mailgun selected mailer record' => [['transport' => 'mailgun', 'secret' => 'secret', 'domain' => 'mail.example.test'], [], 'pass', null],
             'Mailgun does not merge records' => [['transport' => 'mailgun', 'secret' => 'secret'], ['mailgun' => ['domain' => 'ignored']], 'fail', 'mail.mailers.selected.domain'],
         ];
+    }
+
+    public function testReportsAnEmptyNestedCompositeAlongsideAWorkingMailer(): void
+    {
+        config([
+            'mail.default' => 'fallback',
+            'mail.mailers.fallback' => ['transport' => 'failover', 'mailers' => ['log', 'nested']],
+            'mail.mailers.nested' => ['transport' => 'roundrobin', 'mailers' => []],
+        ]);
+
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('- mail.mailers.nested.mailers (roundrobin mailer)', $result->details);
     }
 
     #[DataProvider('syslogArguments')]

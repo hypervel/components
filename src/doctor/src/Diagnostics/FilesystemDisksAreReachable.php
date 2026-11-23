@@ -10,6 +10,7 @@ use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Configured;
+use Hypervel\Filesystem\LocalFilesystemAdapter;
 use Hypervel\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
@@ -29,7 +30,10 @@ class FilesystemDisksAreReachable extends Diagnostic
     {
         return [
             'not-configured' => 'The application does not have a default filesystem disk configured.',
-            'disk-missing' => 'The default filesystem disk [{disk}] is not configured.',
+            'missing-driver' => Message::make(
+                summary: 'The default filesystem disk [{disk}] does not have a configured driver.',
+                remediation: 'Set FILESYSTEM_DISK to a disk with a driver in config/filesystems.php.',
+            )->link(Link::docs('filesystem', 'configuration')),
             'unreachable' => Message::make(
                 summary: 'The application cannot reach the default filesystem disk [{disk}].',
                 remediation: 'Check filesystem disk roots, credentials, and network access.',
@@ -49,14 +53,28 @@ class FilesystemDisksAreReachable extends Diagnostic
             return $this->skip('not-configured');
         }
 
-        $configuration = $this->configuration($disk);
-
-        if ($configuration === null) {
-            return $this->skip('disk-missing', ['disk' => $disk]);
-        }
-
         try {
-            $this->probe($disk, $configuration);
+            $resolved = Storage::getDisks()[$disk] ?? null;
+
+            if ($resolved instanceof LocalFilesystemAdapter) {
+                $this->probeLocalDisk($resolved->getConfig(), $resolved);
+            } elseif ($resolved !== null) {
+                $resolved->exists('.hypervel-doctor');
+            } else {
+                $configuration = Configured::array("filesystems.disks.{$disk}");
+                $driver = $configuration['driver'] ?? null;
+
+                if (! is_string($driver) || trim($driver) === '') {
+                    return $this->fail('missing-driver', ['disk' => $disk]);
+                }
+
+                // Resolving a local disk would create the missing root that Doctor is checking.
+                if ($driver === 'local') {
+                    $this->probeLocalDisk($configuration);
+                } else {
+                    Storage::disk($disk)->exists('.hypervel-doctor');
+                }
+            }
         } catch (Throwable $e) {
             if (Coroutine::causedByCancellation($e)) {
                 throw $e;
@@ -70,46 +88,28 @@ class FilesystemDisksAreReachable extends Diagnostic
     }
 
     /**
-     * Probe a filesystem disk.
-     *
-     * @param array<string, mixed> $configuration
-     */
-    private function probe(string $disk, array $configuration): void
-    {
-        if (($configuration['driver'] ?? null) === 'local') {
-            $this->probeLocalDisk($configuration);
-
-            return;
-        }
-
-        Storage::disk($disk)->exists('.hypervel-doctor');
-    }
-
-    /**
      * Probe a local filesystem disk.
      *
      * @param array<string, mixed> $configuration
      */
-    private function probeLocalDisk(array $configuration): void
+    private function probeLocalDisk(array $configuration, ?LocalFilesystemAdapter $disk = null): void
     {
         $root = $configuration['root'] ?? null;
 
         if (! is_string($root) || $root === '') {
-            throw new RuntimeException('The local disk root is not configured.');
+            if ($disk === null) {
+                throw new RuntimeException('The local disk root is not configured.');
+            }
+
+            if (! $disk->directoryExists('')) {
+                throw new RuntimeException('The registered local disk root does not exist.');
+            }
+
+            return;
         }
 
         if (! is_dir($root) || ! is_readable($root)) {
             throw new RuntimeException(sprintf('The local disk root [%s] is not readable.', $root));
         }
-    }
-
-    /**
-     * Get the default filesystem disk configuration.
-     *
-     * @return null|array<string, mixed>
-     */
-    private function configuration(string $disk): ?array
-    {
-        return Configured::array("filesystems.disks.{$disk}");
     }
 }

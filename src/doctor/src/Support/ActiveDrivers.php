@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Support;
 
-use Hypervel\Session\SessionManager;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ConfigurationUrlParser;
 use InvalidArgumentException;
@@ -24,6 +23,10 @@ final class ActiveDrivers
     {
         if (($cycleStart = array_search($store, $seen, true)) !== false) {
             throw new InvalidArgumentException('Circular cache store definition detected: ' . implode(' -> ', [...array_slice($seen, $cycleStart), $store]) . '.');
+        }
+
+        if ($store === 'null') {
+            return [$store];
         }
 
         $driver = Configured::string("cache.stores.{$store}.driver");
@@ -103,7 +106,8 @@ final class ActiveDrivers
         }
 
         $configuration = self::mailerConfiguration($mailer);
-        $transport = $configuration['transport'] ?? $mailer;
+        // Hypervel requires an explicit transport, including one supplied by a mail URL.
+        $transport = $configuration['transport'] ?? null;
 
         if (! in_array($transport, ['failover', 'roundrobin'], true)) {
             return [$mailer];
@@ -159,7 +163,7 @@ final class ActiveDrivers
             throw new InvalidArgumentException('Circular queue connection definition detected: ' . implode(' -> ', [...array_slice($seen, $cycleStart), $connection]) . '.');
         }
 
-        if (Configured::string("queue.connections.{$connection}.driver") !== 'failover') {
+        if ($connection === 'null' || Configured::string("queue.connections.{$connection}.driver") !== 'failover') {
             return [$connection];
         }
 
@@ -181,35 +185,6 @@ final class ActiveDrivers
      */
     public static function redisConnections(): array
     {
-        $connections = [];
-        $cache = Configured::string('cache.default');
-
-        foreach ($cache === null ? [] : self::cacheStores($cache) as $store) {
-            $configuration = Configured::array("cache.stores.{$store}");
-
-            if (($configuration['driver'] ?? null) !== 'redis') {
-                continue;
-            }
-
-            $connection = $configuration['connection'] ?? 'default';
-            $connections[] = $connection;
-            $connections[] = $configuration['lock_connection'] ?? $connection;
-        }
-
-        $queue = Configured::string('queue.default');
-
-        foreach ($queue === null ? [] : self::queueConnections($queue) as $name) {
-            $configuration = Configured::array("queue.connections.{$name}");
-
-            if (($configuration['driver'] ?? null) === 'redis') {
-                $connections[] = $configuration['connection'] ?? 'default';
-            }
-        }
-
-        if (Configured::string('session.driver') === 'redis') {
-            $connections[] = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
-        }
-
-        return array_values(array_unique($connections));
+        return array_values(array_unique(array_map(RedisConnections::name(...), RedisConnections::selectors())));
     }
 }

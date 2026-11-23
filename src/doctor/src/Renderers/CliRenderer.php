@@ -13,8 +13,10 @@ use Hypervel\Doctor\Results\Status;
 use Hypervel\Prompts\Elements\Element;
 use Hypervel\Prompts\Elements\ElementContract;
 use Hypervel\Prompts\Elements\Link as PromptLink;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function Hypervel\Prompts\callout;
 use function Hypervel\Prompts\error;
@@ -170,12 +172,22 @@ class CliRenderer
     }
 
     /**
+     * Display external diagnostic details as literal terminal text.
+     */
+    private function detailText(string $text): string
+    {
+        $text = str_replace(["\r\n", "\r"], "\n", Utils::stripTerminalControls($text));
+
+        return OutputFormatter::escape((string) preg_replace('/[\x00-\x08\x0B-\x1F\x7F]/', '', $text));
+    }
+
+    /**
      * Render diagnostic details, remediation, and links.
      */
     protected function renderDiagnosticDetails(DiagnosticOutcome $outcome): void
     {
         if ($outcome->result->details !== null) {
-            $this->output->writeln('    ' . $outcome->result->details);
+            $this->output->writeln('    ' . str_replace("\n", "\n    ", $this->detailText($outcome->result->details)));
         }
 
         if ($outcome->result->remediation !== null) {
@@ -250,7 +262,7 @@ class CliRenderer
         $parts = [$outcome->result->summary];
 
         if ($outcome->result->details !== null) {
-            $parts[] = $outcome->result->details;
+            $parts[] = $this->detailText($outcome->result->details);
         }
 
         if ($outcome->result->remediation !== null) {
@@ -329,7 +341,7 @@ class CliRenderer
         $parts = [$outcome->result->summary];
 
         if ($outcome->result->details !== null) {
-            $parts[] = $outcome->result->details;
+            $parts[] = $this->detailText($outcome->result->details);
         }
 
         return Str::squish(implode(' ', $parts));
@@ -368,7 +380,7 @@ class CliRenderer
 
         if ($outcome->result->details !== null) {
             $content[] = Element::heading('Details');
-            $content[] = $outcome->result->details;
+            $content[] = $this->detailText($outcome->result->details);
         }
 
         if ($failedFix !== null) {

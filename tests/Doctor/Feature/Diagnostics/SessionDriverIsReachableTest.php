@@ -8,13 +8,14 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Doctor\Diagnostics\SessionDriverIsReachable;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Support\Facades\File;
-use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Doctor\Fixtures\RedisPingServer;
 use Hypervel\Tests\Doctor\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class SessionDriverIsReachableTest extends TestCase
 {
@@ -84,31 +85,9 @@ class SessionDriverIsReachableTest extends TestCase
     public function testUsesTheEffectiveRedisSessionConnection(?string $connection, string $expected): void
     {
         config(['session.driver' => 'redis', 'session.connection' => $connection]);
-        $redis = new class {
-            public ?string $selected = null;
+        $result = RedisPingServer::check(new SessionDriverIsReachable, $expected, '+PONG');
 
-            /**
-             * Record the selected Redis connection.
-             */
-            public function connection(string $name): static
-            {
-                $this->selected = $name;
-
-                return $this;
-            }
-
-            /**
-             * Respond to the diagnostic probe.
-             */
-            public function ping(): string
-            {
-                return 'PONG';
-            }
-        };
-        Redis::swap($redis);
-
-        $this->assertSame('pass', (new SessionDriverIsReachable)->check()->status->value);
-        $this->assertSame($expected, $redis->selected);
+        $this->assertSame('pass', $result->status->value, $result->details ?? '');
     }
 
     /**
@@ -122,28 +101,10 @@ class SessionDriverIsReachableTest extends TestCase
     public function testReportsRedisSessionsWhenTheServerRejectsThePing(): void
     {
         config(['session.driver' => 'redis', 'session.connection' => 'session']);
-        Redis::swap(new class {
-            /**
-             * Resolve a connection whose server rejects the probe.
-             */
-            public function connection(string $name): object
-            {
-                return new class {
-                    /**
-                     * Reject the reachability probe.
-                     */
-                    public function ping(): false
-                    {
-                        return false;
-                    }
-                };
-            }
-        });
-
-        $result = (new SessionDriverIsReachable)->check();
+        $result = RedisPingServer::check(new SessionDriverIsReachable, 'session', '-ERR max number of clients reached');
 
         $this->assertSame('fail', $result->status->value);
-        $this->assertSame('Redis connection [session] returned an error for PING.', $result->details);
+        $this->assertSame('Redis connection [session] rejected PING: ERR max number of clients reached', $result->details);
     }
 
     public function testDatabaseSessionsKeepTheDefaultSchemaConnection(): void
@@ -154,6 +115,18 @@ class SessionDriverIsReachableTest extends TestCase
         Schema::shouldReceive('connection')->with(null)->andReturn($schema);
 
         $this->assertSame('pass', (new SessionDriverIsReachable)->check()->status->value);
+    }
+
+    #[TestWith(['database'])]
+    #[TestWith(['redis'])]
+    public function testReportsMalformedSessionConnections(string $driver): void
+    {
+        config(['session.driver' => $driver, 'session.connection' => false]);
+
+        $result = (new SessionDriverIsReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('Configuration value for key [session.connection] must be a string or null, boolean given.', $result->details);
     }
 
     public function testDatabaseSessionsRequireAnExplicitTableSetting(): void
