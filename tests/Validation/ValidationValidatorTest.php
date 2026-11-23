@@ -5500,6 +5500,95 @@ class ValidationValidatorTest extends TestCase
         }
     }
 
+    public function testDatabaseRuleStaysCurrentForTheWholeOfItsOwnCheck(): void
+    {
+        $queryingTwice = new class($this->getArrayTranslator(), [], []) extends Validator {
+            /** @var list<mixed> */
+            public array $rulesAfterQuery = [];
+
+            /**
+             * Query a second time, recording the rule seen once the first query has returned.
+             */
+            public function validateExists(string $attribute, mixed $value, mixed $parameters): bool
+            {
+                $exists = parent::validateExists($attribute, $value, $parameters);
+                $this->rulesAfterQuery[] = $this->currentRule;
+
+                return $exists || parent::validateExists($attribute, $value, $parameters);
+            }
+
+            /**
+             * Query a second time, recording the rule seen once the first query has returned.
+             */
+            public function validateUnique(string $attribute, mixed $value, mixed $parameters): bool
+            {
+                $unique = parent::validateUnique($attribute, $value, $parameters);
+                $this->rulesAfterQuery[] = $this->currentRule;
+
+                return $unique && parent::validateUnique($attribute, $value, $parameters);
+            }
+        };
+
+        foreach ([new Exists('users', 'id'), new Unique('users', 'id')] as $rule) {
+            $rule->where('tenant_id', 42);
+            $validator = new $queryingTwice($this->getArrayTranslator(), ['id' => 7], ['id' => [$rule]]);
+            $conditions = [];
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->times(2)->resolves(function (PresenceQuery $query) use (&$conditions): int {
+                $conditions[] = $query->conditions->toArray();
+
+                return 0;
+            });
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertSame($rule instanceof Unique, $validator->passes());
+            $this->assertSame([[['tenant_id', '=', '42']], [['tenant_id', '=', '42']]], $conditions);
+            $this->assertSame([$rule], $validator->rulesAfterQuery);
+        }
+    }
+
+    public function testFailedDatabaseRuleReadsItsBuilderOnceAfterAManualCheckInItsCallback(): void
+    {
+        $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {};
+
+        $rule = new class('users', 'id') extends Exists {
+            public int $reads = 0;
+
+            /**
+             * Count each time the conditions are read from the builder.
+             */
+            public function queryConditions(): DatabaseConditions
+            {
+                ++$this->reads;
+
+                return parent::queryConditions();
+            }
+        };
+
+        $validator = null;
+        $rule->where('tenant_id', 42)->where(function () use (&$validator): void {
+            $validator->validateUnique('team', 'core', ['teams', 'name']);
+        });
+        $validator = new $customValidator($this->getArrayTranslator(), ['id' => 7], ['id' => [$rule]]);
+
+        // Run the query callbacks as a database verifier would; no record matches either check.
+        $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+        $verifier->expects('getCount')->times(2)->resolves(function (PresenceQuery $query): int {
+            foreach ($query->conditions->all() as $condition) {
+                if ($condition instanceof Closure) {
+                    $condition();
+                }
+            }
+
+            return 0;
+        });
+        $validator->setPresenceVerifier($verifier);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['id' => ['Exists' => ['users', 'id', 'tenant_id', '42']]], $validator->failed());
+        $this->assertSame(1, $rule->reads);
+    }
+
     public function testManualDatabaseValidationDoesNotReuseThePreviousRuleConditions(): void
     {
         $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {};

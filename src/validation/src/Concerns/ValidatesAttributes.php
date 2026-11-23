@@ -1187,12 +1187,19 @@ trait ValidatesAttributes
 
         $query = new PresenceQuery($connection, $table, $column, $conditions);
 
-        // A query callback may run another database check by hand, which must not inherit this rule.
-        $this->currentRule = null;
+        // A query callback may run another database check by hand, which must not inherit this
+        // rule. A subclass may still query again or read the rule once the verifier returns.
+        $ruleConditions = $this->currentRuleConditions;
+        $this->currentRule = $this->currentRuleConditions = null;
 
-        return is_array($value)
-            ? $verifier->getMultiCount($query, $value)
-            : $verifier->getCount($query, $value);
+        try {
+            return is_array($value)
+                ? $verifier->getMultiCount($query, $value)
+                : $verifier->getCount($query, $value);
+        } finally {
+            $this->currentRule = $rule;
+            $this->currentRuleConditions = $ruleConditions;
+        }
     }
 
     /**
@@ -1247,13 +1254,20 @@ trait ValidatesAttributes
             $conditions = $conditions->merge($declared);
         }
 
-        // A query callback may run another database check by hand, which must not inherit this rule.
-        $this->currentRule = null;
+        // A query callback may run another database check by hand, which must not inherit this
+        // rule. A subclass may still query again or read the rule once the verifier returns.
+        $ruleConditions = $this->currentRuleConditions;
+        $this->currentRule = $this->currentRuleConditions = null;
 
-        return $verifier->getCount(
-            new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),
-            $value,
-        ) === 0;
+        try {
+            return $verifier->getCount(
+                new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),
+                $value,
+            ) === 0;
+        } finally {
+            $this->currentRule = $rule;
+            $this->currentRuleConditions = $ruleConditions;
+        }
     }
 
     /**
