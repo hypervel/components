@@ -12,4 +12,12 @@ enum DatabaseConditionOperator: string
     case IsNotNull = 'is not null';
     case In = 'in';
     case NotIn = 'not in';
+
+    /**
+     * Determine if the condition checks membership in a set of values.
+     */
+    public function isMembership(): bool
+    {
+        return $this === self::In || $this === self::NotIn;
+    }
 }

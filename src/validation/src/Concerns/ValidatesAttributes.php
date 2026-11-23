@@ -1172,7 +1172,6 @@ trait ValidatesAttributes
     {
         $verifier = $this->getPresenceVerifier();
 
-        // A hook may validate another attribute, so read the rule being validated first.
         $rule = $this->currentRule;
 
         // As in Laravel, parameters after the header pass through the hook and combine with the
@@ -1235,7 +1234,6 @@ trait ValidatesAttributes
         // data store like Redis, etc. We will use it to determine uniqueness.
         $verifier = $this->getPresenceVerifier();
 
-        // A hook may validate another attribute, so read the rule being validated first.
         $rule = $this->currentRule;
         $declared = match (true) {
             $rule instanceof DatabaseRulePlan => $rule->conditions,
@@ -1317,10 +1315,10 @@ trait ValidatesAttributes
             return $this->getExtraConditions(array_slice($parameters, 4));
         }
 
-        // Laravel renders a builder's predicates as extra parameters, which sends them through
-        // the shared hook. They stay typed here, so reach the hook for them without segments.
+        // Laravel passes comparisons and null checks to the shared hook as rule-string
+        // parameters. Here they stay typed and merge separately, so the hook receives no segments.
         if ($this->currentRuleConditions !== null
-            && array_any($this->currentRuleConditions->all(), static fn (mixed $condition): bool => $condition instanceof DatabaseCondition)
+            && array_any($this->currentRuleConditions->all(), static fn (mixed $condition): bool => $condition instanceof DatabaseCondition && ! $condition->operator->isMembership())
         ) {
             return $this->getExtraConditions([]);
         }

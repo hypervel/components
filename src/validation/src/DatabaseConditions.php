@@ -104,12 +104,9 @@ final readonly class DatabaseConditions
                 continue;
             }
 
-            $membership = $condition->operator === DatabaseConditionOperator::In
-                || $condition->operator === DatabaseConditionOperator::NotIn;
-
             // A rule string that silently lost this predicate would validate against more rows
             // than the rule declares, so only a failure report may leave it out.
-            if (! $membership && is_object($condition->value)) {
+            if (! $condition->operator->isMembership() && is_object($condition->value)) {
                 if ($omitOpaqueOperands) {
                     continue;
                 }
