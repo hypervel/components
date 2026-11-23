@@ -74,7 +74,7 @@ class StartSsrTest extends TestCase
     public function testBundleIsAutoDetectedWhenNotConfigured(): void
     {
         $this->fakeProcess();
-        config()->set('inertia.ssr.bundle', null);
+        config(['inertia.ssr' => ['enabled' => true]]);
 
         $bundlePath = base_path('bootstrap/ssr/ssr.mjs');
         @mkdir(dirname($bundlePath), recursive: true);

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Inertia\DevTools;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Inertia\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class AuthorizeTest extends TestCase
 {
@@ -53,8 +54,11 @@ class AuthorizeTest extends TestCase
         $this->getJson('/_inertia/devtools/entries/' . $this->savedEntryId())->assertOk();
     }
 
-    public function testOtherEnvironmentsAreDeniedWithoutAGate(): void
+    #[TestWith([['enabled' => true]])]
+    #[TestWith([['enabled' => true, 'gate' => null]])]
+    public function testOtherEnvironmentsAreDeniedWithoutAGate(array $devTools): void
     {
+        config(['inertia.devtools' => $devTools]);
         $this->environment('production');
 
         $this->getJson('/_inertia/devtools/entries')->assertForbidden();
