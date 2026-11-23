@@ -102,10 +102,14 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
      */
     private function failureDetails(ProcessResult $process): string
     {
+        $exitCode = $process->exitCode();
+
         return Details::processOutput(
             $process->output(),
             $process->errorOutput(),
-            "Composer exited with code {$process->exitCode()} without output.",
+            $exitCode === null
+                ? 'Composer failed without output or an exit code.'
+                : "Composer exited with code {$exitCode} without output.",
         );
     }
 }

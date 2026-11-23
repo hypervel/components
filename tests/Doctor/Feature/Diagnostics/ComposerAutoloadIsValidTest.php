@@ -8,11 +8,13 @@ use Hypervel\Doctor\Diagnostics\ComposerAutoloadIsValid;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Process\PendingProcess;
+use Hypervel\Process\ProcessResult;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\Facades\Process;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Process\Process as SymfonyProcess;
 
 class ComposerAutoloadIsValidTest extends TestCase
 {
@@ -126,5 +128,77 @@ class ComposerAutoloadIsValidTest extends TestCase
         $this->assertSame('fail', $check->status->value);
         $this->assertSame('Composer exited with code 137 without output.', $check->details);
         $this->assertSame('Composer exited with code 137 without output.', $fix->details);
+    }
+
+    public function testReportsStandardOutputWhenErrorOutputIsBlank(): void
+    {
+        $basePath = $this->basePath;
+        mkdir($basePath . '/vendor');
+        file_put_contents($basePath . '/composer.json', '{}');
+        file_put_contents($basePath . '/vendor/autoload.php', '<?php');
+
+        Process::fake([
+            '*' => Process::result(
+                output: 'Class App\Foo does not comply with psr-4 autoloading standard.',
+                errorOutput: '  ',
+                exitCode: 1,
+            ),
+        ]);
+
+        $check = (new ComposerAutoloadIsValid)->check();
+
+        $this->assertSame('fail', $check->status->value);
+        $this->assertSame('Class App\Foo does not comply with psr-4 autoloading standard.', $check->details);
+    }
+
+    public function testExplainsComposerFailuresWithoutOutputOrExitCode(): void
+    {
+        $basePath = $this->basePath;
+        mkdir($basePath . '/vendor');
+        file_put_contents($basePath . '/composer.json', '{}');
+        file_put_contents($basePath . '/vendor/autoload.php', '<?php');
+
+        $result = new class(new SymfonyProcess(['composer'])) extends ProcessResult {
+            /**
+             * Determine if the process was successful.
+             */
+            public function successful(): bool
+            {
+                return false;
+            }
+
+            /**
+             * Get the exit code of the process.
+             */
+            public function exitCode(): ?int
+            {
+                return null;
+            }
+
+            /**
+             * Get the standard output of the process.
+             */
+            public function output(): string
+            {
+                return '';
+            }
+
+            /**
+             * Get the error output of the process.
+             */
+            public function errorOutput(): string
+            {
+                return '';
+            }
+        };
+
+        Process::fake(['*' => fn (): ProcessResult => $result]);
+
+        $check = (new ComposerAutoloadIsValid)->check();
+        $fix = (new ComposerAutoloadIsValid)->fix($check);
+
+        $this->assertSame('fail', $check->status->value);
+        $this->assertSame('Composer failed without output or an exit code.', $check->details);
+        $this->assertSame('Composer failed without output or an exit code.', $fix->details);
     }
 }
