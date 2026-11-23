@@ -1,5 +1,0 @@
-includes:
-    - phpstan-rules.neon
-
-parameters:
-    noUntypedConfigReads: true

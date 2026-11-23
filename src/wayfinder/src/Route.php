@@ -385,9 +385,9 @@ class Route
 
         // Forced root support is intentionally omitted because URL::useOrigin()
         // is request-scoped in Hypervel.
-        $url = config()->nullableString('app.url');
+        $url = config('app.url');
 
-        if ($url === null || $url === '') {
+        if (! is_string($url) || $url === '') {
             return $this->parsedRoot = [];
         }
 

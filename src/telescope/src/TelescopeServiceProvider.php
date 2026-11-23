@@ -68,7 +68,7 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::domain(config()->nullableString('telescope.domain'))
+        Route::domain(config('telescope.domain'))
             ->middleware('telescope')
             ->prefix(config()->string('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
@@ -155,7 +155,6 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function watcherIsEnabled(string $watcher): bool
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (Watcher definitions accept a boolean or an array of options.)
         $config = config('telescope.watchers.' . $watcher, false);
 
         return (bool) $config && (! is_array($config) || ($config['enabled'] ?? true));

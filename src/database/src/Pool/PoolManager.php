@@ -124,7 +124,7 @@ class PoolManager
         }
 
         /** @var array<string, mixed> $config */
-        $config = $configService->array($key);
+        $config = $configService->get($key);
 
         /** @var ConnectionFactory $factory */
         $factory = $this->container->make('db.factory');

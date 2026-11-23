@@ -55,7 +55,6 @@ trait InteractsWithParallelDatabase
 
         /** @var ConfigContract $config */
         $config = $app->make('config');
-        // @phpstan-ignore hypervel.untypedConfigRead (Skip parallel database setup when a test supplies a placeholder connection.)
         $connection = $config->get('database.default');
 
         if (! is_string($connection)) {
@@ -63,7 +62,6 @@ trait InteractsWithParallelDatabase
         }
 
         $configurationPath = "database.connections.{$connection}";
-        // @phpstan-ignore hypervel.untypedConfigRead (Skip parallel database setup when a test supplies a placeholder connection.)
         $declaredConfiguration = $config->get($configurationPath);
 
         // Skip if no real connection is configured (e.g., mocked test apps)
@@ -111,7 +109,6 @@ trait InteractsWithParallelDatabase
 
         /** @var ConfigContract $config */
         $config = $this->app->make('config');
-        // @phpstan-ignore hypervel.untypedConfigRead (Skip parallel database setup when a test supplies a placeholder connection.)
         $connection = $config->get('database.default');
 
         if (! is_string($connection)) {
@@ -119,7 +116,6 @@ trait InteractsWithParallelDatabase
         }
 
         $configurationPath = "database.connections.{$connection}";
-        // @phpstan-ignore hypervel.untypedConfigRead (Skip parallel database setup when a test supplies a placeholder connection.)
         $declaredConfiguration = $config->get($configurationPath);
 
         if (! is_array($declaredConfiguration)) {

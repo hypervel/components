@@ -511,7 +511,7 @@ trait Searchable
      */
     public function syncWithSearchUsing(): ?string
     {
-        return config()->nullableString('scout.queue.connection', null);
+        return config('scout.queue.connection');
     }
 
     /**
@@ -519,7 +519,7 @@ trait Searchable
      */
     public function syncWithSearchUsingQueue(): ?string
     {
-        return config()->nullableString('scout.queue.queue', null);
+        return config('scout.queue.queue');
     }
 
     /**

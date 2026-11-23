@@ -116,7 +116,7 @@ class StorageIsWritable extends Diagnostic implements Fixable
             $paths[] = $path;
         }
 
-        if (in_array(Configured::string('session.driver'), ['file', 'native'], true)
+        if (in_array(config('session.driver'), ['file', 'native'], true)
             && ($path = Configured::string('session.files')) !== null) {
             $paths[] = $path;
         }
@@ -124,10 +124,10 @@ class StorageIsWritable extends Diagnostic implements Fixable
         $default = Configured::string('cache.default');
 
         foreach ($default === null ? [] : ActiveDrivers::cacheStores($default) as $store) {
-            if (Configured::string("cache.stores.{$store}.driver") === 'file'
+            if (config("cache.stores.{$store}.driver") === 'file'
                 && ($path = Configured::string("cache.stores.{$store}.path")) !== null) {
                 $paths[] = $path;
-                $paths[] = Configured::string("cache.stores.{$store}.lock_path") ?? $path;
+                $paths[] = config("cache.stores.{$store}.lock_path") ?? $path;
             }
         }
 

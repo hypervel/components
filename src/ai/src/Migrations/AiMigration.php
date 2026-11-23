@@ -15,6 +15,6 @@ abstract class AiMigration extends Migration
     #[Override]
     public function getConnection(): ?string
     {
-        return config()->nullableString('ai.conversations.connection', config()->string('database.default'));
+        return config('ai.conversations.connection', config()->string('database.default'));
     }
 }

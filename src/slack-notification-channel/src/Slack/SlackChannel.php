@@ -66,7 +66,7 @@ class SlackChannel
         $payload = $message->toArray();
 
         return array_merge($payload, [
-            'channel' => $route->channel ?? $payload['channel'] ?? Config::nullableString('services.slack.notifications.channel', null),
+            'channel' => $route->channel ?? $payload['channel'] ?? Config::get('services.slack.notifications.channel'),
         ]);
     }
 
@@ -79,12 +79,12 @@ class SlackChannel
 
         // When the route is a string, we will assume it is a channel name and will use the default API token for the application...
         if (is_string($route)) {
-            return SlackRoute::make($route, Config::nullableString('services.slack.notifications.bot_user_oauth_token', null));
+            return SlackRoute::make($route, Config::get('services.slack.notifications.bot_user_oauth_token'));
         }
 
         return SlackRoute::make(
             $route->channel ?? null,
-            $route->token ?? Config::nullableString('services.slack.notifications.bot_user_oauth_token', null),
+            $route->token ?? Config::get('services.slack.notifications.bot_user_oauth_token'),
         );
     }
 }

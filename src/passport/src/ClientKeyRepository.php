@@ -41,7 +41,7 @@ class ClientKeyRepository
             return null;
         }
 
-        $name = $this->config->nullableString('passport.cache.store', null);
+        $name = $this->config->get('passport.cache.store');
         $cache = $this->cache->store($name === '' ? null : $name);
         $cacheKey = $this->config->string('passport.cache.prefix', Passport::DEFAULT_CACHE_PREFIX) . ':client-keys:' . hash('sha256', json_encode([
             $client->getKey(), $client->jwks_uri, $algorithm,

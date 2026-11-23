@@ -56,8 +56,8 @@ class AuthenticatedSessionController extends Controller
     protected function loginPipeline(LoginRequest $request): Pipeline
     {
         $customPipeline = Fortify::authenticateThroughCallback();
-        $configuredPipeline = $this->config->nullableArray('fortify.pipelines.login', null);
-        $limiter = $this->config->nullableString('fortify.limiters.login', null);
+        $configuredPipeline = $this->config->get('fortify.pipelines.login');
+        $limiter = $this->config->get('fortify.limiters.login');
         $lowercaseUsernames = $this->config->boolean('fortify.lowercase_usernames');
 
         if ($customPipeline !== null) {

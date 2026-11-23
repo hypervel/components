@@ -143,7 +143,7 @@ class SupervisorCommand extends Command
         $queue = $this->option('queue');
 
         return $queue === null || $queue === ''
-            ? config()->string("queue.connections.{$connection}.queue", 'default')
+            ? config("queue.connections.{$connection}.queue", 'default')
             : $queue;
     }
 }

@@ -37,7 +37,7 @@ class CachedTokenAuthenticator implements Authenticator
     {
         $container = Container::getInstance();
         $config = $container->make(ConfigRepository::class);
-        $this->store = $store ?? $config->nullableString('saloon.cache.store', null) ?? $config->string('cache.default');
+        $this->store = $store ?? $config->get('saloon.cache.store') ?? $config->string('cache.default');
         $this->cacheKey = 'saloon:oauth-token:' . hash('sha256', $key);
         $this->resolver = $resolver(...);
     }

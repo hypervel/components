@@ -35,7 +35,7 @@ class AiServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(ConversationStore::class, fn (): DatabaseConversationStore => new DatabaseConversationStore(
-            config()->nullableString('ai.conversations.connection', null),
+            config('ai.conversations.connection'),
         ));
 
         $this->mergeConfigFrom(__DIR__ . '/../config/ai.php', 'ai');

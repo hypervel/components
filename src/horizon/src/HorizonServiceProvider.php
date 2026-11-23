@@ -42,7 +42,7 @@ class HorizonServiceProvider extends ServiceProvider
     protected function normalizeConfig(): void
     {
         $this->configureUsing(static function (Repository $config): void {
-            if (($name = $config->nullableString('horizon.name')) === null || $name === '') {
+            if (($name = $config->get('horizon.name')) === null || $name === '') {
                 $config->set('horizon.name', $config->string('app.name'));
             }
         });
@@ -70,7 +70,7 @@ class HorizonServiceProvider extends ServiceProvider
         $config = $this->app->make('config');
 
         Route::group([
-            'domain' => $config->nullableString('horizon.domain'),
+            'domain' => $config->get('horizon.domain'),
             'prefix' => $config->string('horizon.path'),
             'namespace' => 'Hypervel\Horizon\Http\Controllers',
             'middleware' => 'horizon',

@@ -6,10 +6,8 @@ namespace Hypervel\Tests\Config;
 
 use Hypervel\Config\Repository;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Facades\Config;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use PHPUnit\Framework\Attributes\DataProvider;
 
 class RepositoryTest extends TestCase
 {
@@ -325,83 +323,6 @@ class RepositoryTest extends TestCase
             'c',
             $this->repository->string('a.b')
         );
-    }
-
-    #[DataProvider('nullableGetters')]
-    public function testNullableGetterPreservesValuesAndOnlyEvaluatesDefaultsForMissingKeys(string $getter, mixed $value): void
-    {
-        $repository = new Repository(['settings' => ['present' => $value, 'disabled' => null]]);
-        $calls = 0;
-        $default = static function () use (&$calls, $value): mixed {
-            ++$calls;
-
-            return $value;
-        };
-
-        $this->assertSame($value, $repository->{$getter}('settings.present', $default));
-        $this->assertNull($repository->{$getter}('settings.disabled', $default));
-        $this->assertSame(0, $calls);
-        $this->assertSame($value, $repository->{$getter}('missing', $default));
-        $this->assertSame(1, $calls);
-        $this->assertSame($value, $repository->{$getter}('missing', $value));
-        $this->assertNull($repository->{$getter}('missing', null));
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Configuration value for key [settings.missing] is not defined.');
-        $repository->{$getter}('settings.missing');
-    }
-
-    #[DataProvider('nullableGetters')]
-    public function testNullableGetterRejectsWrongType(string $getter, mixed $value): void
-    {
-        $repository = new Repository(['invalid' => $getter === 'nullableString' ? false : '0']);
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [invalid] must be');
-        $repository->{$getter}('invalid', $value);
-    }
-
-    /**
-     * Supply a falsy value of each supported type.
-     */
-    public static function nullableGetters(): array
-    {
-        return [
-            ['nullableString', ''],
-            ['nullableInteger', 0],
-            ['nullableFloat', 0.0],
-            ['nullableBoolean', false],
-            ['nullableArray', []],
-        ];
-    }
-
-    public function testNullableGetterChecksTheResultOfALazyDefault(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Configuration value for key [missing] must be a string or null, integer given.');
-        $this->repository->nullableString('missing', static fn () => 1);
-    }
-
-    public function testNullableGetterUsesTheOverriddenLookupThroughTheFacade(): void
-    {
-        $repository = new class extends Repository {
-            public array $lookups = [];
-
-            public function get(array|string $key, mixed $default = null): mixed
-            {
-                $this->lookups[] = $key;
-
-                return $key === 'computed' ? 'value' : parent::get($key, $default);
-            }
-        };
-        Config::swap($repository);
-
-        $this->assertSame('value', Config::nullableString(key: 'computed'));
-        $this->assertNull(Config::nullableString(default: null, key: 'missing'));
-        $this->assertSame(['computed', 'missing'], $repository->lookups);
-
-        $this->expectException(InvalidArgumentException::class);
-        Config::nullableString(key: 'missing');
     }
 
     public function testItThrowsAnExceptionWhenTryingToGetNonStringValueAsString(): void

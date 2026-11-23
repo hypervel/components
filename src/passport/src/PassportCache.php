@@ -247,7 +247,7 @@ class PassportCache
      */
     protected function getCache(): CacheRepository
     {
-        $store = $this->config->nullableString('passport.cache.store', null);
+        $store = $this->config->get('passport.cache.store');
 
         return $this->cache->store($store === '' ? null : $store);
     }

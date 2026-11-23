@@ -355,7 +355,6 @@ if (! function_exists('config')) {
             return null;
         }
 
-        // @phpstan-ignore hypervel.untypedConfigRead (The keyed helper forwards reads of arbitrary configuration values.)
         return $config->get($key, $default);
     }
 }

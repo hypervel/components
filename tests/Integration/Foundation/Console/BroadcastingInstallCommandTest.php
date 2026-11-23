@@ -485,14 +485,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString('PUSHER_APP_CLUSTER=eu', $envContent);
     }
 
-    public function testWritesAblyVariablesToTheSelectedEnvironmentFile(): void
+    public function testWritesAblyEnvVariables(): void
     {
         Process::fake();
-
-        $this->app->loadEnvironmentFrom('.env.ably');
-        $environmentFile = $this->app->environmentFilePath();
-        $this->createdFiles[] = $environmentFile;
-        file_put_contents($environmentFile, 'BROADCAST_CONNECTION=log' . PHP_EOL);
 
         $this->createdFiles[] = $this->app->basePath('routes/channels.php');
         $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
@@ -501,8 +496,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsQuestion('Ably Key', 'abc123:public456')
             ->assertSuccessful();
 
-        $envContent = file_get_contents($environmentFile);
-        $this->assertStringContainsString('BROADCAST_CONNECTION=ably', $envContent);
+        $envContent = file_get_contents($this->app->basePath('.env'));
         // The colon in the key triggers quoting in Env::writeVariables.
         $this->assertStringContainsString('ABLY_KEY="abc123:public456"', $envContent);
         $this->assertStringContainsString('ABLY_PUBLIC_KEY=abc123', $envContent);

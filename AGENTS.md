@@ -233,7 +233,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 These rules apply to all code, including ported code.
 
 - **Laravel-style config files** — Group related settings under Laravel's standard section comment blocks, with concise, user-facing explanations.
-- Choose the getter from the setting's supported values. Use the matching nullable getter for one type plus null. Reserve `get()` for unions no getter covers, arbitrary values, or diagnostics that inspect malformed input. Omit the getter's default for a required key and supply an explicit default (including null) when omission is allowed. Add a test for supported null behavior.
+- Always use typed getters for values with one non-null type. Only use `get()` when null, union, or mixed values are meaningful. Add a test for any supported null behavior.
 - Cast environment-backed booleans and numbers in config files; if `null` is supported, cast only non-null values. Consumers must not repeat those casts. When a factory accepts raw configuration records, normalize types and documented optional defaults once at that boundary; never supply missing required members.
 - Required settings live in shipped config and must not have a code-level fallback, so missing or misspelled keys fail loudly.
 - Intentionally optional settings keep one owning fallback and remain discoverable in config or feature documentation. Document what omission or null means.
@@ -770,8 +770,6 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 ## Static Analysis
 
 Components is analyzed with its own `hypervel/phpstan` extension. [Static Analysis](src/docs/static-analysis.md#fixing-and-ignoring-diagnostics) is the source of truth for each diagnostic's intended fix and legitimate exceptions; the rules below add Components-specific requirements.
-
-Components enables `noUntypedConfigReads` in production analysis. When no typed getter covers the accepted values or a diagnostic must inspect malformed input, keep the generic read and add a local `@phpstan-ignore hypervel.untypedConfigRead (reason)` explaining that contract.
 
 **Keep `hypervel/phpstan` evolving** — Codify framework contracts and useful conventions. Prefer a simple framework fix when it prevents the mistake. Add rules for mistakes likely to recur in packages or apps, even when existing cases are already fixed. Check each proposed rule against real mistakes and realistic correct usage. Reject rules that flag correct code or need a growing list of exceptions to avoid doing so. Keep inference limits explicit. Reach peer consensus, then seek owner approval for a new rule. If an existing rule flags correct code, fix the analyzer and leave the correct code alone.
 

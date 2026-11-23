@@ -66,7 +66,7 @@ class RoutingServiceProvider extends ServiceProvider
             return new UrlGenerator(
                 $routes,
                 $app->make('request'),
-                $app->make('config')->nullableString('app.asset_url')
+                $app->make('config')->get('app.asset_url')
             );
         });
 

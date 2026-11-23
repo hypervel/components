@@ -92,7 +92,7 @@ abstract class TestCase extends HypervelTestCase
         $config = $app->make('config');
 
         // The provider reads the DSN while registering, before Testbench runs defineEnvironment().
-        if (! $config->boolean('sentry_test.override_dsn', false)) {
+        if ($config->get('sentry_test.override_dsn') !== true) {
             $config->set('sentry.dsn', 'https://publickey@sentry.dev/123');
         }
 

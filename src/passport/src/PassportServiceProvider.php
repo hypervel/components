@@ -288,7 +288,7 @@ class PassportServiceProvider extends ServiceProvider
     protected function validateConfiguration(): void
     {
         $config = $this->app->make(Repository::class);
-        $issuer = $config->nullableString('passport.issuer');
+        $issuer = $config->get('passport.issuer');
         // Reuse settings validation so a bad issuer stops startup before requests are served.
         new ServerSettings([], issuer: $issuer === '' ? null : $issuer);
 
@@ -351,7 +351,11 @@ class PassportServiceProvider extends ServiceProvider
             throw new InvalidArgumentException('Passport cache TTL must be a positive integer.');
         }
 
-        $store = $config->nullableString('passport.cache.store', null);
+        $store = $config->get('passport.cache.store');
+
+        if (! is_string($store) && $store !== null) {
+            throw new InvalidArgumentException('Passport cache store must be a string or null.');
+        }
 
         $this->app->make(ModelCacheStoreValidator::class)->validate(
             $this->app->make(CacheManager::class)->store($store === '' ? null : $store),

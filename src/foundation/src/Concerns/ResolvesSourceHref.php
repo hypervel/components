@@ -50,7 +50,6 @@ trait ResolvesSourceHref
     protected function resolveSourceHref(string $file, ?int $line): ?string
     {
         try {
-            // @phpstan-ignore hypervel.untypedConfigRead (The editor can be a scheme name or an array of link options.)
             $editor = config('app.editor');
         } catch (Throwable $exception) {
             if (Coroutine::causedByCancellation($exception)) {

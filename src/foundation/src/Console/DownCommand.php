@@ -85,7 +85,7 @@ class DownCommand extends Command
             );
 
             if ($downFilePayload['secret'] !== null) {
-                $this->components->info('You may bypass maintenance mode via [' . config()->nullableString('app.url') . "/{$downFilePayload['secret']}].");
+                $this->components->info('You may bypass maintenance mode via [' . config('app.url') . "/{$downFilePayload['secret']}].");
             }
         } catch (Throwable $e) {
             try {

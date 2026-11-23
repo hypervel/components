@@ -58,9 +58,11 @@ trait CreatesUserProviders
         $guard = $guard === null || $guard === ''
             ? $this->getDefaultDriver()
             : $guard;
-        $provider = $this->app->make('config')->nullableString("auth.guards.{$guard}.provider", null);
+        $provider = $this->app->make('config')->get("auth.guards.{$guard}.provider");
 
-        return $provider === '' ? null : $provider;
+        return is_string($provider) && $provider !== ''
+            ? $provider
+            : null;
     }
 
     /**
@@ -80,7 +82,7 @@ trait CreatesUserProviders
             return null;
         }
 
-        return $this->app->make('config')->nullableArray('auth.providers.' . $provider, null);
+        return $this->app->make('config')->get('auth.providers.' . $provider);
     }
 
     /**

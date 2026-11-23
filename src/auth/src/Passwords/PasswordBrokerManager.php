@@ -127,7 +127,7 @@ class PasswordBrokerManager implements FactoryContract
      */
     protected function getConfig(string $name): ?array
     {
-        return $this->app->make('config')->nullableArray("auth.passwords.{$name}", null);
+        return $this->app->make('config')->get("auth.passwords.{$name}");
     }
 
     /**
@@ -144,7 +144,11 @@ class PasswordBrokerManager implements FactoryContract
         $config = $this->app->make('config');
         $key = "auth.guards.{$guard}.passwords";
 
-        $name = $config->nullableString($key, null);
+        if ($config->get($key) === null) {
+            return null;
+        }
+
+        $name = $config->string($key);
 
         return $name !== '' ? $name : null;
     }

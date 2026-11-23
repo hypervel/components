@@ -57,12 +57,13 @@ class JwtServiceProvider extends ServiceProvider
             $storageClass = $config->string('jwt.providers.storage', CacheStorage::class);
             $storage = match ($storageClass) {
                 CacheStorage::class => new CacheStorage(
-                    $app->make('cache')->store($config->nullableString('jwt.blacklist_store'))
+                    $app->make('cache')->store($config->get('jwt.blacklist_store'))
                 ),
                 default => $app->make($storageClass),
             };
 
-            $refreshTtl = $config->nullableInteger('jwt.refresh_ttl');
+            /** @var null|int $refreshTtl */
+            $refreshTtl = $config->get('jwt.refresh_ttl');
 
             return new Blacklist(
                 storage: $storage,
@@ -107,7 +108,7 @@ class JwtServiceProvider extends ServiceProvider
 
                 $ttl = array_key_exists('ttl', $config)
                     ? $config['ttl']
-                    : $repository->nullableInteger('jwt.ttl');
+                    : $repository->get('jwt.ttl');
 
                 if (! is_int($ttl) && $ttl !== null) {
                     throw new InvalidArgumentException(

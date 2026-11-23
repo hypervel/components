@@ -11,7 +11,6 @@ use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
-use Hypervel\Doctor\Support\Configured;
 use Hypervel\Doctor\Support\Details;
 use Hypervel\Doctor\Support\EnvironmentConfiguration;
 use Hypervel\Support\Env;
@@ -63,7 +62,6 @@ class ApplicationKeyIsSet extends Diagnostic implements Fixable
             return $this->fixed('configured');
         }
 
-        // @phpstan-ignore hypervel.untypedConfigRead (Restore the original application key even when its value is malformed.)
         $previousKey = config('app.key');
         $path = app()->environmentFilePath();
 
@@ -102,8 +100,8 @@ class ApplicationKeyIsSet extends Diagnostic implements Fixable
      */
     private function keyIsConfigured(): bool
     {
-        $key = Configured::string('app.key');
+        $key = config('app.key');
 
-        return $key !== null && trim($key) !== '';
+        return is_string($key) && trim($key) !== '';
     }
 }

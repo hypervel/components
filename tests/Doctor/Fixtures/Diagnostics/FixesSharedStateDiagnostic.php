@@ -20,7 +20,7 @@ class FixesSharedStateDiagnostic extends Diagnostic implements Fixable
      */
     public function check(): DiagnosticResult
     {
-        if (config()->boolean('doctor-testing.shared-state-fixed', false)) {
+        if (config('doctor-testing.shared-state-fixed') === true) {
             return DiagnosticResult::pass('The shared state is fixed.');
         }
 

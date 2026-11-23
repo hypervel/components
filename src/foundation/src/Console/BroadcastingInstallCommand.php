@@ -106,7 +106,7 @@ class BroadcastingInstallCommand extends Command
 
         $this->driver = $this->resolveDriver();
 
-        Env::writeVariable('BROADCAST_CONNECTION', $this->driver, $this->hypervel->environmentFilePath(), true);
+        Env::writeVariable('BROADCAST_CONNECTION', $this->driver, $this->hypervel->basePath('.env'), true);
 
         $this->collectDriverConfig();
         $this->installDriverPackages();
@@ -220,7 +220,7 @@ class BroadcastingInstallCommand extends Command
      */
     protected function collectDriverConfig(): void
     {
-        $envPath = $this->hypervel->environmentFilePath();
+        $envPath = $this->hypervel->basePath('.env');
 
         if (! file_exists($envPath)) {
             return;
@@ -294,7 +294,7 @@ class BroadcastingInstallCommand extends Command
             'VITE_PUSHER_HOST' => '${PUSHER_HOST}',
             'VITE_PUSHER_PORT' => '${PUSHER_PORT}',
             'VITE_PUSHER_SCHEME' => '${PUSHER_SCHEME}',
-        ], $this->hypervel->environmentFilePath());
+        ], $this->hypervel->basePath('.env'));
     }
 
     /**
@@ -312,7 +312,7 @@ class BroadcastingInstallCommand extends Command
             'ABLY_KEY' => $key,
             'ABLY_PUBLIC_KEY' => $publicKey,
             'VITE_ABLY_PUBLIC_KEY' => '${ABLY_PUBLIC_KEY}',
-        ], $this->hypervel->environmentFilePath());
+        ], $this->hypervel->basePath('.env'));
     }
 
     /**
@@ -360,7 +360,7 @@ class BroadcastingInstallCommand extends Command
             $variables['MERCURE_ENCRYPTION_KEY'] = 'base64:' . base64_encode(random_bytes(32));
         }
 
-        Env::writeVariables($variables, $this->hypervel->environmentFilePath());
+        Env::writeVariables($variables, $this->hypervel->basePath('.env'));
     }
 
     /**

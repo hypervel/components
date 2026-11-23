@@ -90,12 +90,12 @@ class DataConfigTest extends TestCase
 
         yield 'invalid timezone' => [
             ['date_timezone' => false],
-            'Configuration value for key [data.date_timezone] must be a string or null, boolean given.',
+            'Configuration [data.date_timezone] must be a string or null.',
         ];
 
         yield 'invalid wrapper' => [
             ['wrap' => []],
-            'Configuration value for key [data.wrap] must be a string or null, array given.',
+            'Configuration [data.wrap] must be a string or null.',
         ];
 
         yield 'invalid maximum depth' => [
@@ -105,7 +105,7 @@ class DataConfigTest extends TestCase
 
         yield 'missing output mapper' => [
             ['name_mapping_strategy' => ['input' => null]],
-            'Configuration value for key [data.name_mapping_strategy.output] is not defined.',
+            'Configuration [data.name_mapping_strategy.output] is required.',
         ];
     }
 

@@ -16,11 +16,6 @@ class ReadCallableCallbackProvider extends ServiceProvider
     {
         $this->configureUsing(static function (Repository $config): void {
             $get = $config->get(...);
-            $config->nullableBoolean('package.enabled', null);
-            $config->nullableString(...);
-            $config->nullableInteger(...);
-            $config->nullableFloat(...);
-            $config->nullableArray(...);
             $config->set('package.copy', $get('package.original'));
         });
     }

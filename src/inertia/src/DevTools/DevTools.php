@@ -59,7 +59,13 @@ class DevTools
      */
     public static function enabled(): bool
     {
-        return config()->nullableBoolean('inertia.devtools.enabled', null) ?? app()->environment('local');
+        $configured = config('inertia.devtools.enabled');
+
+        if ($configured === null) {
+            return app()->environment('local');
+        }
+
+        return (bool) $configured;
     }
 
     /**
@@ -84,7 +90,6 @@ class DevTools
         // Read without the typed config helper: a misconfigured value would throw, and this
         // runs inside the app's own request, where recording must never be the thing that
         // breaks the response.
-        // @phpstan-ignore hypervel.untypedConfigRead (Recording must tolerate malformed path filters during a live request.)
         $patterns = array_values(array_filter(Arr::wrap(config('inertia.devtools.except', self::DEFAULT_EXCEPT)), 'is_string'));
 
         return $patterns === [] || ! ($request ?? request())->is(...$patterns);

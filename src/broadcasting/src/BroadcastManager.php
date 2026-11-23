@@ -565,7 +565,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->make('config')->nullableArray("broadcasting.connections.{$name}", null);
+            return $this->app->make('config')->get("broadcasting.connections.{$name}");
         }
 
         return ['driver' => 'null'];

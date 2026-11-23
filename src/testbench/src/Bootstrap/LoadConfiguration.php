@@ -25,7 +25,7 @@ class LoadConfiguration extends BaseLoadConfiguration
 
         $config = $app->make('config');
 
-        if ($config->nullableArray('database.connections.testing', null) === null) {
+        if ($config->get('database.connections.testing') === null) {
             $config->set('database.connections.testing', [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
@@ -94,13 +94,12 @@ class LoadConfiguration extends BaseLoadConfiguration
      */
     protected function configureDefaultDatabaseConnection(RepositoryContract $repository): void
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (Only a local SQLite filename should trigger the fallback to the testing connection.)
         $sqliteDatabase = $repository->get('database.connections.sqlite.database');
         $usesLocalFile = is_string($sqliteDatabase)
             && ! SQLiteDatabase::isInMemory($sqliteDatabase)
             && ! SQLiteDatabase::isUri($sqliteDatabase);
 
-        if ($repository->nullableString('database.default', null) === 'sqlite' && $usesLocalFile && ! is_file($sqliteDatabase)) {
+        if ($repository->get('database.default') === 'sqlite' && $usesLocalFile && ! is_file($sqliteDatabase)) {
             $repository->set('database.default', 'testing');
             $this->rewriteQueueDatabaseConnection($repository, 'queue.batching.database');
             $this->rewriteQueueDatabaseConnection($repository, 'queue.failed.database');
@@ -112,7 +111,7 @@ class LoadConfiguration extends BaseLoadConfiguration
      */
     protected function rewriteQueueDatabaseConnection(RepositoryContract $repository, string $key): void
     {
-        if ($repository->nullableString($key, null) === 'sqlite') {
+        if ($repository->get($key) === 'sqlite') {
             $repository->set($key, 'testing');
         }
     }

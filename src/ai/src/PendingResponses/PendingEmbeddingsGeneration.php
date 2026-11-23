@@ -135,7 +135,6 @@ class PendingEmbeddingsGeneration
     public function generate(Provider|Lab|array|string|null $provider = null, ?string $model = null): EmbeddingsResponse
     {
         $providers = Ai::resolveOnDemandProviders(Provider::providerAndModelPairs(
-            // @phpstan-ignore hypervel.untypedConfigRead (Providers may be selected by name, enum, or a failover list.)
             $provider ?? Config::get('ai.default_for_embeddings'),
             $model
         ));
@@ -477,7 +476,7 @@ class PendingEmbeddingsGeneration
      */
     protected function cacheStore(): CacheRepository
     {
-        return Cache::store(config()->nullableString('ai.caching.embeddings.store', null));
+        return Cache::store(config('ai.caching.embeddings.store'));
     }
 
     /**

@@ -34,8 +34,8 @@ class Authorize
             return true;
         }
 
-        $gate = config()->nullableString('inertia.devtools.gate');
+        $gate = config('inertia.devtools.gate');
 
-        return $gate !== null && $gate !== '' && Gate::forUser($request->user())->check($gate);
+        return is_string($gate) && $gate !== '' && Gate::forUser($request->user())->check($gate);
     }
 }

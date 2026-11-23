@@ -114,7 +114,7 @@ abstract class MakeCommand extends GeneratorCommand
      */
     protected function integrationNamespace(): string
     {
-        $namespace = $this->config->nullableString('saloon.integrations_namespace');
+        $namespace = $this->config->get('saloon.integrations_namespace');
 
         if ($namespace === null) {
             $rootNamespace = rtrim($this->rootNamespace(), '\\');
@@ -132,7 +132,7 @@ abstract class MakeCommand extends GeneratorCommand
             return $rootNamespace . '\\' . str_replace('/', '\\', substr($integrationsPath, strlen($appPath) + 1));
         }
 
-        if ($namespace === '') {
+        if (! is_string($namespace) || $namespace === '') {
             throw new LogicException('The [saloon.integrations_namespace] configuration value must be null or a non-empty string.');
         }
 

@@ -354,14 +354,11 @@ function settings(Repository $config): array
 
 The available methods are `string`, `integer`, `float`, `boolean`, `array`, and `collection`. When no default is supplied, a missing key or wrong type causes Hypervel to throw an `InvalidArgumentException` that names the full configuration key.
 
-When a setting accepts null, use `nullableString`, `nullableInteger`, `nullableFloat`, `nullableBoolean`, or `nullableArray`. The key must exist unless you supply a default. For example, the shipped session configuration defines a cookie domain, which may be null. An application may also define an optional audit log channel:
+Some configuration values intentionally allow null or more than one type. You should retrieve these values using `get()` or the direct `config('key')` form. For example, a missing or null editor disables source links:
 
 ```php
-$domain = config()->nullableString('session.domain');
-$channel = Config::nullableArray('logging.channels.audit', null);
+$editor = config('app.editor');
 ```
-
-A configured null is returned even when you supply a non-null default. A closure default is called only when the key is absent. The getter checks the resulting value and throws if it has the wrong type. Use `get()` for settings that accept several types no single getter covers, such as an editor name or an array of editor options.
 
 Stable public options remain discoverable through their configuration file or relevant feature documentation. Optional options may appear as commented examples instead of active keys, and their documentation explains what omission or null means. Defaults for required options belong in the configuration file instead of being repeated at each read; deliberately optional settings keep a single source fallback.
 

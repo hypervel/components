@@ -147,7 +147,7 @@ class AboutCommand extends Command
             'Composer Version' => $this->composer->getVersion() ?? '<fg=yellow;options=bold>-</>',
             'Environment' => $this->hypervel->environment(),
             'Debug Mode' => static::format(config()->boolean('app.debug'), console: $formatEnabledStatus),
-            'URL' => (new Stringable(config()->nullableString('app.url')))->replace(['http://', 'https://'], ''),
+            'URL' => (new Stringable(config('app.url')))->replace(['http://', 'https://'], ''),
             'Maintenance Mode' => static::format($this->hypervel->isDownForMaintenance(), console: $formatEnabledStatus),
             'Timezone' => config()->string('app.timezone'),
             'Locale' => config()->string('app.locale'),
@@ -180,9 +180,9 @@ class AboutCommand extends Command
             },
             'Database' => config()->string('database.default'),
             'Logs' => function ($json) {
-                $logChannel = config()->nullableString('logging.default');
+                $logChannel = config('logging.default');
 
-                if ($logChannel !== null && config()->string('logging.channels.' . $logChannel . '.driver') === 'stack') {
+                if (is_string($logChannel) && config()->string('logging.channels.' . $logChannel . '.driver') === 'stack') {
                     $secondary = config()->collection('logging.channels.' . $logChannel . '.channels');
 
                     return value(static::format(
@@ -224,7 +224,7 @@ class AboutCommand extends Command
 
                 return $queueConnection;
             },
-            'Scout' => config()->nullableString('scout.driver', null),
+            'Scout' => config('scout.driver'),
             'Session' => config()->string('session.driver'),
         ]));
 

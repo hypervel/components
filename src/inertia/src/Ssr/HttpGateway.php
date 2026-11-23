@@ -314,7 +314,6 @@ class HttpGateway implements ConfiguresSsrRequests, DisablesSsr, ExcludesSsrPath
      */
     protected function getHotUrl(string $path = '/'): ?string
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (A URL string overrides the Vite hot file; false and null select the file.)
         $baseUrl = (string) config('inertia.ssr.hot_url');
 
         if ($baseUrl === '') {

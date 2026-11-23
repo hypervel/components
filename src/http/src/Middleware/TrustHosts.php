@@ -143,7 +143,7 @@ class TrustHosts
      */
     protected function allSubdomainsOfApplicationUrl(): ?string
     {
-        $url = $this->app->make('config')->nullableString('app.url');
+        $url = $this->app->make('config')->get('app.url');
 
         if ($url === null) {
             return null;

@@ -77,7 +77,7 @@ class ClientManager
     {
         $client = match (true) {
             isset($this->factories[$name]) => ($this->factories[$name])(),
-            config()->nullableArray("mcp.clients.{$name}", null) !== null => $this->fromConfig($name),
+            is_array(config("mcp.clients.{$name}")) => $this->fromConfig($name),
             default => throw new ClientException("MCP client [{$name}] has not been registered."),
         };
 
@@ -92,11 +92,11 @@ class ClientManager
         $config = config();
         $key = "mcp.clients.{$name}";
 
-        if (filled($config->nullableString("{$key}.url", null))) {
+        if (filled($config->get("{$key}.url"))) {
             $client = $this->webClientFromConfig($key);
-        } elseif (filled($command = $config->nullableString("{$key}.command", null))) {
+        } elseif (filled($config->get("{$key}.command"))) {
             $client = Client::local(
-                $command,
+                $config->string("{$key}.command"),
                 $config->array("{$key}.args", []),
                 array_filter($config->array("{$key}.env", []), filled(...)),
             );
@@ -104,21 +104,19 @@ class ClientManager
             throw new ClientException("MCP client [{$name}] must define a [url] or [command].");
         }
 
-        // @phpstan-ignore hypervel.untypedConfigRead (Clients accept numeric timeouts including fractional seconds.)
         if (is_numeric($timeout = $config->get("{$key}.timeout"))) {
             $client->withTimeout((float) $timeout);
         }
 
-        // @phpstan-ignore hypervel.untypedConfigRead (Caching can be enabled with a boolean or a record of cache options.)
         if ($cache = $config->get("{$key}.cache")) {
             $client->withCache(...is_array($cache) ? Arr::only($cache, ['store', 'for']) : []);
         }
 
-        if (filled($version = $config->nullableString("{$key}.protocol_version", null))) {
+        if (filled($version = $config->get("{$key}.protocol_version"))) {
             $client->withProtocolVersion(ProtocolVersion::from($version));
         }
 
-        if (($only = $config->nullableArray("{$key}.tools.only", null)) !== null) {
+        if (is_array($only = $config->get("{$key}.tools.only"))) {
             $client->onlyTools($only);
         }
 
@@ -135,16 +133,16 @@ class ClientManager
         $client = Client::web($config->string("{$key}.url"))
             ->withHeaders(array_filter($config->array("{$key}.headers", []), filled(...)));
 
-        if (filled($token = $config->nullableString("{$key}.token", null))) {
-            $client->withToken($token);
+        if (filled($config->get("{$key}.token"))) {
+            $client->withToken($config->string("{$key}.token"));
         }
 
-        if ($config->nullableArray("{$key}.oauth", null) !== null) {
+        if (is_array($config->get("{$key}.oauth"))) {
             $client->withOAuth(
-                clientId: $config->nullableString("{$key}.oauth.client_id", null),
-                clientSecret: $config->nullableString("{$key}.oauth.client_secret", null),
-                scope: $config->nullableString("{$key}.oauth.scope", null),
-                redirectUri: $config->nullableString("{$key}.oauth.redirect_uri", null),
+                clientId: $config->get("{$key}.oauth.client_id"),
+                clientSecret: $config->get("{$key}.oauth.client_secret"),
+                scope: $config->get("{$key}.oauth.scope"),
+                redirectUri: $config->get("{$key}.oauth.redirect_uri"),
             );
         }
 

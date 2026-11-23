@@ -113,7 +113,7 @@ class PruneExpiredTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs(
-            'Configuration value for key [sanctum.expiration] must be an integer or null, string given.'
+            'Configuration value for key [sanctum.expiration] must be an integer, string given.'
         );
 
         try {

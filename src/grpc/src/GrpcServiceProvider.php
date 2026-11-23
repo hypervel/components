@@ -176,7 +176,6 @@ class GrpcServiceProvider extends ServiceProvider
         $maxReceiveMessageSize = $config->integer('grpc.server.max_receive_message_size');
         $maxSendMessageSize = $config->integer('grpc.server.max_send_message_size');
         $maxMetadataSize = $config->integer('grpc.server.max_metadata_size');
-        // @phpstan-ignore hypervel.untypedConfigRead (Compression accepts an enum instance, a string, or null.)
         $compression = $this->compression($config->get('grpc.server.compression'));
         $tls = $this->tlsConfiguration($config->array('grpc.server.tls'));
         $settings = $this->serverSettings($config->array('grpc.server.settings'));

@@ -9,7 +9,6 @@ use Hypervel\Doctor\Results\Link;
 use Hypervel\Tests\Doctor\TestCase;
 use Monolog\Handler\SyslogUdpHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\TestWith;
 
 class RequiredConfigurationValuesAreSetTest extends TestCase
 {
@@ -180,16 +179,14 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         $this->assertSame('pass', $result->status->value);
     }
 
-    #[TestWith([[], ['host' => null, 'port' => null]])]
-    #[TestWith(['invalid', 'invalid'])]
-    public function testRequiresAHostAndPortForSyslogUdpLogChannels(array|string $with, array|string $handlerWith): void
+    public function testRequiresAHostAndPortForSyslogUdpLogChannels(): void
     {
         config([
             'logging.default' => 'papertrail',
             'logging.channels.papertrail.driver' => 'monolog',
             'logging.channels.papertrail.handler' => SyslogUdpHandler::class,
-            'logging.channels.papertrail.with' => $with,
-            'logging.channels.papertrail.handler_with' => $handlerWith,
+            'logging.channels.papertrail.handler_with.host' => null,
+            'logging.channels.papertrail.handler_with.port' => null,
         ]);
 
         $result = (new RequiredConfigurationValuesAreSet)->check();

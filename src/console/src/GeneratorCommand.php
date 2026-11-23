@@ -476,9 +476,9 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
             return null;
         }
 
-        $provider = $config->nullableString('auth.guards.' . $this->hypervel->make('auth')->getDefaultDriver() . '.provider', null);
+        $provider = $config->get('auth.guards.' . $this->hypervel->make('auth')->getDefaultDriver() . '.provider');
 
-        return $config->nullableString("auth.providers.{$provider}.model", null);
+        return $config->get("auth.providers.{$provider}.model");
     }
 
     /**

@@ -39,9 +39,9 @@ class UntrustedUrl
     {
         $allowedHosts = config()->array('ai.remote_files.allowed_hosts', []);
         $policy = new RemoteFileDestinationPolicy(static::$resolver);
-        $kilobytes = config()->nullableInteger('ai.remote_files.max_size', static::MAX_KILOBYTES);
+        $kilobytes = config()->get('ai.remote_files.max_size', static::MAX_KILOBYTES);
 
-        if ($kilobytes !== null && $kilobytes <= 0) {
+        if ($kilobytes !== null && (! is_int($kilobytes) || $kilobytes <= 0)) {
             throw new InvalidArgumentException('The remote file maximum size must be a positive integer or null.');
         }
 

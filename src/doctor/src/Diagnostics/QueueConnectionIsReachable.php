@@ -153,9 +153,9 @@ class QueueConnectionIsReachable extends Diagnostic
             return ['driver' => 'null'];
         }
 
-        $configuration = Configured::array("queue.connections.{$connection}");
+        $configuration = config("queue.connections.{$connection}");
 
-        if ($configuration === null) {
+        if (! is_array($configuration)) {
             throw new RuntimeException(sprintf('The [%s] queue connection is not configured.', $connection));
         }
 

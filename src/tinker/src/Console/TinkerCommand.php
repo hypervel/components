@@ -50,7 +50,6 @@ class TinkerCommand extends Command
         $config->setUsePcntl(false);
 
         $appConfig = $this->getHypervel()->make('config');
-        // @phpstan-ignore hypervel.untypedConfigRead (PsySH accepts a boolean, a trust mode name, or null.)
         $config->setTrustProject($appConfig->get('tinker.trust_project'));
 
         $config->getPresenter()->addCasters(

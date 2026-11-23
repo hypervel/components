@@ -44,7 +44,6 @@ class BatchableTransactionTest extends DatabaseTestCase
 
         try {
             remote('queue:work --stop-when-empty', [
-                'TESTBENCH_BASE_PATH' => false,
                 'DB_CONNECTION' => config('database.default'),
                 'DB_DATABASE' => config('database.connections.' . config('database.default') . '.database'),
                 'DB_URL' => false,

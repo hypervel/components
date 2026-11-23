@@ -18,7 +18,7 @@ class SharedStateWasFixedDiagnostic extends Diagnostic
      */
     public function check(): DiagnosticResult
     {
-        if (config()->boolean('doctor-testing.shared-state-fixed', false)) {
+        if (config('doctor-testing.shared-state-fixed') === true) {
             return DiagnosticResult::pass('The shared state dependent diagnostic passed.');
         }
 

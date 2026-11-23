@@ -78,7 +78,6 @@ class PendingReranking
     public function rerank(string $query, Provider|Lab|array|string|null $provider = null, ?string $model = null): RerankingResponse
     {
         $providers = Ai::resolveOnDemandProviders(Provider::providerAndModelPairs(
-            // @phpstan-ignore hypervel.untypedConfigRead (Providers may be selected by name, enum, or a failover list.)
             $provider ?? Config::get('ai.default_for_reranking'),
             $model
         ));

@@ -73,7 +73,6 @@ class DevToolsServiceProvider extends ServiceProvider
      */
     protected function routeMiddleware(): array
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (Middleware may be a single middleware name or an array.)
         return Arr::wrap($this->app->make('config')->get('inertia.devtools.middleware', ['web']));
     }
 }

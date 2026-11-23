@@ -45,7 +45,7 @@ class JwtManager extends Manager implements ManagerContract
     public function createLcobucciDriver(): Lcobucci
     {
         return new Lcobucci(
-            (string) $this->config->nullableString('jwt.secret'),
+            (string) $this->config->get('jwt.secret'),
             $this->config->string('jwt.algo'),
             $this->config->array('jwt.keys'),
         );
@@ -132,7 +132,8 @@ class JwtManager extends Manager implements ManagerContract
         $this->validateRefreshWindow($payload);
 
         if ($ttl === false) {
-            $ttl = $this->config->nullableInteger('jwt.ttl');
+            /** @var null|int $ttl */
+            $ttl = $this->config->get('jwt.ttl');
         }
 
         $claims = $this->claimFactory->refresh(
@@ -203,7 +204,8 @@ class JwtManager extends Manager implements ManagerContract
             throw new TokenInvalidException('Issued At (iat) claim is required to refresh a token.');
         }
 
-        $refreshTtl = $this->config->nullableInteger('jwt.refresh_ttl');
+        /** @var null|int $refreshTtl */
+        $refreshTtl = $this->config->get('jwt.refresh_ttl');
 
         if ($refreshTtl === null) {
             return;

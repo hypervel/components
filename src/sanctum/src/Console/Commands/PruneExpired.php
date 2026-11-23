@@ -42,7 +42,11 @@ class PruneExpired extends Command
             return Command::FAILURE;
         }
 
-        $expiration = config()->nullableInteger('sanctum.expiration');
+        $expiration = config()->get('sanctum.expiration');
+
+        if ($expiration !== null) {
+            $expiration = config()->integer('sanctum.expiration');
+        }
 
         $this->info('Pruning tokens with expired expires_at timestamps...');
 

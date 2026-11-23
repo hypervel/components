@@ -263,7 +263,6 @@ class AuthGuardHelper
      */
     private function getConfiguredGuardNames(): array
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (Auth inference falls back when the application supplies malformed guards.)
         $guards = $this->getContainer()->get('config')->get('auth.guards');
 
         $names = [];
@@ -282,7 +281,6 @@ class AuthGuardHelper
      */
     private function getConfiguredGuardType(array $manager, string $name): ?Type
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (Auth inference falls back when the application supplies malformed guards.)
         $driver = $this->getContainer()->get('config')->get('auth.guards')[$name]['driver'] ?? null;
 
         if (! is_string($driver)) {

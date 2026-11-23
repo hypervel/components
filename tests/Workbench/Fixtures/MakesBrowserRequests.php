@@ -21,7 +21,7 @@ trait MakesBrowserRequests
             CoroutineContext::forget($key);
         }
 
-        $cookie = $previous->getCookie(config()->string('session.cookie'), decrypt: false);
+        $cookie = $previous->getCookie(config('session.cookie'), decrypt: false);
 
         $this->assertNotNull($cookie);
 

@@ -14,6 +14,9 @@ use PHPStan\DependencyInjection\Conditional;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
+use PHPStan\Type\VerbosityLevel;
+
+use function sprintf;
 
 /**
  * Reports typed config getters, such as Config::integer(), whose value never has the
@@ -24,6 +27,17 @@ use PHPStan\Rules\RuleErrorBuilder;
 #[Conditional(attribute: new AutowiredService, if: '%checkConfigTypes%')]
 class ConfigTypeRule implements Rule
 {
+    /**
+     * The value types the typed getters require, as the error message names them.
+     */
+    private const array GETTER_TYPES = [
+        'string' => 'a string',
+        'integer' => 'an integer',
+        'float' => 'a float',
+        'boolean' => 'a boolean',
+        'array' => 'an array',
+    ];
+
     /**
      * Create a new rule instance.
      */
@@ -51,14 +65,24 @@ class ConfigTypeRule implements Rule
     {
         $methodName = $this->configHelper->getMethodName($node, $scope);
 
-        if ($methodName === null || $methodName === 'get' || $methodName === 'collection') {
+        if (! isset(self::GETTER_TYPES[$methodName])) {
             return [];
         }
 
-        $message = $this->configHelper->getTypeError($node, $scope, $methodName);
+        $key = $node->getArg('key', 0);
+        $valueType = $this->configHelper->getValueType($node, $scope);
 
-        return $message === null ? [] : [
-            RuleErrorBuilder::message($message)
+        if ($key === null || $valueType === null || ! $this->configHelper->getGetterType($methodName)->isSuperTypeOf($valueType)->no()) {
+            return [];
+        }
+
+        return [
+            RuleErrorBuilder::message(sprintf(
+                'Config key %s is not %s, so %s() throws. Correct the config value or use the getter that matches its type.',
+                $scope->getType($key->value)->describe(VerbosityLevel::precise()),
+                self::GETTER_TYPES[$methodName],
+                $methodName,
+            ))
                 ->identifier('hypervel.configType')
                 ->build(),
         ];

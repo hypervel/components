@@ -9,7 +9,7 @@ use function PHPStan\Testing\assertType;
 // Unlike upstream, an absent key returns its default and a present key ignores it, and only the
 // application's repository has the application's values: config() or a resolution of it from the
 // application container.
-function test(Repository $config, bool $secondary): void
+function test(Repository $config): void
 {
     assertType('null', config()->get('foo'));
     assertType('array{guard: \'web\', passwords: \'users\'}', app('config')->get('auth.defaults'));
@@ -17,18 +17,6 @@ function test(Repository $config, bool $secondary): void
     assertType('array{1, 2, 3}', config()->get('test.bar'));
     assertType("'bar'", app(Repository::class)->get('test.foo'));
     assertType("'bar'", config()->get('test.foo', 5));
-
-    assertType("'bar'", config()->nullableString('test.foo'));
-    assertType('null', Config::nullableString(default: 'unused', key: 'typed.nullable'));
-    assertType('null', config()->nullableInteger('test.missing', null));
-    assertType('int', Config::nullableInteger('test.missing', fn () => 5));
-    assertType('*ERROR*', config()->nullableArray('test.missing'));
-    assertType('*ERROR*', config()->nullableBoolean('test.foo'));
-    assertType('array{1, 2, 3}', app('config')->nullableArray('test.bar'));
-    assertType('string|null', $config->nullableString('test.foo'));
-    assertType("'bar'", Config::nullableString($secondary ? 'test.missing' : 'test.foo'));
-    assertType("'bar'|null", Config::nullableString($secondary ? 'test.missing' : 'test.foo', null));
-    assertType('string|null', Config::nullableString('logging.channels.undeclared'));
 
     assertType('*ERROR*', config()->collection('foo'));
     assertType("Hypervel\Support\Collection<'guard'|'passwords', 'users'|'web'>", config()->collection('auth.defaults'));

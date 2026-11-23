@@ -12,7 +12,6 @@ use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
-use Hypervel\Doctor\Support\Configured;
 use Hypervel\Doctor\Support\Details;
 use Hypervel\Support\Facades\Artisan;
 use Throwable;
@@ -128,9 +127,9 @@ class PublicStorageLinkExists extends Diagnostic implements Fixable
      */
     private function expectsPublicStorageLink(): bool
     {
-        $disk = Configured::array('filesystems.disks.public');
+        $disk = config('filesystems.disks.public');
 
-        return ($disk['driver'] ?? null) === 'local';
+        return is_array($disk) && ($disk['driver'] ?? null) === 'local';
     }
 
     /**

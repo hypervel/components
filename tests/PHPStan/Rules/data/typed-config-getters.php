@@ -28,8 +28,5 @@ class Settings
         // Only the application's repository has the application's values
         $config->get('typed.name');
         (new ConfigRepository(['typed' => ['name' => 123]]))->get('typed.name');
-        config('typed.optional_label');
-        config('typed.environment');
-        config('typed.name', static fn () => []);
     }
 }

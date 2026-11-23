@@ -108,7 +108,7 @@ class AddWwwAuthenticateHeader
         return $guards !== [] && array_all($guards, function (?string $guard) use ($config): bool {
             $guard = $guard ?: $config->string('auth.defaults.guard');
 
-            return $config->nullableString("auth.guards.{$guard}.driver", null) === 'sanctum';
+            return $config->get("auth.guards.{$guard}.driver") === 'sanctum';
         });
     }
 }

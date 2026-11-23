@@ -5,18 +5,27 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Rules;
 
 use Hypervel\PHPStan\Internal\ConfigHelper;
+use Hypervel\PHPStan\Support\ConfigParser;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node;
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\CallLike;
+use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Name;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
-use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\DependencyInjection\Conditional;
+use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
+use PHPStan\Type\TypeCombinator;
+use PHPStan\Type\VerbosityLevel;
 
+use function array_any;
 use function sprintf;
+use function strtolower;
 
 /**
  * Reports a config read whose value always has one type that a typed getter returns.
@@ -36,8 +45,9 @@ class TypedConfigGetterRule implements Rule
      */
     public function __construct(
         private ConfigHelper $configHelper,
-        #[AutowiredParameter(ref: '%noUntypedConfigReads%')]
-        private bool $noUntypedConfigReads,
+        private ConfigParser $configParser,
+        private ReflectionProvider $reflectionProvider,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -59,22 +69,65 @@ class TypedConfigGetterRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if ($this->noUntypedConfigReads || $node->isFirstClassCallable()) {
+        $isHelper = $node instanceof FuncCall
+            && $node->name instanceof Name
+            && strtolower($this->reflectionProvider->resolveFunctionName($node->name, $scope) ?? '') === 'config';
+
+        if (! $isHelper && $this->configHelper->getMethodName($node, $scope) !== 'get') {
             return [];
         }
 
-        $recommendation = $this->configHelper->recommendedGetter($node, $scope);
+        $key = $node->getArg('key', 0);
 
-        if ($recommendation === null) {
+        if ($key === null || array_any($node->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
             return [];
         }
 
-        [$key, $getter, $description] = $recommendation;
+        $keyType = $scope->getType($key->value);
+
+        if (! $keyType->isString()->yes() || ! $keyType->isConstantScalarValue()->yes()) {
+            return [];
+        }
+
+        // The booted application decides whether this is a package's analysis.
+        $this->runtimeInputs->track($scope);
+
+        if ($this->runtimeInputs->isPackageApplication()) {
+            return [];
+        }
+
+        $types = [];
+
+        foreach ($keyType->getConstantStrings() as $constantString) {
+            $value = $this->configParser->getValue($constantString->getValue(), $scope);
+
+            // A default applies to an absent key, so only a present key's value decides the type.
+            if ($value === null || ! $value[0]->yes()) {
+                return [];
+            }
+
+            $types[] = $value[1];
+        }
+
+        $type = TypeCombinator::union(...$types);
+
+        [$getter, $description] = match (true) {
+            $type->isString()->yes() => ['string', 'a string'],
+            $type->isInteger()->yes() => ['integer', 'an integer'],
+            $type->isFloat()->yes() => ['float', 'a float'],
+            $type->isBoolean()->yes() => ['boolean', 'a boolean'],
+            $type->isArray()->yes() => ['array', 'an array'],
+            default => [null, null],
+        };
+
+        if ($getter === null) {
+            return [];
+        }
 
         return [
             RuleErrorBuilder::message(sprintf(
                 'Config key %s always holds %s, so read it with %s().',
-                $key,
+                $keyType->describe(VerbosityLevel::precise()),
                 $description,
                 $getter,
             ))

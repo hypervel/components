@@ -28,7 +28,7 @@ trait ResolvesApprovingGuard
     protected function getApprovingGuard(): StatefulGuard
     {
         /** @var StatefulGuard $guard */
-        $guard = $this->auth->guard($this->config->nullableString('passport.guard'));
+        $guard = $this->auth->guard($this->config->get('passport.guard'));
 
         return $guard;
     }
@@ -38,7 +38,7 @@ trait ResolvesApprovingGuard
      */
     protected function getApprovingGuardName(): string
     {
-        return $this->config->nullableString('passport.guard') ?? $this->auth->getDefaultDriver();
+        return $this->config->get('passport.guard') ?? $this->auth->getDefaultDriver();
     }
 
     /**
@@ -46,7 +46,7 @@ trait ResolvesApprovingGuard
      */
     protected function getApprovingProvider(): ?string
     {
-        return $this->auth->getUserProviderName($this->config->nullableString('passport.guard'));
+        return $this->auth->getUserProviderName($this->config->get('passport.guard'));
     }
 
     /**

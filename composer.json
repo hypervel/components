@@ -135,7 +135,6 @@
         "mockery/mockery": "^1.6.15",
         "opis/json-schema": "^2.6.0",
         "pda/pheanstalk": "^8.0.2",
-        "phpstan/extension-installer": "^1.4.3",
         "phpstan/phpstan": "^2.3.6",
         "phpstan/phpstan-deprecation-rules": "^2.0.5",
         "phpunit/phpunit": "~13.4.3",
@@ -404,8 +403,7 @@
     "config": {
         "allow-plugins": {
             "php-http/discovery": true,
-            "tbachert/spi": true,
-            "phpstan/extension-installer": false
+            "tbachert/spi": true
         },
         "sort-packages": true,
         "policy": {

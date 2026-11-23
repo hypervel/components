@@ -46,7 +46,6 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
     #[Override]
     protected function ensureDeprecationLoggerIsConfigured(ConfigRepository $config): void
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (Deprecation handling must inspect partially configured log channels.)
         if ($config->get('logging.channels.deprecations')) {
             return;
         }

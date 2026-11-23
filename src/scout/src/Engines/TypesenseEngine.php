@@ -1129,7 +1129,6 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (This accessor reads action names and structured Typesense model settings.)
         return Container::getInstance()
             ->make('config')
             ->get("scout.{$key}", $default);

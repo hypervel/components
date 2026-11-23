@@ -57,7 +57,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createGithubDriver(): GithubProvider
     {
-        $config = $this->config->nullableArray('services.github', null);
+        $config = $this->config->get('services.github');
 
         return $this->buildOAuth2Provider(
             GithubProvider::class,
@@ -70,7 +70,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createFacebookDriver(): FacebookProvider
     {
-        $config = $this->config->nullableArray('services.facebook', null);
+        $config = $this->config->get('services.facebook');
 
         return $this->buildOAuth2Provider(
             FacebookProvider::class,
@@ -83,7 +83,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createGoogleDriver(): GoogleProvider
     {
-        $config = $this->config->nullableArray('services.google', null);
+        $config = $this->config->get('services.google');
 
         return $this->buildOAuth2Provider(
             GoogleProvider::class,
@@ -96,7 +96,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createLinkedinDriver(): LinkedInProvider
     {
-        $config = $this->config->nullableArray('services.linkedin', null);
+        $config = $this->config->get('services.linkedin');
 
         return $this->buildOAuth2Provider(
             LinkedInProvider::class,
@@ -109,7 +109,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createLinkedinOpenidDriver(): LinkedInOpenIdProvider
     {
-        $config = $this->config->nullableArray('services.linkedin-openid', null);
+        $config = $this->config->get('services.linkedin-openid');
 
         return $this->buildOAuth2Provider(
             LinkedInOpenIdProvider::class,
@@ -122,7 +122,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createBitbucketDriver(): BitbucketProvider
     {
-        $config = $this->config->nullableArray('services.bitbucket', null);
+        $config = $this->config->get('services.bitbucket');
 
         return $this->buildOAuth2Provider(
             BitbucketProvider::class,
@@ -135,7 +135,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createGitlabDriver(): GitlabProvider
     {
-        $config = $this->config->nullableArray('services.gitlab', null);
+        $config = $this->config->get('services.gitlab');
 
         return $this->buildOAuth2Provider(
             GitlabProvider::class,
@@ -150,7 +150,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createXDriver(): XProvider
     {
-        $config = $this->config->nullableArray('services.x', null);
+        $config = $this->config->get('services.x');
 
         return $this->buildOAuth2Provider(
             XProvider::class,
@@ -163,7 +163,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createTwitchDriver(): TwitchProvider
     {
-        $config = $this->config->nullableArray('services.twitch', null);
+        $config = $this->config->get('services.twitch');
 
         return $this->buildOAuth2Provider(
             TwitchProvider::class,
@@ -176,7 +176,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createSlackDriver(): SlackProvider
     {
-        $config = $this->config->nullableArray('services.slack', null);
+        $config = $this->config->get('services.slack');
 
         return $this->buildOAuth2Provider(
             SlackProvider::class,
@@ -189,7 +189,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createSlackOpenidDriver(): SlackOpenIdProvider
     {
-        $config = $this->config->nullableArray('services.slack-openid', null);
+        $config = $this->config->get('services.slack-openid');
 
         return $this->buildOAuth2Provider(
             SlackOpenIdProvider::class,
@@ -238,9 +238,9 @@ class SocialiteManager extends Manager implements Contracts\Factory
             return $redirect;
         }
 
-        $root = $this->config->nullableString('app.url');
+        $root = $this->config->get('app.url');
 
-        if ($root === null || ! filter_var($root, FILTER_VALIDATE_URL)
+        if (! is_string($root) || ! filter_var($root, FILTER_VALIDATE_URL)
             || ! in_array(strtolower(parse_url($root, PHP_URL_SCHEME) ?? ''), ['http', 'https'], true)) {
             throw new InvalidArgumentException('An absolute HTTP(S) app.url is required for relative Socialite redirect URLs.');
         }

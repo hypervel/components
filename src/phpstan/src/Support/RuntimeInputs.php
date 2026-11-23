@@ -617,7 +617,6 @@ class RuntimeInputs
             return [];
         }
 
-        // @phpstan-ignore hypervel.untypedConfigRead (Only filesystem database paths contribute a runtime file dependency.)
         $database = $app->make('config')->get('database.connections.sqlite.database');
 
         if (! is_string($database) || SQLiteDatabase::isInMemory($database) || SQLiteDatabase::isUri($database)) {

@@ -1009,7 +1009,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        $config = $this->app->make('config')->nullableArray("filesystems.disks.{$name}", null) ?: [];
+        $config = $this->app->make('config')->get("filesystems.disks.{$name}") ?: [];
 
         if ($name === self::ON_DEMAND_DISK_NAME && $config !== []) {
             throw new InvalidArgumentException('The disk name [ondemand] is reserved for on-demand disk fakes. Rename the configured disk.');

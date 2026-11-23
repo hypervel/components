@@ -197,9 +197,9 @@ trait DatabaseTruncation
     {
         $config = $this->app->make('config');
         $name ??= $config->string('database.default');
-        $configuration = $config->nullableArray("database.connections.{$name}", null);
+        $configuration = $config->get("database.connections.{$name}");
 
-        return $configuration !== null
+        return is_array($configuration)
             && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 

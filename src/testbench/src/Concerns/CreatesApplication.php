@@ -153,7 +153,7 @@ trait CreatesApplication
      */
     protected function getApplicationTimezone(ApplicationContract $app): ?string
     {
-        return $app->make('config')->nullableString('app.timezone', null);
+        return $app->make('config')->get('app.timezone');
     }
 
     /**

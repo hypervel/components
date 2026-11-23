@@ -96,7 +96,7 @@ class SessionManager extends Manager
 
         return $this->buildSession(new DatabaseSessionHandler(
             $this->container->make('db'),
-            $this->config->nullableString('session.connection'),
+            $this->config->get('session.connection'),
             $table,
             $lifetime,
             $this->container
@@ -112,7 +112,7 @@ class SessionManager extends Manager
      */
     protected function createRedisDriver(): Store
     {
-        $connection = $this->config->nullableString('session.connection');
+        $connection = $this->config->get('session.connection');
 
         if ($connection === null || $connection === '') {
             $connection = self::DEFAULT_REDIS_CONNECTION;
@@ -206,10 +206,10 @@ class SessionManager extends Manager
             );
         }
 
-        $provider = $this->config->nullableArray("auth.providers.{$authProvider}", null);
+        $provider = $this->config->get("auth.providers.{$authProvider}");
 
         if ($user instanceof Authenticatable
-            && $provider !== null
+            && is_array($provider)
             && ($provider['driver'] ?? null) === 'eloquent'
             && is_string($provider['model'] ?? null)
             && ! $user instanceof $provider['model']) {
@@ -253,7 +253,7 @@ class SessionManager extends Manager
      */
     public function blockDriver(): ?string
     {
-        return $this->config->nullableString('session.block_store');
+        return $this->config->get('session.block_store');
     }
 
     /**

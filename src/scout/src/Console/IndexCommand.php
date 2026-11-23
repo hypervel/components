@@ -64,8 +64,8 @@ class IndexCommand extends Command
         if ($engine instanceof UpdatesIndexSettings) {
             $driver = $config->string('scout.driver');
 
-            $settings = $config->nullableArray("scout.{$driver}.index-settings.{$modelName}", null)
-                ?? $config->nullableArray("scout.{$driver}.index-settings.{$name}", null)
+            $settings = $config->get("scout.{$driver}.index-settings.{$modelName}")
+                ?? $config->get("scout.{$driver}.index-settings.{$name}")
                 ?? [];
 
             if ($model !== null

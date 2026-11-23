@@ -80,7 +80,6 @@ class CacheManager implements FactoryContract
         protected Container $app
     ) {
         $this->serializableClassPolicy = new SerializableClassPolicy(
-            // @phpstan-ignore hypervel.untypedConfigRead (The serialization policy accepts a boolean or a class allowlist.)
             fn () => $this->app->make('config')->get('cache.serializable_classes'),
         );
     }
@@ -508,7 +507,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->make('config')->nullableArray("cache.stores.{$name}", null);
+            return $this->app->make('config')->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];

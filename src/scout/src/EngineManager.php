@@ -301,7 +301,6 @@ class EngineManager
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        // @phpstan-ignore hypervel.untypedConfigRead (This overridable accessor accepts any Scout configuration key and default.)
         return $this->container->make('config')->get("scout.{$key}", $default);
     }
 }

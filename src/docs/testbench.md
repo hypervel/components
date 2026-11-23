@@ -1319,7 +1319,7 @@ $process = remote('queue:work --stop-when-empty', [
 $process->mustRun();
 ```
 
-The `remote` helper reuses the parent test's runtime skeleton. If a subprocess may be force-killed, such as a queue worker running a job that times out, pass `'TESTBENCH_BASE_PATH' => false` in its environment so it gets its own disposable runtime. Pass the database connection and database path the worker needs. An explicit `APP_BASE_PATH` or a configured custom skeleton still takes precedence.
+The `remote` helper reuses the active Testbench runtime skeleton so subprocesses operate on the same disposable application copy as the parent test process.
 
 <a name="credits"></a>
 ## Credits

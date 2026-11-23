@@ -463,8 +463,6 @@ Pooled database and Redis resources belong to the coroutine or callback that bor
 
 Hypervel configuration is loaded when the application boots. In a running Swoole server, configuration is process-global and shared by every coroutine in the worker. Do not mutate configuration at runtime to represent request-specific values.
 
-Custom configuration repositories must implement Hypervel's [typed getters](/docs/{{version}}/configuration#typed-configuration-values). Extending `Hypervel\Config\Repository` supplies them.
-
 For packages, merge default configuration from your service provider:
 
 ```php

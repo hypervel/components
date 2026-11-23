@@ -1584,16 +1584,11 @@ class SchemaAggregatorTest extends PHPStanTestCase
     {
         $coalesce = "public function getConnection(): ?string { return \$this->connection ?? config('schema_aggregator.connection'); }";
         $typed = "public function getConnection(): string { return config()->string('schema_aggregator.connection'); }";
-        $nullable = "public function getConnection(): ?string { return config()->nullableString('schema_aggregator.connection'); }";
 
         yield 'property or configured connection' => [$coalesce, ['schema_aggregator.connection' => 'pgsql'], 'pgsql'];
         yield 'property or missing config' => [$coalesce, [], 'default'];
         yield 'typed configured connection' => [$typed, ['schema_aggregator.connection' => 'pgsql'], 'pgsql'];
         yield 'typed missing config' => [$typed, [], null];
-        yield 'nullable named connection' => [$nullable, ['schema_aggregator.connection' => 'pgsql'], 'pgsql'];
-        yield 'nullable configured null' => [$nullable, ['schema_aggregator.connection' => null], 'default'];
-        yield 'nullable missing required key' => [$nullable, [], null];
-        yield 'nullable explicit null default' => ["public function getConnection(): ?string { return Config::nullableString('schema_aggregator.connection', null); }", [], 'default'];
         yield 'facade default' => ["public function getConnection(): ?string { return Config::get('schema_aggregator.connection', 'pgsql'); }", [], 'pgsql'];
         yield 'null for a string return type' => ["public function getConnection(): string { return config('schema_aggregator.connection'); }", [], null];
         yield 'unreadable' => ['public function getConnection(): ?string { return $this->name(); }', [], null];

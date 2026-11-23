@@ -57,7 +57,7 @@ class BatchesController extends Controller
 
         $beforeId = $request->query('before_id');
 
-        $ids = DB::connection(Config::nullableString('queue.batching.database'))
+        $ids = DB::connection(Config::get('queue.batching.database'))
             ->table(Config::string('queue.batching.table'))
             ->where(function ($q) use ($pattern) {
                 $q->whereRaw("lower(name) like lower(?) escape '!'", [$pattern])

@@ -13,9 +13,9 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        $tableNames = config()->nullableArray('permission.table_names', null);
+        $tableNames = config()->get('permission.table_names');
 
-        throw_if($tableNames === null || $tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+        throw_if(! is_array($tableNames) || $tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
 
         $teams = config()->boolean('permission.teams');
         $columnNames = config()->array('permission.column_names');
@@ -131,9 +131,9 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        $tableNames = config()->nullableArray('permission.table_names', null);
+        $tableNames = config()->get('permission.table_names');
 
-        throw_if($tableNames === null || $tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
+        throw_if(! is_array($tableNames) || $tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
 
         Schema::dropIfExists($tableNames['role_has_permissions']);
         Schema::dropIfExists($tableNames['model_has_roles']);
