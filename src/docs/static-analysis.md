@@ -160,6 +160,7 @@ Parameters that accept directories take absolute paths, or paths relative to the
 | `checkConfigTypes` | `true` | [Configuration Values](#configuration-values) |
 | `configDirectories` | `[]` | [Configuration Values](#configuration-values) |
 | `checkTypedConfigGetters` | `true` | [Typed Configuration Getters](#typed-configuration-getters) |
+| `noUntypedConfigReads` | `false` | [Typed Configuration Getters](#typed-configuration-getters) |
 | `noUnnecessaryEnumerableToArrayCalls` | `true` | [Converting Collections to Arrays](#converting-collections-to-arrays) |
 | `noMutableDates` | `true` | [Mutable Dates](#mutable-dates) |
 | `checkDiscardedDates` | `true` | [Discarded Dates](#discarded-dates) |
@@ -811,6 +812,7 @@ The following sections explain the diagnostics and their remedies. Use this tabl
 | [Casting Environment Variables](#casting-environment-variables) | `hypervel.uncastEnvValue` |
 | [Configuration Values](#configuration-values) | `hypervel.configType`, `hypervel.configCollection` |
 | [Typed Configuration Getters](#typed-configuration-getters) | `hypervel.typedConfigGetter` |
+| [Typed Configuration Getters](#typed-configuration-getters) | `hypervel.untypedConfigRead` |
 | [Array Keys](#array-keys) | `offsetAccess.notFound` |
 | [Value and With Helpers](#value-and-with-helpers) | `hypervel.uselessConstructs.value`, `hypervel.uselessConstructs.with` |
 | [Converting Collections to Arrays](#converting-collections-to-arrays) | `hypervel.unnecessaryEnumerableToArrayCall` |
@@ -902,13 +904,13 @@ The typed configuration getters, such as `Config::string()` and `config()->integ
 $retries = Config::integer('queue.retries');
 ```
 
-Correct the configuration value, casting environment variables within the configuration file, or use the getter that matches the value's type. Reserve `get()` for values that are intentionally nullable, a union of types, or unrestricted:
+Use the getter that matches the setting's accepted values, including a nullable getter when the setting allows null. If an environment variable supplies a number, cast it in the configuration file:
 
 ```php
 'retries' => (int) env('QUEUE_RETRIES', 3),
 ```
 
-Only values the analysis knows are checked. A key the analysis cannot follow keeps the getter's declared type.
+The analysis also reports a required key that it can prove is absent. Check the key and its configuration. A key the analysis cannot follow keeps the getter's declared type.
 
 Configuration types include the defaults of any package whose configuration your application has not published. When you analyze a package, values merged from package configuration files keep the getter's declared type instead, since the applications using the package replace them. The framework's defaults and your workbench configuration files are still typed. These checks may be disabled using the `checkConfigTypes` parameter.
 
@@ -930,9 +932,18 @@ When a configuration key always holds a string, integer, float, boolean or array
 $name = config()->string('app.name');
 ```
 
-Reading such a key using `config('key')`, `Config::get()` or a repository's `get` method is reported, even when the call supplies a default. Keep using `get()` for values that may be `null` or several types, and for keys your configuration may not define.
+Reading such a key using `config('key')`, `Config::get()` or the application repository's `get` method is reported when the read can use a matching typed getter. If the value can also be null, the analysis recommends the corresponding nullable getter. A value known only to be null gives no indication which getter to use.
 
 Only your application's configuration repository is checked, as described in [Configuration and Services](#configuration-and-services). The check does not run when you analyze a package, since the applications using it may give its keys other values. You may disable the check using the `checkTypedConfigGetters` parameter.
+
+Enable `noUntypedConfigReads` to require typed reads in an application or package, including on injected repositories. This rule reports keyed `config()` reads and calls to `get()` or `getMany()` on the Config facade or a config repository. It also checks variable keys and multi-key reads. The rule skips array access such as `$config['app.name']`. A reported read uses the single identifier `hypervel.untypedConfigRead` even when both checks are enabled.
+
+Choose a getter from the values the caller accepts. A nullable getter without a default throws when the key is missing and accepts a configured null. When no getter covers the setting's supported values, or a diagnostic needs to inspect malformed input, keep the generic read and explain why at the call:
+
+```php
+// @phpstan-ignore hypervel.untypedConfigRead (The editor can be a name or an array of options.)
+$editor = config('app.editor');
+```
 
 <a name="array-keys"></a>
 ### Array Keys

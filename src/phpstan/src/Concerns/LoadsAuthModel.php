@@ -34,7 +34,9 @@ trait LoadsAuthModel
      */
     private function getAuthModels(AuthManager $manager, ConfigRepository $config, ?array $guardNames = null): array
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (The analyzer falls back when the application has malformed auth configuration.)
         $guards = $config->get('auth.guards');
+        // @phpstan-ignore hypervel.untypedConfigRead (The analyzer falls back when the application has malformed auth configuration.)
         $providers = $config->get('auth.providers');
 
         if (! is_array($guards) || ! is_array($providers)) {
