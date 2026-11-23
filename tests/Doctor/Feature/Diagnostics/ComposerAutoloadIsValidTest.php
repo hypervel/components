@@ -133,6 +133,8 @@ class ComposerAutoloadIsValidTest extends TestCase
         file_put_contents($basePath . '/composer.json', '{}');
         file_put_contents($basePath . '/vendor/autoload.php', '<?php');
 
+        $this->app->make(PackageManifest::class)->vendorPath = $basePath . '/vendor';
+
         Process::fake([
             '*' => Process::result(exitCode: 137),
         ]);
@@ -151,6 +153,8 @@ class ComposerAutoloadIsValidTest extends TestCase
         mkdir($basePath . '/vendor');
         file_put_contents($basePath . '/composer.json', '{}');
         file_put_contents($basePath . '/vendor/autoload.php', '<?php');
+
+        $this->app->make(PackageManifest::class)->vendorPath = $basePath . '/vendor';
 
         Process::fake([
             '*' => Process::result(
@@ -172,6 +176,8 @@ class ComposerAutoloadIsValidTest extends TestCase
         mkdir($basePath . '/vendor');
         file_put_contents($basePath . '/composer.json', '{}');
         file_put_contents($basePath . '/vendor/autoload.php', '<?php');
+
+        $this->app->make(PackageManifest::class)->vendorPath = $basePath . '/vendor';
 
         $result = new class(new SymfonyProcess(['composer'])) extends ProcessResult {
             /**

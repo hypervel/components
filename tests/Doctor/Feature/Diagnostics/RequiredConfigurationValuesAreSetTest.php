@@ -21,9 +21,9 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
     }
 
     #[DataProvider('requiredDefaults')]
-    public function testReportsBlankRequiredDefaultsInsteadOfAssumingADriver(string $key, string $feature): void
+    public function testReportsBlankRequiredDefaultsInsteadOfAssumingADriver(string $key, string $feature, ?string $value): void
     {
-        config([$key => '']);
+        config([$key => $value]);
 
         $result = (new RequiredConfigurationValuesAreSet)->check();
 
@@ -32,15 +32,19 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
     }
 
     /**
-     * Provide required default keys and the features that need them.
+     * Provide required default keys, the features that need them, and unusable values.
      */
     public static function requiredDefaults(): array
     {
         return [
-            ['broadcasting.default', 'default broadcaster'],
-            ['filesystems.default', 'default filesystem disk'],
-            ['mail.default', 'default mailer'],
-            ['queue.default', 'default queue connection'],
+            'blank broadcaster' => ['broadcasting.default', 'default broadcaster', ''],
+            'null broadcaster' => ['broadcasting.default', 'default broadcaster', null],
+            'blank filesystem disk' => ['filesystems.default', 'default filesystem disk', ''],
+            'null filesystem disk' => ['filesystems.default', 'default filesystem disk', null],
+            'blank mailer' => ['mail.default', 'default mailer', ''],
+            'null mailer' => ['mail.default', 'default mailer', null],
+            'blank queue connection' => ['queue.default', 'default queue connection', ''],
+            'null queue connection' => ['queue.default', 'default queue connection', null],
         ];
     }
 
