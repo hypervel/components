@@ -1187,6 +1187,9 @@ trait ValidatesAttributes
 
         $query = new PresenceQuery($connection, $table, $column, $conditions);
 
+        // A query callback may run another database check by hand, which must not inherit this rule.
+        $this->currentRule = null;
+
         return is_array($value)
             ? $verifier->getMultiCount($query, $value)
             : $verifier->getCount($query, $value);
@@ -1243,6 +1246,9 @@ trait ValidatesAttributes
         if ($declared !== null) {
             $conditions = $conditions->merge($declared);
         }
+
+        // A query callback may run another database check by hand, which must not inherit this rule.
+        $this->currentRule = null;
 
         return $verifier->getCount(
             new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),

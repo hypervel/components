@@ -5433,6 +5433,73 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame(['id' => ['Exists' => ['users', 'id', 'tenant_id', '42']]], $validator->failed());
     }
 
+    public function testManualDatabaseValidationInsideAQueryCallbackDoesNotInheritTheRuleConditions(): void
+    {
+        $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {};
+
+        // Run the query callbacks as a database verifier would, recording each query it receives.
+        $verifier = new class implements PresenceVerifierInterface {
+            /** @var list<PresenceQuery> */
+            public array $queries = [];
+
+            /**
+             * Record the query and count one matching record after invoking its callbacks.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
+            {
+                $this->queries[] = $query;
+
+                foreach ($query->conditions->all() as $condition) {
+                    if ($condition instanceof Closure) {
+                        $condition();
+                    }
+                }
+
+                return 1;
+            }
+
+            /**
+             * Count the matching records for the given values.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
+            {
+                return 0;
+            }
+        };
+
+        foreach ([Validator::class, $customValidator::class] as $class) {
+            foreach ([Exists::class, Unique::class] as $ruleClass) {
+                foreach ([['validateExists', 5, ['teams', 'id']], ['validateUnique', 'core', ['teams', 'name']]] as [$method, $value, $parameters]) {
+                    $verifier->queries = [];
+                    $validator = null;
+                    $called = false;
+                    $rule = (new $ruleClass('users', 'email'))
+                        ->where('tenant_id', 42)
+                        ->where(function () use (&$validator, &$called, $method, $value, $parameters): void {
+                            if (! $called) {
+                                $called = true;
+                                $validator->{$method}('team', $value, $parameters);
+                            }
+                        });
+                    $validator = new $class($this->getArrayTranslator(), ['email' => 'foo'], ['email' => [$rule]]);
+                    $validator->setPresenceVerifier($verifier);
+
+                    // One record matches, so only the outer unique rule fails and reports its conditions.
+                    $this->assertSame($ruleClass === Exists::class, $validator->passes());
+                    $this->assertSame(
+                        $ruleClass === Exists::class ? [] : ['email' => ['Unique' => ['users', 'email', 'NULL', 'id', 'tenant_id', '42']]],
+                        $validator->failed(),
+                    );
+
+                    $this->assertCount(2, $verifier->queries);
+                    $this->assertCount(2, $verifier->queries[0]->conditions->all());
+                    $this->assertSame('teams', $verifier->queries[1]->collection);
+                    $this->assertSame([], $verifier->queries[1]->conditions->all());
+                }
+            }
+        }
+    }
+
     public function testManualDatabaseValidationDoesNotReuseThePreviousRuleConditions(): void
     {
         $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {};
