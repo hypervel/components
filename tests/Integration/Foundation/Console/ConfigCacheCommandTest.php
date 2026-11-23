@@ -7,14 +7,18 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\Integration\Generators\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
 class ConfigCacheCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $files = [
         'bootstrap/cache/config.php',
         'config/testconfig.php',
@@ -63,6 +67,20 @@ class ConfigCacheCommandTest extends TestCase
             ->expectsOutputToContain('Configuration cached successfully');
 
         $this->assertFileExists($this->app->getCachedConfigPath());
+    }
+
+    public function testConfigurationIsCachedAtomically(): void
+    {
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('put')->never();
+
+        $this->app->instance('files', $files);
+
+        $this->artisan('config:cache')->assertSuccessful();
+
+        $this->assertFileExists($this->app->getCachedConfigPath());
+
+        $files->received('replace')->times(1)->with($this->app->getCachedConfigPath(), Argument::type('string'), null);
     }
 
     public function testConfigurationCacheFailsWithNonSerializableValue(): void
@@ -288,11 +306,10 @@ class ConfigCacheCommandTest extends TestCase
         );
 
         $publicationException = new RuntimeException('publication failed');
-        $mock = m::mock(Filesystem::class)->makePartial();
-        $mock->shouldReceive('replace')
-            ->once()
-            ->with($cachePath, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $mock = Double::for(new Filesystem)->passthru();
+        $mock->expects('replace')
+            ->with($cachePath, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance(Filesystem::class, $mock);
 
         try {

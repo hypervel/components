@@ -15,8 +15,10 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
@@ -27,6 +29,7 @@ use Throwable;
 class CacheSwooleStoreIntervalTest extends TestCase
 {
     use InteractsWithSwooleTables;
+    use VerifiesDoubles;
 
     protected string $tempDir;
 
@@ -591,7 +594,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testThrowingTimerResolverIsReportedAndCanRetry(): void
     {
         $container = new Container;
-        $handler = m::spy(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -599,6 +602,10 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $store = $this->createStore($state);
         $readerStore = $this->createStore($state);
         $exception = new RuntimeException('refresh failed');
+        $handler->expects('report')->with(Argument::satisfies(
+            static fn (Throwable $e): bool => $e::class === $exception::class
+                && $e->getMessage() === $exception->getMessage()
+        ));
         IntervalResolverState::$attempts = 0;
 
         $store->interval('foo', function () use ($exception) {
@@ -615,10 +622,6 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $store->refreshIntervalCaches();
 
-        $handler->shouldHaveReceived('report')->with(m::on(
-            fn (Throwable $e): bool => $e::class === $exception::class
-                && $e->getMessage() === $exception->getMessage()
-        ))->once();
         $this->assertFalse($this->userRow($state, $readerStore, 'foo'));
         $this->assertNull($this->metadata($state, $metadataKey)['lastRefreshedAt']);
         $this->assertNull($this->metadata($state, $metadataKey)['refreshingAt']);
@@ -653,7 +656,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testCanceledSameInstanceFallbackClearsClaimAndCanRetry(): void
     {
         $container = new Container;
-        $handler = m::spy(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -672,7 +675,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $handler->shouldNotHaveReceived('report');
+        $handler->received('report')->never();
         $this->assertNull($this->metadata($state, $metadataKey)['refreshingAt']);
         $this->assertSame('bar', $store->get('foo'));
     }
@@ -680,7 +683,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testTimerRefreshCleanupCancellationSupersedesOrdinaryFailureWithoutReporting(): void
     {
         $container = new Container;
-        $handler = m::spy(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -701,13 +704,13 @@ class CacheSwooleStoreIntervalTest extends TestCase
             $this->assertSame($cleanupCancellation, $exception);
         }
 
-        $handler->shouldNotHaveReceived('report');
+        $handler->received('report')->never();
     }
 
     public function testRefreshCancellationRemainsPrimaryWhenClaimCleanupFails(): void
     {
         $container = new Container;
-        $handler = m::spy(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -728,7 +731,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $handler->shouldNotHaveReceived('report');
+        $handler->received('report')->never();
     }
 
     public function testIntervalRegistrationCancellationRemovesMetadata(): void
@@ -833,7 +836,7 @@ PHP);
     public function testFailedPublicValueWriteClearsClaimAndReportsFailure(): void
     {
         $container = new Container;
-        $handler = m::spy(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -841,13 +844,12 @@ PHP);
         $workerStore = $this->createStore($state);
         $refresherStore = new FailingIntervalValueSwooleStore($state);
 
+        $handler->expects('report')->with(Argument::satisfies(
+            static fn (RuntimeException $e): bool => $e->getMessage() === 'Unable to refresh Swoole interval cache [foo].'
+        ));
         $workerStore->interval('foo', fn () => 'bar', 5);
 
         $refresherStore->refreshIntervalCaches();
-
-        $handler->shouldHaveReceived('report')->with(m::on(
-            fn (RuntimeException $e): bool => $e->getMessage() === 'Unable to refresh Swoole interval cache [foo].'
-        ))->once();
 
         $metadata = $this->metadata($state, $this->metadataKey($workerStore, 'foo'));
 

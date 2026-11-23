@@ -24,14 +24,12 @@ class AllTagSetTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
         $tagSet = new AllTagSet($store, ['users', 'posts']);
 
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:users:entries')
-            ->andReturn(1);
-        $connection->shouldReceive('del')
-            ->once()
+            ->returns(1);
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:posts:entries')
-            ->andReturn(1);
+            ->returns(1);
 
         $this->assertTrue($tagSet->reset());
     }
@@ -42,14 +40,12 @@ class AllTagSetTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
         $tagSet = new AllTagSet($store, ['users', 'posts']);
 
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:users:entries')
-            ->andReturn(1);
-        $connection->shouldReceive('del')
-            ->once()
+            ->returns(1);
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:posts:entries')
-            ->andReturn(1);
+            ->returns(1);
 
         $this->assertTrue($tagSet->flush());
     }
@@ -60,14 +56,14 @@ class AllTagSetTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
         $tagSet = new AllTagSet($store, ['users', 'posts']);
 
-        $connection->shouldReceive('del')
-            ->twice()
+        $connection->client()->expects('del')
+            ->times(2)
             ->with('prefix:_all:tag:users:entries')
-            ->andReturn(0);
-        $connection->shouldReceive('del')
-            ->twice()
+            ->returns(0);
+        $connection->client()->expects('del')
+            ->times(2)
             ->with('prefix:_all:tag:posts:entries')
-            ->andReturn(1);
+            ->returns(1);
 
         $this->assertTrue($tagSet->reset());
         $this->assertTrue($tagSet->flush());
@@ -107,18 +103,15 @@ class AllTagSetTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $tagSet = new AllTagSet($this->createStore($connection), ['users', 'posts', 'comments']);
 
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:users:entries')
-            ->andThrow($firstException);
-        $connection->shouldReceive('del')
-            ->once()
+            ->throws($firstException);
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:posts:entries')
-            ->andThrow(new RuntimeException('posts failed'));
-        $connection->shouldReceive('del')
-            ->once()
+            ->throws(new RuntimeException('posts failed'));
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:comments:entries')
-            ->andReturn(1);
+            ->returns(1);
 
         try {
             $tagSet->reset();
@@ -134,11 +127,10 @@ class AllTagSetTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $tagSet = new AllTagSet($this->createStore($connection), ['users', 'posts']);
 
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:users:entries')
-            ->andThrow($cancellation);
-        $connection->shouldNotReceive('del')->with('prefix:_all:tag:posts:entries');
+            ->throws($cancellation);
+        $connection->client()->expects('del')->never()->with('prefix:_all:tag:posts:entries');
 
         try {
             $tagSet->reset();
@@ -155,10 +147,9 @@ class AllTagSetTest extends RedisCacheTestCase
         $tagSet = new AllTagSet($store, ['users']);
 
         // resetTag calls store->forget which uses del
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:users:entries')
-            ->andReturn(1);
+            ->returns(1);
 
         $result = $tagSet->flushTag('users');
 
@@ -171,10 +162,10 @@ class AllTagSetTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $tagSet = new AllTagSet($this->createStore($connection), ['users']);
 
-        $connection->shouldReceive('del')
-            ->twice()
+        $connection->client()->expects('del')
+            ->times(2)
             ->with('prefix:_all:tag:users:entries')
-            ->andReturn(0);
+            ->returns(0);
 
         $this->assertSame('_all:tag:users:entries', $tagSet->resetTag('users'));
         $this->assertSame('_all:tag:users:entries', $tagSet->flushTag('users'));
@@ -186,10 +177,9 @@ class AllTagSetTest extends RedisCacheTestCase
         $store = $this->createStore($connection);
         $tagSet = new AllTagSet($store, ['users']);
 
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with('prefix:_all:tag:users:entries')
-            ->andReturn(1);
+            ->returns(1);
 
         $result = $tagSet->resetTag('users');
 

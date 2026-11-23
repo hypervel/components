@@ -19,6 +19,7 @@ use PHPUnit\Framework\Attributes\Test;
 use function Hypervel\Testbench\workbench_path;
 
 #[WithConfig('database.default', 'testing')]
+#[WithConfig('database.connections.testing.pool.testing_enabled', true)]
 class MigrateWithHypervelMigrationsUsingDatabaseTruncationTest extends TestCase
 {
     use DatabaseTruncation;
@@ -60,6 +61,8 @@ class MigrateWithHypervelMigrationsUsingDatabaseTruncationTest extends TestCase
         $this->assertTrue(RefreshDatabaseState::$migrated);
         $this->assertSame($lifecycle === 2, $this->truncated);
         $this->assertTrue(Schema::hasTable('users'));
+        $this->assertTrue(Schema::hasTable('testbench_users'));
+        DB::releaseIdleConnections();
         $this->assertTrue(Schema::hasTable('testbench_users'));
         $this->assertSame(0, DB::connection()->transactionLevel());
         $this->assertSame(

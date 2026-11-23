@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
     - [Configuration](#configuration)
     - [Driver Prerequisites](#driver-prerequisites)
+    - [Garbage Collection](#garbage-collection)
 - [Interacting With the Session](#interacting-with-the-session)
     - [Retrieving Data](#retrieving-data)
     - [Storing Data](#storing-data)
@@ -87,6 +88,25 @@ Redis session keys use the `SESSION_PREFIX` environment variable and default to 
 Redis stores session payloads directly rather than routing them through a cache store. Reads always use one Redis command. With user-session tracking disabled, writes and deletions also use one command. Tracking-enabled standalone Redis coordinates the payload and user index in one atomic operation, while Redis Cluster uses separate cross-slot operations.
 
 To list and invalidate a user's Redis sessions, enable `SESSION_TRACK_USER_SESSIONS`. This feature requires phpredis 6.3.0 or later and Redis 8.0 or Valkey 9.0 or later. You may leave this option disabled if your application does not provide session-management controls.
+
+<a name="garbage-collection"></a>
+### Garbage Collection
+
+The file and database session drivers remove expired sessions using a request-based lottery. You may run cleanup explicitly using the `session:garbage-collect` Artisan command:
+
+```shell
+php artisan session:garbage-collect
+```
+
+To move cleanup out of requests, [schedule the command](/docs/{{version}}/scheduling) and set the `lottery` option in `config/session.php` to `[0, 100]`:
+
+```php
+use Hypervel\Support\Facades\Schedule;
+
+Schedule::command('session:garbage-collect')->hourly();
+```
+
+The command uses your configured session driver and lifetime. Redis sessions expire automatically and do not need scheduled garbage collection.
 
 <a name="interacting-with-the-session"></a>
 ## Interacting With the Session

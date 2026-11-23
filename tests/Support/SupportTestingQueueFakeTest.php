@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use BadMethodCallException;
+use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
@@ -13,22 +14,34 @@ use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Events\CallQueuedListener;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Foundation\Application;
+use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\Jobs\InspectedJob;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\QueueRoutes;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
 use stdClass;
+use UnitEnum;
 
 class SupportTestingQueueFakeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private QueueFake $fake;
 
     private JobStub $job;
@@ -72,17 +85,16 @@ class SupportTestingQueueFakeTest extends TestCase
     {
         $job = new JobStub;
 
-        $queue = m::mock(Queue::class);
-        $queue->expects('push')->withArgs(function ($passedJob) use ($job) {
-            return $passedJob === $job;
-        });
-        $manager = m::mock(QueueManager::class);
-        $manager->expects('connection')->with(null)->andReturn($queue);
+        $queue = new QueueFakeTestRecordingQueue;
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with(null)->returns($queue);
 
         $fake = new QueueFake(new Application, JobToFakeStub::class, $manager);
 
         $fake->push($job);
         $fake->push(new JobToFakeStub);
+
+        $this->assertSame([[$job, '', null]], $queue->pushed);
 
         $fake->assertNotPushed(JobStub::class);
         $fake->assertPushed(JobToFakeStub::class);
@@ -497,17 +509,16 @@ class SupportTestingQueueFakeTest extends TestCase
     {
         $job = new JobStub;
 
-        $queue = m::mock(Queue::class);
-        $queue->expects('push')->withArgs(function ($passedJob) use ($job) {
-            return $passedJob === $job;
-        });
-        $manager = m::mock(QueueManager::class);
-        $manager->expects('connection')->with(null)->andReturn($queue);
+        $queue = new QueueFakeTestRecordingQueue;
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with(null)->returns($queue);
 
         $fake = (new QueueFake(new Application, [], $manager))->except(JobStub::class);
 
         $fake->push($job);
         $fake->push(new JobToFakeStub);
+
+        $this->assertSame([[$job, '', null]], $queue->pushed);
 
         $fake->assertNotPushed(JobStub::class);
         $fake->assertPushed(JobToFakeStub::class);
@@ -605,12 +616,9 @@ class SupportTestingQueueFakeTest extends TestCase
         $job = new JobStub;
         $steps = [];
 
-        $queue = m::mock(Queue::class);
-        $queue->expects('push')->withArgs(function ($passedJob, $passedData, $passedQueue) use ($job) {
-            return $passedJob === $job && $passedData === ['foo' => 'bar'] && $passedQueue === 'redis';
-        });
-        $manager = m::mock(QueueManager::class);
-        $manager->expects('connection')->with(null)->andReturn($queue);
+        $queue = new QueueFakeTestRecordingQueue;
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with(null)->returns($queue);
 
         $fake = (new QueueFake(new Application, [], $manager))
             ->except(JobStub::class)
@@ -628,6 +636,8 @@ class SupportTestingQueueFakeTest extends TestCase
             });
 
         $fake->push($job, ['foo' => 'bar'], 'redis');
+
+        $this->assertSame([[$job, ['foo' => 'bar'], 'redis']], $queue->pushed);
 
         $this->assertSame([
             ['before', JobStub::class, ['foo' => 'bar'], 'redis'],
@@ -1017,13 +1027,12 @@ class SupportTestingQueueFakeTest extends TestCase
     public function testPartialFakePreservesDelayOnTheDefaultConnection(): void
     {
         $job = new JobStub;
-        $queue = m::mock(Queue::class);
-        $queue->shouldReceive('later')
-            ->once()
-            ->with(10, $job, ['key' => 'value'], 'emails')
-            ->andReturn('job-id');
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($queue);
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('later')
+            ->with(10, Argument::same($job), ['key' => 'value'], 'emails')
+            ->returns('job-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with(null)->returns($queue);
 
         $fake = (new QueueFake(new Application, [], $manager))->except(JobStub::class);
 
@@ -1034,18 +1043,122 @@ class SupportTestingQueueFakeTest extends TestCase
     public function testPartialFakeUsesTheJobConnectionAndLaterOnPreservesDelay(): void
     {
         $job = new JobWithConnectionStub;
-        $queue = m::mock(Queue::class);
-        $queue->shouldReceive('later')
-            ->once()
-            ->with(15, $job, '', 'emails')
-            ->andReturn('job-id');
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with('redis')->andReturn($queue);
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('later')
+            ->with(15, Argument::same($job), '', 'emails')
+            ->returns('job-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('redis')->returns($queue);
 
         $fake = (new QueueFake(new Application, [], $manager))->except(JobWithConnectionStub::class);
 
         $this->assertSame('job-id', $fake->laterOn('emails', 15, $job));
         $fake->assertNotPushed(JobWithConnectionStub::class);
+    }
+
+    public function testPartialFakeUsesTheJobConnectionAttribute(): void
+    {
+        $job = new JobWithConnectionAttributeStub;
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('push')->with(Argument::same($job), '', null)->returns('job-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('attribute-connection')->returns($queue);
+
+        $fake = (new QueueFake(new Application, [], $manager))->except(JobWithConnectionAttributeStub::class);
+
+        $this->assertSame('job-id', $fake->push($job));
+    }
+
+    #[TestWith(['selected', 'selected'])]
+    #[TestWith(['0', '0'])]
+    #[TestWith(['', ''])]
+    #[TestWith([QueueNameEnumStub::Foo, 'foo'])]
+    public function testSelectedConnectionWinsOverTheJobConnection(QueueNameEnumStub|string $selected, string $expected): void
+    {
+        $job = new JobWithConnectionStub;
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('push')->with(Argument::same($job), '', 'emails')->returns('job-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with($expected)->returns($queue);
+
+        $fake = (new QueueFake(new Application, [], $manager))->except(JobWithConnectionStub::class);
+
+        $this->assertSame('job-id', $fake->connection($selected)->pushOn('emails', $job));
+    }
+
+    public function testPartialFakeSendsBusJobsToTheirRoutedConnection(): void
+    {
+        $app = new Application;
+        $routes = new QueueRoutes;
+        $routes->set(QueuedJobStub::class, connection: 'routed-connection');
+        $app->instance('queue.routes', $routes);
+
+        $job = new QueuedJobStub;
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('push')->with(Argument::same($job), '', null)->returns('job-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('routed-connection')->returns($queue);
+
+        $fake = (new QueueFake($app, [], $manager))->except(QueuedJobStub::class);
+        $bus = new BusDispatcher($app, fn (?string $connection = null) => $fake->connection($connection));
+
+        $this->assertSame('job-id', $bus->dispatch($job));
+    }
+
+    public function testPartialFakeSendsQueuedListenersToTheirSelectedConnection(): void
+    {
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('push')->with(Argument::type(CallQueuedListener::class), '', null)->returns('job-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('listener-connection')->returns($queue);
+
+        $fake = (new QueueFake(new Application, [], $manager))->except(CallQueuedListener::class);
+        $events = new EventsDispatcher;
+        $events->setQueueResolver(fn () => $fake);
+        $events->listen('queued.event', QueueFakeConnectionListenerStub::class);
+
+        $events->dispatch('queued.event');
+
+        $fake->assertNotPushed(CallQueuedListener::class);
+    }
+
+    public function testSelectedConnectionsShareTheFakesHistory(): void
+    {
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('push')->times(2)->returns('job-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('redis')->returns($queue);
+        $manager->expects('connection')->with('sqs')->returns($queue);
+
+        $fake = (new QueueFake(new Application, [], $manager))->except(JobStub::class);
+        $redis = $fake->connection('redis');
+        $sqs = $fake->connection('sqs');
+
+        $redis->push(new JobToFakeStub);
+        $sqs->push(new JobStub);
+        $sqs->push(new JobToFakeStub);
+        $redis->push(new JobStub);
+
+        $fake->assertPushed(JobToFakeStub::class, 2);
+        $redis->assertPushed(JobToFakeStub::class, 2);
+        $this->assertSame($redis, $redis->except(JobToFakeStub::class));
+    }
+
+    public function testSelectedConnectionKeepsItsConnectionForBulkJobs(): void
+    {
+        $plainJob = new JobWithRuntimeDelayStub;
+        $delayedJob = (new JobWithRuntimeDelayStub)->delay(10);
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('push')->with(Argument::same($plainJob), '', 'emails')->returns('plain-id');
+        $queue->expects('later')->with(10, Argument::same($delayedJob), '', 'emails')->returns('delayed-id');
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->times(2)->with('redis')->returns($queue);
+
+        $fake = (new QueueFake(new Application, [], $manager))->except(JobWithRuntimeDelayStub::class);
+
+        $fake->connection('redis')->bulk([$plainJob, $delayedJob], queue: 'emails');
+
+        $fake->assertNothingPushed();
     }
 
     public function testBulkClassifiesPlainAndDelayedJobsWithoutDuplicatingHistory(): void
@@ -1082,10 +1195,10 @@ class SupportTestingQueueFakeTest extends TestCase
     public function testPassThroughFailureDoesNotRunAfterCallbacks(): void
     {
         $job = new JobStub;
-        $queue = m::mock(Queue::class);
-        $queue->shouldReceive('push')->once()->andThrow(new RuntimeException('push failed'));
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($queue);
+        $queue = Double::for(Queue::class)->strict();
+        $queue->expects('push')->throws(new RuntimeException('push failed'));
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with(null)->returns($queue);
         $afterCalled = false;
 
         $fake = (new QueueFake(new Application, [], $manager))
@@ -1193,6 +1306,33 @@ class JobWithConnectionStub
     }
 }
 
+#[Connection('attribute-connection')]
+class JobWithConnectionAttributeStub
+{
+    use Queueable;
+
+    public function handle(): void
+    {
+    }
+}
+
+class QueuedJobStub implements ShouldQueue
+{
+    use Queueable;
+
+    public function handle(): void
+    {
+    }
+}
+
+#[Connection('listener-connection')]
+class QueueFakeConnectionListenerStub implements ShouldQueue
+{
+    public function handle(): void
+    {
+    }
+}
+
 class JobWithChainStub
 {
     use Queueable;
@@ -1246,4 +1386,19 @@ class JobWithSerialization
 class QueueFakeUniqueJobStub implements ShouldBeUnique
 {
     use Queueable;
+}
+
+class QueueFakeTestRecordingQueue extends NullQueue
+{
+    public array $pushed = [];
+
+    /**
+     * Record the job and its payload and queue.
+     */
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
+    {
+        $this->pushed[] = [$job, $data, $queue];
+
+        return null;
+    }
 }

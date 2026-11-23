@@ -11,6 +11,7 @@ use Hypervel\Ai\Prompts\AudioPrompt;
 use Hypervel\Ai\Responses\AudioResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\Usage;
+use Hypervel\Support\Attributes\TestsOnly;
 use RuntimeException;
 
 class FakeAudioGateway implements AudioGateway
@@ -97,8 +98,10 @@ class FakeAudioGateway implements AudioGateway
     /**
      * Indicate that an exception should be thrown if any audio generation is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayAudio(bool $prevent = true): self
     {
         $this->preventStrayGenerations = $prevent;

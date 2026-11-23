@@ -54,6 +54,8 @@ class ClosureCommand extends Command
 
     /**
      * Set the description for the command.
+     *
+     * @return $this
      */
     public function purpose(string $description): static
     {
@@ -62,6 +64,8 @@ class ClosureCommand extends Command
 
     /**
      * Set the description for the command.
+     *
+     * @return $this
      */
     public function describe(string $description): static
     {

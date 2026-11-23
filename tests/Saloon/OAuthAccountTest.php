@@ -862,6 +862,44 @@ class OAuthAccountTest extends TestCase
         $this->assertNotNull($account->fresh()->refresh_claim);
     }
 
+    #[DefineEnvironment('configureCleanupFailingAccountModel')]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationDuringClaimCleanupStopsRenewal(bool $duringReporting): void
+    {
+        Sleep::fake();
+        $cancellation = new RuntimeException('Logging cleanup failed.', previous: new CanceledException);
+        $handler = $this->createMock(ExceptionHandler::class);
+        if ($duringReporting) {
+            $handler->expects($this->once())->method('report')->willReturnCallback(static function (Throwable $failure) use ($cancellation): never {
+                self::assertSame('Claim cleanup failed.', $failure->getMessage());
+
+                throw $cancellation;
+            });
+        } else {
+            $handler->expects($this->never())->method('report');
+        }
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $account = $this->refreshableAccount();
+        if (! $duringReporting) {
+            CleanupFailingAccountBuilder::$failure = $cancellation;
+        }
+        $providerFailure = new RuntimeException('Provider failed.');
+        $authenticator = $account->authenticator(static fn () => throw $providerFailure);
+        $caught = null;
+
+        try {
+            $this->authorization($authenticator);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            CleanupFailingAccountBuilder::$failure = null;
+        }
+
+        $this->assertSame($cancellation, $caught);
+        Sleep::assertNeverSlept();
+    }
+
     public function testConnectorConvenienceDisablesNestedRetriesAfterTheCallerModifier(): void
     {
         Sleep::fake();
@@ -912,7 +950,9 @@ class OAuthAccountTest extends TestCase
         $this->assertNull($account->fresh()->refresh_claim);
     }
 
-    public function testGuzzleResponseTransferFailuresRetryWithoutReadingTheIncompleteBody(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testGuzzleResponseTransferFailuresRetryWithoutReadingTheIncompleteBody(bool $canceled): void
     {
         Sleep::fake();
         $account = $this->refreshableAccount();
@@ -923,7 +963,7 @@ class OAuthAccountTest extends TestCase
 
             return false;
         });
-        $failure = new ResponseTransferException('Transfer failed.', new PsrRequest('POST', 'https://example.test/token'), new PsrResponse(200, [], $body));
+        $failure = new ResponseTransferException('Transfer failed.', new PsrRequest('POST', 'https://example.test/token'), new PsrResponse(200, [], $body), $canceled ? new CanceledException : null);
         $authenticator = $account->authenticator(function () use ($failure, &$calls): never {
             ++$calls;
             throw $failure;
@@ -936,9 +976,12 @@ class OAuthAccountTest extends TestCase
             $this->assertSame($failure, $exception);
         }
 
-        $this->assertSame(3, $calls);
+        $this->assertSame($canceled ? 1 : 3, $calls);
         $this->assertSame(0, $reads);
         $this->assertNull($account->fresh()->refresh_claim);
+        if ($canceled) {
+            Sleep::assertNeverSlept();
+        }
     }
 
     #[TestWith([false])]
@@ -1062,13 +1105,15 @@ class CleanupFailingAccount extends OAuthAccount
 
 class CleanupFailingAccountBuilder extends Builder
 {
+    public static ?Throwable $failure = null;
+
     /**
      * Allow claiming, then fail the cleanup write.
      */
     public function update(array $values): int
     {
         if (array_key_exists('refresh_claim', $values) && $values['refresh_claim'] === null) {
-            throw new RuntimeException('Claim cleanup failed.');
+            throw static::$failure ?? new RuntimeException('Claim cleanup failed.');
         }
 
         return parent::update($values);

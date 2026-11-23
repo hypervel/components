@@ -25,7 +25,9 @@ use Hypervel\Server\ServerInterface;
 use Hypervel\Server\ServerManager;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -37,58 +39,60 @@ use Swoole\Server\Port as SwoolePort;
 
 class ServerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResponseCallbackReportsAnEscapedExceptionAndCompletesTheResponse(): void
     {
         $exception = new RuntimeException('request callback failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($exception);
-        $container = m::mock(Container::class);
-        $container->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
-        $response = m::mock(SwooleResponse::class);
-        $response->expects('isWritable')->andReturnTrue();
-        $response->expects('end')->andReturnTrue();
-        $callback = $this->server($container)->guardedResponseCallback(
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception));
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('isWritable')->returns(true);
+        $response->expects('end')->returns(true);
+        $callback = $this->server($container->instance())->guardedResponseCallback(
             static function (SwooleRequest $request, SwooleResponse $response) use ($exception): never {
                 throw $exception;
             },
         );
 
-        $callback(m::mock(SwooleRequest::class), $response);
+        $callback(Double::for(SwooleRequest::class)->strict(), $response);
     }
 
     public function testResponseCallbackDoesNotReportCancellation(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldNotReceive('make');
-        $response = m::mock(SwooleResponse::class);
-        $response->expects('isWritable')->andReturnTrue();
-        $response->expects('end')->andReturnTrue();
-        $callback = $this->server($container)->guardedResponseCallback(
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->never();
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('isWritable')->returns(true);
+        $response->expects('end')->returns(true);
+        $callback = $this->server($container->instance())->guardedResponseCallback(
             static function (SwooleRequest $request, SwooleResponse $response): never {
                 throw new CanceledException;
             },
         );
 
-        $callback(m::mock(SwooleRequest::class), $response);
+        $callback(Double::for(SwooleRequest::class)->strict(), $response);
     }
 
     public function testResponseCallbackDoesNotCompleteAnUnwritableResponse(): void
     {
         $exception = new RuntimeException('request callback failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($exception);
-        $container = m::mock(Container::class);
-        $container->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
-        $response = m::mock(SwooleResponse::class);
-        $response->expects('isWritable')->andReturnFalse();
-        $response->shouldNotReceive('end');
-        $callback = $this->server($container)->guardedResponseCallback(
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception));
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('isWritable')->returns(false);
+        $response->expects('end')->never();
+        $callback = $this->server($container->instance())->guardedResponseCallback(
             static function (SwooleRequest $request, SwooleResponse $response) use ($exception): never {
                 throw $exception;
             },
         );
 
-        $callback(m::mock(SwooleRequest::class), $response);
+        $callback(Double::for(SwooleRequest::class)->strict(), $response);
     }
 
     public function testResponseCallbackFallsBackToThePhpErrorLogAndContainsCompletionFailures(): void
@@ -99,21 +103,21 @@ class ServerTest extends TestCase
         $errorLog = $directory . '/php-error.log';
         $previousErrorLog = ini_set('error_log', $errorLog);
         $exception = new RuntimeException('request callback failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($exception)->andThrow(new RuntimeException('reporting failed'));
-        $container = m::mock(Container::class);
-        $container->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
-        $response = m::mock(SwooleResponse::class);
-        $response->expects('isWritable')->andReturnTrue();
-        $response->expects('end')->andThrow(new RuntimeException('completion failed'));
-        $callback = $this->server($container)->guardedResponseCallback(
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception))->throws(new RuntimeException('reporting failed'));
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('isWritable')->returns(true);
+        $response->expects('end')->throws(new RuntimeException('completion failed'));
+        $callback = $this->server($container->instance())->guardedResponseCallback(
             static function (SwooleRequest $request, SwooleResponse $response) use ($exception): never {
                 throw $exception;
             },
         );
 
         try {
-            $callback(m::mock(SwooleRequest::class), $response);
+            $callback(Double::for(SwooleRequest::class)->strict(), $response);
             $contents = file_get_contents($errorLog);
 
             $this->assertIsString($contents);
@@ -145,8 +149,8 @@ class ServerTest extends TestCase
         $workerCallback = static function (): void {
         };
         $registered = [];
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->expects('on')->times(7)->andReturnUsing(
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->expects('on')->times(7)->resolves(
             static function (string $event, callable $callback) use (&$registered): bool {
                 $registered[$event] = $callback;
 
@@ -154,7 +158,7 @@ class ServerTest extends TestCase
             },
         );
 
-        $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
+        $this->server(Double::for(Container::class, override: true)->strict()->instance())->registerEvents($nativeServer, [
             Event::ON_REQUEST => $requestCallback,
             Event::ON_HANDSHAKE => $handshakeCallback,
             Event::ON_PIPE_MESSAGE => $pipeCallback,
@@ -176,30 +180,30 @@ class ServerTest extends TestCase
     public function testWorkerDeliveryCallbackReportsAnEscapedException(): void
     {
         $exception = new RuntimeException('worker delivery callback failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($exception);
-        $container = m::mock(Container::class);
-        $container->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
-        $callback = $this->server($container)->guardedWorkerDeliveryCallback(
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception));
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
+        $callback = $this->server($container->instance())->guardedWorkerDeliveryCallback(
             static function (SwooleServer $server, int $sourceId, mixed $data) use ($exception): never {
                 throw $exception;
             },
         );
 
-        $callback(m::mock(SwooleServer::class), 1, ['message' => true]);
+        $callback(Double::for(SwooleServer::class)->strict(), 1, ['message' => true]);
     }
 
     public function testWorkerDeliveryCallbackDoesNotReportCancellation(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldNotReceive('make');
-        $callback = $this->server($container)->guardedWorkerDeliveryCallback(
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->never();
+        $callback = $this->server($container->instance())->guardedWorkerDeliveryCallback(
             static function (SwooleServer $server, int $sourceId, mixed $data): never {
                 throw new CanceledException;
             },
         );
 
-        $callback(m::mock(SwooleServer::class), 1, ['message' => true]);
+        $callback(Double::for(SwooleServer::class)->strict(), 1, ['message' => true]);
     }
 
     public function testWorkerDeliveryCallbackFallsBackToThePhpErrorLog(): void
@@ -210,18 +214,18 @@ class ServerTest extends TestCase
         $errorLog = $directory . '/php-error.log';
         $previousErrorLog = ini_set('error_log', $errorLog);
         $exception = new RuntimeException('worker delivery callback failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($exception)->andThrow(new RuntimeException('reporting failed'));
-        $container = m::mock(Container::class);
-        $container->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
-        $callback = $this->server($container)->guardedWorkerDeliveryCallback(
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception))->throws(new RuntimeException('reporting failed'));
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
+        $callback = $this->server($container->instance())->guardedWorkerDeliveryCallback(
             static function (SwooleServer $server, int $sourceId, mixed $data) use ($exception): never {
                 throw $exception;
             },
         );
 
         try {
-            $callback(m::mock(SwooleServer::class), 1, ['message' => true]);
+            $callback(Double::for(SwooleServer::class)->strict(), 1, ['message' => true]);
             $contents = file_get_contents($errorLog);
 
             $this->assertIsString($contents);
@@ -238,13 +242,13 @@ class ServerTest extends TestCase
 
     public function testServerEventRegistrationFailureStopsConfiguration(): void
     {
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->expects('on')->with(Event::ON_WORKER_START, m::type('callable'))->andReturnFalse();
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->expects('on')->with(Event::ON_WORKER_START, Argument::type('callable'))->returns(false);
 
         $this->expectException(ServerException::class);
         $this->expectExceptionMessageIs('Failed to register event [workerStart] on server [test].');
 
-        $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
+        $this->server(Double::for(Container::class, override: true)->strict()->instance())->registerEvents($nativeServer, [
             Event::ON_WORKER_START => static function (): void {
             },
         ]);
@@ -252,10 +256,10 @@ class ServerTest extends TestCase
 
     public function testPortEventRegistrationFailureStopsConfiguration(): void
     {
-        $nativePort = m::mock(SwoolePort::class);
-        $nativePort->expects('on')->with(Event::ON_REQUEST, m::type('callable'))->andReturnFalse();
-        $server = $this->server(m::mock(Container::class));
-        $server->useNativeServer(m::mock(SwooleServer::class));
+        $nativePort = Double::for(SwoolePort::class)->strict();
+        $nativePort->expects('on')->with(Event::ON_REQUEST, Argument::type('callable'))->returns(false);
+        $server = $this->server(Double::for(Container::class, override: true)->strict()->instance());
+        $server->useNativeServer(Double::for(SwooleServer::class)->strict());
 
         $this->expectException(ServerException::class);
         $this->expectExceptionMessageIs('Failed to register event [request] on server [test].');
@@ -274,10 +278,10 @@ class ServerTest extends TestCase
         $applicationCallback = static function (SwooleServer $server, int $connection, int $reactor) use (&$received): void {
             $received = [$server, $connection, $reactor];
         };
-        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer = Double::for(SwooleServer::class)->strict();
         $nativeServer->mode = $mode;
         $nativeServer->setting = $settings;
-        $nativeServer->expects('on')->twice()->andReturnUsing(
+        $nativeServer->expects('on')->times(2)->resolves(
             static function (string $event, callable $callback) use (&$registered): bool {
                 $registered[$event] = $callback;
 
@@ -285,7 +289,7 @@ class ServerTest extends TestCase
             },
         );
 
-        $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
+        $this->server(Double::for(Container::class, override: true)->strict()->instance())->registerEvents($nativeServer, [
             Event::ON_REQUEST => static function (): void {
             },
             Event::ON_CLOSE => $applicationCallback,
@@ -315,9 +319,9 @@ class ServerTest extends TestCase
     public function testResponseDisconnectCallbackIsInstalledWithoutAnApplicationCallback(): void
     {
         $registered = [];
-        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer = Double::for(SwooleServer::class)->strict();
         $nativeServer->mode = SWOOLE_PROCESS;
-        $nativeServer->expects('on')->twice()->andReturnUsing(
+        $nativeServer->expects('on')->times(2)->resolves(
             static function (string $event, callable $callback) use (&$registered): bool {
                 $registered[$event] = $callback;
 
@@ -325,7 +329,7 @@ class ServerTest extends TestCase
             },
         );
 
-        $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
+        $this->server(Double::for(Container::class, override: true)->strict()->instance())->registerEvents($nativeServer, [
             Event::ON_REQUEST => static function (): void {
             },
         ]);
@@ -336,9 +340,9 @@ class ServerTest extends TestCase
 
     public function testMainServerSettingsFailureStopsConfiguration(): void
     {
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->expects('set')->with([])->andReturnFalse();
-        $server = $this->server(m::mock(Container::class));
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->expects('set')->with([])->returns(false);
+        $server = $this->server(Double::for(Container::class, override: true)->strict()->instance());
         $server->createWith($nativeServer);
 
         $this->expectException(ServerException::class);
@@ -353,14 +357,14 @@ class ServerTest extends TestCase
 
     public function testSecondaryServerSettingsFailureStopsConfigurationBeforeRegistration(): void
     {
-        $secondary = m::mock(SwoolePort::class);
-        $secondary->expects('set')->with([])->andReturnFalse();
-        $secondary->shouldNotReceive('on');
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->ports = [m::mock(SwoolePort::class)];
-        $nativeServer->expects('set')->with([])->andReturnTrue();
-        $nativeServer->expects('addlistener')->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)->andReturn($secondary);
-        $server = $this->server(m::mock(Container::class));
+        $secondary = Double::for(SwoolePort::class)->strict();
+        $secondary->expects('set')->with([])->returns(false);
+        $secondary->expects('on')->never();
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->ports = [Double::for(SwoolePort::class)->strict()];
+        $nativeServer->expects('set')->with([])->returns(true);
+        $nativeServer->expects('addlistener')->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)->returns($secondary);
+        $server = $this->server(Double::for(Container::class, override: true)->strict()->instance());
         $server->createWith($nativeServer);
 
         try {
@@ -384,32 +388,32 @@ class ServerTest extends TestCase
 
     public function testEverySecondaryServerReceivesGlobalAndOnlyItsOwnSettings(): void
     {
-        $mainPort = m::mock(SwoolePort::class);
-        $firstSecondary = m::mock(SwoolePort::class);
-        $secondSecondary = m::mock(SwoolePort::class);
-        $nativeServer = m::mock(SwooleServer::class);
+        $mainPort = Double::for(SwoolePort::class)->strict();
+        $firstSecondary = Double::for(SwoolePort::class)->strict();
+        $secondSecondary = Double::for(SwoolePort::class)->strict();
+        $nativeServer = Double::for(SwooleServer::class)->strict();
         $nativeServer->ports = [$mainPort];
         $nativeServer->expects('set')->with([
             'socket_buffer_size' => 2048,
             'http_compression' => false,
             'open_http2_protocol' => true,
-        ])->andReturnTrue();
+        ])->returns(true);
         $nativeServer->expects('addlistener')
             ->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)
-            ->andReturn($firstSecondary);
+            ->returns($firstSecondary);
         $firstSecondary->expects('set')->with([
             'socket_buffer_size' => 4096,
             'http_compression' => false,
             'open_http_protocol' => false,
-        ])->andReturnTrue();
+        ])->returns(true);
         $nativeServer->expects('addlistener')
             ->with('127.0.0.1', 8002, SWOOLE_SOCK_TCP)
-            ->andReturn($secondSecondary);
+            ->returns($secondSecondary);
         $secondSecondary->expects('set')->with([
             'socket_buffer_size' => 2048,
             'http_compression' => false,
-        ])->andReturnTrue();
-        $server = $this->server(m::mock(Container::class));
+        ])->returns(true);
+        $server = $this->server(Double::for(Container::class, override: true)->strict()->instance());
         $server->createWith($nativeServer);
 
         $server->init(new ServerConfig([
@@ -453,18 +457,18 @@ class ServerTest extends TestCase
         $closeCallback = static function (SwooleServer $server, int $connection) use (&$closed): void {
             $closed[] = $connection;
         };
-        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer = Double::for(SwooleServer::class)->strict();
         $nativeServer->mode = SWOOLE_BASE;
         $nativeServer->ssl = false;
-        $nativeServer->ports = [m::mock(SwoolePort::class)];
-        $inherited = m::mock(SwoolePort::class);
+        $nativeServer->ports = [Double::for(SwoolePort::class)->strict()];
+        $inherited = Double::for(SwoolePort::class)->strict();
         $inherited->ssl = true;
-        $overridden = m::mock(SwoolePort::class);
+        $overridden = Double::for(SwoolePort::class)->strict();
         $overridden->ssl = false;
 
         foreach ([$nativeServer, $inherited, $overridden] as $index => $listener) {
-            $listener->expects('set')->with([])->andReturnTrue();
-            $listener->expects('on')->times(3)->andReturnUsing(
+            $listener->expects('set')->with([])->returns(true);
+            $listener->expects('on')->times(3)->resolves(
                 static function (string $event, callable $callback) use (&$registered, $index): bool {
                     $registered[$index][$event] = $callback;
 
@@ -473,9 +477,9 @@ class ServerTest extends TestCase
             );
         }
 
-        $nativeServer->expects('addlistener')->with('127.0.0.2', 8443, SWOOLE_SOCK_TCP | SWOOLE_SSL)->andReturn($inherited);
-        $nativeServer->expects('addlistener')->with('127.0.0.1', 8080, SWOOLE_SOCK_TCP)->andReturn($overridden);
-        $server = $this->server(m::mock(Container::class));
+        $nativeServer->expects('addlistener')->with('127.0.0.2', 8443, SWOOLE_SOCK_TCP | SWOOLE_SSL)->returns($inherited);
+        $nativeServer->expects('addlistener')->with('127.0.0.1', 8080, SWOOLE_SOCK_TCP)->returns($overridden);
+        $server = $this->server(Double::for(Container::class, override: true)->strict()->instance());
         $server->createWith($nativeServer);
         $server->init(new ServerConfig(['servers' => [
             ['name' => 'http', 'host' => '127.0.0.1', 'port' => 8443, 'callbacks' => [
@@ -493,9 +497,9 @@ class ServerTest extends TestCase
 
         foreach ([0, 1, 2] as $index) {
             foreach ([Event::ON_REQUEST, Event::ON_HANDSHAKE] as $event) {
-                $request = m::mock(SwooleRequest::class);
+                $request = Double::for(SwooleRequest::class)->strict();
                 $request->server = [];
-                $registered[$index][$event]($request, m::mock(SwooleResponse::class));
+                $registered[$index][$event]($request, Double::for(SwooleResponse::class)->strict());
             }
         }
 
@@ -528,33 +532,27 @@ class ServerTest extends TestCase
 
     public function testServerInitializationDispatchesLifecycleEventsWhenListenedFor(): void
     {
-        $mainPort = m::mock(SwoolePort::class);
-        $nativeServer = m::mock(SwooleServer::class);
+        $mainPort = Double::for(SwoolePort::class)->strict();
+        $nativeServer = Double::for(SwooleServer::class)->strict();
         $nativeServer->ports = [$mainPort];
-        $nativeServer->expects('set')->with([])->andReturnTrue();
+        $nativeServer->expects('set')->with([])->returns(true);
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('hasListeners')->with(BeforeMainServerStart::class)->andReturnTrue();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeMainServerStart::class)->returns(true);
         $dispatcher->expects('dispatch')
-            ->with(m::on(function (BeforeMainServerStart $event) use ($nativeServer): bool {
-                $this->assertSame($nativeServer, $event->server);
-                $this->assertSame('http', $event->serverConfig['servers'][0]->getName());
-
-                return true;
-            }))
-            ->andReturnNull();
-        $dispatcher->expects('hasListeners')->with(BeforeServerStart::class)->andReturnTrue();
+            ->with(Argument::satisfies(static fn (mixed $event): bool => $event instanceof BeforeMainServerStart
+                && $event->server === $nativeServer
+                && $event->serverConfig['servers'][0]->getName() === 'http'))
+            ->returns(null);
+        $dispatcher->expects('hasListeners')->with(BeforeServerStart::class)->returns(true);
         $dispatcher->expects('dispatch')
-            ->with(m::on(function (BeforeServerStart $event): bool {
-                $this->assertSame('http', $event->serverName);
-
-                return true;
-            }))
-            ->andReturnNull();
+            ->with(Argument::satisfies(static fn (mixed $event): bool => $event instanceof BeforeServerStart
+                && $event->serverName === 'http'))
+            ->returns(null);
 
         $server = new ServerTestServer(
-            m::mock(Container::class),
-            m::mock(LoggerInterface::class),
+            Double::for(Container::class, override: true)->strict()->instance(),
+            Double::for(LoggerInterface::class)->strict(),
             $dispatcher,
         );
         $server->createWith($nativeServer);
@@ -568,12 +566,12 @@ class ServerTest extends TestCase
 
     public function testListenerCreationFailureStopsConfiguration(): void
     {
-        $mainPort = m::mock(SwoolePort::class);
-        $nativeServer = m::mock(SwooleServer::class);
+        $mainPort = Double::for(SwoolePort::class)->strict();
+        $nativeServer = Double::for(SwooleServer::class)->strict();
         $nativeServer->ports = [$mainPort];
-        $nativeServer->expects('set')->with([])->andReturnTrue();
-        $nativeServer->expects('addlistener')->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)->andReturnFalse();
-        $server = $this->server(m::mock(Container::class));
+        $nativeServer->expects('set')->with([])->returns(true);
+        $nativeServer->expects('addlistener')->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)->returns(false);
+        $server = $this->server(Double::for(Container::class, override: true)->strict()->instance());
         $server->createWith($nativeServer);
 
         $this->expectException(ServerException::class);
@@ -592,7 +590,7 @@ class ServerTest extends TestCase
         $this->expectException(ServerInvalidArgumentException::class);
         $this->expectExceptionMessageIs('Server type is invalid.');
 
-        $this->server(m::mock(Container::class))->init(new ServerConfig([
+        $this->server(Double::for(Container::class, override: true)->strict()->instance())->init(new ServerConfig([
             'servers' => [
                 ['name' => 'invalid', 'type' => 999],
             ],
@@ -601,9 +599,9 @@ class ServerTest extends TestCase
 
     public function testStartFailureIsReported(): void
     {
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->expects('start')->andReturnFalse();
-        $server = $this->server(m::mock(Container::class));
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->expects('start')->returns(false);
+        $server = $this->server(Double::for(Container::class, override: true)->strict()->instance());
         $server->useNativeServer($nativeServer);
 
         $this->expectException(ServerException::class);
@@ -615,26 +613,25 @@ class ServerTest extends TestCase
     public function testBeforeServerForkIsDispatchedBeforeNativeStart(): void
     {
         $order = [];
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->expects('start')->andReturnUsing(function () use (&$order): bool {
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->expects('start')->resolves(function () use (&$order): bool {
             $order[] = 'start';
 
             return true;
         });
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->andReturnTrue();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->returns(true);
         $dispatcher->expects('dispatch')
-            ->with(m::on(function (BeforeServerFork $event) use ($nativeServer, &$order): bool {
+            ->with(Argument::type(BeforeServerFork::class))
+            ->resolves(function (BeforeServerFork $event) use ($nativeServer, &$order): void {
                 $this->assertSame($nativeServer, $event->server);
                 $order[] = 'before-fork';
-
-                return true;
-            }));
+            });
 
         $server = new ServerTestServer(
-            m::mock(Container::class),
-            m::mock(LoggerInterface::class),
+            Double::for(Container::class, override: true)->strict()->instance(),
+            Double::for(LoggerInterface::class)->strict(),
             $dispatcher,
         );
         $server->useNativeServer($nativeServer);
@@ -646,18 +643,18 @@ class ServerTest extends TestCase
     public function testBeforeServerForkFailurePreventsNativeStart(): void
     {
         $exception = new RuntimeException('Pre-fork cleanup failed.');
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->shouldNotReceive('start');
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->expects('start')->never();
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->andReturnTrue();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->returns(true);
         $dispatcher->expects('dispatch')
-            ->with(m::type(BeforeServerFork::class))
-            ->andThrow($exception);
+            ->with(Argument::type(BeforeServerFork::class))
+            ->throws($exception);
 
         $server = new ServerTestServer(
-            m::mock(Container::class),
-            m::mock(LoggerInterface::class),
+            Double::for(Container::class, override: true)->strict()->instance(),
+            Double::for(LoggerInterface::class)->strict(),
             $dispatcher,
         );
         $server->useNativeServer($nativeServer);
@@ -673,20 +670,20 @@ class ServerTest extends TestCase
     public function testStartSkipsLifecycleEventWithoutListeners(): void
     {
         $started = false;
-        $nativeServer = m::mock(SwooleServer::class);
-        $nativeServer->expects('start')->andReturnUsing(function () use (&$started): bool {
+        $nativeServer = Double::for(SwooleServer::class)->strict();
+        $nativeServer->expects('start')->resolves(function () use (&$started): bool {
             $started = true;
 
             return true;
         });
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->returns(false);
+        $dispatcher->expects('dispatch')->never();
 
         $server = new ServerTestServer(
-            m::mock(Container::class),
-            m::mock(LoggerInterface::class),
+            Double::for(Container::class, override: true)->strict()->instance(),
+            Double::for(LoggerInterface::class)->strict(),
             $dispatcher,
         );
         $server->useNativeServer($nativeServer);
@@ -699,9 +696,9 @@ class ServerTest extends TestCase
     public function testServerTypesArePrioritizedWithoutReorderingEqualTypes(): void
     {
         $server = new ServerTestServer(
-            m::mock(Container::class),
-            m::mock(LoggerInterface::class),
-            m::mock(Dispatcher::class),
+            Double::for(Container::class, override: true)->strict()->instance(),
+            Double::for(LoggerInterface::class)->strict(),
+            Double::for(Dispatcher::class)->strict(),
         );
 
         $ports = [
@@ -725,9 +722,9 @@ class ServerTest extends TestCase
     public function testAppendedHttpServerCannotReplaceTheConfiguredMainHttpServer(): void
     {
         $server = new ServerTestServer(
-            m::mock(Container::class),
-            m::mock(LoggerInterface::class),
-            m::mock(Dispatcher::class),
+            Double::for(Container::class, override: true)->strict()->instance(),
+            Double::for(LoggerInterface::class)->strict(),
+            Double::for(Dispatcher::class)->strict(),
         );
 
         $ports = [
@@ -744,6 +741,9 @@ class ServerTest extends TestCase
         );
     }
 
+    /**
+     * Create a named server port.
+     */
     private function port(string $name, int $type): Port
     {
         return Port::build([
@@ -752,15 +752,18 @@ class ServerTest extends TestCase
         ]);
     }
 
+    /**
+     * Create a server with inactive lifecycle listeners.
+     */
     private function server(Container $container): ServerTestServer
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->allows('hasListeners')->andReturnFalse();
-        $dispatcher->allows('dispatch')->andReturnNull();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->allows('hasListeners')->returns(false);
+        $dispatcher->allows('dispatch')->returns(null);
 
         return new ServerTestServer(
             $container,
-            m::mock(LoggerInterface::class),
+            Double::for(LoggerInterface::class)->strict(),
             $dispatcher,
         );
     }
@@ -770,32 +773,49 @@ class ServerTestServer extends Server
 {
     private ?SwooleServer $serverToCreate = null;
 
+    /**
+     * Choose the native server returned during initialization.
+     */
     public function createWith(SwooleServer $server): void
     {
         $this->serverToCreate = $server;
     }
 
+    /**
+     * Set the native server without initialization.
+     */
     public function useNativeServer(SwooleServer $server): void
     {
         $this->server = $server;
     }
 
+    /**
+     * Expose the guarded response callback.
+     */
     public function guardedResponseCallback(callable $callback): Closure
     {
         return $this->guardResponseCallback($callback, false);
     }
 
+    /**
+     * Expose the guarded worker delivery callback.
+     */
     public function guardedWorkerDeliveryCallback(callable $callback): Closure
     {
         return $this->guardWorkerDeliveryCallback($callback);
     }
 
+    /**
+     * Register callbacks on the test listener.
+     */
     public function registerEvents(SwoolePort|SwooleServer $server, array $events): void
     {
         $this->registerSwooleEvents($server, $events, 'test');
     }
 
     /**
+     * Expose server sorting without starting any listeners.
+     *
      * @param list<Port> $servers
      * @return list<Port>
      */
@@ -804,11 +824,17 @@ class ServerTestServer extends Server
         return $this->sortServers($servers);
     }
 
+    /**
+     * Return the supplied server or create the requested native server.
+     */
     protected function makeServer(int $type, string $host, int $port, int $mode, int $sockType): SwooleServer
     {
         return $this->serverToCreate ?? parent::makeServer($type, $host, $port, $mode, $sockType);
     }
 
+    /**
+     * Keep default native callbacks out of these tests.
+     */
     protected function defaultCallbacks(): array
     {
         return [];

@@ -29,8 +29,9 @@ use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
@@ -44,6 +45,8 @@ use Symfony\Component\VarDumper\VarDumper;
 
 class TestResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAssertViewIs(): void
     {
         $response = $this->makeMockResponse([
@@ -2612,12 +2615,37 @@ EOT,
         $responseObject->assertJsonIsArray();
     }
 
+    #[TestWith(['{}', null])]
+    #[TestWith(['{"0":"value"}', null])]
+    #[TestWith(['{"data":{}}', 'data'])]
+    #[TestWith(['{"data":{"0":"value"}}', 'data'])]
+    public function testAssertJsonIsNotArrayForObjectsThatDecodeToLists(string $json, ?string $key): void
+    {
+        $this->expectException(ExpectationFailedException::class);
+
+        TestResponse::fromBaseResponse(new Response($json))->assertJsonIsArray($key);
+    }
+
+    public function testAssertJsonIsArrayForWildcardSelectionOfAnObject(): void
+    {
+        TestResponse::fromBaseResponse(new Response('{"data":{"first":[]}}'))->assertJsonIsArray('data.*');
+    }
+
     public function testAssertJsonIsObject(): void
     {
         $responseObject = TestResponse::fromBaseResponse(new Response([
             'foo' => 'bar',
         ]));
         $responseObject->assertJsonIsObject();
+    }
+
+    #[TestWith(['{}', null])]
+    #[TestWith(['{"0":"value"}', null])]
+    #[TestWith(['{"data":{}}', 'data'])]
+    #[TestWith(['{"data":{"0":"value"}}', 'data'])]
+    public function testAssertJsonIsObjectForObjectsThatDecodeToLists(string $json, ?string $key): void
+    {
+        TestResponse::fromBaseResponse(new Response($json))->assertJsonIsObject($key);
     }
 
     public function testAssertJsonIsNotObject(): void
@@ -3831,8 +3859,14 @@ EOT,
      */
     private function makeMockResponse(array $content): TestResponse
     {
-        $baseResponse = tap(new Response, function ($response) use ($content) {
-            $response->setContent(m::mock(View::class, $content));
+        $view = Double::for(View::class)->strict();
+
+        foreach ($content as $method => $value) {
+            $view->allows($method)->returns($value);
+        }
+
+        $baseResponse = tap(new Response, function ($response) use ($view) {
+            $response->setContent($view);
         });
 
         return TestResponse::fromBaseResponse($baseResponse);

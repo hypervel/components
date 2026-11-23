@@ -8,6 +8,7 @@ use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Override;
@@ -146,8 +147,16 @@ class PostgresGrammar extends Grammar
         $columns = (new Collection($where['columns']))
             ->map(fn ($column) => $isVector
                 ? $this->wrap($column)
-                : "to_tsvector('{$language}', {$this->wrap($column)})")
-            ->implode(' || ');
+                : "to_tsvector('{$language}', {$this->wrap($column)})");
+
+        // Unlike Laravel, each vector of a multi-column search is coalesced, since a null column would make the whole
+        // concatenation null and hide the row. The schema grammar's full-text index uses the same expression, which
+        // PostgreSQL requires before it can use the index.
+        if ($columns->count() > 1) {
+            $columns = $columns->map(fn (string $vector): string => "coalesce({$vector}, ''::tsvector)");
+        }
+
+        $columns = $columns->implode(' || ');
 
         $mode = 'plainto_tsquery';
 
@@ -176,12 +185,17 @@ class PostgresGrammar extends Grammar
         return [
             'simple',
             'arabic',
+            'armenian',
+            'basque',
+            'catalan',
             'danish',
             'dutch',
             'english',
             'finnish',
             'french',
             'german',
+            'greek',
+            'hindi',
             'hungarian',
             'indonesian',
             'irish',
@@ -192,10 +206,12 @@ class PostgresGrammar extends Grammar
             'portuguese',
             'romanian',
             'russian',
+            'serbian',
             'spanish',
             'swedish',
             'tamil',
             'turkish',
+            'yiddish',
         ];
     }
 
@@ -236,6 +252,16 @@ class PostgresGrammar extends Grammar
         }
 
         return $select . $this->columnize($columns);
+    }
+
+    /**
+     * Compile one JSON boolean membership comparison.
+     */
+    protected function compileJsonBooleanInValue(string $column, bool $value): string
+    {
+        // Keep text-expression indexes usable without equating JSON booleans with strings.
+        return '(' . $this->wrap($column) . ' = ' . $this->quoteString($value ? 'true' : 'false')
+            . ' and jsonb_typeof(' . $this->wrapJsonBooleanSelector($column) . ") = 'boolean')";
     }
 
     /**
@@ -319,7 +345,11 @@ class PostgresGrammar extends Grammar
     protected function compileLock(Builder $query, bool|string $value): string
     {
         if (! is_string($value)) {
-            return $value ? 'for update' : 'for share';
+            $lock = $value ? 'for update' : 'for share';
+
+            return $query->skipLocked && $this->connection->supportsSkipLocked()
+                ? $lock . ' skip locked'
+                : $lock;
         }
 
         return $value;
@@ -583,7 +613,8 @@ class PostgresGrammar extends Grammar
     {
         // A ctid is unique only within one physical table, and the partitions of a
         // partitioned table reuse them, so rows are matched by table and ctid.
-        $selectSql = $this->compileSelectQuery($query->select([
+        // Selecting row identifiers must not replace a reusable builder's columns or select bindings.
+        $selectSql = $this->compileSelectQuery((clone $query)->select([
             $this->qualifyRowIdentifier($query, 'tableoid'),
             $this->qualifyRowIdentifier($query, 'ctid'),
         ]));
@@ -727,11 +758,12 @@ class PostgresGrammar extends Grammar
     /**
      * Set any Postgres grammar specific custom operators.
      *
-     * Boot-only. The operator list persists in a static property for the worker
-     * lifetime and applies to every Postgres query built across all coroutines.
+     * The operator list persists in a static property for the worker lifetime
+     * and applies to every Postgres query built across all coroutines.
      *
      * @param string[] $operators
      */
+    #[BootOnly]
     public static function customOperators(array $operators): void
     {
         static::$customOperators = array_values(
@@ -742,9 +774,10 @@ class PostgresGrammar extends Grammar
     /**
      * Enable or disable the "cascade" option when compiling the truncate statement.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every truncate() across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every truncate() across all coroutines.
      */
+    #[BootOnly]
     public static function cascadeOnTruncate(bool $value = true): void
     {
         static::$cascadeTruncate = $value;

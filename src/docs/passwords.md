@@ -134,7 +134,7 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Password;
 
 Route::post('/forgot-password', function (Request $request) {
-    $request->validate(['email' => 'required|email']);
+    $request->validate(['email' => ['required', 'email']]);
 
     $status = Password::sendResetLink(
         $request->only('email')
@@ -190,8 +190,8 @@ use Hypervel\Support\Str;
 Route::post('/reset-password', function (Request $request) {
     $request->validate([
         'token' => 'required',
-        'email' => 'required|email',
-        'password' => 'required|min:8|confirmed',
+        'email' => ['required', 'email'],
+        'password' => ['required', 'min:8', 'confirmed'],
     ]);
 
     $status = Password::reset(

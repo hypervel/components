@@ -4,12 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\DurationLimiter;
+use Hypervel\Redis\Pool\PoolManager;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\RedisSentinelFactory;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Sleep;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use Redis;
 
 /**
  * Tests for DurationLimiter.
@@ -18,6 +29,8 @@ use Mockery as m;
  */
 class DurationLimiterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAcquireSucceedsWhenBelowLimit(): void
     {
         $redis = $this->mockRedis();
@@ -121,17 +134,22 @@ class DurationLimiterTest extends TestCase
 
     public function testClearDeletesKey(): void
     {
-        $redis = $this->mockRedis();
-        $redis->shouldReceive('del')
-            ->once()
-            ->with('test-key')
-            ->andReturn(1);
+        $client = Double::for(Redis::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('del')->with('test-key')->returns(1);
+        $connection = Double::for((new PhpRedisConnectionStub)->setActiveConnection($client))->passthru();
+        $connection->allows('release');
+        $pool = Double::for(RedisPool::class)->strict();
+        $pool->allows('borrow')->returns($connection);
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
+        $poolManager->allows('pool')->with('limiter')->returns($pool);
+        $redis = new RedisProxy(
+            $poolManager,
+            'limiter',
+            new RedisSentinelFactory,
+        );
 
-        $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
-
-        $limiter->clear();
-
-        // Mockery verifies del() was called
+        (new DurationLimiter($redis, 'test-key', 5, 60))->clear();
     }
 
     public function testBlockExecutesCallbackOnSuccess(): void
@@ -154,14 +172,14 @@ class DurationLimiterTest extends TestCase
     public function testBlockThrowsExceptionAfterTimeout(): void
     {
         $redis = $this->mockRedis();
-        $connection = m::mock(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class)->strict();
 
-        $redis->shouldReceive('withConnection')
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $redis->allows('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
 
         // Always fail to acquire
-        $connection->shouldReceive('evalWithShaCache')
-            ->andReturn([0, time() + 60, '6']);
+        $connection->allows('evalWithShaCache')
+            ->returns([0, time() + 60, '6']);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -171,37 +189,58 @@ class DurationLimiterTest extends TestCase
         $limiter->block(0, null, 1); // 1ms sleep between retries
     }
 
+    public function testBlockCanAcquireAtTheDeadlineWithAShorterFinalSleep(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $redis = $this->mockRedis();
+        $connection = Double::for(RedisConnection::class)->strict();
+        $redis->allows('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
+        $connection->expects('evalWithShaCache')->times(4)
+            ->returns([0, 0, '1'], [0, 0, '1'], [0, 0, '1'], [1, 10, '1']);
+
+        $limiter = new DurationLimiter($redis, 'test-key', 1, 10);
+
+        $this->assertTrue($limiter->block(2, sleep: 750));
+
+        Sleep::assertSequence([
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(500)->milliseconds(),
+        ]);
+    }
+
     // REMOVED: testUsesSpecifiedConnectionName - Connection is now resolved before creating the limiter,
     // so DurationLimiter no longer has a connection name parameter.
 
     /**
      * Create a mock RedisProxy.
      */
-    private function mockRedis(): m\MockInterface|RedisProxy
+    private function mockRedis(): RedisProxy&DoubleInterface
     {
-        return m::mock(RedisProxy::class);
+        return Double::for(RedisProxy::class)->strict();
     }
 
     /**
      * Expect a script evaluation on one held Redis connection.
      */
     private function expectEvaluation(
-        m\MockInterface|RedisProxy $redis,
+        RedisProxy&DoubleInterface $redis,
         mixed $result,
         ?callable $assertion = null,
     ): void {
-        $connection = m::mock(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class)->strict();
 
-        $redis->shouldReceive('withConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $redis->expects('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $expectation = $connection->shouldReceive('evalWithShaCache')->once();
+        $expectation = $connection->expects('evalWithShaCache');
 
         if ($assertion !== null) {
-            $expectation->withArgs($assertion);
+            $expectation->with(Argument::all($assertion));
         }
 
-        $expectation->andReturn($result);
+        $expectation->returns($result);
     }
 }

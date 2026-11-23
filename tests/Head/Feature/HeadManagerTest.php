@@ -20,6 +20,9 @@ class HeadManagerTest extends TestCase
         $this->assertInstanceOf(HtmlString::class, Head::render());
     }
 
+    // REMOVED: upstream's "keeps request head data in the container handling the request", which clones the container
+    // per request as Octane does. CurrentHead is scoped per coroutine instead; CoroutineIsolationTest covers its isolation.
+
     public function testDefinitionsStayEagerAndRuntimeDefaultsAreLazyAndFresh(): void
     {
         $eagerCalls = 0;

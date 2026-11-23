@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Finder\Finder;
 use Throwable;
 
@@ -54,9 +54,11 @@ class ConfigurationFilesCanBeLoaded extends Diagnostic
         foreach ($files as $file) {
             try {
                 (fn (): mixed => require $file->getPathname())();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 return $this->fail('load-failed')
                     ->withDetails(sprintf('%s: %s', $file->getRelativePathname(), $e->getMessage()));
             }

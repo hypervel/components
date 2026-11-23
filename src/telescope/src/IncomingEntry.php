@@ -74,6 +74,8 @@ class IncomingEntry
 
     /**
      * Assign the entry a given batch ID.
+     *
+     * @return $this
      */
     public function batchId(string $batchId): static
     {
@@ -84,6 +86,8 @@ class IncomingEntry
 
     /**
      * Assign the entry a given type.
+     *
+     * @return $this
      */
     public function type(string $type): static
     {
@@ -94,6 +98,8 @@ class IncomingEntry
 
     /**
      * Assign the entry a family hash.
+     *
+     * @return $this
      */
     public function withFamilyHash(?string $familyHash): static
     {
@@ -104,6 +110,8 @@ class IncomingEntry
 
     /**
      * Set the currently authenticated user.
+     *
+     * @return $this
      */
     public function user(Authenticatable $user): static
     {
@@ -124,6 +132,8 @@ class IncomingEntry
 
     /**
      * Merge tags into the entry's existing tags.
+     *
+     * @return $this
      */
     public function tags(array $tags): static
     {

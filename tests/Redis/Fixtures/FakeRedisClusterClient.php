@@ -11,10 +11,13 @@ use RedisCluster;
  * Fake RedisCluster client for testing cluster-specific operations.
  *
  * Extends RedisCluster to satisfy type hints while providing controlled
- * test behavior. Does NOT connect to any real Redis Cluster.
+ * test behavior without connecting to a real Redis Cluster. A concrete fake
+ * preserves SCAN's by-reference cursor, which Double cannot update.
  */
 class FakeRedisClusterClient extends RedisCluster
 {
+    public int $mastersRequested = 0;
+
     /**
      * Configured master nodes.
      *
@@ -25,7 +28,7 @@ class FakeRedisClusterClient extends RedisCluster
     /**
      * Configured scan results per node.
      *
-     * @var array<string, array<int, array{keys: array<string>, iterator: int}>>
+     * @var array<string, array<int, array{keys: array<string>|false, iterator: int|string}>>
      */
     private array $scanResults;
 
@@ -39,7 +42,7 @@ class FakeRedisClusterClient extends RedisCluster
     /**
      * Recorded scan calls for assertions.
      *
-     * @var array<int, array{node: array|string, pattern: ?string, count: int}>
+     * @var array<int, array{iterator: null|int|string, node: null|array|string, pattern: ?string, count: int}>
      */
     private array $scanCalls = [];
 
@@ -65,10 +68,8 @@ class FakeRedisClusterClient extends RedisCluster
     /**
      * Create a new fake RedisCluster client.
      *
-     * Does NOT call parent::__construct() to avoid real connection attempts.
-     *
      * @param array<int, array{0: string, 1: int}> $masters Configured master nodes
-     * @param array<string, array<int, array{keys: array<string>, iterator: int}>> $scanResults Scan results per node key
+     * @param array<string, array<int, array{keys: array<string>|false, iterator: int|string}>> $scanResults Scan results per node key
      * @param string $optPrefix Configured OPT_PREFIX value
      */
     public function __construct(
@@ -76,8 +77,7 @@ class FakeRedisClusterClient extends RedisCluster
         array $scanResults = [],
         string $optPrefix = '',
     ) {
-        // Intentionally do NOT call parent::__construct() to avoid
-        // any connection attempts. This fake client never connects.
+        // Skip the native constructor so tests never connect to Redis.
         $this->masters = $masters;
         $this->scanResults = $scanResults;
         $this->optPrefix = $optPrefix;
@@ -90,7 +90,19 @@ class FakeRedisClusterClient extends RedisCluster
      */
     public function _masters(): array
     {
+        ++$this->mastersRequested;
+
         return $this->masters;
+    }
+
+    /**
+     * Replace the Cluster topology between scans.
+     *
+     * @param array<int, array{0: string, 1: int}> $masters
+     */
+    public function setMasters(array $masters): void
+    {
+        $this->masters = $masters;
     }
 
     /**
@@ -106,7 +118,7 @@ class FakeRedisClusterClient extends RedisCluster
     {
         $nodeKey = is_array($node) ? implode(':', $node) : (string) $node;
 
-        $this->scanCalls[] = ['node' => $node, 'pattern' => $pattern, 'count' => $count];
+        $this->scanCalls[] = ['iterator' => $iterator, 'node' => $node, 'pattern' => $pattern, 'count' => $count];
 
         if (! isset($this->scanCallIndex[$nodeKey])) {
             $this->scanCallIndex[$nodeKey] = 0;
@@ -159,7 +171,7 @@ class FakeRedisClusterClient extends RedisCluster
     /**
      * Get recorded scan calls for test assertions.
      *
-     * @return array<int, array{node: array|string, pattern: ?string, count: int}>
+     * @return array<int, array{iterator: null|int|string, node: null|array|string, pattern: ?string, count: int}>
      */
     public function getScanCalls(): array
     {

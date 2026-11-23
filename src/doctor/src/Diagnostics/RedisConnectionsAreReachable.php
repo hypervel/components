@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
@@ -11,7 +12,6 @@ use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Doctor\Support\Details;
 use Hypervel\Support\Facades\Redis;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class RedisConnectionsAreReachable extends Diagnostic
@@ -53,9 +53,11 @@ class RedisConnectionsAreReachable extends Diagnostic
         foreach ($connections as $connection) {
             try {
                 Redis::connection($connection)->ping();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 $failures[$connection] = $e->getMessage();
             }
         }

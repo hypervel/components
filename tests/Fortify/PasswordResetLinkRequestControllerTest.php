@@ -12,7 +12,8 @@ use Hypervel\Support\Facades\Notification;
 use Hypervel\Support\Facades\Password;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Workbench\App\Models\User;
 use Workbench\Database\Factories\UserFactory;
 
@@ -21,6 +22,7 @@ use Workbench\Database\Factories\UserFactory;
 class PasswordResetLinkRequestControllerTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     public function testTheResetLinkRequestViewIsReturned(): void
     {
@@ -76,9 +78,9 @@ class PasswordResetLinkRequestControllerTest extends TestCase
     public function testResetLinkCanBeSuccessfullyRequestedWithCustomizedEmailField(): void
     {
         $this->app->make('config')->set('fortify.email', 'emailAddress');
-        Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
+        Password::shouldReceive('broker')->andReturn($broker = Double::for(PasswordBroker::class)->strict());
 
-        $broker->shouldReceive('sendResetLink')->once()->andReturn(Password::RESET_LINK_SENT);
+        $broker->expects('sendResetLink')->returns(Password::RESET_LINK_SENT);
 
         $response = $this->from(url('/forgot-password'))
             ->post('/forgot-password', ['emailAddress' => 'taylor@laravel.com']);

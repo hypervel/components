@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
 
 use Generator;
+use Hypervel\Ai\Messages\AssistantMessage;
+use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
@@ -21,19 +23,40 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextStreaming
 {
     /**
+     * Get the content of the paused steps the turn being continued is made of.
+     *
+     * @param array<int, Message> $messages
+     * @return array<int, array<string, mixed>>
+     */
+    protected function pausedContent(array $messages): array
+    {
+        /** @var Collection<int, AssistantMessage> $paused */
+        $paused = collect($messages)
+            ->reverse()
+            ->takeWhile(fn (Message $message): bool => $message instanceof AssistantMessage)
+            ->reverse();
+
+        return $paused->flatMap(fn (AssistantMessage $message): array => $message->replayBlocks)->all();
+    }
+
+    /**
      * Process a single Anthropic streaming turn and yield Hypervel stream events.
+     *
+     * @param array<int, array<string, mixed>> $pausedContent
      */
     protected function processTextStream(
         string $invocationId,
         Provider $provider,
         string $model,
         StreamInterface $streamBody,
+        array $pausedContent = [],
     ): Generator {
         $messageId = $this->generateEventId();
         $reasoningId = '';
@@ -53,9 +76,23 @@ trait HandlesTextStreaming
         $afterTool = false;
         $lastTextDelta = '';
 
+        // A turn resumed after pause_turn picks up where the paused content ended...
+        foreach ($pausedContent as $block) {
+            $blockType = $block['type'] ?? '';
+
+            if ($blockType === 'text' && ($block['text'] ?? '') !== '') {
+                $lastTextDelta = (string) $block['text'];
+                $afterTool = false;
+            } elseif ($this->isToolBlock($blockType)) {
+                $afterTool = true;
+            }
+        }
+
         $messageUsage = [];
         $usage = null;
         $stopReason = '';
+        $container = null;
+        $citedUrls = [];
 
         $emitTextStart = function () use (&$textStartEmitted, $messageId, $invocationId): ?StreamEvent {
             if ($textStartEmitted) {
@@ -82,6 +119,21 @@ trait HandlesTextStreaming
             return (new ReasoningStart(
                 $this->generateEventId(),
                 $reasoningId,
+                time(),
+            ))->withInvocationId($invocationId);
+        };
+
+        $emitCitation = function (UrlCitation $citation) use (&$citedUrls, $messageId, $invocationId): ?StreamEvent {
+            if (in_array($citation->url, $citedUrls, true)) {
+                return null;
+            }
+
+            $citedUrls[] = $citation->url;
+
+            return (new CitationEvent(
+                $this->generateEventId(),
+                $messageId,
+                $citation,
                 time(),
             ))->withInvocationId($invocationId);
         };
@@ -161,13 +213,9 @@ trait HandlesTextStreaming
                 } elseif ($this->isProviderToolResultBlock($blockType)) {
                     $fetchResult = $data['content_block']['content'] ?? [];
 
-                    if ($blockType === 'web_fetch_tool_result' && ($fetchResult['type'] ?? '') === 'web_fetch_result' && filled($fetchResult['url'] ?? null)) {
-                        yield (new CitationEvent(
-                            $this->generateEventId(),
-                            $messageId,
-                            new UrlCitation($fetchResult['url'], $fetchResult['content']['title'] ?? null),
-                            time(),
-                        ))->withInvocationId($invocationId);
+                    if ($blockType === 'web_fetch_tool_result' && ($fetchResult['type'] ?? '') === 'web_fetch_result' && filled($fetchResult['url'] ?? null)
+                        && ($event = $emitCitation(new UrlCitation($fetchResult['url'], $fetchResult['content']['title'] ?? null))) instanceof StreamEvent) {
+                        yield $event;
                     }
 
                     yield (new ProviderToolEvent(
@@ -235,13 +283,15 @@ trait HandlesTextStreaming
                 } elseif ($deltaType === 'citations_delta' && $currentBlockType === 'text') {
                     $citationData = $data['delta']['citation'] ?? null;
 
-                    if ($citationData && ($citationData['type'] ?? '') === 'web_search_result_location') {
-                        yield (new CitationEvent(
-                            $this->generateEventId(),
-                            $messageId,
-                            new UrlCitation($citationData['url'] ?? '', $citationData['title'] ?? null),
-                            time(),
-                        ))->withInvocationId($invocationId);
+                    // Unlike upstream, the citation is kept on its block, as in a buffered response,
+                    // so the step's citations and replay content include it.
+                    if ($citationData && isset($responseContent[$currentBlockIndex])) {
+                        $responseContent[$currentBlockIndex]['citations'][] = $citationData;
+                    }
+
+                    if ($citationData && ($citationData['type'] ?? '') === 'web_search_result_location'
+                        && ($event = $emitCitation(new UrlCitation($citationData['url'] ?? '', $citationData['title'] ?? null))) instanceof StreamEvent) {
+                        yield $event;
                     }
                 } elseif ($deltaType === 'input_json_delta') {
                     $partial = (string) ($data['delta']['partial_json'] ?? '');
@@ -323,6 +373,7 @@ trait HandlesTextStreaming
 
             if ($type === 'message_delta') {
                 $stopReason = $data['delta']['stop_reason'] ?? '';
+                $container = $data['delta']['container']['id'] ?? $container;
 
                 // Usage on message_delta is cumulative for the whole message...
                 $usage = $this->extractUsage(['usage' => array_merge($messageUsage, $data['usage'] ?? [])]);
@@ -358,6 +409,7 @@ trait HandlesTextStreaming
             usage: $usage ?? new TextUsage(0, 0),
             finishReason: $this->extractFinishReason(['stop_reason' => $stopReason]),
             structured: false,
+            container: $container,
         );
     }
 

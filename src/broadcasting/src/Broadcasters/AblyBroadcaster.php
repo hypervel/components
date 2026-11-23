@@ -7,22 +7,39 @@ namespace Hypervel\Broadcasting\Broadcasters;
 use Ably\AblyRest;
 use Ably\Exceptions\AblyException;
 use Ably\Models\Message as AblyMessage;
+use Ably\PubSub\Exceptions\AblyException as PubSubAblyException;
+use Ably\PubSub\Models\Message as PubSubMessage;
+use Ably\PubSub\PubSubHttpClient;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Str;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
+/**
+ * @template TClient of AblyRest|PubSubHttpClient = AblyRest
+ */
 class AblyBroadcaster extends Broadcaster
 {
     /**
+     * The Ably SDK instance.
+     *
+     * @var TClient
+     */
+    protected AblyRest|PubSubHttpClient $ably;
+
+    /**
      * Create a new broadcaster instance.
+     *
+     * @param AblyRest&TClient $ably
      */
     public function __construct(
         protected Container $container,
-        protected AblyRest $ably,
+        AblyRest $ably,
     ) {
+        $this->ably = $ably;
     }
 
     /**
@@ -34,7 +51,7 @@ class AblyBroadcaster extends Broadcaster
     {
         $channelName = $request->input('channel_name');
 
-        if (empty($channelName)) {
+        if (! is_string($channelName) || empty($channelName)) {
             throw new AccessDeniedHttpException;
         }
 
@@ -130,7 +147,7 @@ class AblyBroadcaster extends Broadcaster
                     $message = $this->buildAblyMessage($event, $payload);
                     ConnectionResolver::releaseIdleConnections();
 
-                    /* @phpstan-ignore arguments.count, argument.type (Ably declares two @method publish() overloads and PHPStan keeps only the last; publish(...$args) accepts a Message as its sole argument.) */
+                    /* @phpstan-ignore arguments.count (PHPStan keeps only the last of Ably's two @method publish() overloads; publish(...$args) accepts a sole Message), argument.type (the same overload limitation) */
                     $channel->publish($message);
                 } finally {
                     if ($channel->getCipherParams() === null) {
@@ -138,7 +155,7 @@ class AblyBroadcaster extends Broadcaster
                     }
                 }
             }
-        } catch (AblyException $e) {
+        } catch (AblyException|PubSubAblyException $e) {
             throw new BroadcastException(
                 sprintf('Ably error: %s', $e->getMessage())
             );
@@ -148,7 +165,7 @@ class AblyBroadcaster extends Broadcaster
     /**
      * Build an Ably message object for broadcasting.
      */
-    protected function buildAblyMessage(string $event, array $payload = []): AblyMessage
+    protected function buildAblyMessage(string $event, array $payload = []): AblyMessage|PubSubMessage
     {
         return tap(new AblyMessage, function ($message) use ($event, $payload) {
             $message->name = $event;
@@ -213,8 +230,10 @@ class AblyBroadcaster extends Broadcaster
 
     /**
      * Get the underlying Ably SDK instance.
+     *
+     * @return TClient
      */
-    public function getAbly(): AblyRest
+    public function getAbly(): AblyRest|PubSubHttpClient
     {
         return $this->ably;
     }
@@ -222,10 +241,13 @@ class AblyBroadcaster extends Broadcaster
     /**
      * Set the underlying Ably SDK instance.
      *
-     * Boot or tests only. Replaces the SDK client on this worker-cached broadcaster;
-     * per-request mutation races across coroutines.
+     * Replaces the SDK client on this worker-cached broadcaster; per-request
+     * mutation races across coroutines.
+     *
+     * @param TClient $ably
      */
-    public function setAbly(AblyRest $ably): void
+    #[BootOrTestsOnly(whenShared: true)]
+    public function setAbly(AblyRest|PubSubHttpClient $ably): void
     {
         $this->ably = $ably;
     }

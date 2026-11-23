@@ -13,10 +13,13 @@ use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Factory implements FactoryContract
@@ -125,6 +128,25 @@ class Factory implements FactoryContract
         return tap($this->viewInstance($path, $path, $data), function ($view) {
             $this->callCreator($view);
         });
+    }
+
+    /**
+     * Create a view for a source file that will be deleted after rendering.
+     *
+     * The view name must already be normalized. The path is unique to one render,
+     * so it is not kept in the engine cache.
+     *
+     * @internal
+     */
+    public function makeFromTemporaryFile(string $view, string $path, Arrayable|array $data = []): ViewContract
+    {
+        try {
+            return tap($this->viewInstance($view, $path, $this->parseData($data)), function ($view) {
+                $this->callCreator($view);
+            });
+        } finally {
+            unset($this->pathEngineCache[$path]);
+        }
     }
 
     /**
@@ -288,9 +310,10 @@ class Factory implements FactoryContract
     /**
      * Add a piece of shared data to the environment.
      *
-     * Boot-only. Shared data persists on the singleton factory for the worker
-     * lifetime and is visible to every request handled by that worker.
+     * Shared data persists on the singleton factory for the worker lifetime
+     * and is visible to every request handled by that worker.
      */
+    #[BootOnly(whenShared: true)]
     public function share(array|string $key, mixed $value = null): mixed
     {
         $keys = is_array($key) ? $key : [$key => $value];
@@ -325,10 +348,11 @@ class Factory implements FactoryContract
     /**
      * Register a pre-render observer.
      *
-     * Boot-only. The observer is called before each view's engine executes,
-     * receiving the View instance. Observers persist for the worker lifetime
-     * on this singleton.
+     * The observer is called before each view's engine executes, receiving
+     * the View instance. Observers persist for the worker lifetime on this
+     * singleton.
      */
+    #[BootOnly(whenShared: true)]
     public function observeRendering(callable $observer): void
     {
         $this->renderingObservers[] = $observer;
@@ -347,10 +371,11 @@ class Factory implements FactoryContract
     /**
      * Register a post-render observer.
      *
-     * Boot-only. The observer is called after each view's engine completes,
-     * receiving the View instance and any ordinary rendering failure. Observers
+     * The observer is called after each view's engine completes, receiving
+     * the View instance and any rendering failure or cancellation. Observers
      * persist for the worker lifetime on this singleton.
      */
+    #[BootOnly(whenShared: true)]
     public function observeRendered(callable $observer): void
     {
         $this->renderedObservers[] = $observer;
@@ -366,6 +391,10 @@ class Factory implements FactoryContract
 
     /**
      * Notify post-render observers that a view finished rendering.
+     *
+     * Every observer is notified, so each one that started can finish; a later
+     * observer's cancellation takes precedence over an earlier failure, and a
+     * displaced observer failure is reported.
      */
     public function notifyRendered(ViewContract $view, ?Throwable $exception): void
     {
@@ -374,10 +403,11 @@ class Factory implements FactoryContract
         foreach ($this->renderedObservers as $observer) {
             try {
                 $observer($view, $exception);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
-                $observerException ??= $throwable;
+                // An observer that rethrows the rendering failure adds none; the renderer throws it.
+                if ($throwable !== $exception) {
+                    $observerException = FailureReporter::preferCancellation($observerException, $throwable);
+                }
             }
         }
 
@@ -428,9 +458,10 @@ class Factory implements FactoryContract
     /**
      * Add a location to the array of view locations.
      *
-     * Boot-only. The location persists on the singleton view finder for the
-     * worker lifetime and affects every subsequent request.
+     * The location persists on the shared factory's finder for the worker
+     * lifetime and affects every subsequent request.
      */
+    #[BootOnly(whenShared: true)]
     public function addLocation(string $location): void
     {
         $this->finder->addLocation($location);
@@ -439,9 +470,10 @@ class Factory implements FactoryContract
     /**
      * Prepend a location to the array of view locations.
      *
-     * Boot-only. The location persists on the singleton view finder for the
-     * worker lifetime and affects every subsequent request.
+     * The location persists on the shared factory's finder for the worker
+     * lifetime and affects every subsequent request.
      */
+    #[BootOnly(whenShared: true)]
     public function prependLocation(string $location): void
     {
         $this->finder->prependLocation($location);
@@ -450,9 +482,12 @@ class Factory implements FactoryContract
     /**
      * Add a new namespace to the loader.
      *
-     * Boot-only. The namespace persists on the singleton view finder for the
-     * worker lifetime and affects every subsequent request.
+     * The namespace persists on the shared factory's finder for the worker
+     * lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function addNamespace(string $namespace, string|array $hints): static
     {
         $this->finder->addNamespace($namespace, $hints);
@@ -463,9 +498,12 @@ class Factory implements FactoryContract
     /**
      * Prepend a new namespace to the loader.
      *
-     * Boot-only. The namespace persists on the singleton view finder for the
-     * worker lifetime and affects every subsequent request.
+     * The namespace persists on the shared factory's finder for the worker
+     * lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function prependNamespace(string $namespace, string|array $hints): static
     {
         $this->finder->prependNamespace($namespace, $hints);
@@ -476,9 +514,12 @@ class Factory implements FactoryContract
     /**
      * Replace the namespace hints for the given namespace.
      *
-     * Boot-only. The namespace persists on the singleton view finder for the
-     * worker lifetime and affects every subsequent request.
+     * The namespace persists on the shared factory's finder for the worker
+     * lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function replaceNamespace(string $namespace, string|array $hints): static
     {
         $this->finder->replaceNamespace($namespace, $hints);
@@ -489,9 +530,12 @@ class Factory implements FactoryContract
     /**
      * Register a valid view extension and its engine.
      *
-     * Boot-only. The extension persists on the singleton Factory and engine
-     * resolver for the worker lifetime and affects every subsequent request.
+     * On the shared factory, the extension persists for the worker lifetime and
+     * affects every subsequent request. A given resolver is also registered on
+     * the engine resolver, which cloned factories share and which is usually the
+     * application's worker-shared resolver.
      */
+    #[BootOnly(whenShared: true)]
     public function addExtension(string $extension, string $engine, ?Closure $resolver = null): void
     {
         $this->finder->addExtension($extension);
@@ -559,10 +603,10 @@ class Factory implements FactoryContract
     /**
      * Set the view finder instance.
      *
-     * Boot or tests only. Swaps the finder on the singleton View Factory used
-     * by every coroutine; per-request use races and changes resolution for all
-     * concurrent renders.
+     * Swaps the finder on the singleton View Factory used by every coroutine;
+     * per-request use races and changes resolution for all concurrent renders.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setFinder(ViewFinderInterface $finder): void
     {
         $this->finder = $finder;
@@ -570,9 +614,6 @@ class Factory implements FactoryContract
 
     /**
      * Flush the cache of views located by the finder.
-     *
-     * Boot or tests only. Clears the singleton finder's path cache shared
-     * across all coroutines.
      */
     public function flushFinderCache(): void
     {
@@ -590,10 +631,10 @@ class Factory implements FactoryContract
     /**
      * Set the event dispatcher instance.
      *
-     * Tests only. Swaps the dispatcher on the singleton View Factory used by
-     * every coroutine; per-request use races and breaks every concurrent view
-     * event.
+     * Swaps the dispatcher on the singleton View Factory used by every coroutine;
+     * per-request use races and breaks every concurrent view event.
      */
+    #[TestsOnly(whenShared: true)]
     public function setDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
@@ -610,10 +651,10 @@ class Factory implements FactoryContract
     /**
      * Set the IoC container instance.
      *
-     * Tests only. Swaps the container on the singleton View Factory used by
-     * every coroutine; per-request use races and breaks every concurrent
-     * view resolution.
+     * Swaps the container on the singleton View Factory used by every coroutine;
+     * per-request use races and breaks every concurrent view resolution.
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): void
     {
         $this->container = $container;

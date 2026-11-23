@@ -10,7 +10,7 @@ use Hypervel\Horizon\Listeners\UpdateJobMetrics;
 use Hypervel\Horizon\Stopwatch;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use RuntimeException;
 
 class UpdateJobMetricsTest extends UnitTestCase
@@ -18,13 +18,13 @@ class UpdateJobMetricsTest extends UnitTestCase
     public function testQueueMetricFailureStillReleasesTheStopwatchEntry(): void
     {
         $exception = new RuntimeException('queue metrics failed');
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('incrementQueue')->once()->with('critical', 1.5)->andThrow($exception);
-        $metrics->shouldNotReceive('incrementJob');
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->expects('incrementQueue')->with('critical', 1.5)->throws($exception);
+        $metrics->expects('incrementJob')->never();
 
-        $watch = m::mock(Stopwatch::class);
-        $watch->shouldReceive('check')->once()->with('job-id')->andReturn(1.5);
-        $watch->shouldReceive('forget')->once()->with('job-id');
+        $watch = Double::for(Stopwatch::class)->strict();
+        $watch->expects('check')->with('job-id')->returns(1.5);
+        $watch->expects('forget')->with('job-id');
 
         try {
             (new UpdateJobMetrics($metrics, $watch))->handle($this->event());
@@ -37,13 +37,13 @@ class UpdateJobMetricsTest extends UnitTestCase
     public function testJobMetricFailureStillReleasesTheStopwatchEntry(): void
     {
         $exception = new RuntimeException('job metrics failed');
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('incrementQueue')->once()->with('critical', 1.5);
-        $metrics->shouldReceive('incrementJob')->once()->with('ExampleJob', 1.5)->andThrow($exception);
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->expects('incrementQueue')->with('critical', 1.5);
+        $metrics->expects('incrementJob')->with('ExampleJob', 1.5)->throws($exception);
 
-        $watch = m::mock(Stopwatch::class);
-        $watch->shouldReceive('check')->once()->with('job-id')->andReturn(1.5);
-        $watch->shouldReceive('forget')->once()->with('job-id');
+        $watch = Double::for(Stopwatch::class)->strict();
+        $watch->expects('check')->with('job-id')->returns(1.5);
+        $watch->expects('forget')->with('job-id');
 
         try {
             (new UpdateJobMetrics($metrics, $watch))->handle($this->event());
@@ -55,9 +55,9 @@ class UpdateJobMetricsTest extends UnitTestCase
 
     private function event(): JobDeleted
     {
-        $job = m::mock(RedisJob::class);
-        $job->shouldReceive('hasFailed')->once()->andReturnFalse();
-        $job->shouldReceive('getQueue')->once()->andReturn('critical');
+        $job = Double::for(RedisJob::class)->strict();
+        $job->expects('hasFailed')->returns(false);
+        $job->expects('getQueue')->returns('critical');
 
         return new JobDeleted(
             $job,

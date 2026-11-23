@@ -11,7 +11,6 @@ use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Files\ProviderImage;
 use Hypervel\Ai\Files\RemoteImage;
-use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\GeneratedImage;
 use Hypervel\Ai\Responses\Data\ImageUsage;
@@ -23,7 +22,7 @@ use InvalidArgumentException;
 class XaiImageGateway implements ImageGateway
 {
     use Concerns\CreatesXaiClient;
-    use HandlesFailoverErrors;
+    use Concerns\HandlesXaiErrors;
 
     /**
      * Generate an image.
@@ -66,16 +65,16 @@ class XaiImageGateway implements ImageGateway
                 ->post($attachments === [] ? 'images/generations' : 'images/edits', $body)
         );
 
-        $response = $response->json();
+        $data = $response->json();
 
-        return new ImageResponse(
-            collect($response['data'] ?? [])->map(fn (array $image): GeneratedImage => new GeneratedImage(
+        return (new ImageResponse(
+            collect($data['data'] ?? [])->map(fn (array $image): GeneratedImage => new GeneratedImage(
                 $image['b64_json'] ?? '',
                 $image['mime_type'] ?? 'image/jpeg',
             )),
             new ImageUsage,
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**

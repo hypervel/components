@@ -1,0 +1,220 @@
+attributeServicesDirectories:
+    - src
+
+parameters:
+    universalObjectCratesClasses:
+        - Hypervel\Http\Request
+        - Hypervel\Support\Optional
+    # abort() and dd() declare native never returns, so they need no earlyTerminatingFunctionCalls entries.
+    mixinExcludeClasses:
+        - Eloquent
+    bootstrapFiles:
+        - bootstrap.php
+    reportIgnoresWithoutComments: true
+    # checkOctaneCompatibility is omitted: the worker-lifetime checks below replace the Octane rule.
+    noEnvCallsOutsideOfConfig: true
+    noModelMake: true
+    noImplicitQueryBuilderCall: false
+    noUnnecessaryCollectionCall: true
+    noUnnecessaryCollectionCallOnly: []
+    noUnnecessaryCollectionCallExcept: []
+    noUnnecessaryEnumerableToArrayCalls: true
+    squashedMigrationsPath: []
+    databaseMigrationsPath: []
+    migrationConnections: []
+    disableMigrationScan: false
+    disableSchemaScan: false
+    configDirectories: []
+    viewDirectories: []
+    translationDirectories: []
+    checkModelProperties: true
+    checkUnusedViews: false
+    checkMissingTranslations: true
+    checkModelAppends: true
+    checkModelMethodVisibility: true
+    checkConfigTypes: true
+    checkAuthCallsWhenInRequestScope: false
+    parseModelCastsMethod: true
+    enableMigrationCache: true
+    checkUniqueJobUniqueFor: false
+    checkUniqueJobUniqueId: true
+    noBatchedUniqueJob: true
+    checkJobSerializesModels: true
+    checkBatchedJobIsBatchable: true
+    checkBatchableJobChecksCancellation: false
+    checkDispatchInTransactionAfterCommit: true
+    checkCancellationHandling: true
+    checkCancellationPrecedence: true
+    checkWorkerSharedState: true
+    checkStaticStateMutation: true
+    checkUnboundedWorkerCaches: true
+    noRuntimeConfigMutation: true
+    checkRestrictedCalls: true
+    noCoroutinesInTransactions: true
+    checkBorrowedResources: true
+    checkManagedTransactions: true
+    noNativeRequestApis: true
+    checkDiscardedDates: true
+    noMutableDates: true
+    checkConfigEnvCasts: true
+    checkTypedConfigGetters: true
+    checkObserverAttributes: true
+    # Off by default: existing migrations should not be edited.
+    checkMigrationColumnTypes: false
+    checkBindingCycles: true
+    noRawCoroutines: true
+    checkSocialiteProviders: true
+    checkSwooleTables: true
+    checkBindWhenConditions: true
+    noRawSleepCalls: true
+    noLegacyModelScopes: true
+    noLegacyModelProperties: true
+    noLegacyQueueProperties: true
+    noPipeSeparatedValidationRules: true
+    checkRedisConnectionBoundMethods: true
+    # Builder macros added by model traits' global scopes: trait => interface declaring the macros.
+    eloquentBuilderMacros:
+        Hypervel\Database\Eloquent\SoftDeletes: Hypervel\PHPStan\Methods\Macros\SoftDeletingMacros
+        Hypervel\Scout\Searchable: Hypervel\PHPStan\Methods\Macros\SearchableMacros
+
+parametersSchema:
+    noEnvCallsOutsideOfConfig: bool()
+    noModelMake: bool()
+    noImplicitQueryBuilderCall: bool()
+    noUnnecessaryCollectionCall: bool()
+    noUnnecessaryCollectionCallOnly: listOf(string())
+    noUnnecessaryCollectionCallExcept: listOf(string())
+    noUnnecessaryEnumerableToArrayCalls: bool()
+    databaseMigrationsPath: listOf(string())
+    migrationConnections: arrayOf(string(), string())
+    disableMigrationScan: bool()
+    configDirectories: listOf(string())
+    viewDirectories: listOf(string())
+    translationDirectories: listOf(string())
+    squashedMigrationsPath: listOf(string())
+    disableSchemaScan: bool()
+    checkModelProperties: bool()
+    checkUnusedViews: bool()
+    checkMissingTranslations: bool()
+    checkModelAppends: bool()
+    checkModelMethodVisibility: bool()
+    checkConfigTypes: bool()
+    checkAuthCallsWhenInRequestScope: bool()
+    parseModelCastsMethod: bool()
+    enableMigrationCache: bool()
+    checkUniqueJobUniqueFor: bool()
+    checkUniqueJobUniqueId: bool()
+    noBatchedUniqueJob: bool()
+    checkJobSerializesModels: bool()
+    checkBatchedJobIsBatchable: bool()
+    checkBatchableJobChecksCancellation: bool()
+    checkDispatchInTransactionAfterCommit: bool()
+    checkCancellationHandling: bool()
+    checkCancellationPrecedence: bool()
+    checkWorkerSharedState: bool()
+    checkStaticStateMutation: bool()
+    checkUnboundedWorkerCaches: bool()
+    noRuntimeConfigMutation: bool()
+    checkRestrictedCalls: bool()
+    noCoroutinesInTransactions: bool()
+    checkBorrowedResources: bool()
+    checkManagedTransactions: bool()
+    noNativeRequestApis: bool()
+    checkDiscardedDates: bool()
+    noMutableDates: bool()
+    checkConfigEnvCasts: bool()
+    checkTypedConfigGetters: bool()
+    checkObserverAttributes: bool()
+    checkMigrationColumnTypes: bool()
+    checkBindingCycles: bool()
+    noRawCoroutines: bool()
+    checkSocialiteProviders: bool()
+    checkSwooleTables: bool()
+    checkBindWhenConditions: bool()
+    noRawSleepCalls: bool()
+    noLegacyModelScopes: bool()
+    noLegacyModelProperties: bool()
+    noLegacyQueueProperties: bool()
+    noPipeSeparatedValidationRules: bool()
+    checkRedisConnectionBoundMethods: bool()
+    eloquentBuilderMacros: arrayOf(string(), string())
+
+services:
+    # Upstream's ContainerArrayAccessDynamicMethodReturnTypeExtension entries are omitted: the container has no ArrayAccess.
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: 'abort'
+            negate: false
+
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: 'abort'
+            negate: true
+
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: throw
+            negate: false
+
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: throw
+            negate: true
+
+    # The contract also covers the concrete application, so upstream's second entry is omitted.
+    -
+        class: Hypervel\PHPStan\ReturnTypes\AppEnvironmentReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicMethodReturnTypeExtension
+        arguments:
+            class: "Hypervel\\Contracts\\Foundation\\Application"
+
+    -
+        class: Hypervel\PHPStan\ReturnTypes\FormRequestSafeDynamicMethodReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicMethodReturnTypeExtension
+        arguments:
+            class: "Hypervel\\Foundation\\Http\\FormRequest"
+
+    -
+        class: Hypervel\PHPStan\ReturnTypes\FormRequestSafeDynamicMethodReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicMethodReturnTypeExtension
+        arguments:
+            class: "Hypervel\\Contracts\\Validation\\Validator"
+
+    -
+        class: Hypervel\PHPStan\Rules\CheckDispatchArgumentTypesCompatibleWithClassConstructorRule
+        arguments:
+            dispatchableClass: Hypervel\Foundation\Bus\Dispatchable
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Hypervel\PHPStan\Rules\CheckDispatchArgumentTypesCompatibleWithClassConstructorRule
+        arguments:
+            dispatchableClass: Hypervel\Foundation\Events\Dispatchable
+        tags:
+            - phpstan.rules.rule
+
+    -
+        class: Hypervel\Filesystem\Filesystem
+        autowired: self
+
+    migrationsParser:
+        class: PHPStan\Parser\CachedParser
+        arguments:
+            originalParser: @currentPhpVersionSimpleDirectParser
+            cachedNodesByStringCountMax: %cache.nodesByStringCountMax%
+        autowired: false

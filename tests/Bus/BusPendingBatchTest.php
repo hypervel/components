@@ -13,17 +13,114 @@ use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class BusPendingBatchTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    #[TestWith(['deletion failure'])]
+    #[TestWith(['after response'])]
+    #[TestWith(['reporting'])]
+    public function testBeforeCallbackCancellationStopsBatchDispatch(string $scenario): void
+    {
+        $deleteThrows = $scenario === 'deletion failure';
+        $reporting = $scenario === 'reporting';
+        $cancellation = new CanceledException;
+        $failure = $scenario === 'direct' ? $cancellation : new RuntimeException('Before cleanup failed.', previous: $cancellation);
+        $container = new Container;
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = Double::for(Batch::class)->strict();
+        $batch->id = 'batch';
+        $batch->expects('add')->never();
+        $repository->expects('store')->returns($batch);
+        $deletionFailure = new RuntimeException('Batch deletion failed.');
+        $deletion = $repository->expects('delete')->with('batch');
+        $deleteThrows ? $deletion->throws($deletionFailure) : $deletion->returns(null);
+        $container->instance(BatchRepository::class, $repository);
+        if ($reporting) {
+            $handler = Double::for(ExceptionHandler::class)->strict();
+            $handler->expects('report')->throws($failure);
+            $container->instance(ExceptionHandler::class, $handler);
+            Container::setInstance($container);
+        }
+        $callbackFailure = $reporting ? new RuntimeException('Before callback failed.') : $failure;
+        $pending = (new PendingBatch($container, new Collection))->before(static fn () => throw $callbackFailure);
+        $caught = null;
+
+        try {
+            $scenario === 'after response' ? $pending->dispatchAfterResponse() : $pending->dispatch();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($deleteThrows ? $deletionFailure : $failure, $caught);
+        if ($deleteThrows) {
+            $this->assertSame($failure, $caught->getPrevious());
+        }
+    }
+
+    #[TestWith([false], 'new batch')]
+    #[TestWith([true], 'stored batch')]
+    public function testDeletionFailureRetainsDispatchCancellation(bool $stored): void
+    {
+        $cancellation = new CanceledException;
+        $cleanup = new RuntimeException('Batch deletion failed.');
+        $container = new Container;
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = Double::for(Batch::class)->strict();
+        $batch->id = 'batch';
+        $batch->expects('add')->throws($cancellation);
+        $container->instance(BatchRepository::class, $repository);
+
+        if ($stored) {
+            $batch->expects('delete')->throws($cleanup);
+        } else {
+            $repository->expects('store')->returns($batch);
+            $repository->expects('delete')->with('batch')->throws($cleanup);
+        }
+
+        $pending = new class($container, new Collection) extends PendingBatch {
+            /**
+             * Exercise the same stored-batch dispatch used after a response.
+             */
+            public function dispatchStored(Batch $batch): void
+            {
+                $this->dispatchExistingBatch($batch);
+            }
+        };
+        $caught = null;
+
+        try {
+            $stored ? $pending->dispatchStored($batch) : $pending->dispatch();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cleanup, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
     public function testPendingBatchNormalizesEnumConnectionAndQueueIdentifiers(): void
     {
         $job = new class {
@@ -53,9 +150,9 @@ class BusPendingBatchTest extends TestCase
             ->onConnection(PendingBatchIntegerIdentifier::Zero)
             ->onQueue(PendingBatchIntegerIdentifier::Zero);
 
-        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher = Double::for(QueueingDispatcher::class)->strict();
         $dispatcher->expects('batch')
-            ->andReturnUsing(fn (Collection $jobs): PendingBatch => new PendingBatch($container, $jobs));
+            ->resolves(fn (Collection $jobs): PendingBatch => new PendingBatch($container, $jobs));
         $container->instance(BusDispatcher::class, $dispatcher);
 
         $pendingBatch = (new ChainedBatch($source))->toPendingBatch();
@@ -78,9 +175,9 @@ class BusPendingBatchTest extends TestCase
             ->onConnection('0')
             ->onQueue('0');
 
-        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher = Double::for(QueueingDispatcher::class)->strict();
         $dispatcher->expects('batch')
-            ->andReturnUsing(fn (Collection $jobs): PendingBatch => new PendingBatch($container, $jobs));
+            ->resolves(fn (Collection $jobs): PendingBatch => new PendingBatch($container, $jobs));
         $container->instance(BusDispatcher::class, $dispatcher);
 
         $pendingBatch = $chainedBatch->toPendingBatch();
@@ -102,9 +199,9 @@ class BusPendingBatchTest extends TestCase
             ->onConnection('')
             ->onQueue('');
 
-        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher = Double::for(QueueingDispatcher::class)->strict();
         $dispatcher->expects('batch')
-            ->andReturnUsing(fn (Collection $jobs): PendingBatch => new PendingBatch($container, $jobs));
+            ->resolves(fn (Collection $jobs): PendingBatch => new PendingBatch($container, $jobs));
         $container->instance(BusDispatcher::class, $dispatcher);
 
         $pendingBatch = (new ChainedBatch($source))->toPendingBatch();
@@ -129,13 +226,8 @@ class BusPendingBatchTest extends TestCase
             $chainedBatch->chainConnection = 'chain-connection';
             $chainedBatch->chainQueue = 'chain-queue';
 
-            $dispatcher = m::mock(BusDispatcher::class);
-            $dispatcher->expects('dispatch')->with(m::on(function (ChainedBatchQueueableJob $job) use ($expectedConnection, $expectedQueue): bool {
-                $this->assertSame($expectedConnection, $job->connection);
-                $this->assertSame($expectedQueue, $job->queue);
-
-                return true;
-            }));
+            $dispatcher = Double::for(BusDispatcher::class)->strict();
+            $dispatcher->expects('dispatch')->with(Argument::capture($job));
             $container->instance(BusDispatcher::class, $dispatcher);
 
             $pendingBatch = $chainedBatch->attachRemainder(
@@ -145,10 +237,43 @@ class BusPendingBatchTest extends TestCase
             $callbacks = $pendingBatch->finallyCallbacks();
             $this->assertCount(1, $callbacks);
 
-            $batch = m::mock(Batch::class);
-            $batch->expects('cancelled')->andReturnFalse();
+            $batch = Double::for(Batch::class)->strict();
+            $batch->expects('cancelled')->returns(false);
             $callbacks[0]($batch);
+
+            $this->assertInstanceOf(ChainedBatchQueueableJob::class, $job);
+            $this->assertSame($expectedConnection, $job->connection);
+            $this->assertSame($expectedQueue, $job->queue);
         }
+    }
+
+    public function testChainedBatchRemainderKeepsJobAttributesOverChainDefaults(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+
+        $sourceJob = new BatchableJob;
+        $chainedBatch = new TestableChainedBatch(new PendingBatch($container, new Collection([$sourceJob])));
+        $chainedBatch->chain([new AttributedChainedBatchQueueableJob]);
+        $chainedBatch->chainConnection = 'chain-connection';
+        $chainedBatch->chainQueue = 'chain-queue';
+
+        $dispatcher = Double::for(BusDispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->with(Argument::capture($job));
+        $container->instance(BusDispatcher::class, $dispatcher);
+
+        $callbacks = $chainedBatch->attachRemainder(new PendingBatch($container, new Collection([$sourceJob])))
+            ->finallyCallbacks();
+
+        $batch = Double::for(Batch::class)->strict();
+        $batch->expects('cancelled')->returns(false);
+        $callbacks[0]($batch);
+
+        $this->assertInstanceOf(AttributedChainedBatchQueueableJob::class, $job);
+        $this->assertNull($job->connection);
+        $this->assertNull($job->queue);
+        $this->assertSame('chain-connection', $job->chainConnection);
+        $this->assertSame('chain-queue', $job->chainQueue);
     }
 
     public function testPendingBatchMayBeConfiguredAndDispatched(): void
@@ -179,11 +304,12 @@ class BusPendingBatchTest extends TestCase
         $this->assertArrayHasKey('extra-option', $pendingBatch->options);
         $this->assertSame(123, $pendingBatch->options['extra-option']);
 
-        $repository = m::mock(BatchRepository::class);
-        $storedBatch = m::mock(Batch::class);
-        $repository->expects('store')->with($pendingBatch)->andReturn($storedBatch);
-        $batch = m::mock(Batch::class);
-        $storedBatch->expects('add')->with(m::type(Collection::class))->andReturn($batch);
+        $repository = Double::for(BatchRepository::class)->strict();
+        $storedBatch = Double::for(Batch::class)->strict();
+        $repository->expects('store')->with(Argument::same($pendingBatch))->returns($storedBatch);
+        $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
+        $storedBatch->expects('add')->with(Argument::type(Collection::class))->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);
 
@@ -196,9 +322,9 @@ class BusPendingBatchTest extends TestCase
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->andReturnFalse();
-        $eventDispatcher->shouldNotReceive('dispatch');
+        $eventDispatcher = Double::for(Dispatcher::class)->strict();
+        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->returns(false);
+        $eventDispatcher->expects('dispatch')->never();
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -207,10 +333,10 @@ class BusPendingBatchTest extends TestCase
 
         $pendingBatch = new PendingBatch($container, new Collection([$job]));
 
-        $repository = m::mock(BatchRepository::class);
-        $batch = m::mock(Batch::class);
-        $repository->expects('store')->with($pendingBatch)->andReturn($batch);
-        $batch->expects('add')->with(m::type(Collection::class))->andReturnSelf();
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = Double::for(Batch::class)->strict();
+        $repository->expects('store')->with(Argument::same($pendingBatch))->returns($batch);
+        $batch->expects('add')->with(Argument::type(Collection::class))->returns($batch);
         $container->instance(BatchRepository::class, $repository);
 
         $this->assertSame($batch, $pendingBatch->dispatch());
@@ -220,9 +346,9 @@ class BusPendingBatchTest extends TestCase
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->andReturnTrue();
-        $eventDispatcher->expects('dispatch')->with(m::type(BatchDispatched::class));
+        $eventDispatcher = Double::for(Dispatcher::class)->strict();
+        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->returns(true);
+        $eventDispatcher->expects('dispatch')->with(Argument::type(BatchDispatched::class));
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -231,10 +357,11 @@ class BusPendingBatchTest extends TestCase
 
         $pendingBatch = new PendingBatch($container, new Collection([$job]));
 
-        $repository = m::mock(BatchRepository::class);
-        $batch = m::mock(Batch::class);
-        $repository->expects('store')->with($pendingBatch)->andReturn($batch);
-        $batch->expects('add')->with(m::type(Collection::class))->andReturnSelf();
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
+        $repository->expects('store')->with(Argument::same($pendingBatch))->returns($batch);
+        $batch->expects('add')->with(Argument::type(Collection::class))->returns($batch);
         $container->instance(BatchRepository::class, $repository);
 
         $this->assertSame($batch, $pendingBatch->dispatchAfterResponse());
@@ -252,14 +379,14 @@ class BusPendingBatchTest extends TestCase
 
         $pendingBatch = new PendingBatch($container, new Collection([$job]));
 
-        $repository = m::mock(BatchRepository::class);
+        $repository = Double::for(BatchRepository::class)->strict();
 
-        $batch = m::mock(Batch::class);
-        $repository->expects('store')->with($pendingBatch)->andReturn($batch);
+        $batch = Double::for(Batch::class)->strict();
+        $repository->expects('store')->with(Argument::same($pendingBatch))->returns($batch);
 
         $batch->id = 'test-id';
 
-        $batch->expects('add')->andReturnUsing(function (): never {
+        $batch->expects('add')->resolves(function (): never {
             throw new RuntimeException('Failed to add jobs...');
         });
 
@@ -283,11 +410,12 @@ class BusPendingBatchTest extends TestCase
 
         $pendingBatch = new PendingBatch($container, new Collection([$job]));
 
-        $repository = m::mock(BatchRepository::class);
-        $storedBatch = m::mock(Batch::class);
-        $repository->expects('store')->andReturn($storedBatch);
-        $batch = m::mock(Batch::class);
-        $storedBatch->expects('add')->andReturn($batch);
+        $repository = Double::for(BatchRepository::class)->strict();
+        $storedBatch = Double::for(Batch::class)->strict();
+        $repository->expects('store')->returns($storedBatch);
+        $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
+        $storedBatch->expects('add')->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);
 
@@ -311,7 +439,7 @@ class BusPendingBatchTest extends TestCase
 
         $pendingBatch = new PendingBatch($container, new Collection([$job]));
 
-        $repository = m::mock(BatchRepository::class);
+        $repository = Double::for(BatchRepository::class)->strict();
         $container->instance(BatchRepository::class, $repository);
 
         $result = $pendingBatch->dispatchIf(false);
@@ -319,6 +447,7 @@ class BusPendingBatchTest extends TestCase
         $this->assertNull($result);
 
         $eventDispatcher->assertNothingDispatched();
+        $repository->unused();
     }
 
     public function testBatchIsDispatchedWhenDispatchunlessIsFalse(): void
@@ -334,11 +463,12 @@ class BusPendingBatchTest extends TestCase
 
         $pendingBatch = new PendingBatch($container, new Collection([$job]));
 
-        $repository = m::mock(BatchRepository::class);
-        $storedBatch = m::mock(Batch::class);
-        $repository->expects('store')->andReturn($storedBatch);
-        $batch = m::mock(Batch::class);
-        $storedBatch->expects('add')->andReturn($batch);
+        $repository = Double::for(BatchRepository::class)->strict();
+        $storedBatch = Double::for(Batch::class)->strict();
+        $repository->expects('store')->returns($storedBatch);
+        $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
+        $storedBatch->expects('add')->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);
 
@@ -362,7 +492,7 @@ class BusPendingBatchTest extends TestCase
 
         $pendingBatch = new PendingBatch($container, new Collection([$job]));
 
-        $repository = m::mock(BatchRepository::class);
+        $repository = Double::for(BatchRepository::class)->strict();
         $container->instance(BatchRepository::class, $repository);
 
         $result = $pendingBatch->dispatchUnless(true);
@@ -370,6 +500,7 @@ class BusPendingBatchTest extends TestCase
         $this->assertNull($result);
 
         $eventDispatcher->assertNothingDispatched();
+        $repository->unused();
     }
 
     public function testBatchBeforeEventIsCalled(): void
@@ -391,11 +522,12 @@ class BusPendingBatchTest extends TestCase
             $beforeCalled = true;
         })->onConnection('test-connection')->onQueue('test-queue');
 
-        $repository = m::mock(BatchRepository::class);
-        $storedBatch = m::mock(Batch::class);
-        $repository->expects('store')->with($pendingBatch)->andReturn($storedBatch);
-        $batch = m::mock(Batch::class);
-        $storedBatch->expects('add')->with(m::type(Collection::class))->andReturn($batch);
+        $repository = Double::for(BatchRepository::class)->strict();
+        $storedBatch = Double::for(Batch::class)->strict();
+        $repository->expects('store')->with(Argument::same($pendingBatch))->returns($storedBatch);
+        $batch = Double::for(Batch::class)->strict();
+        $batch->expects('loadMissingJobCounts')->returns($batch);
+        $storedBatch->expects('add')->with(Argument::type(Collection::class))->returns($batch);
 
         $container->instance(BatchRepository::class, $repository);
 
@@ -428,6 +560,21 @@ class BusPendingBatchTest extends TestCase
                 }]))]
             )
         );
+    }
+
+    public function testItThrowsExceptionIfChainedJobAfterClosureIsNotBatchable(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('does not use the Batchable trait');
+
+        new PendingBatch(new Container, new Collection([
+            [
+                function (): void {
+                },
+                new class {
+                },
+            ],
+        ]));
     }
 
     public function testItCanBatchAClosure(): void
@@ -597,6 +744,13 @@ class BatchableJob
 }
 
 class ChainedBatchQueueableJob
+{
+    use Queueable;
+}
+
+#[Connection('job-connection')]
+#[QueueAttribute('job-queue')]
+class AttributedChainedBatchQueueableJob
 {
     use Queueable;
 }

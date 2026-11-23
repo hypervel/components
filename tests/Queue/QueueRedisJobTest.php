@@ -4,31 +4,35 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use stdClass;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class QueueRedisJobTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFireProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
-        $handler = m::mock(stdClass::class);
-        $job->getContainer()->expects('make')->with('foo')->andReturn($handler);
-        $handler->expects('fire')->with($job, ['data']);
+        $handler = new RedisJobTestHandler;
+        $job->getContainer()->instance('foo', $handler);
 
         $job->fire();
+
+        $this->assertSame([[$job, ['data']]], $handler->fired);
     }
 
     public function testDeleteRemovesTheJobFromRedis(): void
     {
         $job = $this->getJob();
         $job->getRedisQueue()->expects('deleteReserved')
-            ->with('default', $job);
+            ->with('default', Argument::same($job));
 
         $job->delete();
     }
@@ -37,7 +41,7 @@ class QueueRedisJobTest extends TestCase
     {
         $job = $this->getJob();
         $job->getRedisQueue()->expects('deleteAndRelease')
-            ->with('default', $job, 1);
+            ->with('default', Argument::same($job), 1);
 
         $job->release(1);
     }
@@ -102,13 +106,26 @@ class QueueRedisJobTest extends TestCase
     protected function getJob(?string $payload = null, ?int $attempts = 2): RedisJob
     {
         return new RedisJob(
-            m::mock(Container::class),
-            m::mock(RedisQueue::class),
+            new Container,
+            Double::for(RedisQueue::class)->strict(),
             $payload ?? json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 1], JSON_THROW_ON_ERROR),
             json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 2], JSON_THROW_ON_ERROR),
             'connection-name',
             'default',
             $attempts,
         );
+    }
+}
+
+class RedisJobTestHandler
+{
+    public array $fired = [];
+
+    /**
+     * Record the invoked job handler.
+     */
+    public function fire(RedisJob $job, array $data): void
+    {
+        $this->fired[] = [$job, $data];
     }
 }

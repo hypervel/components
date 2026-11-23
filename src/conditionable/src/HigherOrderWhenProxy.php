@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+/**
+ * @template TTarget
+ * @template-covariant THasCondition of bool = false
+ */
 class HigherOrderWhenProxy
 {
     /**
@@ -23,6 +27,8 @@ class HigherOrderWhenProxy
 
     /**
      * Create a new proxy instance.
+     *
+     * @param TTarget $target
      */
     public function __construct(
         protected mixed $target,
@@ -31,16 +37,23 @@ class HigherOrderWhenProxy
 
     /**
      * Set the condition on the proxy.
+     *
+     * @return static<TTarget, true>
+     *
+     * @phpstan-self-out static<TTarget, true>
      */
     public function condition(mixed $condition): static
     {
         [$this->condition, $this->hasCondition] = [(bool) $condition, true];
 
+        // @phpstan-ignore return.type (the proxy now has a condition)
         return $this;
     }
 
     /**
      * Indicate that the condition should be negated.
+     *
+     * @return $this
      */
     public function negateConditionOnCapture(): static
     {

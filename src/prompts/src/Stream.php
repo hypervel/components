@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
+use Hypervel\Support\Attributes\Unsupported;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 class Stream extends Prompt
 {
+    use Concerns\RendersAnimations;
     use InteractsWithStrings;
 
     protected int $minWidth = 0;
@@ -36,7 +39,7 @@ class Stream extends Prompt
      */
     public function __construct()
     {
-        $this->direct = ! static::output()->isDecorated();
+        $this->direct = $this->shouldRenderStatically();
 
         if ($this->direct) {
             return;
@@ -85,6 +88,7 @@ class Stream extends Prompt
             while (count($this->currentlyFading) > 0) {
                 $this->message .= array_shift($this->currentlyFading);
                 $this->render();
+                // @phpstan-ignore hypervel.rawSleep (prompts does not depend on hypervel/support)
                 usleep(25_000);
             }
         } catch (Throwable $exception) {
@@ -94,7 +98,7 @@ class Stream extends Prompt
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         if ($failure !== null) {
@@ -137,6 +141,7 @@ class Stream extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use append() and close() instead.')]
     public function prompt(): mixed
     {
         throw new RuntimeException('Stream cannot be prompted');

@@ -13,7 +13,8 @@ use Hypervel\Testbench\Foundation\Actions\RefreshPackageDiscovery;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 use Hypervel\Testbench\Foundation\Bootstrap\CreateVendorSymlink;
 use Hypervel\Testbench\PHPUnit\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
@@ -26,6 +27,8 @@ use function Hypervel\Testbench\package_path;
 
 class CreateVendorSymlinkTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ?ApplicationContract $application = null;
 
     private bool $ownsVendorDirectory = false;
@@ -116,10 +119,10 @@ class CreateVendorSymlinkTest extends TestCase
         $workingPath = package_path('vendor');
         $application = $this->createApplication();
         (new DeleteVendorSymlink)->handle($application);
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('build')
-            ->once()
-            ->andThrow(new RuntimeException('Package discovery failed.'));
+        $manifest = Double::for(PackageManifest::class)->strict();
+        $manifest->manifestPath = $application->getCachedPackagesPath();
+        $manifest->expects('build')
+            ->throws(new RuntimeException('Package discovery failed.'));
         $application->instance(PackageManifest::class, $manifest);
 
         try {
@@ -161,14 +164,14 @@ class CreateVendorSymlinkTest extends TestCase
     #[RequiresOperatingSystem('Linux')]
     public function itReportsADeletionFailureThroughTheNamedException(): void
     {
-        $application = m::mock(ApplicationContract::class);
+        $application = Double::for(ApplicationContract::class, override: true)->strict();
         $vendorPath = '/proc/self/fd/0';
-        $application->shouldReceive('basePath')->once()->with('vendor')->andReturn($vendorPath);
+        $application->expects('basePath')->with('vendor')->returns($vendorPath);
         $this->assertTrue(is_link($vendorPath));
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs("Unable to remove vendor symlink [{$vendorPath}].");
 
-        (new DeleteVendorSymlink)->handle($application);
+        (new DeleteVendorSymlink)->handle($application->instance());
     }
 
     #[Test]
@@ -176,16 +179,14 @@ class CreateVendorSymlinkTest extends TestCase
     {
         $application = $this->createApplication();
         $filesystem = new Filesystem;
-        $cachedPath = $application->bootstrapPath('cache/packages.php');
-
-        if ($filesystem->exists($cachedPath)) {
-            $filesystem->delete($cachedPath);
-        }
+        // A custom path, as from APP_PACKAGES_CACHE, proves the manifest's own path is used.
+        $cachedPath = $application->bootstrapPath('cache/custom-packages.php');
 
         $filesystem->ensureDirectoryExists($cachedPath);
         $this->manifestDirectory = $cachedPath;
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldNotReceive('build');
+        $manifest = Double::for(PackageManifest::class)->strict();
+        $manifest->manifestPath = $cachedPath;
+        $manifest->expects('build')->never();
         $application->instance(PackageManifest::class, $manifest);
 
         $this->expectException(RuntimeException::class);

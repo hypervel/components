@@ -27,6 +27,7 @@ class PackageMetadataTest extends TestCase
         foreach ([
             'php',
             'ext-swoole',
+            'hypervel/attributes',
             'hypervel/collections',
             'hypervel/console',
             'hypervel/container',
@@ -34,6 +35,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/coordinator',
             'hypervel/core',
             'hypervel/database',
+            'hypervel/macroable',
             'hypervel/redis',
             'hypervel/support',
             'psr/log',

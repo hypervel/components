@@ -10,6 +10,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
@@ -19,13 +20,16 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 #[WithMigration]
 #[WithMigration('queue')]
 class WorkCommandTest extends QueueTestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Define the test environment.
      */
@@ -194,6 +198,9 @@ class WorkCommandTest extends QueueTestCase
         $this->assertTrue(SecondJob::$ran);
     }
 
+    // REMOVED: testWorkerFlushesStickyConnectionsByDefault and testWorkerCanOptOutOfFlushingStickyConnections.
+    // Daemon jobs always own independent routing state; WorkerResourceLifetimeTest covers the real pool.
+
     public function testDaemonWritesOutputFromJobCoroutine(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
@@ -295,12 +302,12 @@ class WorkCommandTest extends QueueTestCase
 
         Worker::$restartable = false;
 
-        $cache = m::mock(Repository::class);
-        $cache->shouldNotReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY);
-        $cache->expects('get')->with('illuminate:queues:paused', false)->andReturn(false);
-        $cache->expects('many')
+        $cache = Double::for(Repository::class)->strict();
+        $cache->expects('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->never();
+        $cache->expects('get')->with('illuminate:queues:paused', false)->returns(false);
+        $cache->expects('get')
             ->with(['illuminate:queue:paused:database:default'])
-            ->andReturn(['illuminate:queue:paused:database:default' => false]);
+            ->returns(['illuminate:queue:paused:database:default' => false]);
 
         Cache::expects('store')->twice()->andReturn($cache);
         Cache::shouldNotReceive('driver');
@@ -325,10 +332,9 @@ class WorkCommandTest extends QueueTestCase
 
         Worker::$pausable = false;
 
-        $cache = m::mock(Repository::class);
+        $cache = Double::for(Repository::class)->strict();
 
-        $cache->expects('get')->twice()->with(Worker::RESTART_SIGNAL_CACHE_KEY)->andReturn(null);
-        $cache->shouldNotReceive('many');
+        $cache->expects('get')->times(2)->with(Worker::RESTART_SIGNAL_CACHE_KEY)->returns(null);
 
         Cache::expects('store')->andReturn($cache);
         Cache::shouldNotReceive('driver');
@@ -360,6 +366,34 @@ class WorkCommandTest extends QueueTestCase
         $this->withoutMockingConsoleOutput()->artisan('queue:work', ['--once' => true]);
         Exceptions::assertNotReported(UniqueConstraintViolationException::class);
         $this->assertSame(2, substr_count(Artisan::output(), JobWillFail::class));
+    }
+
+    public function testReleasedJobIsWrittenAsReleased(): void
+    {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
+        Queue::push(new ReleasingJob);
+
+        $this->artisan('queue:work', [
+            '--once' => true,
+            '--memory' => 1024,
+        ])->expectsOutputToContain('RELEASED')
+            ->doesntExpectOutputToContain('DONE')
+            ->assertExitCode(0);
+    }
+
+    public function testManuallyFailedJobIsOnlyWrittenAsFailed(): void
+    {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
+        Queue::push(new ManuallyFailingJob);
+
+        $this->artisan('queue:work', [
+            '--once' => true,
+            '--memory' => 1024,
+        ])->expectsOutputToContain('FAIL')
+            ->doesntExpectOutputToContain('DONE')
+            ->assertExitCode(0);
     }
 
     public function testStopReasonIsWritten(): void
@@ -478,6 +512,36 @@ class ThirdJob implements ShouldQueue
         sleep(1);
 
         static::$ran = true;
+    }
+}
+
+class ReleasingJob implements ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    /**
+     * Release the job back onto the queue.
+     */
+    public function handle(): void
+    {
+        $this->release(30);
+    }
+}
+
+class ManuallyFailingJob implements ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    /**
+     * Mark the job as failed without throwing.
+     */
+    public function handle(): void
+    {
+        $this->fail('Manually failed.');
     }
 }
 

@@ -14,18 +14,22 @@ use Hypervel\Passport\Contracts\DeviceUserCodeViewResponse;
 use Hypervel\Passport\Http\Responses\SimpleViewResponse;
 use Hypervel\Passport\Passport;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class SimpleViewResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[TestWith(['viewNamespace', 'passport', 'passport::'])]
     #[TestWith(['viewPrefix', 'auth', 'auth.'])]
     #[TestWith(['viewPrefix', 'auth.', 'auth.'])]
     public function testConventionalViewsPreserveNamespacesAndDirectoryPrefixes(string $method, string $prefix, string $expectedPrefix): void
     {
         Passport::{$method}($prefix);
-        $factory = m::mock(ResponseFactory::class);
+        $factory = Double::for(ResponseFactory::class)->strict();
         $this->app->instance(ResponseFactory::class, $factory);
 
         foreach ([
@@ -34,7 +38,7 @@ class SimpleViewResponseTest extends TestCase
             DeviceUserCodeViewResponse::class => 'device.user-code',
         ] as $contract => $name) {
             $expected = new Response('Consent');
-            $factory->shouldReceive('view')->once()->with($expectedPrefix . $name, [])->andReturn($expected);
+            $factory->expects('view')->with($expectedPrefix . $name, [])->returns($expected);
 
             $this->assertSame($expected, $this->app->make($contract)->toResponse(Request::create('/')));
         }
@@ -43,8 +47,8 @@ class SimpleViewResponseTest extends TestCase
     public function testNamedViewsReceiveTheirParameters(): void
     {
         $expected = new Response('Consent');
-        $factory = m::mock(ResponseFactory::class);
-        $factory->shouldReceive('view')->once()->with('oauth.authorize', ['client' => 'example'])->andReturn($expected);
+        $factory = Double::for(ResponseFactory::class)->strict();
+        $factory->expects('view')->with('oauth.authorize', ['client' => 'example'])->returns($expected);
         $this->app->instance(ResponseFactory::class, $factory);
 
         $response = (new SimpleViewResponse('oauth.authorize'))->withParameters(['client' => 'example']);
@@ -56,8 +60,8 @@ class SimpleViewResponseTest extends TestCase
     {
         $request = Request::create('/oauth/authorize');
         $expected = new Response('Consent', 202, ['X-Consent' => 'pending']);
-        $responsable = m::mock(Responsable::class);
-        $responsable->shouldReceive('toResponse')->once()->with($request)->andReturn($expected);
+        $responsable = Double::for(Responsable::class)->strict();
+        $responsable->expects('toResponse')->with(Argument::same($request))->returns($expected);
         $response = new SimpleViewResponse(function (array $parameters) use ($responsable): Responsable {
             $this->assertSame(['client' => 'example'], $parameters);
 

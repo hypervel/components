@@ -18,6 +18,7 @@ use Hypervel\Head\Tags\TagBuilder;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaState;
 use Hypervel\Routing\Route;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -66,10 +67,11 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Define head tags rendered as server-owned tags on every Inertia document.
      *
-     * Boot-only. These tags are shared by every request in the worker.
+     * On the shared manager, these tags apply to every request in the worker.
      *
      * @param callable(HeadBuilder): mixed $callback
      */
+    #[BootOnly(whenShared: true)]
     public function inertiaGlobals(callable $callback): static
     {
         $this->inertiaGlobals = $this->inertiaGlobals->merge($this->define($callback));
@@ -80,10 +82,11 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Define default head data merged beneath every page's head.
      *
-     * Boot-only. These defaults are shared by every request in the worker.
+     * On the shared manager, these defaults apply to every request in the worker.
      *
      * @param callable(HeadBuilder): mixed $callback
      */
+    #[BootOnly(whenShared: true)]
     public function defaults(callable $callback): static
     {
         $this->defaults = $this->defaults->merge($this->define($callback)->asDefaults());
@@ -94,10 +97,11 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Resolve default head data from the current request context.
      *
-     * Boot-only. The callback is shared by every request in the worker.
+     * On the shared manager, the callback applies to every request in the worker.
      *
      * @param null|(Closure(HeadBuilder): mixed) $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveDefaultsUsing(?Closure $resolver): static
     {
         $this->defaultsResolver = $resolver;
@@ -108,10 +112,11 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Define head data for error pages.
      *
-     * Boot-only. These error definitions are shared by every request in the worker.
+     * On the shared manager, these error definitions apply to every request in the worker.
      *
      * @param callable(ErrorPages): mixed $callback
      */
+    #[BootOnly(whenShared: true)]
     public function errors(callable $callback): static
     {
         $callback($this->errorPages);
@@ -122,10 +127,11 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Resolve error head data from the current request context and status.
      *
-     * Boot-only. The callback is shared by every request in the worker.
+     * On the shared manager, the callback applies to every request in the worker.
      *
      * @param null|(Closure(HeadBuilder, int): mixed) $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveErrorsUsing(?Closure $resolver): static
     {
         $this->errorsResolver = $resolver;
@@ -136,10 +142,11 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Resolve the canonical origin from the current request context.
      *
-     * Boot-only. The callback persists in a static property and affects every request in the worker.
+     * The callback persists in a static property and affects every request in the worker.
      *
      * @param null|(Closure(): ?string) $resolver
      */
+    #[BootOnly]
     public function resolveCanonicalOriginUsing(?Closure $resolver): static
     {
         Canonical::resolveOriginUsing($resolver);
@@ -150,8 +157,9 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Customize the Inertia prop the head elements are shared under.
      *
-     * Boot-only. The prop name is shared by every request in the worker.
+     * On the shared manager, the prop name applies to every request in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function inertia(string $prop = self::INERTIA_PROP): static
     {
         $this->inertiaProp = $prop;
@@ -170,7 +178,8 @@ class HeadManager implements Arrayable, Htmlable
     /**
      * Register a custom tag builder to render on every head.
      *
-     * Boot-only. Registered builders affect every request in the worker.
+     * When the registry is the application's worker-shared registry, the builder
+     * affects every request in the worker.
      *
      * @param class-string<TagBuilder> $builder
      */
@@ -284,7 +293,8 @@ class HeadManager implements Arrayable, Htmlable
         $data = (new HeadData)->merge($this->defaults);
 
         if ($this->defaultsResolver !== null) {
-            $data = $data->merge($this->define($this->defaultsResolver)->asDefaults());
+            // Marked after merging, so runtime default media replaces the registered default media instead of joining it.
+            $data = $data->merge($this->define($this->defaultsResolver))->asDefaults();
         }
 
         if ($route = $this->route()) {
@@ -352,7 +362,7 @@ class HeadManager implements Arrayable, Htmlable
      */
     protected function state(): CurrentHead
     {
-        return $this->app->make(CurrentHead::class);
+        return $this->currentContainer()->make(CurrentHead::class);
     }
 
     /**
@@ -360,7 +370,17 @@ class HeadManager implements Arrayable, Htmlable
      */
     protected function request(): ?Request
     {
-        return $this->app->make('request');
+        return $this->currentContainer()->make('request');
+    }
+
+    /**
+     * Get the container handling the current request.
+     */
+    protected function currentContainer(): Container
+    {
+        // Unlike upstream, this is the injected container rather than Container::getInstance(): the worker keeps one
+        // container, CurrentHead is scoped per coroutine and the request comes from the coroutine's context.
+        return $this->app;
     }
 
     /**

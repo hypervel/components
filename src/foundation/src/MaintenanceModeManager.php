@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Foundation\MaintenanceMode;
 use Hypervel\Support\Manager;
 
+/**
+ * @mixin MaintenanceMode
+ */
 class MaintenanceModeManager extends Manager
 {
     /**

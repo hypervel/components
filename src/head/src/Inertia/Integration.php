@@ -10,6 +10,7 @@ use Hypervel\Head\HeadManager;
 use Hypervel\Head\Rendering\HeadRenderer;
 use Hypervel\Inertia\InertiaServiceProvider;
 use Hypervel\Inertia\Ssr\Gateway;
+use Hypervel\Support\Attributes\BootOnly;
 
 class Integration
 {
@@ -23,8 +24,9 @@ class Integration
     /**
      * Register Hypervel Head's optional Inertia integration.
      *
-     * Boot-only. Gateway bindings and middleware affect every request in the worker.
+     * Gateway bindings and middleware affect every request in the worker.
      */
+    #[BootOnly]
     public function register(): void
     {
         if ($this->app->getProviders(InertiaServiceProvider::class) === []) {

@@ -15,6 +15,7 @@ use Hypervel\Ai\Attributes\ConcurrentTools;
 use Hypervel\Ai\Attributes\RepairToolCalls;
 use Hypervel\Ai\Concerns\JoinsReasoning;
 use Hypervel\Ai\Contracts\Approvable;
+use Hypervel\Ai\Contracts\Gateway\ReplaysFullHistory;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\HasMiddleware;
 use Hypervel\Ai\Contracts\Providers\SupportsCodeExecution;
@@ -27,6 +28,7 @@ use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Exceptions\ApprovalMismatchException;
 use Hypervel\Ai\Exceptions\NoSuchToolException;
 use Hypervel\Ai\Exceptions\StreamErrorException;
+use Hypervel\Ai\Exceptions\ToolExecutionException;
 use Hypervel\Ai\Gateway\Concerns\HandlesToolApprovals;
 use Hypervel\Ai\Gateway\Concerns\InvokesTools;
 use Hypervel\Ai\Messages\AssistantMessage;
@@ -66,6 +68,7 @@ use Hypervel\Ai\Tools\Request;
 use Hypervel\Ai\Tools\ToolNameResolver;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
@@ -197,9 +200,12 @@ class TextGenerationLoop
 
                 $lastResult = $stepResult->response();
             } catch (Throwable $exception) {
-                $this->stepFailed($context, $attempt, $exception);
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure reporting throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $this->stepFailed($context, $attempt, $exception);
+                }
             }
 
             $prepared = $attempt->step ?? $pending;
@@ -236,7 +242,8 @@ class TextGenerationLoop
                 break;
             }
 
-            $continuationToken = $lastResult->continuationToken;
+            // Unlike upstream, a response to edited messages is not continued, since the provider stored the edited history the next step must not inherit. A gateway that replays the full history stores none.
+            $continuationToken = $this->gateway instanceof ReplaysFullHistory || $prepared->messages === $pending->messages ? $lastResult->continuationToken : null;
             $previous = $prepared;
         }
 
@@ -387,9 +394,12 @@ class TextGenerationLoop
                     $result->reasoning = ReasoningDelta::combine($reasoningDeltas);
                 }
             } catch (Throwable $exception) {
-                $this->stepFailed($context, $attempt, $exception);
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure reporting throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $this->stepFailed($context, $attempt, $exception);
+                }
             }
 
             // A provider may report an error in the stream itself rather than throwing, which still ends the step. The error event travels on the exception so its type and metadata are not lost...
@@ -460,7 +470,8 @@ class TextGenerationLoop
                 break;
             }
 
-            $continuationToken = $result->continuationToken;
+            // Unlike upstream, a response to edited messages is not continued, since the provider stored the edited history the next step must not inherit. A gateway that replays the full history stores none.
+            $continuationToken = $this->gateway instanceof ReplaysFullHistory || $prepared->messages === $pending->messages ? $result->continuationToken : null;
             $previous = $prepared;
         }
 
@@ -542,9 +553,12 @@ class TextGenerationLoop
         try {
             $source = $call($stepContext);
         } catch (Throwable $exception) {
-            $context?->stepFailed($stepContext, $exception, $this->elapsedMilliseconds($startedAt), $step->model);
-
-            throw $exception;
+            // Keep the original exception, including cancellation, as previous if failure reporting throws.
+            try {
+                throw $exception;
+            } finally {
+                $context?->stepFailed($stepContext, $exception, $this->elapsedMilliseconds($startedAt), $step->model);
+            }
         }
 
         return new StepResult($source, $step, $stepContext, $startedAt);
@@ -577,12 +591,14 @@ class TextGenerationLoop
      */
     protected function stepContextFor(PendingStep $step, ?PendingStep $previous, array $history, ?string $continuationToken): StepContext
     {
-        $unchanged = $step->messages === $history && $step->model === $previous?->model && $step->instructions === $previous->instructions;
+        // Unlike upstream, the token of a gateway that sends the full history every step, such as Anthropic's execution container, outlives changes to the step.
+        $reusable = $this->gateway instanceof ReplaysFullHistory
+            || ($step->messages === $history && $step->model === $previous?->model && $step->instructions === $previous->instructions);
 
         return new StepContext(
             stepNumber: $step->number,
             isFinalStep: $step->isFinalStep,
-            continuationToken: $unchanged ? $continuationToken : null,
+            continuationToken: $reusable ? $continuationToken : null,
         );
     }
 
@@ -753,11 +769,7 @@ class TextGenerationLoop
                     );
                 }
 
-                $events = $this->executeAgentToolStreaming($tool, $toolCall->arguments, $toolCall->id, $context);
-
-                yield from $this->preliminaryToolResults($events, $toolCall, $invocationId);
-
-                return $this->recordedToolResult($this->toolResult($toolCall, $events->getReturn()), $context);
+                return yield from $this->streamedAgentToolResult($tool, $toolCall, $invocationId, $context);
             }, $context);
 
             return [$results, $pendingApprovals];
@@ -775,14 +787,28 @@ class TextGenerationLoop
                 continue;
             }
 
-            $events = $this->executeAgentToolStreaming($tool, $toolCall->arguments, $toolCall->id, $context);
-
-            yield from $this->preliminaryToolResults($events, $toolCall, $invocationId);
-
-            $toolResults[] = $this->recordedToolResult($this->toolResult($toolCall, $events->getReturn()), $context);
+            $toolResults[] = yield from $this->streamedAgentToolResult($tool, $toolCall, $invocationId, $context);
         }
 
         return [$toolResults, $pendingApprovals];
+    }
+
+    /**
+     * Stream a sub-agent's output as preliminary results, then record its final or failed result.
+     *
+     * @return Generator<int, ToolResultEvent, mixed, ToolResult>
+     */
+    private function streamedAgentToolResult(AgentTool $tool, ToolCall $toolCall, string $invocationId, ?RunContext $context): Generator
+    {
+        $events = $this->executeAgentToolStreaming($tool, $toolCall->arguments, $toolCall->id, $context);
+
+        try {
+            yield from $this->preliminaryToolResults($events, $toolCall, $invocationId);
+
+            return $this->recordedToolResult($this->toolResult($toolCall, $events->getReturn()), $context);
+        } catch (ToolExecutionException $exception) {
+            return $this->recordedToolResult($this->failedToolResult($toolCall, $exception), $context);
+        }
     }
 
     /**
@@ -798,7 +824,8 @@ class TextGenerationLoop
         $reportedAt = 0;
 
         foreach ($events as $event) {
-            if ($event instanceof StreamStart) {
+            // Step starts and the sub-agent's tool results let combine() separate steps as the final result does...
+            if ($event instanceof StreamStart || $event instanceof ToolResultEvent) {
                 $deltas[] = $event;
 
                 continue;
@@ -845,6 +872,7 @@ class TextGenerationLoop
 
         $startedAt = hrtime(true);
 
+        // Only the sub-agent itself may fail the tool call, so a listener that throws is never reported as a tool failure...
         try {
             $events = $tool->stream(new Request($arguments, $toolCallId, $toolInvocationId));
 
@@ -859,9 +887,13 @@ class TextGenerationLoop
 
             $result = (string) $events->getReturn();
         } catch (Throwable $exception) {
-            $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
-
-            throw $exception;
+            // Keep the original exception, including cancellation, as previous if failure reporting throws.
+            try {
+                // Unlike upstream, cancellation is not wrapped, so the caller never recovers it as the tool's own failure.
+                throw Coroutine::causedByCancellation($exception) ? $exception : new ToolExecutionException($exception);
+            } finally {
+                $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
+            }
         }
 
         $context?->toolInvoked($tool, $arguments, $result, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
@@ -956,7 +988,9 @@ class TextGenerationLoop
                     try {
                         $runner === null ? $work() : $runner($work);
                     } catch (Throwable $exception) {
-                        $failure ??= $exception;
+                        $failure ??= Coroutine::causedByCancellation($exception)
+                            ? new ChildCancellationException('An AI tool was canceled while its owner remained active.', previous: $exception)
+                            : $exception;
                         $events->close();
                     }
                 }, [self::REPAIR_TOOL_CALLS_CONTEXT_KEY, ParentInvocation::PARENT_INVOCATION_CONTEXT_KEY, AiManager::ON_DEMAND_PROVIDERS_CONTEXT_KEY, ContextRepository::CONTEXT_KEY, ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);
@@ -997,15 +1031,45 @@ class TextGenerationLoop
      */
     protected function resolvedToolResult(ToolCall $toolCall, ?Tool $tool, bool $isFinalStep, array $tools = [], ?RunContext $context = null): ToolResult
     {
-        return $this->recordedToolResult($this->toolResult(
-            $toolCall,
-            match (true) {
-                ! $tool instanceof Tool && CoroutineContext::get(self::REPAIR_TOOL_CALLS_CONTEXT_KEY, false) => "Tool '{$toolCall->name}' does not exist. Available tools: {$this->availableToolNames($tools)}.",
-                $isFinalStep => 'The agent reached its maximum number of steps without running this tool call.',
-                default => $this->executeTool($tool, $toolCall->arguments, $toolCall->id, $context),
-            },
-            failed: ! $tool instanceof Tool || $isFinalStep,
-        ), $context);
+        return $this->recordedToolResult(match (true) {
+            ! $tool instanceof Tool && CoroutineContext::get(self::REPAIR_TOOL_CALLS_CONTEXT_KEY, false) => $this->toolResult($toolCall, "Tool '{$toolCall->name}' does not exist. Available tools: {$this->availableToolNames($tools)}.", failed: true),
+            $isFinalStep => $this->toolResult($toolCall, 'The agent reached its maximum number of steps without running this tool call.', failed: true),
+            default => $this->executedToolResult($toolCall, $tool, $context),
+        }, $context);
+    }
+
+    /**
+     * Execute the tool for the given call, returning a failure to the model instead of ending the run.
+     */
+    protected function executedToolResult(ToolCall $toolCall, Tool $tool, ?RunContext $context = null): ToolResult
+    {
+        try {
+            return $this->toolResult($toolCall, $this->executeTool($tool, $toolCall->arguments, $toolCall->id, $context));
+        } catch (ToolExecutionException $exception) {
+            return $this->failedToolResult($toolCall, $exception);
+        }
+    }
+
+    /**
+     * Report the given tool failure and turn it into a result the model can react to.
+     */
+    protected function failedToolResult(ToolCall $toolCall, ToolExecutionException $exception): ToolResult
+    {
+        report($exception->exception);
+
+        return $this->toolResult($toolCall, $this->failedToolResultText($exception->exception), failed: true);
+    }
+
+    /**
+     * Get the result the model receives for a tool that threw.
+     */
+    protected function failedToolResultText(Throwable $exception): string
+    {
+        // Unlike upstream, the exception message is only included in debug mode. It can carry query bindings,
+        // server paths and other details that should not reach the provider, the conversation or the client...
+        return config()->boolean('app.debug')
+            ? 'The tool call failed: ' . $exception->getMessage()
+            : 'The tool call failed.';
     }
 
     /**
@@ -1162,15 +1226,15 @@ class TextGenerationLoop
 
             $failed = false;
 
+            // Unlike upstream, only the tool's own failure is reported and returned to the model, as in executedToolResult().
+            // A listener exception or cancellation ends the run, so a tool that ran is never presented to the model as failed...
             try {
                 $result = $this->executeTool($tool, $arguments, $toolCall->id, $context);
-            } catch (Throwable $exception) {
-                if (Coroutine::causedByCancellation($exception)) {
-                    throw $exception;
-                }
+            } catch (ToolExecutionException $exception) {
+                report($exception->exception);
 
                 $failed = true;
-                $result = 'The tool call failed: ' . $exception->getMessage();
+                $result = $this->failedToolResultText($exception->exception);
             }
 
             $toolResults[] = $result = new ToolResult(
@@ -1186,6 +1250,36 @@ class TextGenerationLoop
         }
 
         return [$toolResults, ! $hasBareRejection];
+    }
+
+    /**
+     * Determine whether the history ends in a pause a real run could have left: every pending call is for a tool the agent still has, and at least one of them asks for approval.
+     *
+     * @param Message[] $messages
+     * @param array<ProviderTool|Tool> $tools
+     */
+    public function pausedForApproval(array $messages, array $tools): bool
+    {
+        [$pendingToolCalls] = $this->pendingToolCalls($messages);
+
+        $pendingTools = $this->toolsForPendingCalls($pendingToolCalls, $tools);
+
+        return ! $pendingTools->containsStrict(null)
+            && $pendingToolCalls->contains(fn (ToolCall $toolCall): bool => $this->approvalForTool($pendingTools[$toolCall->id], $toolCall) instanceof Approval);
+    }
+
+    /**
+     * Find the tool each pending call is for, keyed by the call's id.
+     *
+     * @param Collection<int, ToolCall> $pendingToolCalls
+     * @param array<ProviderTool|Tool> $tools
+     * @return Collection<string, ?Tool>
+     */
+    protected function toolsForPendingCalls(Collection $pendingToolCalls, array $tools): Collection
+    {
+        return $pendingToolCalls->mapWithKeys(fn (ToolCall $toolCall): array => [
+            $toolCall->id => $this->findTool($toolCall->name, $tools),
+        ]);
     }
 
     /**
@@ -1206,9 +1300,7 @@ class TextGenerationLoop
             fn (int|string $id): bool => $id === '*',
         );
 
-        $resolvedTools = $pendingToolCalls->mapWithKeys(fn (ToolCall $toolCall): array => [
-            $toolCall->id => $this->findTool($toolCall->name, $tools),
-        ]);
+        $resolvedTools = $this->toolsForPendingCalls($pendingToolCalls, $tools);
 
         $approvals = $pendingToolCalls->mapWithKeys(fn (ToolCall $toolCall): array => [
             $toolCall->id => $this->approvalForTool($resolvedTools[$toolCall->id], $toolCall),

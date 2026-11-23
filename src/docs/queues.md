@@ -42,6 +42,7 @@
     - [Cancelling Batches](#cancelling-batches)
     - [Batch Failures](#batch-failures)
     - [Pruning Batches](#pruning-batches)
+    - [Storing Batch Results in Redis](#storing-batch-results-in-redis)
 - [Queueing Closures](#queueing-closures)
 - [Running the Queue Worker](#running-the-queue-worker)
     - [The `queue:work` Command](#the-queue-work-command)
@@ -215,6 +216,8 @@ The `connection` setting may be omitted or null to use the default database conn
 #### Redis
 
 In order to use the `redis` queue driver, you should configure a Redis database connection in your `config/database.php` configuration file. Hypervel's Redis queue driver uses the Hypervel Redis component, which is powered by the PhpRedis extension.
+
+If multiple instances of your application share a Redis server, each instance should use its own [key prefix](/docs/{{version}}/redis#key-prefixes) or Redis database. Otherwise, the queue worker of one instance may process jobs dispatched by another instance.
 
 The optional `migration_batch_size` connection setting limits how many delayed or expired jobs are migrated to the primary queue in one pass. When omitted, Hypervel migrates all available jobs. Omitting `connection` uses the default Redis connection, omitting `retry_after` uses 60 seconds, and omitting `block_for` disables blocking.
 
@@ -493,7 +496,7 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 
 In the example above, the `UpdateSearchIndex` job is unique. So, the job will not be dispatched if another instance of the job is already on the queue and has not finished processing.
 
-When a unique job dispatched through its static `dispatch` method is not queued because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event. The event's `job` property contains the job that was skipped.
+When a unique job dispatched through its static `dispatch` method is not queued because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event if an active listener is registered. The event's `job` property contains the job that was skipped.
 
 In certain cases, you may want to define a specific "key" that makes the job unique or you may want to specify a timeout beyond which the job no longer stays unique. To accomplish this, you may use the `UniqueFor` attribute and define a `uniqueId` method on your job class:
 
@@ -827,6 +830,14 @@ public function middleware(): array
     return [(new RateLimited('backups'))->releaseAfter(60)];
 }
 ```
+
+By default, the middleware adds three seconds to the rate limiter's calculated retry delay. You may adjust this padding without replacing the calculated delay:
+
+```php
+return [(new RateLimited('backups'))->releasePadding(0)];
+```
+
+Padding must be non-negative. A delay set with `releaseAfter` takes precedence over the calculated delay and padding.
 
 If you do not want a job to be retried when it is rate limited, you may use the `dontRelease` method:
 
@@ -1485,6 +1496,8 @@ Hypervel's shipped configuration enables this behavior for the background, defer
 
 After-commit work is associated with the most recently started open transaction and runs once it and every transaction enclosing it on the same connection have committed. Ordinary queue connections do not wait for transactions on other connections. If a job depends on work across connections, dispatch it only after the other dependencies have committed or while the transaction that will commit last remains open. The failover connection is an exception: it waits for every applicable transaction.
 
+For batched jobs, see [dispatching batches and database transactions](#dispatching-batches-and-database-transactions).
+
 > [!NOTE]
 > Setting the `after_commit` configuration option to `true` will also cause any queued event listeners, mailables, notifications, and broadcast events to be dispatched after the open parent database transactions have committed.
 
@@ -1911,10 +1924,27 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-If both `retryUntil` and `tries` are defined, Hypervel gives precedence to the `retryUntil` method.
+When the window is a fixed length of time from when the job is dispatched, you may use the `RetryFor` attribute instead. Its first argument is in seconds, and `minutes` and `hours` may be passed by name. A `retryUntil` method or property takes precedence over the attribute:
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\RetryFor;
+
+#[RetryFor(minutes: 10)]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
+}
+```
+
+If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
 
 > [!NOTE]
-> You may also define a `Tries` attribute or `retryUntil` method on your [queued event listeners](/docs/{{version}}/events#queued-event-listeners) and [queued notifications](/docs/{{version}}/notifications#queueing-notifications).
+> You may also define a `Tries` or `RetryFor` attribute or a `retryUntil` method on your [queued event listeners](/docs/{{version}}/events#queued-event-listeners), [queued notifications](/docs/{{version}}/notifications#queueing-notifications) and queued mailables.
 
 <a name="max-exceptions"></a>
 #### Max Exceptions
@@ -2238,7 +2268,7 @@ Alternatively, define `withMessageGroups($notifiable, $channel)` and `withDedupl
 <a name="queue-failover"></a>
 ### Queue Failover
 
-The `failover` queue driver provides automatic failover functionality when pushing jobs to the queue. If the primary queue connection of the `failover` configuration fails for any reason, Hypervel will automatically attempt to push the job to the next configured connection in the list. This is particularly useful for ensuring high availability in production environments where queue reliability is critical.
+The `failover` queue driver provides automatic failover functionality when pushing jobs to the queue. If the primary queue connection fails to accept a job, Hypervel tries the next configured connection. This is particularly useful for ensuring high availability in production environments where queue reliability is critical.
 
 To configure a failover queue connection, specify the `failover` driver and provide an array of connection names to attempt in order. Hypervel includes the following connection by default:
 
@@ -2257,7 +2287,7 @@ With `after_commit` enabled, Hypervel waits until every applicable database tran
 
 When the failover connection waits for commit, it copies the log context entries at dispatch, but each child driver serializes the job and context when its attempt is made. Avoid mutating the job, its data, or objects stored in context before the transactions commit.
 
-If you disable the failover connection's `after_commit` setting, each child connection uses its own transaction policy. A failure from a child that defers its dispatch may then occur after the failover attempt has returned and cannot activate the next child. A job's `afterCommit()` or `beforeCommit()` choice overrides the connection setting. Integer delays begin when the post-commit attempt is made, while absolute date and time delays retain their original target.
+If you disable the failover connection's `after_commit` setting, each child connection uses its own transaction policy. A failure from a child that defers its dispatch may then occur after the failover attempt has returned and cannot activate the next child. A job's `afterCommit()` or `beforeCommit()` choice overrides the connection setting. Integer delays begin when the post-commit attempt is made, while absolute date and time delays retain their original target. If a database error leaves the caller's transaction unusable, failover propagates the error so the application can roll back safely.
 
 Once you have configured a connection that uses the `failover` driver, you will need to set the failover connection as your default queue connection in your application's `.env` file to make use of the failover functionality:
 
@@ -2307,6 +2337,12 @@ By default, the `release` method will release the job back onto the queue for im
 $this->release(10);
 
 $this->release(now()->plus(seconds: 10));
+```
+
+If the job defines a [backoff](#dealing-with-failed-jobs), the `releaseUsingBackoff` method releases it with the delay for the current attempt, just as the worker would after an exception. Once the attempts outnumber the configured delays, the last delay is used. A job without a backoff is released for immediate processing:
+
+```php
+$this->releaseUsingBackoff();
 ```
 
 After releasing a job, return from its handler. If a worker-processed job throws after release, the worker reports the exception but does not fail or release that attempt again. Exceptions thrown after release do not count toward `maxExceptions`. The next delivery checks the job's attempt limit as usual.
@@ -2400,7 +2436,7 @@ class SyncChatHistory implements ShouldQueue
 
 Hypervel's job batching feature allows you to easily execute a group of jobs in parallel and then perform some action when the batch of jobs has completed executing.
 
-Before getting started, you should create a database migration to build a table which will contain meta information about your job batches, such as their completion percentage. This migration may be generated using the `make:queue-batches-table` Artisan command:
+The default Hypervel application includes migrations for the batching tables. If your application is missing them, generate and run them with the following Artisan commands:
 
 ```shell
 php artisan make:queue-batches-table
@@ -2517,6 +2553,15 @@ $batch = Bus::batch([
 })->onConnection('redis')->onQueue('imports')->dispatch();
 ```
 
+<a name="dispatching-batches-and-database-transactions"></a>
+#### Dispatching Batches and Database Transactions
+
+When you send batched jobs to a queue such as Redis or SQS, Hypervel waits for the transaction on the batch's database connection to commit. If it rolls back, the jobs are never sent. Omit [`beforeCommit()`](#specifying-commit-dispatch-behavior-inline) for jobs that must wait.
+
+A `database` queue on the batch's database connection can insert the jobs in the same transaction. A queue on a different database connection must wait for the batch transaction to commit. If that other connection has its own open transaction, dispatch after it commits, even when using `afterCommit()`.
+
+If the queue cannot confirm delivery, the job stays counted because a worker may still receive it. A delivery error can reach your application after the database commit has succeeded. To ensure jobs are delivered even if the process stops after commit, use the [transactional outbox](/docs/{{version}}/queue-outbox).
+
 <a name="chains-and-batches"></a>
 ### Chains and Batches
 
@@ -2620,7 +2665,7 @@ $batch->totalJobs;
 // The number of jobs that have not been processed by the queue...
 $batch->pendingJobs;
 
-// The number of jobs that have failed...
+// The cumulative number of recorded failures, including failed retries...
 $batch->failedJobs;
 
 // The number of jobs that have been processed thus far...
@@ -2638,6 +2683,12 @@ $batch->cancel();
 // Indicates if the batch has been cancelled...
 $batch->cancelled();
 ```
+
+The batch counts each job's success once, even if the queue delivers it again. Once a job succeeds, a later failure from another copy of that job leaves the batch unchanged. Callbacks triggered by a success run in the worker that records it. If it stops after committing the count, callbacks it did not finish are not replayed.
+
+When you retrieve a [Redis-backed batch](#storing-batch-results-in-redis) with `Bus::findBatch()`, its counts and finish time are loaded together the first time you read one of them. If the batch was deleted in the meantime, reading its progress throws a `RuntimeException`. Use `fresh()` to check for changes, including cancellation.
+
+`$batch->failedJobIds` lists the queue ID of the latest failed delivery for each job that hasn't succeeded. The IDs have no guaranteed order. Use `$batch->fresh()->failedJobIds` to read the current list.
 
 <a name="returning-batches-from-routes"></a>
 #### Returning Batches From Routes
@@ -2658,7 +2709,7 @@ Route::get('/batch/{batchId}', function (string $batchId) {
 <a name="batch-events"></a>
 ### Batch Events
 
-Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when it is marked as finished, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
+Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when all of its jobs have completed successfully, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
 
 <a name="cancelling-batches"></a>
 ### Cancelling Batches
@@ -2725,10 +2776,12 @@ $batch = Bus::batch([
 })->dispatch();
 ```
 
+A batch that allows failures is marked as finished once each of its jobs has run, even if some of them failed. Its failed jobs may still be retried, and the batch's `then` callbacks will run once every job has completed successfully.
+
 <a name="retrying-failed-batch-jobs"></a>
 #### Retrying Failed Batch Jobs
 
-For convenience, Hypervel provides a `queue:retry-batch` Artisan command that allows you to easily retry all of the failed jobs for a given batch. This command accepts the UUID of the batch whose failed jobs should be retried:
+The `queue:retry-batch` Artisan command accepts a batch UUID and retries its outstanding failures. It requires a failed job provider that can look up jobs by their payload UUID, such as `database-uuids` or `file`.
 
 ```shell
 php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
@@ -2737,7 +2790,7 @@ php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
 <a name="pruning-batches"></a>
 ### Pruning Batches
 
-Without pruning, the `job_batches` table can accumulate records very quickly. To mitigate this, you should [schedule](/docs/{{version}}/scheduling) the `queue:prune-batches` Artisan command to run daily:
+You should [schedule](/docs/{{version}}/scheduling) the `queue:prune-batches` Artisan command to run daily. It removes old batches and their results whether you store results in the database or Redis:
 
 ```php
 use Hypervel\Support\Facades\Schedule;
@@ -2753,7 +2806,7 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::command('queue:prune-batches --hours=48')->daily();
 ```
 
-Sometimes, your `job_batches` table may accumulate batch records for batches that never completed successfully, such as batches where a job failed and that job was never retried successfully. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
+Sometimes, your `job_batches` table may accumulate batch records for batches that never finished, such as batches whose jobs were cleared from the queue before they could run. Batches that [allow failures](#allowing-failures) finish once every job has run, so they are pruned along with other finished batches. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
 
 ```php
 use Hypervel\Support\Facades\Schedule;
@@ -2768,6 +2821,21 @@ use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches --hours=48 --cancelled=72')->daily();
 ```
+
+<a name="storing-batch-results-in-redis"></a>
+### Storing Batch Results in Redis
+
+By default, Hypervel stores batches and their job results in your database. If many workers process the same batch, you may store job results in Redis to reduce contention on the batch's database row. Set the batching driver in your `.env` file:
+
+```ini
+QUEUE_BATCHING_DRIVER=redis
+```
+
+This setting applies to new batches. You can use Redis for results even when another queue driver delivers the jobs. The batch itself stays in your database. Batches on `sync` connections, or on failover connections that can run jobs synchronously, always store their results in the database so they can roll back with the jobs.
+
+Batch results use the Redis connection specified by `REDIS_QUEUE_CONNECTION`, which defaults to `queue`. To use a different connection, set `REDIS_QUEUE_BATCHING_CONNECTION`. Enable persistence on the Redis server and set its eviction policy to `noeviction`. This policy applies to every logical database on that server. If you change connections, keep existing batches' keys accessible on the new connection.
+
+If you [manually fail a job](#manually-failing-a-job) in a Redis-backed batch, call `$this->fail()` after any transaction on the batch's database connection has ended. Calling it inside that transaction throws a `LogicException` and the batch does not record the failure.
 
 <a name="queueing-closures"></a>
 ## Queueing Closures
@@ -3466,6 +3534,12 @@ If you would like to delete a failed job, you may use the `queue:forget` command
 php artisan queue:forget 91401d2c-0784-4f43-824c-34f94a33c24d
 ```
 
+You may delete several failed jobs by passing multiple IDs:
+
+```shell
+php artisan queue:forget 5 6 7
+```
+
 > [!NOTE]
 > When using [Horizon](/docs/{{version}}/horizon), you should use the `horizon:forget` command to delete a failed job instead of the `queue:forget` command.
 
@@ -3837,6 +3911,8 @@ Bus::fake();
 Bus::assertNothingDispatched();
 ```
 
+When faking only selected jobs with `Bus::fake([...])`, you may call `Bus::withoutDispatchingAfterResponses()` to run unfaked after-response jobs synchronously during the test. Jobs configured to wait for a database transaction still run only after it commits. Call `Bus::withDispatchingAfterResponses()` to restore deferred dispatching.
+
 <a name="faking-a-subset-of-jobs"></a>
 ### Faking a Subset of Jobs
 
@@ -4128,7 +4204,24 @@ class AppServiceProvider extends ServiceProvider
 
 The `duration` property of the `JobProcessed` event contains the number of milliseconds the job took to run. It is `null` when the worker skips the job because it was already deleted, such as by a `JobProcessing` listener.
 
-Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. This event is not dispatched when coroutine cancellation interrupts the attempt, including when the exception was caused by cancellation. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+If you would like to be notified when a job takes too long to run, you may use the `whenJobRunsLongerThan` method. Provide a threshold in milliseconds, or a `CarbonInterval`, and a closure that receives the job and the number of milliseconds the attempt took. The closure is invoked for each attempt that exceeds the threshold, whether or not the attempt succeeds, except an attempt stopped by coroutine cancellation:
+
+```php
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Support\Facades\Queue;
+
+Queue::whenJobRunsLongerThan(1000, function (Job $job, float $duration) {
+    // Notify the development team...
+});
+```
+
+You may listen for `JobAttempted` to inspect an attempt's `connectionName`, `job`, `exception` and `duration`. The event is dispatched in the job's coroutine. If coroutine cancellation stops the attempt, including a job killed by its timeout, `canceled` is `true` and `successful()` returns `false`; normal completion steps and deferred callbacks are skipped. The event cannot be dispatched if the coroutine remains blocked until the worker exits.
+
+Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Its `sendAttempted` property is `false` when the attempt failed before the job was handed to the queue backend.
+
+Cancellation while enqueueing a job or notifying its listeners dispatches `JobQueueingCanceled`. Inspect `sendAttempted` to see whether sending began and `queued` to see whether the queue accepted the job before cancellation. The event also exposes the `cancellation` and any earlier enqueue failure as `exception`. Cancellation still propagates to the caller.
+
+Jobs deferred until a database transaction commits dispatch these events only when enqueueing begins.
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 

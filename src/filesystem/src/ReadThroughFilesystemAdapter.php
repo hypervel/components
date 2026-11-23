@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Filesystem;
 
-use GuzzleHttp\Psr7\StreamWrapper;
 use GuzzleHttp\Psr7\Utils;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\StreamWrapper;
 use League\Flysystem\Config;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\FilesystemAdapter;
@@ -348,6 +349,10 @@ class ReadThroughFilesystemAdapter implements FilesystemAdapter
      */
     protected function handlePromotionFailure(string $path, FilesystemException $exception): void
     {
+        if (Coroutine::causedByCancellation($exception)) {
+            throw $exception;
+        }
+
         if ($this->throwOnPromotionFailure) {
             throw UnableToReadFile::fromLocation($path, 'Unable to promote file to the primary filesystem.', $exception);
         }

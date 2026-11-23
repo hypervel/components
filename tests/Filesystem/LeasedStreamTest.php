@@ -13,7 +13,9 @@ use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -21,6 +23,8 @@ use Throwable;
 
 class LeasedStreamTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
@@ -172,8 +176,8 @@ class LeasedStreamTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $failure = new RuntimeException('release cleanup failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($failure));
         $container->instance(ExceptionHandler::class, $handler);
         $pool = $this->pool();
         $lease = new Lease($pool, $pool->borrow(), function () use ($failure): never {

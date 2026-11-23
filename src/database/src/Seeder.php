@@ -40,6 +40,7 @@ abstract class Seeder implements Transient
      * Run the given seeder class.
      *
      * @param array<int, class-string<Seeder>>|class-string<Seeder> $class
+     * @return $this
      */
     public function call(array|string $class, bool $silent = false, array $parameters = []): static
     {
@@ -147,6 +148,8 @@ abstract class Seeder implements Transient
 
     /**
      * Set the IoC container instance.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {
@@ -157,6 +160,8 @@ abstract class Seeder implements Transient
 
     /**
      * Set the console command instance.
+     *
+     * @return $this
      */
     public function setCommand(Command $command): static
     {

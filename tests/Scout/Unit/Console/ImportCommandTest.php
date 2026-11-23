@@ -19,12 +19,15 @@ use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class ImportCommandTest extends ScoutTestCase
 {
+    use VerifiesDoubles;
+
     public function testItThrowsScoutExceptionForNonExistentModelClass(): void
     {
         $this->expectException(ScoutException::class);
@@ -111,12 +114,11 @@ class ImportCommandTest extends ScoutTestCase
         });
 
         $failure = new RuntimeException('Search transport failed.');
-        $failingEngine = m::mock(Engine::class);
-        $failingEngine->shouldReceive('importConcurrency')->once()->passthru();
-        $failingEngine->shouldReceive('runUpdate')->once()->andThrow($failure);
+        $failingEngine = Double::for(Engine::class)->passthru();
+        $failingEngine->expects('runUpdate')->throws($failure);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->andReturn($failingEngine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($failingEngine);
         $this->app->instance(EngineManager::class, $manager);
 
         $command = $this->app->make(Kernel::class)->getArtisan()->find('scout:import');
@@ -135,12 +137,12 @@ class ImportCommandTest extends ScoutTestCase
         $this->assertStringNotContainsString('records have been imported', $tester->getDisplay());
         $this->assertFalse(CoroutineContext::has(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY));
 
-        $successfulEngine = m::mock(Engine::class);
-        $successfulEngine->shouldReceive('importConcurrency')->once()->passthru();
-        $successfulEngine->shouldReceive('runUpdate')->times(3);
+        $failingEngine->received('importConcurrency')->times(1);
+        $successfulEngine = Double::for(Engine::class)->passthru();
+        $successfulEngine->expects('runUpdate')->times(3);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->andReturn($successfulEngine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($successfulEngine);
         $this->app->instance(EngineManager::class, $manager);
 
         $tester = new CommandTester(clone $command);
@@ -151,6 +153,7 @@ class ImportCommandTest extends ScoutTestCase
         ]);
 
         $this->assertSame(0, $status, $tester->getDisplay());
+        $successfulEngine->received('importConcurrency')->times(1);
         $this->assertStringContainsString('records have been imported', $tester->getDisplay());
         $this->assertFalse(CoroutineContext::has(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY));
     }

@@ -8,6 +8,8 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Console\Concerns\ParsesQueue;
@@ -18,12 +20,16 @@ use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use UnitEnum;
 
 class QueuePauseResumeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected QueueManager $manager;
 
     protected CacheRepository $cache;
@@ -45,7 +51,7 @@ class QueuePauseResumeTest extends TestCase
     /**
      * Create a queue manager using the given cache repository.
      */
-    protected function createManager(CacheRepository $cache): QueueManager
+    protected function createManager(CacheContract $cache): QueueManager
     {
         $container = new Container;
         $this->events = new Dispatcher($container);
@@ -59,23 +65,9 @@ class QueuePauseResumeTest extends TestCase
                 ],
             ],
         ]));
-        $container->instance('cache', new class($cache) {
-            /**
-             * Create a cache manager fixture.
-             */
-            public function __construct(
-                private readonly CacheRepository $repository,
-            ) {
-            }
-
-            /**
-             * Get the cache repository.
-             */
-            public function store(?string $name = null): CacheRepository
-            {
-                return $this->repository;
-            }
-        });
+        $cacheManager = Double::for(CacheFactory::class)->strict();
+        $cacheManager->allows('store')->returns($cache);
+        $container->instance('cache', $cacheManager);
         $container->instance('events', $this->events);
         $container->instance(DispatcherContract::class, $this->events);
 
@@ -265,6 +257,25 @@ class QueuePauseResumeTest extends TestCase
             ['emails', 'notifications'],
             $this->manager->getPausedQueues(['default', 'emails', 'notifications'], 'redis'),
         );
+        $this->assertSame(
+            ['emails'],
+            $this->manager->getPausedQueues(['mail' => 'emails', 'fallback' => 'default'], 'redis'),
+        );
+    }
+
+    public function testGetPausedQueuesUsesTheCacheRepositoryContract(): void
+    {
+        $cache = Double::for(CacheContract::class)->strict();
+        $cache->expects('get')->with('illuminate:queues:paused', false)->returns(false);
+        $cache->expects('get')->with([
+            'illuminate:queue:paused:redis:default',
+            'illuminate:queue:paused:redis:emails',
+        ])->returns([
+            'illuminate:queue:paused:redis:default' => null,
+            'illuminate:queue:paused:redis:emails' => true,
+        ]);
+
+        $this->assertSame(['emails'], $this->createManager($cache)->getPausedQueues(['default', 'emails'], 'redis'));
     }
 
     public function testPauseAllPausesEveryQueueAndResumeAllResumesThem(): void

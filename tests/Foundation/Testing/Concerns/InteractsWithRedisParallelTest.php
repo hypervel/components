@@ -14,11 +14,14 @@ use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class InteractsWithRedisParallelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Redis-related environment keys mutated by these tests.
      *
@@ -46,6 +49,7 @@ class InteractsWithRedisParallelTest extends TestCase
 
         $this->captureEnvironmentValues();
         $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', null);
+        $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
         $this->setParallelTestingToken(false);
     }
 
@@ -91,6 +95,7 @@ class InteractsWithRedisParallelTest extends TestCase
     {
         $this->setRedisEnvironmentValue('REDIS_DB', '4');
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MIN', null);
+        $this->setRedisEnvironmentValue('REDIS_TEST_DB_MAX', '5');
         $this->setParallelTestingToken('2');
 
         $this->assertSame(5, $this->harness()->parallelRedisDb());
@@ -100,7 +105,6 @@ class InteractsWithRedisParallelTest extends TestCase
     {
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MIN', '14');
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MAX', null);
-        $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
 
         $this->assertSame([14, 15], RedisTestDatabases::workerDatabases());
     }
@@ -119,8 +123,6 @@ class InteractsWithRedisParallelTest extends TestCase
 
     public function testSecondaryRedisDbIsRequired(): void
     {
-        $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
-
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('REDIS_TEST_SECONDARY_DB must be set before requesting the secondary Redis test database.');
 
@@ -474,7 +476,7 @@ class InteractsWithRedisParallelTest extends TestCase
 
     public function testTeardownClosesPoolsAndPropagatesAFlushFailure(): void
     {
-        $pools = m::mock(PoolManager::class);
+        $pools = Double::for(PoolManager::class)->strict();
         $pools->expects('purgeAll');
         $this->app->instance(PoolManager::class, $pools);
         $harness = $this->harness();

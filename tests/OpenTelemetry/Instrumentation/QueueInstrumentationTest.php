@@ -24,6 +24,7 @@ use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\OutboxBatchDelivered;
@@ -34,7 +35,9 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use LogicException;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\Span;
@@ -66,8 +69,8 @@ use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\MessagingIncubatingAttributes;
 use Override;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -75,6 +78,8 @@ use UnitEnum;
 
 class QueueInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string SENT_MESSAGES_METRIC = 'messaging.client.sent.messages';
 
     private const string SEND_DURATION_METRIC = 'messaging.client.operation.duration';
@@ -194,18 +199,16 @@ class QueueInstrumentationTest extends TestCase
             Span::fromContext($producerContext)->getContext()->getSpanId(),
             $span->getSpanId(),
         );
-        $this->assertSame('redis', $attributes->get(MessagingIncubatingAttributes::MESSAGING_SYSTEM));
-        $this->assertSame('emails', $attributes->get(MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME));
-        $this->assertSame('enqueue', $attributes->get(MessagingIncubatingAttributes::MESSAGING_OPERATION_NAME));
-        $this->assertSame(
-            MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_SEND,
-            $attributes->get(MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE),
-        );
+        $this->assertSame('https://opentelemetry.io/schemas/1.45.0', $span->getInstrumentationScope()->getSchemaUrl());
+        $this->assertSame('redis', $attributes->get('messaging.system.name'));
+        $this->assertSame('emails', $attributes->get('messaging.destination.name'));
+        $this->assertSame('enqueue', $attributes->get('messaging.operation.name'));
+        $this->assertSame('send', $attributes->get('messaging.operation.type'));
         $this->assertSame('redis', $attributes->get('hypervel.queue.connection'));
-        $this->assertSame('job-uuid', $attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID));
+        $this->assertSame('job-uuid', $attributes->get('messaging.message.id'));
         $this->assertSame(
             strlen($event->payload),
-            $attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE),
+            $attributes->get('messaging.message.envelope.size'),
         );
 
         $this->metricReader->collect();
@@ -213,8 +216,27 @@ class QueueInstrumentationTest extends TestCase
         $duration = $this->histogramPoint(self::SEND_DURATION_METRIC);
         $this->assertSame(1, $sent->value);
         $this->assertSame(2, $duration->sum);
-        $this->assertNull($sent->attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID));
-        $this->assertNull($duration->attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE));
+        $this->assertNull($sent->attributes->get('messaging.message.id'));
+        $this->assertNull($duration->attributes->get('messaging.message.envelope.size'));
+    }
+
+    public function testMessagingSystemNameFollowsTheConnectionDriver(): void
+    {
+        $this->instrumentation(configuration: $this->configuration([
+            'jobs' => ['driver' => 'sqs'],
+            'legacy' => ['driver' => 'beanstalkd'],
+        ]))->register($this->options());
+
+        foreach (['jobs', 'legacy'] as $connection) {
+            $event = new JobPayloadFinalizing($connection, 'emails', 'SendEmail@handle', $this->payload(), null);
+            $this->events->dispatch($event);
+            $this->events->dispatch(new JobQueued($connection, 'emails', 42, 'SendEmail@handle', $event->payload, null));
+        }
+
+        $this->assertSame(['aws.sqs', 'beanstalk'], array_map(
+            static fn (SpanDataInterface $span): mixed => $span->getAttributes()->get('messaging.system.name'),
+            $this->spanExporter->getSpans(),
+        ));
     }
 
     public function testProducerWithoutUuidCompletesThroughExactPayloadCorrelation(): void
@@ -398,7 +420,7 @@ class QueueInstrumentationTest extends TestCase
         $span = $this->exportedSpan('enqueue emails');
         $this->assertSame(
             strlen($originalPayload),
-            $span->getAttributes()->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE),
+            $span->getAttributes()->get('messaging.message.envelope.size'),
         );
         $this->assertSame([], $this->metricExporter->collect());
     }
@@ -492,13 +514,19 @@ class QueueInstrumentationTest extends TestCase
 
         $this->metricReader->collect();
         $this->assertCount(0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
-        $this->assertCount(0, $this->metric(self::SEND_DURATION_METRIC)->data->dataPoints);
+        $this->assertSame(
+            RuntimeException::class,
+            $this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
+        );
     }
 
-    public function testFinalizerCancellationAbandonsTheSpanAndCommitsNothing(): void
+    #[TestWith([true])]
+    #[TestWith([false], 'metrics only')]
+    public function testFinalizerCancellationEndsTheProducerWithoutAnErrorAndCommitsNothing(bool $traces): void
     {
         $cancellation = new CanceledException;
-        $this->instrumentation(new QueueInstrumentationTestPropagator($cancellation))->register($this->options());
+        $this->exceptionContexts->enable();
+        $this->instrumentation(new QueueInstrumentationTestPropagator($cancellation))->register($this->options(['traces' => $traces]));
         $event = $this->finalizingEvent();
         $originalPayload = $event->payload;
 
@@ -511,9 +539,55 @@ class QueueInstrumentationTest extends TestCase
 
         $this->assertSame($originalPayload, $event->payload);
         $this->assertNull(QueueProducerStateStore::current()->take($originalPayload));
-        $this->assertSame([], $this->spanExporter->getSpans());
+
+        if ($traces) {
+            $span = $this->exportedSpan('enqueue emails');
+            $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+            $this->assertSame([], $span->getEvents());
+        }
+
+        $this->assertNull($this->exceptionContexts->take($cancellation));
         $this->metricReader->collect();
         $this->assertCount(0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
+        $this->assertFalse($this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->has(ErrorAttributes::ERROR_TYPE));
+    }
+
+    #[TestWith(['before send', false, false, null])]
+    #[TestWith(['wrapped after send', true, true, RuntimeException::class])]
+    #[TestWith(['after a failure', true, false, LogicException::class])]
+    #[TestWith(['after queued', true, true, null])]
+    public function testQueueingCancellationEndsTheProducerWithTheKnownOutcome(
+        string $case,
+        bool $sendAttempted,
+        bool $wrapped,
+        ?string $expectedError,
+    ): void {
+        $this->instrumentation()->register($this->options([
+            'metrics' => $this->metrics(sent: true, sendDuration: true),
+        ]));
+        $event = $this->finalizingEvent();
+        $this->events->dispatch($event);
+        $cancellation = $wrapped ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
+
+        $this->events->dispatch(new JobQueueingCanceled(
+            'redis',
+            'emails',
+            'SendEmail@handle',
+            $event->payload,
+            null,
+            $cancellation,
+            $sendAttempted,
+            queued: $case === 'after queued',
+            exception: $case === 'after a failure' ? new LogicException('Send failed.') : null,
+        ));
+
+        $span = $this->exportedSpan('enqueue emails');
+        $this->assertSame($expectedError, $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame($expectedError === null ? StatusCode::STATUS_UNSET : StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        $this->assertNull(QueueProducerStateStore::current()->take($event->payload));
+        $this->metricReader->collect();
+        $this->assertSame($expectedError, $this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertCount($sendAttempted ? 1 : 0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
     }
 
     public function testTraceDisabledPropagationFailureCommitsNoMetricState(): void
@@ -562,7 +636,7 @@ class QueueInstrumentationTest extends TestCase
         $span = $this->exportedSpan('enqueue emails');
         $this->assertSame(
             strlen($originalPayload),
-            $span->getAttributes()->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE),
+            $span->getAttributes()->get('messaging.message.envelope.size'),
         );
         $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
     }
@@ -588,7 +662,7 @@ class QueueInstrumentationTest extends TestCase
         $this->assertSame([], $this->spanExporter->getSpans());
     }
 
-    public function testLaterFinalizerFailureCompletesMetricsOnlyProducerByUuid(): void
+    public function testLaterFinalizerFailureCompletesMetricsOnlyProducerByUuidWithoutCountingASend(): void
     {
         $exception = new RuntimeException('Later finalizer failed.');
         $this->instrumentation()->register($this->options([
@@ -615,10 +689,10 @@ class QueueInstrumentationTest extends TestCase
         $this->assertFalse($queue->stored);
         $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
         $this->metricReader->collect();
-        $this->assertSame(1, $this->sumPoint(self::SENT_MESSAGES_METRIC)->value);
+        $this->assertCount(0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
         $this->assertSame(
             RuntimeException::class,
-            $this->sumPoint(self::SENT_MESSAGES_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
+            $this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
         );
     }
 
@@ -732,7 +806,7 @@ class QueueInstrumentationTest extends TestCase
         $producerSpanContext = Span::fromContext($producerContext)->getContext();
         $this->assertSame($producerSpanContext->getTraceId(), $span->getTraceId());
         $this->assertSame($producerSpanContext->getSpanId(), $span->getParentSpanId());
-        $this->assertSame('job-uuid', $span->getAttributes()->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID));
+        $this->assertSame('job-uuid', $span->getAttributes()->get('messaging.message.id'));
 
         $this->metricReader->collect();
         $this->assertSame(1, $this->sumPoint(self::CONSUMED_MESSAGES_METRIC)->value);
@@ -803,8 +877,8 @@ class QueueInstrumentationTest extends TestCase
             'propagation' => true,
             'metrics' => false,
         ]));
-        $job = m::mock(Job::class);
-        $job->shouldNotReceive('payload');
+        $job = Double::for(Job::class)->strict();
+        $job->expects('payload')->never();
         $ambient = Context::getCurrent();
 
         $this->events->dispatch(new JobProcessing('sync', $job));
@@ -868,17 +942,17 @@ class QueueInstrumentationTest extends TestCase
         $this->assertCount(2, $sampler->samples);
 
         foreach ([
-            ['sample' => $sampler->samples[0], 'operation' => 'enqueue', 'type' => MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_SEND],
-            ['sample' => $sampler->samples[1], 'operation' => 'process', 'type' => MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_PROCESS],
+            ['sample' => $sampler->samples[0], 'operation' => 'enqueue', 'type' => 'send'],
+            ['sample' => $sampler->samples[1], 'operation' => 'process', 'type' => 'process'],
         ] as $expected) {
             $attributes = $expected['sample']['attributes'];
-            $this->assertSame('redis', $attributes[MessagingIncubatingAttributes::MESSAGING_SYSTEM]);
-            $this->assertSame('emails', $attributes[MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME]);
-            $this->assertSame($expected['operation'], $attributes[MessagingIncubatingAttributes::MESSAGING_OPERATION_NAME]);
-            $this->assertSame($expected['type'], $attributes[MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE]);
+            $this->assertSame('redis', $attributes['messaging.system.name']);
+            $this->assertSame('emails', $attributes['messaging.destination.name']);
+            $this->assertSame($expected['operation'], $attributes['messaging.operation.name']);
+            $this->assertSame($expected['type'], $attributes['messaging.operation.type']);
             $this->assertSame('redis', $attributes['hypervel.queue.connection']);
-            $this->assertArrayNotHasKey(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $attributes);
-            $this->assertArrayNotHasKey(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE, $attributes);
+            $this->assertArrayNotHasKey('messaging.message.id', $attributes);
+            $this->assertArrayNotHasKey('messaging.message.envelope.size', $attributes);
         }
 
         $this->assertSame(0, $instrumentation->consumerStateCount());
@@ -938,6 +1012,43 @@ class QueueInstrumentationTest extends TestCase
             TimeoutExceededException::class,
             $this->histogramPoint(self::PROCESS_DURATION_METRIC)
                 ->attributes->get(ErrorAttributes::ERROR_TYPE),
+        );
+    }
+
+    #[TestWith(['direct', null])]
+    #[TestWith(['wrapped', RuntimeException::class])]
+    #[TestWith(['timeout', TimeoutExceededException::class])]
+    #[TestWith(['after a failure', LogicException::class])]
+    public function testCanceledAttemptEndsTheConsumerSpanWithItsKnownOutcomeAndRestoresTheScope(string $case, ?string $expectedError): void
+    {
+        $this->instrumentation()->register($this->options([
+            'propagation' => false,
+            'metrics' => $this->metrics(processDuration: true),
+        ]));
+        $job = $this->job($this->payload());
+        $exception = match ($case) {
+            'wrapped' => new RuntimeException('Cleanup failed.', previous: new CanceledException),
+            'timeout' => new TimeoutExceededException('Job timed out.'),
+            default => new CanceledException,
+        };
+
+        $this->events->dispatch(new JobProcessing('redis', $job));
+        $this->assertTrue(Span::getCurrent()->getContext()->isValid());
+
+        if ($case === 'after a failure') {
+            $this->events->dispatch(new JobExceptionOccurred('redis', $job, new LogicException('Job failed.')));
+        }
+
+        $this->events->dispatch(new JobAttempted('redis', $job, $exception, canceled: true));
+
+        $this->assertFalse(Span::getCurrent()->getContext()->isValid());
+        $span = $this->exportedSpan('process emails');
+        $this->assertSame($expectedError === null ? StatusCode::STATUS_UNSET : StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        $this->assertSame($expectedError, $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->metricReader->collect();
+        $this->assertSame(
+            $expectedError,
+            $this->histogramPoint(self::PROCESS_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
         );
     }
 
@@ -1023,13 +1134,13 @@ class QueueInstrumentationTest extends TestCase
 
     public function testDepthCollectionRunsOnlyInEventWorkerZeroAndIsolatesBackendFailures(): void
     {
-        $queues = m::mock(QueueManager::class);
-        $failedQueue = m::mock(QueueContract::class);
-        $healthyQueue = m::mock(QueueContract::class);
-        $queues->shouldReceive('connection')->twice()->with('failed')->andReturn($failedQueue);
-        $queues->shouldReceive('connection')->twice()->with('redis')->andReturn($healthyQueue);
-        $failedQueue->shouldReceive('size')->twice()->with('bad')->andThrow(new RuntimeException('Unavailable.'));
-        $healthyQueue->shouldReceive('size')->twice()->with('emails')->andReturn(7);
+        $queues = Double::for(QueueManager::class)->strict();
+        $failedQueue = Double::for(QueueContract::class)->strict();
+        $healthyQueue = Double::for(QueueContract::class)->strict();
+        $queues->expects('connection')->times(2)->with('failed')->returns($failedQueue);
+        $queues->expects('connection')->times(2)->with('redis')->returns($healthyQueue);
+        $failedQueue->expects('size')->times(2)->with('bad')->throws(new RuntimeException('Unavailable.'));
+        $healthyQueue->expects('size')->times(2)->with('emails')->returns(7);
         $this->instrumentation(queues: $queues)->register($this->options([
             'traces' => false,
             'propagation' => false,
@@ -1052,14 +1163,14 @@ class QueueInstrumentationTest extends TestCase
         $this->assertSame('redis', $points[0]->attributes->get('hypervel.queue.connection'));
         $this->assertSame(
             'emails',
-            $points[0]->attributes->get(MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME),
+            $points[0]->attributes->get('messaging.destination.name'),
         );
     }
 
     public function testDepthCollectionRegistersNothingOutsideEventWorkerZero(): void
     {
-        $queues = m::mock(QueueManager::class);
-        $queues->shouldNotReceive('connection');
+        $queues = Double::for(QueueManager::class)->strict();
+        $queues->expects('connection')->never();
         $this->instrumentation(
             queues: $queues,
             identity: ProcessIdentity::eventWorker(1),
@@ -1084,13 +1195,13 @@ class QueueInstrumentationTest extends TestCase
         ?QueueManager $queues = null,
         ?ProcessIdentity $identity = null,
     ): QueueInstrumentationTestInstrumentation {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new QueueInstrumentationTestInstrumentation(
             $this->events,
             $configuration ?? $this->configuration(),
-            $queues ?? m::mock(QueueManager::class),
+            $queues ?? Double::for(QueueManager::class)->strict(),
             $this->tracerProvider,
             $this->meterProvider,
             $this->clock,
@@ -1146,11 +1257,11 @@ class QueueInstrumentationTest extends TestCase
     private function job(string $payload, string $queue = 'emails'): Job
     {
         $decoded = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
-        $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->zeroOrMoreTimes()->andReturn($decoded);
-        $job->shouldReceive('getQueue')->zeroOrMoreTimes()->andReturn($queue);
-        $job->shouldReceive('uuid')->zeroOrMoreTimes()->andReturn($decoded['uuid'] ?? null);
-        $job->shouldReceive('getRawBody')->zeroOrMoreTimes()->andReturn($payload);
+        $job = Double::for(Job::class)->strict();
+        $job->allows('payload')->returns($decoded);
+        $job->allows('getQueue')->returns($queue);
+        $job->allows('uuid')->returns($decoded['uuid'] ?? null);
+        $job->allows('getRawBody')->returns($payload);
 
         return $job;
     }
@@ -1256,7 +1367,7 @@ class QueueInstrumentationTest extends TestCase
         $this->assertSame(1_000_000_000, $span->getStartEpochNanos());
         $this->assertSame(3_000_000_000, $span->getEndEpochNanos());
         $this->assertFalse(
-            $span->getAttributes()->has(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID),
+            $span->getAttributes()->has('messaging.message.id'),
         );
         $this->assertNull(QueueProducerStateStore::current()->take($event->payload));
 

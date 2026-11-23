@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
+use JMac\Testing\Matching\Argument;
 
 class TouchTest extends RedisCacheTestCase
 {
@@ -15,14 +15,13 @@ class TouchTest extends RedisCacheTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
         $connection = $this->mockConnection();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+        $connection->expects('evalWithShaCache')
             ->with(
-                m::type('string'),
+                Argument::type('string'),
                 ['prefix:mykey', 'prefix:_all:tag:users:entries'],
                 [60, 1061, 'mykey'],
             )
-            ->andReturn(1);
+            ->returns(1);
 
         $store = $this->createStore($connection);
 
@@ -37,15 +36,13 @@ class TouchTest extends RedisCacheTestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('expire')
-            ->once()
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('expire')
             ->with('prefix:mykey', 60)
-            ->andReturn(true);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn(0);
+            ->returns(true);
+        $client->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1061.0, 'mykey')
+            ->returns(0);
 
         $this->assertTrue($store->allTagOps()->touch()->execute(
             'mykey',
@@ -56,9 +53,9 @@ class TouchTest extends RedisCacheTestCase
 
     public function testTouchReturnsFalseWhenClusterMembershipWriteFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('expire')->once()->andReturn(true);
-        $connection->shouldReceive('zadd')->once()->andReturn(false);
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('expire')->returns(true);
+        $client->expects('zadd')->returns(false);
 
         $this->assertFalse($store->allTagOps()->touch()->execute(
             'mykey',

@@ -32,6 +32,10 @@ class RunContext
     /** @var array<int, Step> */
     protected array $steps = [];
 
+    protected ?ClaimsPendingApprovals $approvalStore = null;
+
+    protected ?string $conversationId = null;
+
     protected ?ApprovalClaim $approvalClaim = null;
 
     protected bool $toolWasInvoked = false;
@@ -48,8 +52,6 @@ class RunContext
         public readonly string $model,
         protected readonly Dispatcher $events,
         protected readonly ?Closure $contextRunner = null,
-        protected readonly ?ClaimsPendingApprovals $approvalStore = null,
-        protected readonly ?string $conversationId = null,
     ) {
     }
 
@@ -66,6 +68,17 @@ class RunContext
     }
 
     /**
+     * Claim and record the approvals this run resumes through the given conversation's store.
+     */
+    public function withApprovalStore(ClaimsPendingApprovals $store, string $conversationId): static
+    {
+        $this->approvalStore = $store;
+        $this->conversationId = $conversationId;
+
+        return $this;
+    }
+
+    /**
      * Claim the stored pause before any of its tools execute.
      *
      * @param list<string> $toolCallIds
@@ -76,7 +89,7 @@ class RunContext
             return;
         }
 
-        /** @var string $conversationId The provider supplies both the store and its conversation ID. */
+        /** @var string $conversationId withApprovalStore() sets the store and its conversation ID together. */
         $conversationId = $this->conversationId;
 
         $this->approvalClaim = $this->approvalStore->claimPendingApprovals($conversationId, $toolCallIds)

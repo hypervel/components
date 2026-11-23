@@ -13,6 +13,7 @@ use Hypervel\Ai\Responses\Data\RankedDocument;
 use Hypervel\Ai\Responses\Data\RerankingUsage;
 use Hypervel\Ai\Responses\RerankingResponse;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use RuntimeException;
 
 class FakeRerankingGateway implements RerankingGateway
@@ -132,8 +133,10 @@ class FakeRerankingGateway implements RerankingGateway
     /**
      * Indicate that an exception should be thrown if any reranking is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayRerankings(bool $prevent = true): self
     {
         $this->preventStrayRerankings = $prevent;

@@ -101,8 +101,7 @@ class Attachment
             $mime = $attachment->mime;
 
             if ($mime === null) {
-                // The contract omits adapter metadata methods, which every shipped disk provides.
-                // @phpstan-ignore method.notFound
+                // @phpstan-ignore method.notFound (the contract omits adapter metadata methods, which every shipped disk provides)
                 $mime = $storage->mimeType($path);
             }
 
@@ -131,6 +130,8 @@ class Attachment
 
     /**
      * Set the attached file's filename.
+     *
+     * @return $this
      */
     public function as(?string $name): static
     {
@@ -141,6 +142,8 @@ class Attachment
 
     /**
      * Set the attached file's MIME type.
+     *
+     * @return $this
      */
     public function withMime(string $mime): static
     {

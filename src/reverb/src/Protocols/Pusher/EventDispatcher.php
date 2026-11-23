@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\FailureReporter;
@@ -16,7 +17,6 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Arr;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Swoole\Server;
 use Throwable;
 
@@ -87,9 +87,11 @@ class EventDispatcher
                 if ($channel instanceof CacheChannel) {
                     app(SharedState::class)->clearCacheMissLock($app->id(), $channel->name());
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
@@ -102,7 +104,7 @@ class EventDispatcher
             try {
                 static::fanOutToOtherWorkers($app, $channels, $payload, $connection, socketId: $socketId);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -133,9 +135,11 @@ class EventDispatcher
                 $payload['channel'] = $channel->name();
 
                 $channel->broadcastInternally($payload, $connection);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
@@ -146,7 +150,7 @@ class EventDispatcher
             try {
                 static::fanOutToOtherWorkers($app, $channels, $payload, $connection, internal: true);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -178,9 +182,11 @@ class EventDispatcher
 
             try {
                 $channel->broadcastInternally($payload, $connection);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception = $throwable;
             }
 
@@ -188,7 +194,7 @@ class EventDispatcher
                 unset($payload['channel']);
                 static::fanOutToOtherWorkers($app, [$channel->name()], $payload, $connection, internal: true);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         } else {
             $data = [
@@ -204,9 +210,11 @@ class EventDispatcher
 
             try {
                 app(PubSubProvider::class)->publish($data);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception = $throwable;
             }
         }
@@ -258,7 +266,7 @@ class EventDispatcher
                     );
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

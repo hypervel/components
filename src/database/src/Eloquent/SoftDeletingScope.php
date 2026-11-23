@@ -41,6 +41,7 @@ class SoftDeletingScope implements Scope
         }
 
         $builder->onDelete(function (Builder $builder) {
+            $builder = $builder->applyScopes()->withoutGlobalScopes();
             $column = $this->getDeletedAtColumn($builder);
 
             return $builder->update([
@@ -56,6 +57,7 @@ class SoftDeletingScope implements Scope
      */
     protected function getDeletedAtColumn(Builder $builder): string
     {
+        // Scopes may add joins or aliases, so callers pass the scope-prepared builder.
         if ((array) $builder->getQuery()->joins !== []) {
             return $builder->qualifyColumn($builder->getModel()->getQualifiedDeletedAtColumn());
         }
@@ -72,8 +74,9 @@ class SoftDeletingScope implements Scope
     {
         $builder->macro('restore', function (Builder $builder) {
             $builder->withTrashed();
+            $builder = $builder->applyScopes()->withoutGlobalScopes();
 
-            return $builder->update([$builder->getModel()->getDeletedAtColumn() => null]);
+            return $builder->update([$this->getDeletedAtColumn($builder) => null]);
         });
     }
 
@@ -121,7 +124,6 @@ class SoftDeletingScope implements Scope
                 return $builder->withoutTrashed();
             }
 
-            // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             return $builder->withoutGlobalScope($this);
         });
     }
@@ -136,7 +138,6 @@ class SoftDeletingScope implements Scope
         $builder->macro('withoutTrashed', function (Builder $builder) {
             $model = $builder->getModel();
 
-            // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNull(
                 $builder->qualifyColumn($model->getQualifiedDeletedAtColumn())
             );
@@ -155,7 +156,6 @@ class SoftDeletingScope implements Scope
         $builder->macro('onlyTrashed', function (Builder $builder) {
             $model = $builder->getModel();
 
-            // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNotNull(
                 $builder->qualifyColumn($model->getQualifiedDeletedAtColumn())
             );

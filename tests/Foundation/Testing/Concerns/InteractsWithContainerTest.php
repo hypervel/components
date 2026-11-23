@@ -7,20 +7,22 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hypervel\Foundation\Vite;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Mockery\MockInterface;
 
 class InteractsWithContainerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSwap(): void
     {
         $this->app->instance(InstanceStub::class, new InstanceStub);
 
         $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
 
-        $stub = m::mock(InstanceStub::class);
-        $stub->expects('execute')
-            ->andReturn('bar');
+        $stub = Double::for(InstanceStub::class)->strict();
+        $stub->expects('execute')->returns('bar');
 
         $this->swap(InstanceStub::class, $stub);
 

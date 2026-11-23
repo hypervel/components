@@ -35,7 +35,7 @@ class QueueBatchesController extends EntryController
      */
     public function show(EntriesRepository $storage, string $id): array
     {
-        $batch = app(BatchRepository::class)->find($id);
+        $batch = app(BatchRepository::class)->find($id)?->loadMissingJobCounts();
 
         $storage->update(Collection::make([
             new EntryUpdate(

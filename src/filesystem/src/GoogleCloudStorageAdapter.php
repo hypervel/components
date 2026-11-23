@@ -7,12 +7,13 @@ namespace Hypervel\Filesystem;
 use DateTimeInterface;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\StreamWrapper;
 use Hypervel\Support\Arr;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\GoogleCloudStorage\GoogleCloudStorageAdapter as FlysystemGoogleCloudAdapter;
 use League\Flysystem\UnableToReadFile;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class GoogleCloudStorageAdapter extends FilesystemAdapter
@@ -140,21 +141,15 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
         $prefixedPath = $this->prefixer->prefixPath($path);
 
         try {
-            $stream = $this->getBucket()->object($prefixedPath)->downloadAsStream($options)->detach();
-        } catch (CanceledException $exception) {
-            throw $exception;
+            // Decoder streams must retain cancellation and close their body with the resource.
+            return StreamWrapper::detach($this->getBucket()->object($prefixedPath)->downloadAsStream($options));
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
         }
-
-        if (! is_resource($stream)) {
-            throw UnableToReadFile::fromLocation(
-                $path,
-                'Downloaded object does not contain a file resource.',
-            );
-        }
-
-        return $stream;
     }
 
     private function getBucket(): Bucket

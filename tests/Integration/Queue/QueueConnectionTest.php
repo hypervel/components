@@ -17,12 +17,15 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 #[WithConfig('queue.default', 'sqs')]
 #[WithConfig('queue.connections.sqs.after_commit', true)]
 class QueueConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected MockHandler $sqs;
 
     /**
@@ -58,12 +61,12 @@ class QueueConnectionTest extends TestCase
     public function testJobWontGetDispatchedInsideATransaction(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
-                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
-            $transactionManager->expects('addCallback')->andReturn(null);
-            $transactionManager->shouldNotReceive('addCallbackForRollback');
+                ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
+            $transactionManager->expects('addCallback')->returns(null);
+            $transactionManager->expects('addCallbackForRollback')->never();
 
             return $transactionManager;
         });
@@ -76,9 +79,9 @@ class QueueConnectionTest extends TestCase
     public function testJobWillGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->shouldNotReceive('addCallback')->andReturn(null);
-            $transactionManager->shouldNotReceive('addCallbackForRollback');
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+            $transactionManager->expects('addCallback')->never();
+            $transactionManager->expects('addCallbackForRollback')->never();
 
             return $transactionManager;
         });
@@ -93,12 +96,12 @@ class QueueConnectionTest extends TestCase
         $this->app->make('config')->set('queue.connections.sqs.after_commit', false);
 
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
-                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
-            $transactionManager->expects('addCallback')->andReturn(null);
-            $transactionManager->shouldNotReceive('addCallbackForRollback');
+                ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
+            $transactionManager->expects('addCallback')->returns(null);
+            $transactionManager->expects('addCallbackForRollback')->never();
 
             return $transactionManager;
         });
@@ -111,12 +114,12 @@ class QueueConnectionTest extends TestCase
     public function testUniqueJobWontGetDispatchedInsideATransaction(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
-                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
-            $transactionManager->expects('addCallback')->andReturn(null);
-            $transactionManager->expects('addCallbackForRollback')->andReturn(null);
+                ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
+            $transactionManager->expects('addCallback')->returns(null);
+            $transactionManager->expects('addCallbackForRollback')->returns(null);
 
             return $transactionManager;
         });
@@ -129,9 +132,9 @@ class QueueConnectionTest extends TestCase
     public function testUniqueJobWillGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->shouldNotReceive('addCallback')->andReturn(null);
-            $transactionManager->shouldNotReceive('addCallbackForRollback')->andReturn(null);
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+            $transactionManager->expects('addCallback')->never();
+            $transactionManager->expects('addCallbackForRollback')->never();
 
             return $transactionManager;
         });
@@ -146,12 +149,12 @@ class QueueConnectionTest extends TestCase
         $this->app->make('config')->set('queue.connections.sqs.after_commit', false);
 
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
-                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
-            $transactionManager->expects('addCallback')->andReturn(null);
-            $transactionManager->expects('addCallbackForRollback')->andReturn(null);
+                ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
+            $transactionManager->expects('addCallback')->returns(null);
+            $transactionManager->expects('addCallbackForRollback')->returns(null);
 
             return $transactionManager;
         });

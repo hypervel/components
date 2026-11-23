@@ -1,0 +1,49 @@
+<?php
+
+namespace ModelBuilder;
+
+use App\Account;
+use App\Post;
+use App\Team;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Facades\DB;
+use function PHPStan\Testing\assertType;
+
+class User extends Model
+{
+    /** @return Builder<static> */
+    public static function testQueryStatic(): Builder
+    {
+        return static::query();
+    }
+
+    public static function testCreateStatic(): static
+    {
+        return static::query()->create();
+    }
+
+    public static function testCreateSelf(): self
+    {
+        return self::query()->create();
+    }
+}
+
+function test(User|Account $userOrAccount): void
+{
+    \App\User::query()->where(DB::raw('1'), 1)->get();
+
+    /** @see https://github.com/larastan/larastan/issues/1806 */
+    \App\User::query()->orderBy(Post::query()->select('id')->whereColumn('user_id', 'users.id'));
+    \App\User::query()->orderByDesc(Post::query()->select('id')->whereColumn('user_id', 'users.id'));
+
+    \App\User::query()->get()->pluck('computed');
+
+    /** @see https://github.com/larastan/larastan/issues/1952 */
+    Team::query()->where('name', 'Team A')->orderBy('name')->get();
+
+    assertType('int|false', $userOrAccount->increment('counter'));
+    assertType('int|false', $userOrAccount->decrement('counter'));
+    assertType('int', $userOrAccount->incrementQuietly('counter'));
+    assertType('int', $userOrAccount->decrementQuietly('counter'));
+}

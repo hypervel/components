@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Engine\Http;
 
 use Hypervel\Engine\Exceptions\RuntimeException;
+use Hypervel\Support\Attributes\Unsupported;
 use Psr\Http\Message\StreamInterface;
 use Stringable;
 use Throwable;
@@ -76,11 +77,11 @@ class Stream implements StreamInterface, Stringable
     }
 
     /**
-     * Returns the current position of the file read/write pointer.
+     * Return the current position of the file read/write pointer.
      *
-     * @return int Position of the file pointer
-     * @throws RuntimeException on error
+     * @throws RuntimeException
      */
+    #[Unsupported]
     public function tell(): int
     {
         throw new RuntimeException('Cannot determine the position of a SwooleStream');
@@ -110,28 +111,25 @@ class Stream implements StreamInterface, Stringable
      * Seek to a position in the stream.
      *
      * @see http://www.php.net/manual/en/function.fseek.php
-     * @param int $offset Stream offset
      * @param int $whence Specifies how the cursor position will be calculated
      *                    based on the seek offset. Valid values are identical to the built-in
      *                    PHP $whence values for `fseek()`.  SEEK_SET: Set position equal to
      *                    offset bytes SEEK_CUR: Set position to current location plus offset
      *                    SEEK_END: Set position to end-of-stream plus offset.
-     * @throws RuntimeException on failure
+     * @throws RuntimeException
      */
-    public function seek($offset, $whence = SEEK_SET): void
+    #[Unsupported]
+    public function seek(int $offset, int $whence = SEEK_SET): void
     {
         throw new RuntimeException('Cannot seek a SwooleStream');
     }
 
     /**
      * Seek to the beginning of the stream.
-     * If the stream is not seekable, this method will raise an exception;
-     * otherwise, it will perform a seek(0).
      *
-     * @throws RuntimeException on failure
-     * @see http://www.php.net/manual/en/function.fseek.php
-     * @see seek()
+     * @throws RuntimeException
      */
+    #[Unsupported]
     public function rewind(): void
     {
         $this->seek(0);

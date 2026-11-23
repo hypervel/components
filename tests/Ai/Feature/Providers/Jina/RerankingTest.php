@@ -12,6 +12,7 @@ use Hypervel\Ai\Responses\Data\RankedDocument;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -78,6 +79,8 @@ class RerankingTest extends TestCase
         $this->assertSame(0.95, $response->first()->score);
         $this->assertSame('jina', $response->meta->provider);
         $this->assertSame('jina-reranker-v3', $response->meta->model);
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame(25, $response->raw->json('usage.total_tokens'));
     }
 
     public function testRerankingRequestSendsBearerToken(): void

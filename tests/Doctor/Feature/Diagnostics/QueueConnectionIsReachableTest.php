@@ -12,12 +12,16 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Doctor\TestCase;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class QueueConnectionIsReachableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Use an isolated in-memory database for schema probes.
      */
@@ -115,13 +119,13 @@ class QueueConnectionIsReachableTest extends TestCase
     public function testRemoteQueuesMustCompleteAReadOnlyOperation(string $driver, bool $fails): void
     {
         config(['queue.default' => 'remote', 'queue.connections.remote' => ['driver' => $driver]]);
-        $queue = m::mock(QueueContract::class);
-        $probe = $queue->shouldReceive('size')->once()->withNoArgs();
+        $queue = Double::for(QueueContract::class)->strict();
+        $probe = $queue->expects('size')->with(Argument::none());
 
         if ($fails) {
-            $probe->andThrow(new RuntimeException('Queue service is unreachable.'));
+            $probe->throws(new RuntimeException('Queue service is unreachable.'));
         } else {
-            $probe->andReturn(0);
+            $probe->returns(0);
         }
 
         Queue::shouldReceive('connection')->with('remote')->andReturn($queue);

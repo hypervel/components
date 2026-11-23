@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
+use Hypervel\Ai\Attributes\Strict;
+use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Providers\Tools\CodeExecution;
 use Hypervel\Ai\Providers\Tools\WebFetch;
 use Hypervel\Ai\Providers\Tools\WebSearch;
+use Hypervel\Ai\Tools\Request;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\NamedToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
+use Hypervel\Tests\Ai\Fixtures\Tools\NonStrictTool;
 use Hypervel\Tests\Ai\TestCase;
 
 use function Hypervel\Ai\agent;
@@ -58,6 +63,78 @@ class ToolMappingTest extends TestCase
             $names = collect($request->data()['tools'] ?? [])->pluck('name')->all();
 
             return in_array('aliased_tool', $names, true);
+        });
+    }
+
+    public function testToolWithStrictAttributeSendsStrictTrue(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [$this->anthropicStrictOrderTool()])->prompt('Order two', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $tool = $request->data()['tools'][0];
+
+            return $tool['strict'] === true
+                && $tool['input_schema']['additionalProperties'] === false
+                && $tool['input_schema']['required'] === ['quantity'];
+        });
+    }
+
+    public function testToolWithoutStrictAttributeOmitsStrict(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [new NonStrictTool])->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $tool = collect($request->data()['tools'] ?? [])->firstWhere('name', 'NonStrictTool');
+
+            return ! array_key_exists('strict', $tool)
+                && ! array_key_exists('additionalProperties', $tool['input_schema']);
+        });
+    }
+
+    public function testStrictToolSchemasDropKeywordsAnthropicStrictModeRejects(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [$this->anthropicStrictOrderTool()])->prompt('Order two', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $quantity = ((array) $request->data()['tools'][0]['input_schema']['properties'])['quantity'];
+
+            return ! array_key_exists('minimum', $quantity)
+                && str_contains($quantity['description'] ?? '', 'Must be at least 1.');
+        });
+    }
+
+    public function testStrictToolsAreSentAsRegularToolsWhenNativeStructuredOutputIsDisabled(): void
+    {
+        config(['ai.providers.anthropic' => [
+            ...config('ai.providers.anthropic'),
+            'use_native_structured_output' => false,
+        ]]);
+
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(tools: [$this->anthropicStrictOrderTool()])->prompt('Order two', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $tool = $request->data()['tools'][0];
+            $quantity = ((array) $tool['input_schema']['properties'])['quantity'];
+
+            return ! array_key_exists('strict', $tool)
+                && ! array_key_exists('additionalProperties', $tool['input_schema'])
+                && $quantity['minimum'] === 1;
         });
     }
 
@@ -252,6 +329,50 @@ class ToolMappingTest extends TestCase
         $this->assertEmpty($response->meta->citations);
     }
 
+    public function testWebSearchReportsOnlyTheSourcesTheAnswerCites(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_search_1',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-sonnet-4-6',
+                'content' => [
+                    [
+                        'type' => 'server_tool_use',
+                        'id' => 'srvtoolu_1',
+                        'name' => 'web_search',
+                        'input' => (object) ['query' => 'latest laravel version'],
+                    ],
+                    [
+                        'type' => 'web_search_tool_result',
+                        'tool_use_id' => 'srvtoolu_1',
+                        'content' => [
+                            ['type' => 'web_search_result', 'url' => 'https://laravel.com/docs/releases', 'title' => 'Release Notes', 'encrypted_content' => 'abc', 'page_age' => null],
+                            ['type' => 'web_search_result', 'url' => 'https://laravel-news.com/laravel-13', 'title' => 'Laravel 13', 'encrypted_content' => 'def', 'page_age' => null],
+                        ],
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => 'The latest version is Laravel 13.',
+                        'citations' => [
+                            ['type' => 'web_search_result_location', 'url' => 'https://laravel-news.com/laravel-13', 'title' => 'Laravel 13', 'cited_text' => 'Laravel 13', 'encrypted_index' => 'xyz'],
+                        ],
+                    ],
+                ],
+                'stop_reason' => 'end_turn',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        $response = agent(tools: [new WebSearch])->prompt('Search it', provider: 'anthropic');
+
+        $this->assertSame(
+            [['https://laravel-news.com/laravel-13', 'Laravel 13']],
+            $response->meta->citations->map(fn ($citation): array => [$citation->url, $citation->title])->all(),
+        );
+    }
+
     public function testWebFetchToolForwardsACustomMaxUses(): void
     {
         Http::fake([
@@ -306,5 +427,40 @@ class ToolMappingTest extends TestCase
 
             return data_get($tool, 'type') === 'code_execution_20260120';
         });
+    }
+
+    /**
+     * Create a strict tool whose schema uses a keyword Anthropic's strict mode rejects.
+     */
+    protected function anthropicStrictOrderTool(): Tool
+    {
+        return new #[Strict] class implements Tool {
+            /**
+             * Get the tool description.
+             */
+            public function description(): string
+            {
+                return 'Orders a number of items.';
+            }
+
+            /**
+             * Handle the tool invocation.
+             */
+            public function handle(Request $request): string
+            {
+                return 'ok';
+            }
+
+            /**
+             * Get the tool's input schema.
+             */
+            public function schema(JsonSchema $schema): array
+            {
+                return [
+                    'quantity' => $schema->integer()->min(1)->required(),
+                    'note' => $schema->string(),
+                ];
+            }
+        };
     }
 }

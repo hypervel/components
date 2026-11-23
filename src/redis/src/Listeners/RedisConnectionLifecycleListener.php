@@ -6,9 +6,9 @@ namespace Hypervel\Redis\Listeners;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisManager;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class RedisConnectionLifecycleListener
@@ -62,9 +62,7 @@ class RedisConnectionLifecycleListener
             try {
                 $this->container->make(PoolManager::class)->purgeAll();
             } catch (Throwable $throwable) {
-                if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

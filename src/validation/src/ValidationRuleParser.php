@@ -7,14 +7,17 @@ namespace Hypervel\Validation;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Validation\CompilableRules;
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
+use Hypervel\Validation\Rules\ArrayRule;
 use Hypervel\Validation\Rules\Date;
 use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\ListRule;
 use Hypervel\Validation\Rules\Numeric;
 use Hypervel\Validation\Rules\StringRule;
 use Hypervel\Validation\Rules\Unique;
@@ -87,7 +90,7 @@ class ValidationRuleParser
         }
 
         if (is_object($rule)) {
-            if ($rule instanceof Date || $rule instanceof Numeric || $rule instanceof StringRule) {
+            if ($rule instanceof ArrayRule || $rule instanceof Date || $rule instanceof ListRule || $rule instanceof Numeric || $rule instanceof StringRule) {
                 // Composite rules already separate constraints; literal parameters may contain pipes.
                 return $rule->toArray();
             }
@@ -98,7 +101,7 @@ class ValidationRuleParser
         $rules = [];
 
         foreach ($rule as $value) {
-            if ($value instanceof Date || $value instanceof Numeric || $value instanceof StringRule) {
+            if ($value instanceof ArrayRule || $value instanceof Date || $value instanceof ListRule || $value instanceof Numeric || $value instanceof StringRule) {
                 $rules = array_merge($rules, $value->toArray());
             } else {
                 $rules[] = $this->prepareRule($value, $attribute);
@@ -149,13 +152,32 @@ class ValidationRuleParser
      */
     public static function ruleReducesToString(mixed $rule): bool
     {
-        return is_object($rule)
-            && ! $rule instanceof Closure
-            && ! $rule instanceof ValidationRule
+        if (! is_object($rule)
+            || $rule instanceof Closure
+            || $rule instanceof ValidationRule
+            || $rule instanceof RuleContract
+            || $rule instanceof ParameterizedRule
+            || $rule instanceof CompilableRules
+            || $rule instanceof Exists
+            || $rule instanceof Unique
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine if validation uses a rule's parameter declaration.
+     *
+     * @phpstan-assert-if-true =ParameterizedRule $rule
+     */
+    public static function ruleUsesParameterizedDeclaration(mixed $rule): bool
+    {
+        // Custom validation takes precedence over an inherited declarative builder.
+        return $rule instanceof ParameterizedRule
             && ! $rule instanceof RuleContract
-            && ! $rule instanceof CompilableRules
-            && ! (($rule instanceof Exists || $rule instanceof Unique)
-                && $rule->queryCallbacks() !== []);
+            && ! $rule instanceof ValidationRule;
     }
 
     /**
@@ -380,11 +402,25 @@ class ValidationRuleParser
 
     /**
      * Extract the rule name and parameters from a rule.
+     *
+     * @return array{object|string, array}
      */
     public static function parse(array|object|string $rule): array
     {
-        if ($rule instanceof RuleContract || $rule instanceof CompilableRules) {
+        if ($rule instanceof RuleContract || $rule instanceof ValidationRule || $rule instanceof CompilableRules) {
             return [$rule, []];
+        }
+
+        if (static::ruleUsesParameterizedDeclaration($rule)) {
+            $rule = $rule->toArray();
+        }
+
+        if ($rule instanceof DatabaseRulePlan) {
+            return [$rule->name, $rule->parameters];
+        }
+
+        if ($rule instanceof Exists || $rule instanceof Unique) {
+            return [$rule instanceof Exists ? 'Exists' : 'Unique', $rule->queryParameters()];
         }
 
         if (is_array($rule)) {
@@ -415,6 +451,8 @@ class ValidationRuleParser
 
     /**
      * Parse an array based rule.
+     *
+     * @return array{string, array}
      */
     protected static function parseArrayRule(array $rule): array
     {
@@ -423,6 +461,8 @@ class ValidationRuleParser
 
     /**
      * Parse a string based rule.
+     *
+     * @return array{string, array}
      */
     protected static function parseStringRule(string|Stringable $rule): array
     {
@@ -476,7 +516,7 @@ class ValidationRuleParser
      * Behavioral callers must attempt literal parsing first. Compiler callers may
      * conservatively delegate because false positives only select the full path.
      *
-     * @phpstan-assert-if-true string $argument
+     * @phpstan-assert-if-true =string $argument
      */
     public static function looksLikeDateFieldReference(mixed $argument): bool
     {

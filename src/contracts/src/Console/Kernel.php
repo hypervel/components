@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Console\ClosureCommand;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\InputInterface;
@@ -33,7 +34,10 @@ interface Kernel
 
     /**
      * Register a Closure based command with the application.
+     *
+     * @param-closure-this ClosureCommand $callback
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function command(string $signature, Closure $callback): ClosureCommand;
 
     /**
@@ -77,6 +81,8 @@ interface Kernel
 
     /**
      * Get all of the commands registered with the console.
+     *
+     * @return array<string, SymfonyCommand>
      */
     public function all(): array;
 

@@ -13,20 +13,26 @@ use Hypervel\Console\View\Components\Choice;
 use Hypervel\Console\View\Components\Confirm;
 use Hypervel\Console\View\Components\Error;
 use Hypervel\Console\View\Components\Info;
+use Hypervel\Console\View\Components\Mutators\EnsureRelativePaths;
 use Hypervel\Console\View\Components\Success;
 use Hypervel\Console\View\Components\Task;
 use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Console\View\Components\Warn;
 use Hypervel\Console\View\TaskResult;
+use Hypervel\Foundation\Application;
 use Hypervel\Tests\Console\Concerns\CreatesAnsweredOutputStyles;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Question\Question;
 
 class ComponentsTest extends TestCase
 {
     use CreatesAnsweredOutputStyles;
+    use VerifiesDoubles;
 
     public function testAlert(): void
     {
@@ -82,6 +88,33 @@ class ComponentsTest extends TestCase
         $this->assertStringContainsString('INFO  The application is in the [production] environment.', $output->fetch());
     }
 
+    #[DataProvider('relativePathMessages')]
+    public function testRelativePathsPreserveOtherPathsAndUrls(string $message, string $expected): void
+    {
+        new Application('/app');
+
+        $this->assertSame($expected, (new EnsureRelativePaths)($message));
+    }
+
+    /**
+     * Return messages and their expected relative paths.
+     */
+    public static function relativePathMessages(): array
+    {
+        return [
+            'bracketed absolute path' => ['File [/app/config/app.php]', 'File [config/app.php]'],
+            'caller-written markup' => ['<fg=yellow>/app/x.php</>', '<fg=yellow>x.php</>'],
+            'nested app directory' => ['/app/app/Models/User.php', 'app/Models/User.php'],
+            'already relative path' => ['modules/app/config.php', 'modules/app/config.php'],
+            'Unicode parent directory' => ['/café/app/config.php', '/café/app/config.php'],
+            'service URL' => ['http://app/login', 'http://app/login'],
+            'URL path' => ['https://example.com/app/dashboard', 'https://example.com/app/dashboard'],
+            'editor URL query' => ['phpstorm://open?file=/app/Models/User.php&line=1', 'phpstorm://open?file=/app/Models/User.php&line=1'],
+            'file URI' => ['file:/app/x.php', 'file:/app/x.php'],
+            'no application path' => ['Finished successfully', 'Finished successfully'],
+        ];
+    }
+
     public function testConfirm(): void
     {
         $result = (new Confirm($this->outputStyleWithAnswer('')))->render('Question?');
@@ -99,16 +132,11 @@ class ComponentsTest extends TestCase
 
     public function testAskWithCompletionAcceptsGeneratorValues(): void
     {
-        $output = m::mock(OutputStyle::class);
+        $output = Double::for(OutputStyle::class)->strict();
 
-        $output->shouldReceive('askQuestion')
-            ->with(m::on(function (Question $question): bool {
-                $this->assertSame(['a', 'b'], $question->getAutocompleterValues());
-
-                return true;
-            }))
-            ->once()
-            ->andReturn('b');
+        $output->expects('askQuestion')
+            ->with(Argument::capture($question))
+            ->returns('b');
 
         $choices = (function (): Generator {
             yield 'a';
@@ -118,6 +146,8 @@ class ComponentsTest extends TestCase
         $result = (new AskWithCompletion($output))->render('Question?', $choices);
 
         $this->assertSame('b', $result);
+        $this->assertInstanceOf(Question::class, $question);
+        $this->assertSame(['a', 'b'], $question->getAutocompleterValues());
     }
 
     public function testTask(): void

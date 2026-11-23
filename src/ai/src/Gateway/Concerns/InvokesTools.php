@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Concerns;
 
 use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Exceptions\ToolExecutionException;
 use Hypervel\Ai\Gateway\ParentInvocation;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Providers\Tools\ToolSearch;
+use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Ai\Tools\ToolNameResolver;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Str;
 use Hypervel\Validation\ValidationException;
 use Throwable;
@@ -36,13 +39,20 @@ trait InvokesTools
             // Only the handler itself may fail the tool call, so a listener that throws is never reported as a tool failure...
             try {
                 $result = $tool->handle(new Request($arguments, $toolCallId, $toolInvocationId));
-            } catch (ValidationException $exception) {
-                // Validation failures are returned to the model so it can correct the arguments and retry...
-                $result = implode(' ', $exception->validator->errors()->all()) ?: $exception->getMessage();
             } catch (Throwable $exception) {
-                $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
-
-                throw $exception;
+                // Validation failures are returned to the model so it can correct the arguments and retry. Unlike upstream, a
+                // sub-agent's validation failure comes from its own run, so it fails the tool call, as the streamed path does...
+                if ($exception instanceof ValidationException && ! $tool instanceof AgentTool) {
+                    $result = implode(' ', $exception->validator->errors()->all()) ?: $exception->getMessage();
+                } else {
+                    // Keep the original exception, including cancellation, as previous if failure reporting throws.
+                    try {
+                        // Unlike upstream, cancellation is not wrapped, so the caller never recovers it as the tool's own failure.
+                        throw Coroutine::causedByCancellation($exception) ? $exception : new ToolExecutionException($exception);
+                    } finally {
+                        $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
+                    }
+                }
             }
 
             $context?->toolInvoked($tool, $arguments, $result, $toolInvocationId, $this->elapsedMilliseconds($startedAt));

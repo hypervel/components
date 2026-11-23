@@ -13,7 +13,7 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\CommandWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -100,9 +100,9 @@ class CommandWatcherTest extends FeatureTestCase
         $command = new SensitiveInputCommand;
         $watcher = $this->app->make(CommandWatcher::class);
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getArguments')->once()->andReturn([]);
-        $input->shouldReceive('getOptions')->once()->andReturn(['unknown' => 'unknown-secret']);
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getArguments')->returns([]);
+        $input->expects('getOptions')->returns(['unknown' => 'unknown-secret']);
 
         $watcher->recordCommand(new AfterExecute($command, null, $input, 0));
 

@@ -8,7 +8,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Console\Fixtures\Commands\GeneratorCommandStub;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -17,6 +18,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class GeneratorCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testViewPathUsesTheConventionalDirectoryWhenConfiguredPathsAreEmpty(): void
     {
         config(['view.paths' => []]);
@@ -38,10 +41,10 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
-            ->andReturn('packages/my-package/src');
+            ->returns('packages/my-package/src');
         $command->setTestInput($input);
 
         $path = $command->exposedGetPath('MyNamespace\MyClass');
@@ -54,10 +57,10 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
-            ->andReturn('packages/my-package/src/');
+            ->returns('packages/my-package/src/');
         $command->setTestInput($input);
 
         $path = $command->exposedGetPath('MyNamespace\MyClass');
@@ -69,10 +72,10 @@ class GeneratorCommandTest extends TestCase
     {
         $command = new GeneratorCommandStub;
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
-            ->andReturn('/tmp/custom-path');
+            ->returns('/tmp/custom-path');
         $command->setTestInput($input);
 
         $path = $command->exposedGetPath('MyNamespace\MyClass');
@@ -84,10 +87,10 @@ class GeneratorCommandTest extends TestCase
     {
         $command = new GeneratorCommandStub;
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
-            ->andReturn('/tmp/custom-path/');
+            ->returns('/tmp/custom-path/');
         $command->setTestInput($input);
 
         $path = $command->exposedGetPath('MyNamespace\MyClass');
@@ -100,10 +103,10 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
-            ->andReturn('src/Controllers');
+            ->returns('src/Controllers');
         $command->setTestInput($input);
 
         $path = $command->exposedGetPath('App\Http\Controllers\Api\V1\UserController');
@@ -120,10 +123,10 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
-            ->andReturn(null);
+            ->returns(null);
         $command->setTestInput($input);
 
         $path = $command->exposedGetPath('App\Http\Controllers\UserController');
@@ -237,10 +240,10 @@ PHP;
     {
         $command = new GeneratorCommandStub;
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-namespace')
-            ->andReturn(null);
+            ->returns(null);
         $command->setTestInput($input);
 
         $this->assertSame('App\UserController', $command->exposedQualifyClass('UserController'));
@@ -250,10 +253,10 @@ PHP;
     {
         $command = new GeneratorCommandStub;
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-namespace')
-            ->andReturn(null);
+            ->returns(null);
         $command->setTestInput($input);
 
         $this->assertSame('App\Http\Controllers\UserController', $command->exposedQualifyClass('Http/Controllers/UserController'));
@@ -263,10 +266,10 @@ PHP;
     {
         $command = new GeneratorCommandStub;
 
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')
+        $input = Double::for(InputInterface::class)->strict();
+        $input->expects('getOption')->times(minimum: 1)
             ->with('target-namespace')
-            ->andReturn('Custom\Namespace');
+            ->returns('Custom\Namespace');
         $command->setTestInput($input);
 
         $this->assertSame('Custom\Namespace\UserController', $command->exposedQualifyClass('UserController'));
@@ -274,11 +277,11 @@ PHP;
 
     public function testWriteFailureDoesNotCreateMatchingTestOrReportSuccess(): void
     {
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->andReturnFalse();
-        $files->shouldReceive('ensureDirectoryExists')->once();
-        $files->shouldReceive('get')->once()->andReturn('<?php class DummyClass {}');
-        $files->shouldReceive('replace')->once()->andThrow(new RuntimeException('Unable to replace generated file.'));
+        $files = Double::for(Filesystem::class)->strict();
+        $files->allows('exists')->returns(false);
+        $files->expects('ensureDirectoryExists');
+        $files->expects('get')->returns('<?php class DummyClass {}');
+        $files->expects('replace')->throws(new RuntimeException('Unable to replace generated file.'));
 
         $command = new GeneratorCommandStub($files);
         $command->setHypervel($this->app);

@@ -10,10 +10,10 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -88,12 +88,12 @@ class PassportCache
             return $models[$id];
         }
 
-        $model = $this->config->boolean('passport.cache.enabled')
+        $model = Passport::cacheEnabled($this->config)
             ? $this->coordinator->fill(
                 $this->getCache(),
                 $source,
                 $this->getCacheKey($type, $id),
-                $this->config->integer('passport.cache.ttl'),
+                $this->config->integer('passport.cache.ttl', Passport::DEFAULT_CACHE_TTL),
                 $read,
                 cacheNull: false,
             )
@@ -148,7 +148,7 @@ class PassportCache
     {
         $this->forgetMemo($type, $ids);
 
-        if (! $this->config->boolean('passport.cache.enabled')) {
+        if (! Passport::cacheEnabled($this->config)) {
             return;
         }
 
@@ -160,9 +160,11 @@ class PassportCache
             foreach ($ids as $id) {
                 try {
                     $this->coordinator->invalidate($cache, $this->getCacheKey($type, (string) $id));
-                } catch (CanceledException $canceledException) {
-                    throw $canceledException;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $exception ??= $throwable;
                 }
             }
@@ -225,7 +227,7 @@ class PassportCache
         $model = $query->getModel();
         $type = $model instanceof Token ? 'tokens' : 'clients';
 
-        if (! $this->config->boolean('passport.cache.enabled')) {
+        if (! Passport::cacheEnabled($this->config)) {
             RequestContext::forgetValue(self::CONTEXT_KEY_PREFIX . $type);
 
             return $write($query);
@@ -255,6 +257,6 @@ class PassportCache
      */
     protected function getCacheKey(string $type, string $id): string
     {
-        return $this->config->string('passport.cache.prefix') . ':' . $type . ':' . $id;
+        return $this->config->string('passport.cache.prefix', Passport::DEFAULT_CACHE_PREFIX) . ':' . $type . ':' . $id;
     }
 }

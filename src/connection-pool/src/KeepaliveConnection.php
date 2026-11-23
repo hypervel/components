@@ -13,7 +13,9 @@ use Hypervel\Contracts\ConnectionPool\ConnectionPool as ConnectionPoolContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Support\Attributes\Unsupported;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -66,8 +68,11 @@ abstract class KeepaliveConnection implements ConnectionContract
     }
 
     /**
+     * Get the underlying connection.
+     *
      * @throws InvalidArgumentException
      */
+    #[Unsupported('Use call() instead.')]
     public function getConnection(): mixed
     {
         throw new InvalidArgumentException('Please use call instead of getConnection.');
@@ -93,9 +98,11 @@ abstract class KeepaliveConnection implements ConnectionContract
         if ($this->isConnected()) {
             try {
                 $this->sendClose($connection);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $message = sprintf('Socket of %s close failed, %s', $this->name, $exception);
 
                 if ($logger = $this->getLogger()) {
@@ -252,16 +259,15 @@ abstract class KeepaliveConnection implements ConnectionContract
                 }
 
                 $this->heartbeat();
-            } catch (CanceledException $exception) {
-                if ($this->channel === $channel) {
-                    $this->closeAfterFailure();
-                }
-
-                throw $exception;
             } catch (Throwable $throwable) {
                 if ($this->channel === $channel) {
                     $this->closeAfterFailure();
                 }
+
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $message = sprintf('Socket of %s heartbeat failed, %s', $this->name, $throwable);
 
                 if ($logger = $this->getLogger()) {

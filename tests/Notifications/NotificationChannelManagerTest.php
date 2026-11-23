@@ -38,17 +38,19 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Tests\Notifications\Fixtures\ChannelSpy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
-use Mockery\MockInterface;
 use stdClass;
 
 class NotificationChannelManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testGetDefaultChannel(): void
     {
         $container = $this->getContainer();
-        $container->instance(MailChannel::class, m::mock(MailChannel::class));
+        $container->instance(MailChannel::class, Double::for(MailChannel::class)->strict());
 
         $manager = new ChannelManager($container);
 
@@ -58,11 +60,11 @@ class NotificationChannelManagerTest extends TestCase
     public function testGetCustomChannelResolvesDirectly(): void
     {
         $container = $this->getContainer();
-        $container->instance(MailChannel::class, m::mock(MailChannel::class));
+        $container->instance(MailChannel::class, Double::for(MailChannel::class)->strict());
 
         $manager = new ChannelManager($container);
-        $channel = m::mock('customChannel');
-        $manager->extend('test', fn (): MockInterface => $channel);
+        $channel = new NotificationChannelManagerTestCustomChannel;
+        $manager->extend('test', fn (): NotificationChannelManagerTestCustomChannel => $channel);
 
         $this->assertSame($channel, $manager->channel('test'));
     }
@@ -70,8 +72,8 @@ class NotificationChannelManagerTest extends TestCase
     public function testIntegerEnumChannelNamesAreNormalizedByTheManagerAndFake(): void
     {
         $manager = new ChannelManager($this->getContainer());
-        $channel = m::mock('customChannel');
-        $manager->extend('0', fn (): MockInterface => $channel);
+        $channel = new NotificationChannelManagerTestCustomChannel;
+        $manager->extend('0', fn (): NotificationChannelManagerTestCustomChannel => $channel);
 
         $this->assertSame($channel, $manager->channel(NotificationChannelManagerTestIntIdentifier::Zero));
         $this->assertNull((new NotificationFake)->channel(NotificationChannelManagerTestIntIdentifier::Zero));
@@ -109,9 +111,9 @@ class NotificationChannelManagerTest extends TestCase
         $events = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $events);
 
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
-        $manager->expects('driver')->andReturn($driver);
+        $manager->expects('driver')->returns($driver);
 
         $manager->send($notifiable = new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
 
@@ -164,9 +166,9 @@ class NotificationChannelManagerTest extends TestCase
         $events->listen(NotificationSent::class, function (NotificationSent $event) use (&$sent): void {
             $sent[] = $event;
         });
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
-        $manager->expects('driver')->andReturn($driver);
+        $manager->expects('driver')->returns($driver);
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestNotificationWithTwoChannels);
 
@@ -182,8 +184,8 @@ class NotificationChannelManagerTest extends TestCase
 
         $events = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $events);
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
-        $manager->shouldNotReceive('driver');
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
+        $manager->expects('driver')->never();
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestCancelledNotification);
 
@@ -197,9 +199,9 @@ class NotificationChannelManagerTest extends TestCase
 
         $events = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $events);
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
-        $manager->expects('driver')->andReturn($driver);
+        $manager->expects('driver')->returns($driver);
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestNotCancelledNotification);
 
@@ -215,10 +217,10 @@ class NotificationChannelManagerTest extends TestCase
 
         $events = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $events);
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
         $driver->exception = $exception = new Exception;
-        $manager->expects('driver')->andReturn($driver);
+        $manager->expects('driver')->returns($driver);
 
         try {
             $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
@@ -433,23 +435,25 @@ class NotificationChannelManagerTest extends TestCase
         $deduplicator = [NotificationChannelManagerTestDeduplicator::class, 'resolve'];
 
         $container = $this->getContainer();
-        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
-        $queueRoutes->expects('getQueue')->times(2)->andReturn(null);
-        $queueRoutes->expects('getConnection')->times(2)->andReturn(null);
+        $container->instance('queue.routes', $queueRoutes = Double::for(QueueRoutes::class)->strict());
+        $queueRoutes->expects('getQueue')->times(2)->returns(null);
+        $queueRoutes->expects('getConnection')->times(2)->returns(null);
+        $jobs = [];
         $container->make(BusDispatcherContract::class)
-            ->expects('dispatch')->times(2)->withArgs(function (SendQueuedNotifications $job) use ($deduplicator): bool {
-                $this->assertSame($deduplicator, $job->deduplicator);
-
-                $restored = unserialize(serialize($job));
-                $this->assertSame('queue:payload', ($restored->deduplicator)('payload', 'queue'));
-
-                return true;
+            ->expects('dispatch')->times(2)->resolves(static function (SendQueuedNotifications $job) use (&$jobs): void {
+                $jobs[] = $job;
             });
 
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = new ChannelManager($container);
 
         $notification = (new NotificationChannelManagerTestQueuedNotificationWithTwoChannels)->withDeduplicator($deduplicator);
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
+
+        foreach ($jobs as $job) {
+            $this->assertSame($deduplicator, $job->deduplicator);
+            $restored = unserialize(serialize($job));
+            $this->assertSame('queue:payload', ($restored->deduplicator)('payload', 'queue'));
+        }
     }
 
     public function testQueuedNotificationForwardsDeduplicatorSetToQueueJob(): void
@@ -531,9 +535,9 @@ class NotificationChannelManagerTest extends TestCase
 
         $events = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $events);
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
-        $manager->expects('driver')->andReturn($driver);
+        $manager->expects('driver')->returns($driver);
         $driver->response = $response = new stdClass;
 
         $manager->send($notifiable = new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerWithAfterSendingMethodNotification);
@@ -555,7 +559,7 @@ class NotificationChannelManagerTest extends TestCase
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository([]));
-        $container->instance(BusDispatcherContract::class, m::mock(BusDispatcherContract::class));
+        $container->instance(BusDispatcherContract::class, Double::for(BusDispatcherContract::class)->strict());
         $container->instance(Dispatcher::class, $this->mockEventDispatcher());
 
         Container::setInstance($container);
@@ -568,8 +572,8 @@ class NotificationChannelManagerTest extends TestCase
      */
     protected function mockEventDispatcher(): Dispatcher
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->byDefault()->andReturn(true);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->allows('hasListeners')->returns(true);
 
         return $dispatcher;
     }

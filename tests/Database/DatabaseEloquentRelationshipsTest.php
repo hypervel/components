@@ -20,11 +20,23 @@ use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Tests\Database\Concerns\InteractsWithInMemoryConnection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class DatabaseEloquentRelationshipsTest extends TestCase
 {
+    use InteractsWithInMemoryConnection;
+    use VerifiesDoubles;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->useInMemoryConnection();
+    }
+
     public function testStandardRelationships(): void
     {
         $post = new Post;
@@ -265,13 +277,13 @@ class MockedConnectionModel extends Model
      */
     public function getConnection(): Connection
     {
-        $mock = m::mock(Connection::class);
+        $mock = Double::for(Connection::class)->strict();
         $grammar = new Grammar($mock);
-        $mock->shouldReceive('getQueryGrammar')->andReturn($grammar);
+        $mock->allows('getQueryGrammar')->returns($grammar);
         $processor = new Processor;
-        $mock->shouldReceive('getPostProcessor')->andReturn($processor);
-        $mock->shouldReceive('getName')->andReturn('name');
-        $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor): BaseBuilder {
+        $mock->allows('getPostProcessor')->returns($processor);
+        $mock->allows('getName')->returns('name');
+        $mock->allows('query')->resolves(function () use ($mock, $grammar, $processor): BaseBuilder {
             return new BaseBuilder($mock, $grammar, $processor);
         });
 
@@ -279,11 +291,11 @@ class MockedConnectionModel extends Model
     }
 }
 
-class FakeRelationship extends MockedConnectionModel
+class FakeRelationship extends Model
 {
 }
 
-class Post extends MockedConnectionModel
+class Post extends Model
 {
     public function attachment()
     {

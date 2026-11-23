@@ -10,9 +10,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
-/**
- * @method bool shouldStopRetries(Throwable $e)
- */
 interface ExceptionHandler
 {
     /**
@@ -58,4 +55,10 @@ interface ExceptionHandler
      * Register a callback to be called after an HTTP error response is rendered.
      */
     public function afterResponse(callable $callback): void;
+
+    // Unlike Laravel, this is required so wrapping handlers, such as the exception fake, keep the retry policy.
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
+    public function shouldStopRetries(Throwable $e): bool;
 }

@@ -18,11 +18,14 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Fluent;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 
 class DatabaseEloquentJsonCastTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPrimitiveJsonCastRoundTripsAtTheMaximumNestingDepth(): void
     {
         $value = $this->nestedValue(512);
@@ -51,19 +54,27 @@ class DatabaseEloquentJsonCastTest extends TestCase
         $this->assertThrows(fn () => Json::decode('{invalid'), JsonException::class);
     }
 
-    public function testCustomDecoderReceivesTheStoredEmptyString(): void
+    public function testDefaultDecoderReturnsStoredNumbersUnchanged(): void
     {
-        $decoded = null;
+        $this->assertSame(5, Json::decode(5));
+        $this->assertSame(1.5, Json::decode(1.5, false));
+        $this->assertSame(0.30000000000000004, Json::decode(0.1 + 0.2));
+    }
+
+    public function testCustomDecoderReceivesTheStoredValueUnchanged(): void
+    {
+        $decoded = [];
 
         try {
             Json::decodeUsing(function (mixed $value) use (&$decoded): null {
-                $decoded = $value;
+                $decoded[] = $value;
 
                 return null;
             });
 
             $this->assertNull(Json::decode(''));
-            $this->assertSame('', $decoded);
+            $this->assertNull(Json::decode(5));
+            $this->assertSame(['', 5], $decoded);
         } finally {
             Json::flushState();
         }
@@ -129,7 +140,7 @@ class DatabaseEloquentJsonCastTest extends TestCase
     {
         $model = new JsonCastModel;
         $model->mergeCasts(['encrypted_payload' => 'encrypted:array']);
-        $encrypter = m::mock(Encrypter::class);
+        $encrypter = Double::for(Encrypter::class)->strict();
         $encrypter->expects('encrypt')->never();
         Model::encryptUsing($encrypter);
 

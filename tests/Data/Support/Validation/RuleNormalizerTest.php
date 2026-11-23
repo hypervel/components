@@ -9,15 +9,22 @@ use Hypervel\Contracts\Validation\Rule as CustomRuleContract;
 use Hypervel\Data\Attributes\Validation\AcceptedIf;
 use Hypervel\Data\Attributes\Validation\After;
 use Hypervel\Data\Attributes\Validation\BeforeOrEqual;
+use Hypervel\Data\Attributes\Validation\Confirmed;
+use Hypervel\Data\Attributes\Validation\Contains;
 use Hypervel\Data\Attributes\Validation\DateEquals;
 use Hypervel\Data\Attributes\Validation\DeclinedIf;
 use Hypervel\Data\Attributes\Validation\Dimensions;
+use Hypervel\Data\Attributes\Validation\DoesntContain;
 use Hypervel\Data\Attributes\Validation\ExcludeIf;
+use Hypervel\Data\Attributes\Validation\ExcludeUnless;
 use Hypervel\Data\Attributes\Validation\Exists;
+use Hypervel\Data\Attributes\Validation\In;
 use Hypervel\Data\Attributes\Validation\Min;
+use Hypervel\Data\Attributes\Validation\NotIn;
 use Hypervel\Data\Attributes\Validation\NotRegex;
 use Hypervel\Data\Attributes\Validation\Regex;
 use Hypervel\Data\Attributes\Validation\Required;
+use Hypervel\Data\Attributes\Validation\RequiredWith;
 use Hypervel\Data\Attributes\Validation\Rule;
 use Hypervel\Data\Support\Validation\RuleDenormalizer;
 use Hypervel\Data\Support\Validation\RuleNormalizer;
@@ -28,6 +35,7 @@ use Hypervel\Tests\Data\Fixtures\Rules\CustomHypervelRule;
 use Hypervel\Tests\Data\Fixtures\Rules\CustomHypervelValidationRule;
 use Hypervel\Validation\Rule as ValidationRule;
 use Hypervel\Validation\Rules\Exists as BaseExists;
+use Hypervel\Validation\Rules\In as BaseIn;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class RuleNormalizerTest extends TestCase
@@ -100,9 +108,60 @@ class RuleNormalizerTest extends TestCase
         );
     }
 
+    #[DataProvider('membershipBuilders')]
+    public function testPreservesMembershipBuilders(object $rule, string $attributeClass): void
+    {
+        $normalized = $this->mapper->execute($rule);
+
+        $this->assertInstanceOf($attributeClass, $normalized[0]);
+        $this->assertSame([$rule], (new RuleDenormalizer)->execute($normalized, ValidationPath::create()));
+    }
+
+    /**
+     * Provide membership builders and their owning validation attributes.
+     */
+    public static function membershipBuilders(): iterable
+    {
+        yield [ValidationRule::in(['allowed']), In::class];
+        yield [ValidationRule::notIn(['forbidden']), NotIn::class];
+        yield [ValidationRule::contains([false]), Contains::class];
+        yield [ValidationRule::doesntContain([1]), DoesntContain::class];
+        yield [ValidationRule::arrayKeys(['allowed']), Rule::class];
+    }
+
+    public function testMembershipExportsAreNotEvaluatedDuringNormalization(): void
+    {
+        $rule = new class(['original']) extends BaseIn {
+            public int $exports = 0;
+
+            /**
+             * Export the effective values at validation time.
+             */
+            public function toArray(): array
+            {
+                ++$this->exports;
+
+                return ['in', 'changed'];
+            }
+        };
+        $normalized = (new RuleDenormalizer)->execute($this->mapper->execute($rule), ValidationPath::create());
+
+        $this->assertSame(0, $rule->exports);
+        $this->assertSame([$rule], $normalized);
+        $this->assertTrue($this->app->make('validator')->make(['value' => 'changed'], ['value' => $normalized])->passes());
+    }
+
+    public function testCanMapParameterizedRulesWithFieldReferences(): void
+    {
+        $this->assertEquals(
+            [new RequiredWith('other')],
+            $this->mapper->execute(ValidationRule::requiredWith('other')),
+        );
+    }
+
     public function testCanMapACustomHypervelRuleObjects(): void
     {
-        $rule = new class implements CustomRuleContract {
+        $rule = new class(['allowed']) extends BaseIn implements CustomRuleContract {
             /**
              * Determine if the validation rule passes.
              */
@@ -140,12 +199,9 @@ class RuleNormalizerTest extends TestCase
         yield ['boolean:strict'];
         yield ['integer:strict'];
         yield ['numeric:strict'];
-        yield ['confirmed:repeat_field'];
         yield ['image:allow_svg'];
         yield ['timezone:per_country,US'];
         yield ['uuid:4'];
-        yield ['accepted_if:field,a,b'];
-        yield ['exclude_unless:field,a,b'];
         yield ['exists:users,email,status,"active"'];
         yield ['unique:users,email,5,uid,status,"active"'];
         yield ['dimensions:min_ratio=1/2,max_ratio=2/1'];
@@ -169,8 +225,11 @@ class RuleNormalizerTest extends TestCase
     public static function typedRulesWithParameters(): iterable
     {
         yield ['accepted_if:status,1', AcceptedIf::class];
+        yield ['accepted_if:field,a,b', AcceptedIf::class];
         yield ['declined_if:status,0', DeclinedIf::class];
         yield ['exclude_if:status,1', ExcludeIf::class];
+        yield ['exclude_unless:field,a,b', ExcludeUnless::class];
+        yield ['confirmed:repeat_field', Confirmed::class];
         yield ['after:2020-01-01', After::class];
         yield ['before_or_equal:2020-01-01 12:00', BeforeOrEqual::class];
         yield ['date_equals:today', DateEquals::class];
@@ -193,6 +252,8 @@ class RuleNormalizerTest extends TestCase
     {
         yield 'closure' => [static function (string $attribute, mixed $value, Closure $fail): void {}];
         yield 'fluent rule' => [ValidationRule::date()];
+        yield 'UUID version' => [ValidationRule::uuid()->version(4)];
+        yield 'combined distinct options' => [ValidationRule::distinct()->strict()->ignoreCase()];
         yield 'nested rules' => [ValidationRule::forEach(static fn (): array => ['integer'])];
         yield 'conditional rules' => [ValidationRule::when(true, ['min:3'])];
         yield 'custom rule' => [new CustomHypervelRule];

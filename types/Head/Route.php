@@ -70,8 +70,8 @@ function routingMacros(
         extensions: ['readingTime' => 5],
     );
 
-    $route->withHead(heading: 'Page'); // @phpstan-ignore argument.unknown
-    $route->withHead(title: 123); // @phpstan-ignore argument.type
+    $route->withHead(heading: 'Page'); // @phpstan-ignore argument.unknown (asserts an unknown named argument is rejected)
+    $route->withHead(title: 123); // @phpstan-ignore argument.type (asserts a wrong argument type is rejected)
 }
 
 class CustomRoute extends Route

@@ -17,6 +17,8 @@ jobs:
     services:
       mysql:
         image: mysql:5.7
+        volumes:
+          - database-socket:/var/run/mysqld
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -28,7 +30,9 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -39,7 +43,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -52,12 +56,16 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mysql
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: bin/run-database-tests.sh mysql
+        run: |
+          bin/run-database-tests.sh mysql
+          vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
 
+  # Keep TCP coverage for coroutine transport and password authentication.
   mysql_84:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -65,6 +73,9 @@ jobs:
     services:
       mysql:
         image: mysql:8.4
+        command: --gtid-mode=ON --enforce-gtid-consistency=ON
+        volumes:
+          - schema-tls:/tmp/hypervel-schema-tls
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -76,7 +87,9 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
+      volumes:
+        - schema-tls:/tmp/hypervel-schema-tls
 
     strategy:
       fail-fast: false
@@ -87,7 +100,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -104,7 +117,21 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: bin/run-database-tests.sh mysql
+        run: |
+          bin/run-database-tests.sh mysql
+          vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
+
+      - name: Verify schema dump and load TLS
+        if: matrix.php == '8.4'
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: mysql
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: password
+          DB_TEST_SCHEMA_TLS_DIRECTORY: /tmp/hypervel-schema-tls
+        run: vendor/bin/phpunit --no-progress tests/Integration/Database/MySql/SchemaStateTlsTest.php
 
   mysql_97:
     runs-on: ubuntu-latest
@@ -113,6 +140,8 @@ jobs:
     services:
       mysql:
         image: mysql:9.7
+        volumes:
+          - database-socket:/var/run/mysqld
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -124,7 +153,9 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -135,7 +166,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -148,11 +179,14 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mysql
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: bin/run-database-tests.sh mysql
+        run: |
+          bin/run-database-tests.sh mysql
+          vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
 
   mariadb_1011:
     runs-on: ubuntu-latest
@@ -161,6 +195,9 @@ jobs:
     services:
       mariadb:
         image: mariadb:10.11
+        volumes:
+          - database-socket:/var/run/mysqld
+        command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
@@ -171,7 +208,9 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -182,7 +221,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -195,6 +234,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mariadb
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -208,6 +248,9 @@ jobs:
     services:
       mariadb:
         image: mariadb:11
+        volumes:
+          - database-socket:/var/run/mysqld
+        command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
@@ -218,7 +261,9 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -229,7 +274,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -242,6 +287,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mariadb
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -255,6 +301,9 @@ jobs:
     services:
       mariadb:
         image: mariadb:12.3
+        volumes:
+          - database-socket:/var/run/mysqld
+        command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
@@ -265,7 +314,9 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -276,7 +327,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -289,6 +340,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mariadb
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -302,6 +354,8 @@ jobs:
     services:
       postgres:
         image: pgvector/pgvector:0.8.7-pg17
+        volumes:
+          - database-socket:/var/run/postgresql
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: testing
@@ -312,7 +366,9 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
+      volumes:
+        - database-socket:/var/run/postgresql
 
     strategy:
       fail-fast: false
@@ -323,7 +379,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -335,13 +391,14 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_HOST: postgres
+          DB_HOST: /var/run/postgresql
           DB_PORT: 5432
           DB_DATABASE: testing
           DB_USERNAME: postgres
           DB_PASSWORD: password
         run: bin/run-database-tests.sh pgsql
 
+  # Keep TCP coverage for coroutine transport and password authentication.
   pgsql_18:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -359,7 +416,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
 
     strategy:
       fail-fast: false
@@ -370,7 +427,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -394,7 +451,7 @@ jobs:
     timeout-minutes: 10
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
 
     strategy:
       fail-fast: false
@@ -405,7 +462,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Events;
 
 use Hypervel\Contracts\Events\ShouldBeDiscovered;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
@@ -122,11 +123,12 @@ class DiscoverEvents
     /**
      * Specify a callback to be used to guess class names.
      *
-     * Boot-only. The callback persists in a static property used during event
-     * discovery; runtime use has no effect on already-discovered listeners.
+     * The callback persists in a static property used during event discovery;
+     * runtime use has no effect on already-discovered listeners.
      *
      * @param callable(SplFileInfo, string): class-string $callback
      */
+    #[BootOnly]
     public static function guessClassNamesUsing(callable $callback): void
     {
         static::$guessClassNamesUsingCallback = $callback;

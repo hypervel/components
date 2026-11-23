@@ -7,14 +7,15 @@ namespace Hypervel\Tests\Socialite\Fixtures;
 use GuzzleHttp\Client;
 use Hypervel\Socialite\Two\OpenIdProvider;
 use Hypervel\Socialite\Two\User;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
 use SensitiveParameter;
 
 class VerifyingOpenIdTestProviderStub extends OpenIdProvider
 {
     protected bool $usesNonce = false;
 
-    public ?Client $http = null;
+    public (Client&DoubleInterface)|null $http = null;
 
     public function verifyToken(#[SensitiveParameter] string $token): array
     {
@@ -57,7 +58,7 @@ class VerifyingOpenIdTestProviderStub extends OpenIdProvider
     }
 
     /**
-     * Get a fresh instance of the Guzzle HTTP client.
+     * Return the test HTTP client.
      */
     protected function getHttpClient(): Client
     {
@@ -65,6 +66,6 @@ class VerifyingOpenIdTestProviderStub extends OpenIdProvider
             return $this->http;
         }
 
-        return $this->http = m::mock(Client::class);
+        return $this->http = Double::for(Client::class)->strict();
     }
 }

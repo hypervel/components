@@ -14,12 +14,15 @@ use Hypervel\Head\Schema\GenericSchemaObject;
 use Hypervel\Head\Schema\SchemaObject;
 use Hypervel\Tests\Head\Fixtures\JobPosting;
 use Hypervel\Tests\Head\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 
 class SchemaTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRendersBuiltInSchemaObjectsAsJsonLd(): void
     {
         Head::schema(
@@ -238,8 +241,8 @@ class SchemaTest extends TestCase
     {
         $this->app->detectEnvironment(fn (): string => 'production');
         $schema = ['@context' => 'https://schema.org', '@type' => 'WebPage', 'name' => ''];
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldReceive('warning')->once()->with(
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->expects('warning')->with(
             'JSON-LD schemas may not contain null or empty string values.',
             ['schema' => $schema],
         );

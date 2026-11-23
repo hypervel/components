@@ -12,7 +12,7 @@ $repository = new Repository(new Dispatcher);
 $value = $repository->scope(fn (): int => random_int(-100, 100));
 assertType('int<-100, 100>', $value);
 
-$void = $repository->scope(function (): void { // @phpstan-ignore method.void
+$void = $repository->scope(function (): void { // @phpstan-ignore method.void (asserts the void result)
 });
 assertType('null', $void);
 

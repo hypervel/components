@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Grpc;
 
 use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\RequestInterface;
@@ -27,8 +29,13 @@ use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\Protocol\Timeout;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -36,6 +43,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<Connection> */
     private array $connections = [];
 
@@ -543,10 +552,23 @@ class ConnectionTest extends TestCase
         $this->assertSame(1, $client->closeCount);
     }
 
-    public function testNativeWriteCancellationTerminatesTheConnectionAndPreservesTheCaller(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNativeWriteCancellationTerminatesTheConnectionAndPreservesTheCaller(bool $closeFails): void
     {
         $cancellation = new CanceledException;
         $client = new ConnectionTestClient;
+
+        // A close failure carrying its own cancellation must not replace the caller's.
+        $closeFailure = $closeFails ? new RuntimeException('Close failed.', previous: new CanceledException) : null;
+        $this->expectReported($closeFailure);
+
+        if ($closeFailure !== null) {
+            $client->closeUsing(static function () use ($closeFailure): void {
+                throw $closeFailure;
+            });
+        }
+
         $connection = $this->connection(new ConnectionTestClientFactory($client));
         $state = $this->state();
         $this->start($connection, $this->request(pipeline: true), $state);
@@ -856,7 +878,9 @@ class ConnectionTest extends TestCase
         $this->assertSame(1, $retired);
     }
 
-    public function testCloseJoinsTheReceiverBeforeClosingItsNativeClient(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCloseJoinsTheReceiverBeforeClosingItsNativeClient(bool $interrupt): void
     {
         $client = new ConnectionCloseWaitTestClient;
         $connection = $this->connection(new ConnectionTestClientFactory($client));
@@ -868,7 +892,21 @@ class ConnectionTest extends TestCase
         $this->assertIsInt($receiverCoroutineId);
         $this->assertTrue($client->waiting);
 
-        $connection->close();
+        if ($interrupt) {
+            $cancellation = null;
+            $closer = Coroutine::create(static function () use ($connection, &$cancellation): void {
+                try {
+                    $connection->close();
+                } catch (CanceledException $exception) {
+                    $cancellation = $exception;
+                }
+            })->getId();
+            Coroutine::cancelById($closer, throwException: true);
+            Coroutine::join([$closer]);
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+        } else {
+            $connection->close();
+        }
 
         $this->assertFalse($client->waiting);
         $this->assertTrue($client->receiverCleanupCompleted);
@@ -995,6 +1033,35 @@ class ConnectionTest extends TestCase
         $this->assertTrue($connection->isClosed());
     }
 
+    public function testReceiverReportsANativeCloseFailureCarryingCancellation(): void
+    {
+        $closeFailure = new RuntimeException('Close failed.', previous: new CanceledException);
+        $this->expectReported($closeFailure);
+        $client = new ConnectionTestClient;
+        $client->closeUsing(static function () use ($closeFailure): void {
+            throw $closeFailure;
+        });
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $state = $this->state();
+        $this->start($connection, $this->request(), $state);
+        $receiverCoroutineId = (new ReflectionProperty(Connection::class, 'receiverCoroutineId'))
+            ->getValue($connection);
+
+        $client->failReceive(new HttpClientException('socket lost', 104));
+
+        $this->assertIsInt($receiverCoroutineId);
+        $this->assertFalse(Coroutine::exists($receiverCoroutineId));
+        $this->assertTrue($connection->isClosed());
+        $this->assertSame(1, $client->closeCount);
+
+        try {
+            $state->status();
+            $this->fail('Expected the receive failure to fail the call.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('socket lost', $exception->getMessage());
+        }
+    }
+
     public function testWriteFailureFailsEveryStreamAndIsReportedToTheWriter(): void
     {
         $client = new ConnectionTestClient;
@@ -1058,9 +1125,13 @@ class ConnectionTest extends TestCase
         $connection->write($active, 'frame', false, Deadline::fromTimeout(null));
     }
 
-    public function testNativeCloseCancellationPreservesTheCallerAfterTerminalCleanup(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNativeCloseCancellationPreservesTheCallerAfterTerminalCleanup(bool $carried): void
     {
-        $cancellation = new CanceledException;
+        $cancellation = $carried
+            ? new RuntimeException('Close failed.', previous: new CanceledException)
+            : new CanceledException;
         $client = new ConnectionTestClient;
         $client->closeUsing(static function () use ($cancellation): void {
             throw $cancellation;
@@ -1068,14 +1139,15 @@ class ConnectionTest extends TestCase
         $connection = $this->connection(new ConnectionTestClientFactory($client));
         $state = $this->state();
         $this->start($connection, $this->request(), $state);
+        $caught = null;
 
         try {
             $connection->close();
-            $this->fail('Expected cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertTrue($connection->isClosed());
 
         $this->expectException(ConnectionException::class);
@@ -1114,6 +1186,24 @@ class ConnectionTest extends TestCase
         $this->connections[] = $connection;
 
         return $connection;
+    }
+
+    /**
+     * Expect the failure to be reported through the exception handler, or nothing when it is null.
+     */
+    private function expectReported(?Throwable $failure): void
+    {
+        $handler = Double::for(ExceptionHandler::class)->strict();
+
+        if ($failure === null) {
+            $handler->expects('report')->never();
+        } else {
+            $handler->expects('report')->with(Argument::same($failure));
+        }
+
+        $container = new Container;
+        $container->instance(ExceptionHandler::class, $handler);
+        Container::setInstance($container);
     }
 
     private function state(

@@ -6,13 +6,19 @@ namespace Hypervel\Support\Facades;
 
 use Closure;
 use Hypervel\Process\Factory;
+use Hypervel\Support\Attributes\TestsOnly;
 
 /**
  * @method static \Hypervel\Process\PendingProcess command(array|string $command)
  * @method static \Hypervel\Process\PendingProcess env(array<string, false|string|\Stringable> $environment)
+ * @method static void flushMacros()
+ * @method static void flushState()
  * @method static \Hypervel\Process\PendingProcess forever()
+ * @method static bool hasMacro(string $name)
  * @method static \Hypervel\Process\PendingProcess idleTimeout(\Carbon\CarbonInterval|int $timeout)
  * @method static \Hypervel\Process\PendingProcess input(null|bool|float|int|resource|string|\Traversable $input)
+ * @method static void macro(string $name, callable|object $macro)
+ * @method static void mixin(object $mixin, bool $replace = true)
  * @method static \Hypervel\Process\PendingProcess options(array<string, mixed> $options)
  * @method static \Hypervel\Process\PendingProcess path(string $path)
  * @method static \Hypervel\Process\PendingProcess quietly()
@@ -32,13 +38,8 @@ use Hypervel\Process\Factory;
  * @method static \Hypervel\Process\Factory assertRanTimes(array<array-key, string>|Closure|string $callback, int $times = 1)
  * @method static \Hypervel\Process\ProcessPoolResults concurrently(callable $callback, callable|null $output = null)
  * @method static \Hypervel\Process\FakeProcessDescription describe()
- * @method static void flushMacros()
- * @method static void flushState()
- * @method static bool hasMacro(string $name)
  * @method static bool isRecording()
- * @method static void macro(string $name, callable|object $macro)
  * @method static mixed macroCall(string $method, array $parameters)
- * @method static void mixin(object $mixin, bool $replace = true)
  * @method static \Hypervel\Process\PendingProcess newPendingProcess()
  * @method static \Hypervel\Contracts\Process\ProcessResult pipe(callable|array $callback, callable|null $output = null)
  * @method static \Hypervel\Process\Pool pool(callable $callback)
@@ -65,8 +66,9 @@ class Process extends Facade
     /**
      * Indicate that the process factory should fake processes.
      *
-     * Tests only. Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
+     * Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
      */
+    #[TestsOnly]
     public static function fake(array|Closure|null $callback = null): Factory
     {
         return tap(static::getFacadeRoot(), function ($fake) use ($callback) {

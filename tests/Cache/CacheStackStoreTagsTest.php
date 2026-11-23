@@ -32,13 +32,20 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CacheStackStoreTagsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testValidCompositionsSupportTags(): void
     {
         foreach ([
@@ -68,10 +75,11 @@ class CacheStackStoreTagsTest extends TestCase
 
             try {
                 $stack->tags(['t']);
-                $this->fail('Expected NotSupportedException was not thrown.');
             } catch (NotSupportedException) {
-                $this->assertTrue(true);
+                continue;
             }
+
+            $this->fail('Expected NotSupportedException was not thrown.');
         }
     }
 
@@ -90,9 +98,9 @@ class CacheStackStoreTagsTest extends TestCase
 
     public function testInvalidNestedStackDoesNotCallGetTagMode(): void
     {
-        $taggable = m::mock(TaggableStore::class);
-        $taggable->shouldReceive('supportsTags')->once()->andReturnFalse();
-        $taggable->shouldNotReceive('getTagMode');
+        $taggable = Double::for(TaggableStore::class)->strict();
+        $taggable->expects('supportsTags')->returns(false);
+        $taggable->expects('getTagMode')->never();
 
         $stack = new StackStore([$taggable]);
 
@@ -101,9 +109,9 @@ class CacheStackStoreTagsTest extends TestCase
 
     public function testValidationRunsOnce(): void
     {
-        $taggable = m::mock(TaggableStore::class);
-        $taggable->shouldReceive('supportsTags')->once()->andReturnTrue();
-        $taggable->shouldReceive('getTagMode')->once()->andReturn(TagMode::Any);
+        $taggable = Double::for(TaggableStore::class)->strict();
+        $taggable->expects('supportsTags')->returns(true);
+        $taggable->expects('getTagMode')->returns(TagMode::Any);
 
         $stack = new StackStore([$taggable]);
 
@@ -116,17 +124,15 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $plain = $this->nonTaggableStore();
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $plain->shouldReceive('put')
-            ->once()
-            ->with('key', m::on(fn (array $record): bool => $record['value'] === 'value' && isset($record['expiration'])), 3)
-            ->andReturnTrue();
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')
-            ->once()
-            ->with('key', m::on(fn (array $record): bool => $record['value'] === 'value' && isset($record['expiration'])), 60)
-            ->andReturnTrue();
+        $plain->expects('put')
+            ->with('key', Argument::satisfies(fn (array $record): bool => $record['value'] === 'value' && isset($record['expiration'])), 3)
+            ->returns(true);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')
+            ->with('key', Argument::satisfies(fn (array $record): bool => $record['value'] === 'value' && isset($record['expiration'])), 60)
+            ->returns(true);
 
         $stack = new StackStore([
             new StackStoreProxy($plain, 3),
@@ -140,11 +146,11 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $plain = $this->nonTaggableStore();
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $plain->shouldReceive('put')->once()->with('key', ['value' => 'value'], 3)->andReturnTrue();
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('forever')->once()->with('key', ['value' => 'value'])->andReturnTrue();
+        $plain->expects('put')->with('key', ['value' => 'value'], 3)->returns(true);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('forever')->with('key', ['value' => 'value'])->returns(true);
 
         $stack = new StackStore([
             new StackStoreProxy($plain, 3),
@@ -157,13 +163,12 @@ class CacheStackStoreTagsTest extends TestCase
     public function testTaggedPutClampsTtlOnTaggableLayer(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')
-            ->once()
-            ->with('key', m::on(fn (array $record): bool => $record['value'] === 'value' && isset($record['expiration'])), 3)
-            ->andReturnTrue();
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')
+            ->with('key', Argument::satisfies(fn (array $record): bool => $record['value'] === 'value' && isset($record['expiration'])), 3)
+            ->returns(true);
 
         $stack = new StackStore([
             new StackStoreProxy($taggable, 3),
@@ -175,11 +180,11 @@ class CacheStackStoreTagsTest extends TestCase
     public function testTaggedForeverClampsToPutOnTaggableLayerWithTtlOverride(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->with('key', ['value' => 'value'], 3)->andReturnTrue();
-        $taggedCache->shouldNotReceive('forever');
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->with('key', ['value' => 'value'], 3)->returns(true);
+        $taggedCache->expects('forever')->never();
 
         $stack = new StackStore([
             new StackStoreProxy($taggable, 3),
@@ -192,12 +197,12 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $plain = $this->nonTaggableStore();
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $plain->shouldReceive('put')->once()->andReturnTrue();
-        $plain->shouldReceive('forget')->once()->with('key')->andReturnTrue();
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->andReturnFalse();
+        $plain->expects('put')->returns(true);
+        $plain->expects('forget')->with('key')->returns(true);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->returns(false);
 
         $stack = new StackStore([
             new StackStoreProxy($plain),
@@ -211,14 +216,23 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $plain = $this->nonTaggableStore();
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
         $exception = new RuntimeException('write failed');
 
-        $plain->shouldReceive('put')->once()->andReturnTrue();
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->andThrow($exception);
-        $taggable->shouldReceive('forget')->once()->with('key')->globally()->ordered()->andReturnTrue();
-        $plain->shouldReceive('forget')->once()->with('key')->globally()->ordered()->andReturnTrue();
+        $plain->expects('put')->returns(true);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->throws($exception);
+        $released = [];
+        $taggable->expects('forget')->with('key')->resolves(function () use (&$released): bool {
+            $released[] = 'taggable';
+
+            return true;
+        });
+        $plain->expects('forget')->with('key')->resolves(function () use (&$released): bool {
+            $released[] = 'plain';
+
+            return true;
+        });
 
         $stack = new StackStore([
             new StackStoreProxy($plain),
@@ -231,16 +245,18 @@ class CacheStackStoreTagsTest extends TestCase
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
         }
+
+        $this->assertSame(['taggable', 'plain'], $released);
     }
 
     public function testTaggedIncrementWritesThroughTaggedPath(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $taggable->shouldReceive('get')->once()->with('counter')->andReturn(['value' => 1]);
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('forever')->once()->with('counter', ['value' => 3])->andReturnTrue();
+        $taggable->expects('get')->with('counter')->returns(['value' => 1]);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('forever')->with('counter', ['value' => 3])->returns(true);
 
         $stack = new StackStore([$taggable]);
 
@@ -254,13 +270,13 @@ class CacheStackStoreTagsTest extends TestCase
         $taggable = $this->anyModeTaggableStore();
         $record = ['value' => 1, 'expiration' => CarbonImmutable::now()->getTimestamp() + 1];
 
-        $taggable->shouldReceive('get')->once()->with('counter')->andReturnUsing(function () use ($record): array {
+        $taggable->expects('get')->with('counter')->resolves(function () use ($record): array {
             CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
 
             return $record;
         });
-        $taggable->shouldReceive('forget')->once()->with('counter')->andReturnTrue();
-        $taggable->shouldNotReceive('tags');
+        $taggable->expects('forget')->with('counter')->returns(true);
+        $taggable->expects('tags')->never();
 
         $stack = new StackStore([$taggable]);
 
@@ -271,18 +287,18 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $plain = $this->nonTaggableStore();
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
         $record = ['value' => 5];
         $incrementedRecord = ['value' => 6];
 
-        $plain->shouldReceive('get')->twice()->with('counter')->andReturnNull();
-        $taggable->shouldReceive('get')->twice()->with('counter')->andReturn($record);
-        $plain->shouldReceive('forever')->twice()->with('counter', $record)->andReturnFalse();
+        $plain->expects('get')->times(2)->with('counter')->returns(null);
+        $taggable->expects('get')->times(2)->with('counter')->returns($record);
+        $plain->expects('forever')->times(2)->with('counter', $record)->returns(false);
 
-        $plain->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnTrue();
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnFalse();
-        $plain->shouldReceive('forget')->once()->with('counter')->andReturnTrue();
+        $plain->expects('forever')->with('counter', $incrementedRecord)->returns(true);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('forever')->with('counter', $incrementedRecord)->returns(false);
+        $plain->expects('forget')->with('counter')->returns(true);
 
         $stack = new StackStore([$plain, $taggable]);
 
@@ -293,11 +309,11 @@ class CacheStackStoreTagsTest extends TestCase
     public function testTaggedRememberReadsPlainAndWritesTaggedOnMiss(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $taggable->shouldReceive('get')->once()->with('0')->andReturnNull();
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->with('0', m::type('array'), 60)->andReturnTrue();
+        $taggable->expects('get')->with('0')->returns(null);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->with('0', Argument::type('array'), 60)->returns(true);
 
         $stack = new StackStore([$taggable]);
 
@@ -308,8 +324,8 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $taggable = $this->anyModeTaggableStore();
 
-        $taggable->shouldReceive('get')->once()->with('key')->andReturn(['value' => 'cached']);
-        $taggable->shouldNotReceive('tags');
+        $taggable->expects('get')->with('key')->returns(['value' => 'cached']);
+        $taggable->expects('tags')->never();
 
         $stack = new StackStore([$taggable]);
 
@@ -319,10 +335,10 @@ class CacheStackStoreTagsTest extends TestCase
     public function testTaggedRememberHandlesIncompleteClassBeforeDispatchingHitEvent(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggable->shouldReceive('get')->once()->with('key')->andReturn([
+        $taggable->expects('get')->with('key')->returns([
             'value' => unserialize(serialize(new stdClass), ['allowed_classes' => false]),
         ]);
-        $taggable->shouldNotReceive('tags');
+        $taggable->expects('tags')->never();
 
         $sequence = [];
 
@@ -346,11 +362,11 @@ class CacheStackStoreTagsTest extends TestCase
     public function testTaggedRememberMissDispatchesRepositoryReadAndWriteEvents(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $taggable->shouldReceive('get')->once()->with('key')->andReturnNull();
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->with('key', m::type('array'), 60)->andReturnTrue();
+        $taggable->expects('get')->with('key')->returns(null);
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->with('key', Argument::type('array'), 60)->returns(true);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -373,10 +389,10 @@ class CacheStackStoreTagsTest extends TestCase
     public function testTaggedPutDispatchesRepositoryWriteFailureEvents(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->with('key', m::type('array'), 60)->andReturnFalse();
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->with('key', Argument::type('array'), 60)->returns(false);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -396,10 +412,10 @@ class CacheStackStoreTagsTest extends TestCase
     public function testStackAnyModeTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
-        $taggable->shouldReceive('get')->twice()->andReturnNull();
-        $taggable->shouldReceive('tags')->twice()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->twice()->with(m::type('string'), m::type('array'), 60)->andReturnTrue();
+        $taggedCache = Double::for(TaggedCache::class)->strict();
+        $taggable->expects('get')->times(2)->returns(null);
+        $taggable->expects('tags')->times(2)->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->times(2)->with(Argument::type('string'), Argument::type('array'), 60)->returns(true);
 
         $stack = new StackStore([$taggable]);
         $cache = new class($stack, new StackTagSet($stack, ['tag'])) extends StackTaggedCache {
@@ -412,9 +428,9 @@ class CacheStackStoreTagsTest extends TestCase
                 parent::event($event);
             }
         };
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->allows('hasListeners')->returns(false);
+        $dispatcher->expects('dispatch')->never();
         $cache->setEventDispatcher($dispatcher);
 
         $this->assertTrue($cache->add('first', 'value', 60));
@@ -439,7 +455,7 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $exception = new RuntimeException('read failed');
         $taggable = $this->anyModeTaggableStore();
-        $taggable->shouldReceive('get')->once()->with('key')->andThrow($exception);
+        $taggable->expects('get')->with('key')->throws($exception);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -461,11 +477,16 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedRememberDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedRememberDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('read canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
-        $taggable->shouldReceive('get')->once()->with('key')->andThrow($cancellation);
+        $taggable->expects('get')->with('key')->throws($cancellation);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -475,7 +496,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->remember('key', 60, fn () => 'computed');
             $this->fail('Expected the tagged cache read cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -486,10 +507,10 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $exception = new RuntimeException('write failed');
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->with('key', m::type('array'), 60)->andThrow($exception);
-        $taggable->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $taggedCache = Double::for(TaggedCache::class)->strict();
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->with('key', Argument::type('array'), 60)->throws($exception);
+        $taggable->expects('forget')->with('key')->returns(true);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -508,14 +529,19 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->with('key', m::type('array'), 60)->andThrow($cancellation);
-        $taggable->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $taggedCache = Double::for(TaggedCache::class)->strict();
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('put')->with('key', Argument::type('array'), 60)->throws($cancellation);
+        $taggable->expects('forget')->with('key')->returns(true);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -525,7 +551,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->put('key', 'value', 60);
             $this->fail('Expected the tagged cache write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -536,10 +562,10 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $exception = new RuntimeException('forever write failed');
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('forever')->once()->with('key', ['value' => 'value'])->andThrow($exception);
-        $taggable->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $taggedCache = Double::for(TaggedCache::class)->strict();
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('forever')->with('key', ['value' => 'value'])->throws($exception);
+        $taggable->expects('forget')->with('key')->returns(true);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -559,14 +585,19 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedForeverDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedForeverDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('forever write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
-        $taggedCache = m::mock(TaggedCache::class);
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('forever')->once()->with('key', ['value' => 'value'])->andThrow($cancellation);
-        $taggable->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $taggedCache = Double::for(TaggedCache::class)->strict();
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('forever')->with('key', ['value' => 'value'])->throws($cancellation);
+        $taggable->expects('forget')->with('key')->returns(true);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -576,7 +607,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->forever('key', 'value');
             $this->fail('Expected the tagged forever cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -587,7 +618,7 @@ class CacheStackStoreTagsTest extends TestCase
     {
         $exception = new RuntimeException('forget failed');
         $taggable = $this->anyModeTaggableStore();
-        $taggable->shouldReceive('forget')->once()->with('key')->andThrow($exception);
+        $taggable->expects('forget')->with('key')->throws($exception);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -606,11 +637,16 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedExpiredPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedExpiredPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('forget canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
-        $taggable->shouldReceive('forget')->once()->with('key')->andThrow($cancellation);
+        $taggable->expects('forget')->with('key')->throws($cancellation);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -620,7 +656,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->put('key', 'value', 0);
             $this->fail('Expected the tagged forget cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -630,7 +666,7 @@ class CacheStackStoreTagsTest extends TestCase
     public function testTaggedPutWithExpiredTtlDispatchesRepositoryDeleteEvents(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $taggable->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $taggable->expects('forget')->with('key')->returns(true);
 
         $captured = [];
         $stack = new StackStore([$taggable]);
@@ -661,43 +697,46 @@ class CacheStackStoreTagsTest extends TestCase
         ] as $operation) {
             try {
                 $operation();
-                $this->fail('Expected BadMethodCallException was not thrown.');
             } catch (BadMethodCallException) {
-                $this->assertTrue(true);
+                continue;
             }
+
+            $this->fail('Expected BadMethodCallException was not thrown.');
         }
     }
 
     public function testClearFlushesTaggableLayersOnly(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $tagSet = m::mock(TagSet::class);
-        $taggedCache = m::mock(TaggedCache::class);
+        $tagSet = Double::for(TagSet::class)->strict();
+        $taggedCache = Double::for(TaggedCache::class)->strict();
 
-        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('getTags')->once()->andReturn($tagSet);
-        $tagSet->shouldReceive('flush')->once()->andReturnTrue();
+        $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
+        $taggedCache->expects('getTags')->returns($tagSet);
+        $tagSet->expects('flush')->returns(true);
 
-        $stack = new StackStore([$this->nonTaggableStore(), $taggable]);
+        $plain = $this->nonTaggableStore();
+        $stack = new StackStore([$plain, $taggable]);
 
         $this->assertTrue($stack->tags(['tag'])->clear());
+        $plain->unused();
     }
 
     public function testClearFlushesEveryTaggableLayerAndAggregatesFalseResults(): void
     {
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
-        $firstTaggedCache = m::mock(TaggedCache::class);
-        $secondTaggedCache = m::mock(TaggedCache::class);
-        $firstTagSet = m::mock(TagSet::class);
-        $secondTagSet = m::mock(TagSet::class);
+        $firstTaggedCache = Double::for(TaggedCache::class)->strict();
+        $secondTaggedCache = Double::for(TaggedCache::class)->strict();
+        $firstTagSet = Double::for(TagSet::class)->strict();
+        $secondTagSet = Double::for(TagSet::class)->strict();
 
-        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
-        $secondTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($secondTaggedCache);
-        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
-        $secondTaggedCache->shouldReceive('getTags')->once()->andReturn($secondTagSet);
-        $firstTagSet->shouldReceive('flush')->once()->andReturnFalse();
-        $secondTagSet->shouldReceive('flush')->once()->andReturnTrue();
+        $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
+        $secondTaggable->expects('tags')->with(['tag'])->returns($secondTaggedCache);
+        $firstTaggedCache->expects('getTags')->returns($firstTagSet);
+        $secondTaggedCache->expects('getTags')->returns($secondTagSet);
+        $firstTagSet->expects('flush')->returns(false);
+        $secondTagSet->expects('flush')->returns(true);
 
         $stack = new StackStore([$firstTaggable, $secondTaggable]);
 
@@ -709,17 +748,17 @@ class CacheStackStoreTagsTest extends TestCase
         $firstException = new RuntimeException('first tag flush failed');
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
-        $firstTaggedCache = m::mock(TaggedCache::class);
-        $secondTaggedCache = m::mock(TaggedCache::class);
-        $firstTagSet = m::mock(TagSet::class);
-        $secondTagSet = m::mock(TagSet::class);
+        $firstTaggedCache = Double::for(TaggedCache::class)->strict();
+        $secondTaggedCache = Double::for(TaggedCache::class)->strict();
+        $firstTagSet = Double::for(TagSet::class)->strict();
+        $secondTagSet = Double::for(TagSet::class)->strict();
 
-        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
-        $secondTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($secondTaggedCache);
-        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
-        $secondTaggedCache->shouldReceive('getTags')->once()->andReturn($secondTagSet);
-        $firstTagSet->shouldReceive('flush')->once()->andThrow($firstException);
-        $secondTagSet->shouldReceive('flush')->once()->andThrow(new RuntimeException('second tag flush failed'));
+        $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
+        $secondTaggable->expects('tags')->with(['tag'])->returns($secondTaggedCache);
+        $firstTaggedCache->expects('getTags')->returns($firstTagSet);
+        $secondTaggedCache->expects('getTags')->returns($secondTagSet);
+        $firstTagSet->expects('flush')->throws($firstException);
+        $secondTagSet->expects('flush')->throws(new RuntimeException('second tag flush failed'));
 
         try {
             (new StackStore([$firstTaggable, $secondTaggable]))->tags(['tag'])->getTags()->flush();
@@ -729,23 +768,28 @@ class CacheStackStoreTagsTest extends TestCase
         }
     }
 
-    public function testTagSetFlushStopsImmediatelyOnCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTagSetFlushStopsImmediatelyOnCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
-        $firstTaggedCache = m::mock(TaggedCache::class);
-        $firstTagSet = m::mock(TagSet::class);
+        $firstTaggedCache = Double::for(TaggedCache::class)->strict();
+        $firstTagSet = Double::for(TagSet::class)->strict();
 
-        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
-        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
-        $firstTagSet->shouldReceive('flush')->once()->andThrow($cancellation);
-        $secondTaggable->shouldNotReceive('tags');
+        $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
+        $firstTaggedCache->expects('getTags')->returns($firstTagSet);
+        $firstTagSet->expects('flush')->throws($cancellation);
+        $secondTaggable->expects('tags')->never();
 
         try {
             (new StackStore([$firstTaggable, $secondTaggable]))->tags(['tag'])->getTags()->flush();
             $this->fail('Expected the tag flush cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -755,16 +799,16 @@ class CacheStackStoreTagsTest extends TestCase
         $exception = new RuntimeException('tag flush failed');
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
-        $firstTaggedCache = m::mock(TaggedCache::class);
-        $secondTaggedCache = m::mock(TaggedCache::class);
-        $firstTagSet = m::mock(TagSet::class);
-        $secondTagSet = m::mock(TagSet::class);
-        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
-        $secondTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($secondTaggedCache);
-        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
-        $secondTaggedCache->shouldReceive('getTags')->once()->andReturn($secondTagSet);
-        $firstTagSet->shouldReceive('flush')->once()->andThrow($exception);
-        $secondTagSet->shouldReceive('flush')->once()->andThrow(new RuntimeException('second tag flush failed'));
+        $firstTaggedCache = Double::for(TaggedCache::class)->strict();
+        $secondTaggedCache = Double::for(TaggedCache::class)->strict();
+        $firstTagSet = Double::for(TagSet::class)->strict();
+        $secondTagSet = Double::for(TagSet::class)->strict();
+        $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
+        $secondTaggable->expects('tags')->with(['tag'])->returns($secondTaggedCache);
+        $firstTaggedCache->expects('getTags')->returns($firstTagSet);
+        $secondTaggedCache->expects('getTags')->returns($secondTagSet);
+        $firstTagSet->expects('flush')->throws($exception);
+        $secondTagSet->expects('flush')->throws(new RuntimeException('second tag flush failed'));
 
         $captured = [];
         $cache = (new Repository(new StackStore([$firstTaggable, $secondTaggable]), ['store' => 'stack']))->tags(['tag']);
@@ -781,17 +825,22 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testClearCancellationSkipsFailureEventAndRemainingTaggableLayers(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testClearCancellationSkipsFailureEventAndRemainingTaggableLayers(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
-        $firstTaggedCache = m::mock(TaggedCache::class);
-        $firstTagSet = m::mock(TagSet::class);
-        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
-        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
-        $firstTagSet->shouldReceive('flush')->once()->andThrow($cancellation);
-        $secondTaggable->shouldNotReceive('tags');
+        $firstTaggedCache = Double::for(TaggedCache::class)->strict();
+        $firstTagSet = Double::for(TagSet::class)->strict();
+        $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
+        $firstTaggedCache->expects('getTags')->returns($firstTagSet);
+        $firstTagSet->expects('flush')->throws($cancellation);
+        $secondTaggable->expects('tags')->never();
 
         $captured = [];
         $cache = (new Repository(new StackStore([$firstTaggable, $secondTaggable]), ['store' => 'stack']))->tags(['tag']);
@@ -800,42 +849,54 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->clear();
             $this->fail('Expected the tagged flush cancellation to be rethrown.');
-        } catch (CanceledException $caught) {
+        } catch (Throwable $caught) {
             $this->assertSame($cancellation, $caught);
         }
 
         $this->assertSame([CacheFlushing::class], array_map(get_class(...), $captured));
     }
 
-    private function anyModeTaggableStore(): TaggableStore|m\MockInterface
+    /**
+     * Create an any-mode taggable store.
+     */
+    private function anyModeTaggableStore(): TaggableStore&DoubleInterface
     {
-        $store = m::mock(TaggableStore::class);
-        $store->shouldReceive('supportsTags')->byDefault()->andReturnTrue();
-        $store->shouldReceive('getTagMode')->byDefault()->andReturn(TagMode::Any);
+        $store = Double::for(TaggableStore::class)->strict();
+        $store->allows('supportsTags')->returns(true);
+        $store->allows('getTagMode')->returns(TagMode::Any);
 
         return $store;
     }
 
-    private function allModeTaggableStore(): TaggableStore|m\MockInterface
+    /**
+     * Create an all-mode taggable store.
+     */
+    private function allModeTaggableStore(): TaggableStore&DoubleInterface
     {
-        $store = m::mock(TaggableStore::class);
-        $store->shouldReceive('supportsTags')->byDefault()->andReturnTrue();
-        $store->shouldReceive('getTagMode')->byDefault()->andReturn(TagMode::All);
+        $store = Double::for(TaggableStore::class)->strict();
+        $store->allows('supportsTags')->returns(true);
+        $store->allows('getTagMode')->returns(TagMode::All);
 
         return $store;
     }
 
-    private function nonTaggableStore(): Store|m\MockInterface
+    /**
+     * Create a store without tag support.
+     */
+    private function nonTaggableStore(): Store&DoubleInterface
     {
-        return m::mock(Store::class);
+        return Double::for(Store::class)->strict();
     }
 
-    private function capturingDispatcher(array &$captured): Dispatcher|m\MockInterface
+    /**
+     * Create a dispatcher that records emitted events.
+     */
+    private function capturingDispatcher(array &$captured): Dispatcher&DoubleInterface
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 

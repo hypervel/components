@@ -11,7 +11,8 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -23,6 +24,8 @@ use Throwable;
 #[WithConfig('database.default', 'testing')]
 class ConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Test that disconnect() rolls back any open transaction.
      *
@@ -107,8 +110,8 @@ class ConnectionTest extends TestCase
         $resetCancellation = new CanceledException('Transaction reset was canceled.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverFailure;
-        $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetCancellation);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $manager->expects('rollback')->with('', 0)->throws($resetCancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -127,8 +130,8 @@ class ConnectionTest extends TestCase
         $resetFailure = new RuntimeException('Transaction reset failed.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverCancellation;
-        $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetFailure);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $manager->expects('rollback')->with('', 0)->throws($resetFailure);
         $connection->setTransactionManager($manager);
 
         try {
@@ -147,8 +150,8 @@ class ConnectionTest extends TestCase
         $resetCancellation = new CanceledException('Transaction reset was canceled.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverCancellation;
-        $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetCancellation);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $manager->expects('rollback')->with('', 0)->throws($resetCancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -167,8 +170,8 @@ class ConnectionTest extends TestCase
         $resetFailure = new RuntimeException('Transaction reset failed.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverFailure;
-        $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetFailure);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $manager->expects('rollback')->with('', 0)->throws($resetFailure);
         $connection->setTransactionManager($manager);
 
         try {

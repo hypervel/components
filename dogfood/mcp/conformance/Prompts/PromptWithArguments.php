@@ -46,8 +46,9 @@ class PromptWithArguments extends Prompt implements Completable
      */
     public function complete(string $argument, string $value, array $context): CompletionResponse
     {
-        return $argument === 'arg1'
-            ? CompletionResponse::match(['test', 'testing', 'testable'])
-            : CompletionResponse::empty();
+        return match ($argument) {
+            'arg1' => CompletionResponse::match(['paris', 'park', 'party']),
+            default => CompletionResponse::empty(),
+        };
     }
 }

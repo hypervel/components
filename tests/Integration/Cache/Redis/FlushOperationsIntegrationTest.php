@@ -8,7 +8,6 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Redis;
-use Throwable;
 
 /**
  * Integration tests for tag flush operations.
@@ -220,15 +219,8 @@ class FlushOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         Cache::tags(['real-tag'])->put('item', 'value', 60);
 
-        // Flushing non-existent tag should not throw errors
-        try {
-            Cache::tags(['non-existent'])->flush();
-            $this->assertTrue(true);
-        } catch (Throwable $e) {
-            $this->fail('Flushing non-existent tag should not throw: ' . $e->getMessage());
-        }
+        Cache::tags(['non-existent'])->flush();
 
-        // Real item should still exist
         $this->assertSame('value', Cache::tags(['real-tag'])->get('item'));
     }
 
@@ -238,15 +230,8 @@ class FlushOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         Cache::tags(['real-tag'])->put('item', 'value', 60);
 
-        // Flushing non-existent tag should not throw errors
-        try {
-            Cache::tags(['non-existent'])->flush();
-            $this->assertTrue(true);
-        } catch (Throwable $e) {
-            $this->fail('Flushing non-existent tag should not throw: ' . $e->getMessage());
-        }
+        Cache::tags(['non-existent'])->flush();
 
-        // Real item should still exist
         $this->assertSame('value', Cache::get('item'));
     }
 

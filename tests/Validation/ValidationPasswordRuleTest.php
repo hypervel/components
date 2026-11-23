@@ -60,6 +60,14 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(new Password(8), ['88888888']);
     }
 
+    public function testContextuallyResolvedRulesDoNotShareConstraints(): void
+    {
+        $this->app->when(Password::class)->needs('$min')->give(8);
+
+        $this->passes($this->app->make(Password::class)->numbers(), ['password1']);
+        $this->passes($this->app->make(Password::class), ['password']);
+    }
+
     public function testMax(): void
     {
         $this->fails(Password::min(2)->max(4), ['aaaaa', '11111111'], [

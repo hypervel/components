@@ -60,7 +60,6 @@ class ClearCommand extends Command
             [$this->argument('store'), $this->tags()]
         );
 
-        /** @phpstan-ignore method.notFound (flush() is on TaggedCache or via __call to the store) */
         $successful = $this->cache()->flush();
 
         $this->flushProxies();

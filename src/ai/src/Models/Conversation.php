@@ -24,6 +24,7 @@ class Conversation extends Model
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Unguarded] would replace a $guarded = ['*'] a subclass constructor sets before parent::__construct())
     protected array $guarded = [];
 
     /**

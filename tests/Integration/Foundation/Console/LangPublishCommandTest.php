@@ -8,7 +8,9 @@ use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\LangPublishCommand;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -16,6 +18,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class LangPublishCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $filesystem;
 
     protected string $langPath;
@@ -89,9 +93,9 @@ class LangPublishCommandTest extends TestCase
         $source = dirname((new ReflectionClass(LangPublishCommand::class))->getFileName())
             . '/../../../translation/lang/en/auth.php';
 
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$source}].");
-        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $files->expects('get')->with($source)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester();
 
@@ -113,12 +117,11 @@ class LangPublishCommandTest extends TestCase
         $this->filesystem->put($destination, 'existing contents');
         chmod($destination, 0640);
 
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish language file.');
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($destination, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $files->expects('replace')
+            ->with($destination, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester();
 

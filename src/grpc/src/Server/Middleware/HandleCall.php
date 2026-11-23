@@ -140,6 +140,7 @@ class HandleCall
                     throw $exception;
                 }
 
+                // @phpstan-ignore hypervel.cancellation.exactType (the deadline's own cancellation is expected; a failure carrying it is reported)
                 if (! $exception instanceof CanceledException) {
                     $this->exceptions->report($exception);
                 }

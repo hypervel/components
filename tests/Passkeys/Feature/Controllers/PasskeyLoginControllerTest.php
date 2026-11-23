@@ -11,10 +11,12 @@ use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
 use Hypervel\Validation\ValidationException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class PasskeyLoginControllerTest extends TestCase
 {
+    use VerifiesDoubles;
     use WebAuthnFixtures;
 
     public function testItDoesNotLogInWhenCustomSignInAuthorizationCallbackReturnsFalse(): void
@@ -30,11 +32,11 @@ class PasskeyLoginControllerTest extends TestCase
             'credential' => [],
         ]);
 
-        $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
-            ->shouldReceive('__invoke')
-            ->once()
-            ->andReturn($passkey)
-            ->getMock());
+        $action = Double::for(VerifyPasskey::class)->strict();
+        $action
+            ->expects('__invoke')
+            ->returns($passkey);
+        $this->instance(VerifyPasskey::class, $action);
 
         Passkeys::authorizeLoginUsing(static fn (): bool => false);
 
@@ -58,11 +60,11 @@ class PasskeyLoginControllerTest extends TestCase
             'credential' => [],
         ]);
 
-        $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
-            ->shouldReceive('__invoke')
-            ->once()
-            ->andReturn($passkey)
-            ->getMock());
+        $action = Double::for(VerifyPasskey::class)->strict();
+        $action
+            ->expects('__invoke')
+            ->returns($passkey);
+        $this->instance(VerifyPasskey::class, $action);
 
         Passkeys::authorizeLoginUsing(static function (): never {
             throw ValidationException::withMessages([
@@ -91,11 +93,11 @@ class PasskeyLoginControllerTest extends TestCase
             'credential' => [],
         ]);
 
-        $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
-            ->shouldReceive('__invoke')
-            ->once()
-            ->andReturn($passkey)
-            ->getMock());
+        $action = Double::for(VerifyPasskey::class)->strict();
+        $action
+            ->expects('__invoke')
+            ->returns($passkey);
+        $this->instance(VerifyPasskey::class, $action);
 
         Passkeys::authorizeLoginUsing(static fn (): bool => true);
 

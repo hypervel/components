@@ -132,6 +132,8 @@ class FakeProcessResult implements ProcessResultContract
     /**
      * Throw an exception if the process failed.
      *
+     * @return $this
+     *
      * @throws ProcessFailedException
      */
     public function throw(?callable $callback = null): static
@@ -151,6 +153,8 @@ class FakeProcessResult implements ProcessResultContract
 
     /**
      * Throw an exception if the process failed and the given condition is true.
+     *
+     * @return $this
      *
      * @throws ProcessFailedException
      */

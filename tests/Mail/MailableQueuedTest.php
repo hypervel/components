@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\View\Factory;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
@@ -20,22 +20,15 @@ use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
-use Hypervel\View\Factory;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Throwable;
 
 class MailableQueuedTest extends TestCase
 {
-    /**
-     * Set up the test environment.
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->app->instance(MailableContract::class, m::mock(MailableContract::class));
-    }
+    use VerifiesDoubles;
 
     public function testQueuedMailableSent(): void
     {
@@ -373,7 +366,7 @@ class MailableQueuedTest extends TestCase
      */
     protected function getMocks(): array
     {
-        return ['smtp', m::mock(Factory::class), m::mock(TransportInterface::class)];
+        return ['smtp', Double::for(Factory::class)->strict(), Double::for(TransportInterface::class)->strict()];
     }
 
     /**

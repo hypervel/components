@@ -10,7 +10,6 @@ use Hypervel\Sentry\LogChannel;
 use Hypervel\Sentry\Logs\LogChannel as LogsLogChannel;
 use Hypervel\Sentry\Logs\LogsHandler;
 use Hypervel\Sentry\SentryHandler;
-use Mockery as m;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Level;
 use Monolog\LogRecord;
@@ -18,7 +17,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Sentry\Event;
-use Sentry\State\HubInterface;
+use Sentry\State\Hub;
 
 class LogChannelTest extends TestCase
 {
@@ -47,9 +46,7 @@ class LogChannelTest extends TestCase
         $this->assertSame(FingersCrossedHandler::class, get_class($currentHandler));
         $this->assertFalse((new ReflectionProperty($currentHandler, 'stopBuffering'))->getValue($currentHandler));
 
-        if (method_exists($currentHandler, 'getHandler')) {
-            $this->assertInstanceOf(SentryHandler::class, $currentHandler->getHandler());
-        }
+        $this->assertInstanceOf(SentryHandler::class, $currentHandler->getHandler());
 
         $loggerWithoutActionLevel = $logChannel(['action_level' => null]);
 
@@ -101,7 +98,7 @@ class LogChannelTest extends TestCase
      */
     public static function nativeBatchHandlerDataProvider(): iterable
     {
-        yield 'events handler' => [new RecordingSentryHandler(m::mock(HubInterface::class), Level::Warning)];
+        yield 'events handler' => [new RecordingSentryHandler(new Hub, Level::Warning)];
         yield 'logs handler' => [new RecordingLogsHandler(Level::Warning)];
     }
 

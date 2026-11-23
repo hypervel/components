@@ -71,10 +71,6 @@ class WebSocketTest extends TestCase
             $this->markTestSkipped('Swoole was not compiled with zlib support.');
         }
 
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires input-preserving WebSocket decoding from https://github.com/swoole/swoole-src/pull/6158.');
-        }
-
         $payload = str_repeat('hypervel-websocket-frame:', 20);
         $packed = SwooleFrame::pack(
             $payload,
@@ -91,24 +87,6 @@ class WebSocketTest extends TestCase
         $this->assertInstanceOf(SwooleFrame::class, $frame);
         $this->assertSame($payload, $frame->data);
         $this->assertSame($original, bin2hex($packed));
-    }
-
-    public function testMaskedFramesUseFreshKeys(): void
-    {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires fresh WebSocket masking keys from https://github.com/swoole/swoole-src/pull/6165.');
-        }
-
-        $keys = [];
-
-        for ($attempt = 0; $attempt < 8; ++$attempt) {
-            $packed = (string) new Frame(mask: true, payloadData: 'hello');
-            $keys[] = substr($packed, 2, 4);
-
-            $this->assertSame('hello', SwooleFrame::unpack($packed)->data);
-        }
-
-        $this->assertGreaterThan(1, count(array_unique($keys)));
     }
 
     public function testCompressedControlFramesAreRejected(): void

@@ -20,7 +20,7 @@ class FulltextTest extends PostgresTestCase
         Schema::create('articles', function (Blueprint $table) {
             $table->id('id');
             $table->string('title', 200);
-            $table->text('body');
+            $table->text('body')->nullable();
             $table->fulltext(['title', 'body']);
         });
 
@@ -78,5 +78,27 @@ class FulltextTest extends PostgresTestCase
             ->get();
 
         $this->assertSame(['PostgreSQL Tutorial', 'Optimizing PostgreSQL'], $articles->pluck('title')->all());
+    }
+
+    public function testWhereFulltextMatchesARowWithANullColumn(): void
+    {
+        DB::table('articles')->insert(['title' => 'Database Primer', 'body' => null]);
+
+        $articles = DB::table('articles')->whereFullText(['title', 'body'], 'primer')->get();
+
+        $this->assertSame(['Database Primer'], $articles->pluck('title')->all());
+    }
+
+    public function testWhereFulltextUsesTheMultiColumnFulltextIndex(): void
+    {
+        $query = DB::table('articles')->whereFullText(['title', 'body'], 'database');
+
+        $plan = DB::transaction(function () use ($query): string {
+            DB::statement('set local enable_seqscan = off');
+
+            return collect(DB::select('explain ' . $query->toSql(), $query->getBindings()))->pluck('QUERY PLAN')->implode("\n");
+        });
+
+        $this->assertStringContainsString('articles_title_body_fulltext', $plan);
     }
 }

@@ -16,6 +16,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\RequestException;
@@ -26,6 +27,7 @@ use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
 use Hypervel\Saloon\Http\Auth\TokenAcquisition;
 use Hypervel\Saloon\Http\Auth\TokenExpiry;
 use Hypervel\Saloon\Http\RetryAfter;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
@@ -34,7 +36,6 @@ use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 use SensitiveParameter;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -80,10 +81,11 @@ class OAuthAccounts
     /**
      * Select the account model.
      *
-     * Boot-only. The model persists for the worker lifetime and affects every account operation.
+     * The model persists for the worker lifetime and affects every account operation.
      *
      * @param class-string<OAuthAccount> $model
      */
+    #[BootOnly]
     public static function useAccountModel(string $model): void
     {
         if (static::$initialized) {
@@ -110,10 +112,11 @@ class OAuthAccounts
     /**
      * Configure the account partition resolver.
      *
-     * Boot-only. The column and callback persist for the worker lifetime and affect every account operation.
+     * The column and callback persist for the worker lifetime and affect every account operation.
      *
      * @param Closure(): (null|int|string) $resolver
      */
+    #[BootOnly]
     public static function resolvePartitionUsing(string $column, Closure $resolver): void
     {
         if (static::$initialized || static::$partitionResolver !== null) {
@@ -300,10 +303,8 @@ class OAuthAccounts
                             return $this->renew($identity, $refreshUsing, $attempt, $retryDelay);
                         },
                     );
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
-                    if ($retryDelay === null) {
+                    if ($retryDelay === null || Coroutine::causedByCancellation($exception)) {
                         throw $exception;
                     }
 
@@ -381,8 +382,11 @@ class OAuthAccounts
             try {
                 $renewed = $refreshUsing($current);
             } catch (Throwable $exception) {
-                $oauthError = $this->oauthError($exception);
-                $retryDelay = $attempt < 3 ? $this->retryDelay($exception, $oauthError, $attempt) : null;
+                if (! Coroutine::causedByCancellation($exception)) {
+                    $oauthError = $this->oauthError($exception);
+                    $retryDelay = $attempt < 3 ? $this->retryDelay($exception, $oauthError, $attempt) : null;
+                }
+
                 throw $exception;
             }
 
@@ -425,10 +429,15 @@ class OAuthAccounts
             } catch (Throwable $cleanupFailure) {
                 $retryDelay = null;
                 $oauthError = null;
-                try {
-                    $this->exceptions->report($cleanupFailure);
-                } catch (Throwable) {
-                    // Reporting must not replace the provider failure or cancellation.
+                if (Coroutine::causedByCancellation($cleanupFailure)) {
+                    $exception = Coroutine::preferCancellation($exception, $cleanupFailure);
+                } else {
+                    try {
+                        $this->exceptions->report($cleanupFailure);
+                    } catch (Throwable $reportingFailure) {
+                        // Ordinary reporting failures must not replace the provider failure.
+                        $exception = Coroutine::preferCancellation($exception, $reportingFailure);
+                    }
                 }
             }
 

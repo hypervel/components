@@ -5,33 +5,88 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Filesystem;
 
 use Google\Cloud\Core\AnonymousCredentials;
+use Google\Cloud\Core\Exception\ServiceException;
+use Google\Cloud\Core\Upload\AbstractUploader;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Handler\InflateBodyStream;
+use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
 use Hypervel\Filesystem\ReadThroughFilesystemAdapter;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\GoogleCloudStorage\GoogleCloudStorageAdapter as FlysystemGoogleCloudAdapter;
 use League\Flysystem\UnableToReadFile;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
 class GoogleCloudStorageAdapterTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    public function testResumableUploadPreservesCancellation(): void
+    {
+        // @TODO: Remove this skip once google/cloud-core's ResumableUploader::upload preserves
+        // the original exception as ServiceException's cause instead of discarding it.
+        $this->markTestSkipped('google/cloud-core discards cancellation causes during resumable uploads.');
+
+        $cancellation = new CanceledException('Upload canceled.');
+        $requests = 0;
+        $client = new StorageClient([
+            'projectId' => 'test-project',
+            'credentialsFetcher' => new AnonymousCredentials,
+            'retries' => 0,
+            'httpHandler' => function (RequestInterface $request) use ($cancellation, &$requests): Response {
+                if (++$requests === 1) {
+                    $this->assertSame('POST', $request->getMethod());
+                    $this->assertStringContainsString('uploadType=resumable', $request->getUri()->getQuery());
+
+                    return new Response(200, ['Location' => 'https://storage.example.test/resume']);
+                }
+
+                $this->assertSame('PUT', $request->getMethod());
+
+                throw $cancellation;
+            },
+        ]);
+        $flysystem = new FlysystemGoogleCloudAdapter($client->bucket('test-bucket'));
+        $adapter = new GoogleCloudStorageAdapter(new Filesystem($flysystem), $flysystem, ['bucket' => 'test-bucket'], $client);
+        $source = fopen('php://temp', 'w+b');
+        ftruncate($source, AbstractUploader::RESUMABLE_LIMIT + 1);
+        $caught = null;
+
+        try {
+            $adapter->put('upload.bin', $source, ['metadata' => ['contentType' => 'application/octet-stream']]);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            if (is_resource($source)) {
+                fclose($source);
+            }
+        }
+
+        $this->assertSame(2, $requests);
+        $this->assertNotNull($caught, 'Cancellation must escape instead of returning a failed write.');
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testReadThroughPromotionRetainsItsStreamAfterGoogleUploads(bool $fails): void
@@ -61,8 +116,8 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $source = fopen('php://temp', 'w+b');
         fwrite($source, 'fallback contents');
         rewind($source);
-        $fallback = m::mock(FilesystemOperator::class);
-        $fallback->shouldReceive('readStream')->once()->with('file.txt')->andReturn($source);
+        $fallback = Double::for(FilesystemOperator::class)->strict();
+        $fallback->expects('readStream')->with('file.txt')->returns($source);
         $adapter = new ReadThroughFilesystemAdapter($primary, $fallback);
         $stream = null;
 
@@ -85,7 +140,7 @@ class GoogleCloudStorageAdapterTest extends TestCase
 
     public function testUrlUsesTheConfiguredApiUriOrBucketEndpoint(): void
     {
-        $client = m::mock(StorageClient::class);
+        $client = Double::for(StorageClient::class)->strict();
         $path = 'nested/report%2F v?x#y+z.txt';
         $encodedPath = 'nested/report%252F%20v%3Fx%23y%2Bz.txt';
 
@@ -106,20 +161,19 @@ class GoogleCloudStorageAdapterTest extends TestCase
     public function testReadStreamRangeSendsANativeRangeHeaderForThePrefixedObject(): void
     {
         $stream = Utils::streamFor('range-body');
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')
-            ->once()
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')
             ->with([
                 'restOptions' => [
-                    'headers' => ['Range' => 'bytes=3-5'],
                     'stream' => true,
+                    'headers' => ['Range' => 'bytes=3-5'],
                 ],
             ])
-            ->andReturn($stream);
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('tenant/file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+            ->returns($stream);
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('tenant/file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, [
             'bucket' => 'bucket',
             'root' => 'tenant',
@@ -135,19 +189,17 @@ class GoogleCloudStorageAdapterTest extends TestCase
 
     public function testReadStreamRangeSupportsOpenAndSuffixRangesWithoutForcingStreaming(): void
     {
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')
-            ->once()
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')
             ->with(['restOptions' => ['headers' => ['Range' => 'bytes=3-']]])
-            ->andReturn(Utils::streamFor('open'));
-        $object->shouldReceive('downloadAsStream')
-            ->once()
+            ->returns(Utils::streamFor('open'));
+        $object->expects('downloadAsStream')
             ->with(['restOptions' => ['headers' => ['Range' => 'bytes=-3']]])
-            ->andReturn(Utils::streamFor('suffix'));
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->twice()->with('file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->twice()->with('bucket')->andReturn($bucket);
+            ->returns(Utils::streamFor('suffix'));
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->times(2)->with('file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->times(2)->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, [
             'bucket' => 'bucket',
             'stream_reads' => false,
@@ -165,15 +217,14 @@ class GoogleCloudStorageAdapterTest extends TestCase
     public function testReadStreamRangeWithoutBoundsDelegatesToTheFullStream(): void
     {
         $body = Utils::streamFor('full-body');
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')
-            ->once()
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')
             ->with(['restOptions' => ['stream' => true]])
-            ->andReturn($body);
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+            ->returns($body);
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, ['bucket' => 'bucket']);
 
         $stream = $adapter->readStreamRange('file.txt', null, null);
@@ -189,15 +240,14 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $this->assertIsArray($sockets);
         [$reader, $writer] = $sockets;
         $this->assertTrue(stream_set_timeout($reader, 1));
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')
-            ->once()
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')
             ->with(['restOptions' => ['stream' => true]])
-            ->andReturn(Utils::streamFor($reader));
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+            ->returns(Utils::streamFor($reader));
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, ['bucket' => 'bucket']);
         $stream = null;
 
@@ -228,7 +278,7 @@ class GoogleCloudStorageAdapterTest extends TestCase
 
     public function testReadStreamRangeRejectsInvalidArgumentsBeforeClientIo(): void
     {
-        $adapter = $this->adapter(m::mock(StorageClient::class), ['bucket' => 'bucket']);
+        $adapter = $this->adapter(Double::for(StorageClient::class)->strict(), ['bucket' => 'bucket']);
 
         foreach ([[-1, 2], [1, -2], [3, 2], [null, 0]] as [$start, $end]) {
             try {
@@ -242,12 +292,12 @@ class GoogleCloudStorageAdapterTest extends TestCase
 
     public function testReadStreamRangeWrapsClientFailures(): void
     {
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')->once()->andThrow(new RuntimeException('GCS failed'));
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')->throws(new RuntimeException('GCS failed'));
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
@@ -256,59 +306,69 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $adapter->readStreamRange('file.txt', 3, 5);
     }
 
-    public function testReadStreamRangePreservesCancellationWithoutReporting(): void
+    #[TestWith([false, false], 'direct whole read')]
+    #[TestWith([false, true], 'direct range read')]
+    #[TestWith([true, false], 'wrapped whole read')]
+    #[TestWith([true, true], 'wrapped range read')]
+    public function testReadStreamRangePreservesCancellationWithoutReporting(bool $wrapped, bool $range): void
     {
         $cancellation = new CanceledException('read canceled');
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $failure = $wrapped ? new ServiceException('SDK request canceled.', 0, $cancellation) : $cancellation;
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('report')->never();
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')->once()->andThrow($cancellation);
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')->throws($failure);
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, [
             'bucket' => 'bucket',
             'report' => true,
             'throw' => false,
         ]);
 
+        $caught = null;
+
         try {
-            $adapter->readStreamRange('file.txt', 3, 5);
-            $this->fail('Expected the cancellation to escape.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            $range ? $adapter->readStreamRange('file.txt', 3, 5) : $adapter->readStream('file.txt');
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught);
+        $this->assertSame($failure, $caught);
     }
 
     public function testReadStreamRangeRejectsAResultWithoutAResourceWhenConfigured(): void
     {
-        $stream = m::mock(StreamInterface::class);
-        $stream->shouldReceive('detach')->once()->andReturnNull();
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')->once()->andReturn($stream);
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+        $stream = Double::for(StreamInterface::class)->strict();
+        $stream->allows('isReadable')->returns(false);
+        $stream->allows('isWritable')->returns(false);
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')->returns($stream);
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessageIsOrContains('Downloaded object does not contain a file resource.');
+        $this->expectExceptionMessageIsOrContains('The stream must be readable, writable, or both.');
 
         $adapter->readStreamRange('file.txt', 3, 5);
     }
 
     public function testReadFailuresReturnNullWhenExceptionsAreDisabled(): void
     {
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')->twice()->andThrow(new RuntimeException('GCS failed'));
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('plain.txt')->andReturn($object);
-        $bucket->shouldReceive('object')->once()->with('range.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->twice()->with('bucket')->andReturn($bucket);
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')->times(2)->throws(new RuntimeException('GCS failed'));
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('plain.txt')->returns($object);
+        $bucket->expects('object')->with('range.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->times(2)->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, ['bucket' => 'bucket']);
 
         $this->assertNull($adapter->readStream('plain.txt'));
@@ -317,24 +377,72 @@ class GoogleCloudStorageAdapterTest extends TestCase
 
     public function testNonResourceReturnsNullWhenExceptionsAreDisabled(): void
     {
-        $stream = m::mock(StreamInterface::class);
-        $stream->shouldReceive('detach')->once()->andReturnNull();
-        $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')->once()->andReturn($stream);
-        $bucket = m::mock(Bucket::class);
-        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
-        $client = m::mock(StorageClient::class);
-        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+        $stream = Utils::streamFor('contents');
+        fclose($stream->detach());
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')->returns($stream);
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('file.txt')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
         $adapter = $this->adapter($client, ['bucket' => 'bucket']);
 
         $this->assertNull($adapter->readStream('file.txt'));
     }
 
+    #[TestWith([false], 'decoded contents')]
+    #[TestWith([true], 'producer cancellation')]
+    public function testDecodedReadStreamPreservesCancellationAndClosesItsBody(bool $cancel): void
+    {
+        $failure = new RuntimeException('Read cleanup failed.', previous: new CanceledException);
+        $native = fopen('php://temp', 'w+b');
+        fwrite($native, gzencode('contents'));
+        rewind($native);
+        $body = new InflateBodyStream($cancel
+            ? new PumpStream(static fn () => throw $failure)
+            : Utils::streamFor($native));
+        $object = Double::for(StorageObject::class)->strict();
+        $object->expects('downloadAsStream')->returns($body);
+        $bucket = Double::for(Bucket::class)->strict();
+        $bucket->expects('object')->with('file.gz')->returns($object);
+        $client = Double::for(StorageClient::class)->strict();
+        $client->expects('bucket')->with('bucket')->returns($bucket);
+        $adapter = $this->adapter($client, ['bucket' => 'bucket']);
+        $resource = $adapter->readStream('file.gz');
+        $caught = null;
+
+        try {
+            try {
+                $contents = stream_get_contents($resource);
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            fclose($resource);
+
+            if ($cancel) {
+                $this->assertSame($failure, $caught);
+            } else {
+                $this->assertNull($caught);
+                $this->assertSame('contents', $contents);
+                $this->assertFalse(is_resource($native));
+            }
+        } finally {
+            if (is_resource($resource)) {
+                fclose($resource);
+            }
+            $body->close();
+            if (is_resource($native)) {
+                fclose($native);
+            }
+        }
+    }
+
     private function adapter(StorageClient $client, array $config): GoogleCloudStorageAdapter
     {
         return new GoogleCloudStorageAdapter(
-            m::mock(FilesystemOperator::class),
-            m::mock(FlysystemGoogleCloudAdapter::class),
+            Double::for(FilesystemOperator::class)->strict(),
+            Double::for(FlysystemGoogleCloudAdapter::class)->strict(),
             $config,
             $client,
         );

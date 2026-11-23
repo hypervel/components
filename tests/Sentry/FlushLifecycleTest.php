@@ -22,10 +22,13 @@ use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Sentry\ClientInterface;
 use Sentry\Event;
 use Sentry\EventType;
+use Sentry\Integration\OTLPIntegration;
 use Sentry\Logs\Logs;
 use Sentry\Metrics\TraceMetrics;
 use Sentry\Options;
@@ -39,40 +42,40 @@ use Symfony\Component\Console\Input\ArrayInput;
 
 class FlushLifecycleTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDrainPublishesBufferedTelemetryBeforeTheBoundedWait(): void
     {
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
+        $client = Double::for(ClientInterface::class)->strict();
+        // Once installed, Sentry's process-wide OTLP callback looks up the integration on the current client.
+        $client->allows('getIntegration')->with(OTLPIntegration::class)->returns(null);
+        $client->expects('getOptions')
             ->times(3)
-            ->andReturn(new Options);
-        $client->shouldReceive('captureEvent')
-            ->once()
+            ->returns(new Options);
+        $client->expects('captureEvent')
             ->with(
-                m::on(static fn (Event $event): bool => $event->getType() === EventType::logs()),
+                Argument::satisfies(static fn (Event $event): bool => $event->getType() === EventType::logs()),
                 null,
-                m::type(Scope::class),
+                Argument::type(Scope::class),
             )
             ->ordered()
-            ->andReturn(null);
-        $client->shouldReceive('captureEvent')
-            ->once()
+            ->returns(null);
+        $client->expects('captureEvent')
             ->with(
-                m::on(static fn (Event $event): bool => $event->getType() === EventType::metrics()),
+                Argument::satisfies(static fn (Event $event): bool => $event->getType() === EventType::metrics()),
                 null,
-                m::type(Scope::class),
+                Argument::type(Scope::class),
             )
             ->ordered()
-            ->andReturn(null);
-        $client->shouldReceive('flush')
-            ->once()
-            ->withNoArgs()
+            ->returns(null);
+        $client->expects('flush')
+            ->with(Argument::none())
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $client->shouldReceive('flush')
-            ->once()
+            ->returns(new Result(ResultStatus::success()));
+        $client->expects('flush')
             ->with(1)
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
+            ->returns(new Result(ResultStatus::success()));
 
         $this->withHub(new Hub($client), static function (): void {
             Logs::getInstance()->info('Buffered log');
@@ -84,20 +87,17 @@ class FlushLifecycleTest extends TestCase
 
     public function testDrainDerivesAPositiveTimeoutFromTheClient(): void
     {
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
-            ->once()
-            ->andReturn(new Options(['http_timeout' => 2.2]));
-        $client->shouldReceive('flush')
-            ->once()
-            ->withNoArgs()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')
+            ->returns(new Options(['http_timeout' => 2.2]));
+        $client->expects('flush')
+            ->with(Argument::none())
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $client->shouldReceive('flush')
-            ->once()
+            ->returns(new Result(ResultStatus::success()));
+        $client->expects('flush')
             ->with(3)
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
+            ->returns(new Result(ResultStatus::success()));
 
         $result = $this->withHub(
             new Hub($client),
@@ -109,19 +109,17 @@ class FlushLifecycleTest extends TestCase
 
     public function testDrainNormalizesAnExplicitNonPositiveTimeout(): void
     {
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')
             ->never();
-        $client->shouldReceive('flush')
-            ->once()
-            ->withNoArgs()
+        $client->expects('flush')
+            ->with(Argument::none())
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $client->shouldReceive('flush')
-            ->once()
+            ->returns(new Result(ResultStatus::success()));
+        $client->expects('flush')
             ->with(1)
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
+            ->returns(new Result(ResultStatus::success()));
 
         $result = $this->withHub(
             new Hub($client),
@@ -143,21 +141,18 @@ class FlushLifecycleTest extends TestCase
 
     public function testGracefulQueueWorkerStoppingPerformsABoundedDrain(): void
     {
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
-            ->once()
-            ->andReturn(new Options(['http_timeout' => 1.2]));
-        $client->shouldReceive('flush')
-            ->once()
-            ->withNoArgs()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')
+            ->returns(new Options(['http_timeout' => 1.2]));
+        $client->expects('flush')
+            ->with(Argument::none())
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $client->shouldReceive('flush')
-            ->once()
+            ->returns(new Result(ResultStatus::success()));
+        $client->expects('flush')
             ->with(2)
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $feature = new QueueIntegration(m::mock(Container::class));
+            ->returns(new Result(ResultStatus::success()));
+        $feature = new QueueIntegration(Double::for(Container::class, override: true)->strict()->instance());
 
         $this->withHub(
             new Hub($client),
@@ -169,10 +164,10 @@ class FlushLifecycleTest extends TestCase
 
     public function testImmediateAndMemoryLimitQueueStopsDoNotDrain(): void
     {
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->never();
-        $client->shouldReceive('flush')->never();
-        $feature = new QueueIntegration(m::mock(Container::class));
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')->never();
+        $client->expects('flush')->never();
+        $feature = new QueueIntegration(Double::for(Container::class, override: true)->strict()->instance());
 
         $this->withHub(new Hub($client), static function () use ($feature): void {
             $feature->handleWorkerStoppingQueueEvent(new WorkerStopping(terminatesImmediately: true));
@@ -184,12 +179,11 @@ class FlushLifecycleTest extends TestCase
 
     public function testConsoleCompletionLeavesGlobalTelemetryForApplicationTermination(): void
     {
-        $client = m::mock(ClientInterface::class);
-        $client->shouldNotReceive('flush');
-        $client->shouldReceive('getIntegration')
-            ->once()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('flush')->never();
+        $client->expects('getIntegration')
             ->with(Integration::class)
-            ->andReturn(null);
+            ->returns(null);
         $config = new Repository([
             'sentry' => [
                 'dsn' => 'https://public@example.com/1',
@@ -199,12 +193,12 @@ class FlushLifecycleTest extends TestCase
             ],
         ]);
         $sentryConfig = new SentryConfig($config, 'sentry');
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')
-            ->twice()
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')
+            ->times(2)
             ->with(SentryConfig::class)
-            ->andReturn($sentryConfig);
-        $feature = new ConsoleFeature($container);
+            ->returns($sentryConfig);
+        $feature = new ConsoleFeature($container->instance());
 
         $this->withHub(new Hub($client), static function () use ($feature): void {
             $command = new FlushLifecycleCommand;
@@ -264,22 +258,19 @@ class FlushLifecycleTest extends TestCase
     private function assertScheduledTaskFlushesAtExecutionEnd(callable $terminal): void
     {
         $flushed = false;
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
-            ->twice()
-            ->andReturn(new Options);
-        $client->shouldReceive('captureEvent')->never();
-        $client->shouldReceive('flush')
-            ->once()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->allows('getOptions')->returns(new Options);
+        $client->expects('captureEvent')->never();
+        $client->expects('flush')
             ->with(null)
-            ->andReturnUsing(static function () use (&$flushed): Result {
+            ->resolves(static function () use (&$flushed): Result {
                 $flushed = true;
 
                 return new Result(ResultStatus::success());
             });
 
-        $feature = new ConsoleSchedulingIntegration(m::mock(Container::class));
-        $event = (new ScheduledEvent(m::mock(EventMutex::class)))->description('Scheduled task');
+        $feature = new ConsoleSchedulingIntegration(Double::for(Container::class, override: true)->strict()->instance());
+        $event = (new ScheduledEvent(Double::for(EventMutex::class)->strict()))->description('Scheduled task');
         $hub = new Hub($client);
         $storage = new CoroutineRuntimeContextStorage;
         $previousHub = SentrySdk::getCurrentHub();

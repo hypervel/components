@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\HttpServer;
 
 use Hypervel\Engine\Http\V2\Client as Http2Client;
 use Hypervel\Engine\Http\V2\Request as Http2Request;
+use Swoole\Coroutine\Socket;
 
 class ResponseStreamingTest extends HttpServerIntegrationTestCase
 {
@@ -101,6 +102,39 @@ class ResponseStreamingTest extends HttpServerIntegrationTestCase
         $this->assertSame('abcde', $range->getBody());
         $this->assertSame('bytes 10-14/36', $range->getHeaders()['content-range']);
         $this->assertArrayNotHasKey('content-length', $range->getHeaders());
+    }
+
+    public function testHttpTwoPingWhileALargeResponseWaitsForTheClientDoesNotKillTheWorker(): void
+    {
+        $pid = (string) $this->request('GET', '/pid')->getBody();
+
+        // A small receive buffer, so the 16 MB response fills the server's output buffer while the client isn't reading.
+        $socket = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($socket->setOption(SOL_SOCKET, SO_RCVBUF, 64 * 1024));
+        $this->assertTrue($socket->connect($this->getServerHost(), $this->getServerPort(), 2));
+
+        try {
+            // The connection preface, SETTINGS and WINDOW_UPDATE frames that open the flow-control windows,
+            // and GET /large-response on stream 1.
+            $socket->sendAll(
+                "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+                . "\0\0\x06\x04\0\0\0\0\0\0\x04\x7f\xff\xff\xff"
+                . "\0\0\x04\x08\0\0\0\0\0\x7f\xff\0\0"
+                . "\0\0\x1e\x01\x05\0\0\0\x01\x82\x86\x01\x09localhost\x04\x0f/large-response"
+            );
+            usleep(300_000);
+            $socket->sendAll("\0\0\x08\x06\0\0\0\0\0ABCDEFGH");
+
+            // The server can't queue the PING ACK while the response waits, so it closes the connection.
+            do {
+                $data = $socket->recv(65536, 5);
+            } while (is_string($data) && $data !== '');
+        } finally {
+            $socket->close();
+        }
+
+        $this->assertSame('', $data, "The connection ended with socket error {$socket->errCode}.");
+        $this->assertSame($pid, (string) $this->request('GET', '/pid')->getBody());
     }
 
     public function testDisconnectStopsProductionAndReleasesTheGenerator(): void

@@ -85,6 +85,7 @@ class RetryBatchCommand extends Command implements Isolatable
     {
         $ids = (array) $this->argument('id');
 
-        return array_values(array_filter(array_unique($ids)));
+        // Nonempty IDs, including "0", must reach the repository for a result or not-found message.
+        return array_values(array_filter(array_unique($ids), static fn (int|string $id): bool => $id !== ''));
     }
 }

@@ -7,6 +7,7 @@ namespace Hypervel\Database\Schema;
 use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Connection;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * @mixin Builder
@@ -57,11 +58,12 @@ class SchemaProxy
     /**
      * Set the default Schema Blueprint resolver callback.
      *
-     * Boot-only. The callback persists on the shared proxy for the worker
-     * lifetime and applies to every subsequent schema builder it creates.
+     * The callback persists on the shared proxy for the worker lifetime
+     * and applies to every subsequent schema builder it creates.
      *
      * @param Closure(Connection, string, null|Closure): Blueprint $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function blueprintResolver(Closure $resolver): void
     {
         $this->resolver = $resolver;

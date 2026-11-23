@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\ServerProcess;
 
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Server;
 
 interface ProcessInterface
@@ -11,6 +12,7 @@ interface ProcessInterface
     /**
      * Create process objects and bind them to the server.
      */
+    #[BootOnly]
     public function bind(Server $server): void;
 
     /**

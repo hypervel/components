@@ -89,7 +89,7 @@ class TranscriptionTest extends TestCase
             Transcription::fromBase64(base64_encode('fake-audio'), 'audio/mp3')->diarize()->generate(provider: 'groq');
             $this->fail('Expected unsupported diarization to be rejected.');
         } catch (LogicException $exception) {
-            $this->assertStringContainsString('does not support diarized transcription', $exception->getMessage());
+            $this->assertSame('Groq does not support diarized transcription. Use the ElevenLabs, Mistral, or Gemini provider for diarization.', $exception->getMessage());
         }
 
         Http::assertNothingSent();

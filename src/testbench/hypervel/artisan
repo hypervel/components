@@ -6,7 +6,6 @@ declare(strict_types=1);
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Application;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
@@ -18,26 +17,7 @@ error_reporting(E_ALL);
 
 ! defined('BASE_PATH') && define('BASE_PATH', __DIR__);
 
-$autoloadPaths = array_filter([
-    getenv('HYPERVEL_AUTOLOAD_PATH') ?: null,
-    BASE_PATH . '/vendor/autoload.php',
-    getcwd() . '/vendor/autoload.php',
-    is_string(getenv('TESTBENCH_WORKING_PATH'))
-        ? (string) getenv('TESTBENCH_WORKING_PATH') . '/vendor/autoload.php'
-        : null,
-]);
-
-foreach ($autoloadPaths as $autoloadPath) {
-    if (is_file($autoloadPath)) {
-        require $autoloadPath;
-        break;
-    }
-}
-
-if (! class_exists(Application::class)) {
-    fwrite(STDERR, "Unable to locate Composer autoloader for the Hypervel testbench workbench.\n");
-    exit(1);
-}
+require __DIR__ . '/bootstrap/autoload.php';
 
 $committedTestbenchRoot = realpath(__DIR__ . '/..');
 

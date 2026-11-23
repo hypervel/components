@@ -202,13 +202,27 @@ abstract class HasOneOrManyThrough extends Relation
         // models without having to do nested looping which will be quite slow.
         foreach ($results as $key => $result) {
             if ($isAssociative) {
-                $dictionary[$result->hypervel_through_key][$key] = $result; // @phpstan-ignore property.notFound
+                $dictionary[$result->hypervel_through_key][$key] = $result; // @phpstan-ignore property.notFound (through key alias the relation's query selects)
             } else {
-                $dictionary[$result->hypervel_through_key][] = $result; // @phpstan-ignore property.notFound
+                $dictionary[$result->hypervel_through_key][] = $result; // @phpstan-ignore property.notFound (through key alias the relation's query selects)
             }
         }
 
         return $dictionary;
+    }
+
+    /**
+     * Find a related model by its primary key or return a new instance of the related model.
+     *
+     * @return ($id is Model ? TRelatedModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel))
+     */
+    public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
+    {
+        if (is_null($instance = $this->find($id, $columns))) {
+            $instance = $this->related->newInstance();
+        }
+
+        return $instance;
     }
 
     /**
@@ -219,7 +233,7 @@ abstract class HasOneOrManyThrough extends Relation
      */
     public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
     {
-        if (! is_null($instance = $this->where($attributes)->first())) {
+        if (! is_null($instance = $this->where($this->qualifyRelatedAttributes($attributes))->first())) {
             return $instance;
         }
 
@@ -236,7 +250,7 @@ abstract class HasOneOrManyThrough extends Relation
     {
         $this->getQuery()->ensureCanCreateOrFirst();
 
-        if (! is_null($instance = (clone $this)->where($attributes)->first())) {
+        if (! is_null($instance = (clone $this)->where($this->qualifyRelatedAttributes($attributes))->first())) {
             return $instance;
         }
 
@@ -258,8 +272,40 @@ abstract class HasOneOrManyThrough extends Relation
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $exception) {
-            return $this->useWritePdo()->where($attributes)->first() ?? throw $exception;
+            return $this->useWritePdo()->where($this->qualifyRelatedAttributes($attributes))->first() ?? throw $exception;
         }
+    }
+
+    /**
+     * Get the first record matching the attributes, including trashed records, and restore it. If the record is not found, create it.
+     *
+     * @param array|(Closure(): array) $values
+     * @return TRelatedModel
+     */
+    public function restoreOrCreate(array $attributes = [], Closure|array $values = []): Model
+    {
+        $this->withTrashed();
+
+        return tap($this->firstOrCreate($attributes, $values), function ($instance) {
+            $instance->restore();
+        });
+    }
+
+    /**
+     * Attempt to create the record. If a unique constraint violation occurs, find the matching record, including trashed records, and restore it.
+     *
+     * @param array|(Closure(): array) $values
+     * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
+     */
+    public function createOrRestore(array $attributes = [], Closure|array $values = []): Model
+    {
+        $this->withTrashed();
+
+        return tap($this->createOrFirst($attributes, $values), function ($instance) {
+            $instance->restore();
+        });
     }
 
     /**
@@ -273,6 +319,30 @@ abstract class HasOneOrManyThrough extends Relation
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
                 $instance->fill(value($values))->save();
+            }
+        });
+    }
+
+    /**
+     * Qualify the given attribute keys with the related model's table.
+     */
+    protected function qualifyRelatedAttributes(array $attributes): array
+    {
+        return (new BaseCollection($attributes))
+            ->mapWithKeys(fn (mixed $value, int|string $key): array => [$this->related->qualifyColumn((string) $key) => $value])
+            ->all();
+    }
+
+    /**
+     * Create a related record matching the attributes, or increment the existing record.
+     *
+     * @return TRelatedModel
+     */
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
+    {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function (Model $instance) use ($column, $step, $extra): void {
+            if (! $instance->wasRecentlyCreated) {
+                $instance->increment($column, $step, $extra);
             }
         });
     }
@@ -382,7 +452,7 @@ abstract class HasOneOrManyThrough extends Relation
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
     {
-        $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
+        $ids = $this->parseFindIds($ids);
 
         if (empty($ids)) {
             return $this->getRelated()->newCollection();
@@ -405,11 +475,14 @@ abstract class HasOneOrManyThrough extends Relation
     {
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->parseFindIds($id);
 
         if (is_array($id)) {
             $id = array_map(enum_value(...), $id);
@@ -449,11 +522,14 @@ abstract class HasOneOrManyThrough extends Relation
 
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->parseFindIds($id);
 
         if (is_array($id)) {
             $id = array_map(enum_value(...), $id);
@@ -494,13 +570,14 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Get a paginator for the "select" statement.
      *
-     * @return LengthAwarePaginator<int, TRelatedModel>
+     * @param null|(Closure(): ?int)|int $total
+     * @return LengthAwarePaginator<int, TRelatedModel, EloquentCollection<int, TRelatedModel>>
      */
-    public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
+    public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): mixed
     {
         $this->query->addSelect($this->shouldSelect($columns));
 
-        return $this->query->paginate($perPage, $columns, $pageName, $page);
+        return $this->query->paginate($perPage, $columns, $pageName, $page, $total);
     }
 
     /**
@@ -544,7 +621,50 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /**
+     * Touch all of the related models for the relationship.
+     */
+    public function touch(): void
+    {
+        $model = $this->getRelated();
+
+        if ($model::isIgnoringTouch()) {
+            return;
+        }
+
+        $columns = [
+            $model->getUpdatedAtColumn() => $model->freshTimestampString(),
+        ];
+
+        $key = $model->getKeyName();
+
+        // Pluck applies casts; restore binary binding intent for keys selected by the framework.
+        $ids = $this->allRelatedIds()->map(fn ($id) => $model->encodeBinaryAttributeForDatabase($key, $id));
+
+        // The selection already applied the relation's scopes, including explicit removals.
+        $this->updateRelatedKeys(
+            $model->newQueryWithoutRelationships()->withoutGlobalScopes(),
+            $model->getQualifiedKeyName(),
+            $ids,
+            $columns,
+        );
+    }
+
+    /**
+     * Get all of the IDs for the related models.
+     *
+     * @return BaseCollection<int, int|string>
+     */
+    public function allRelatedIds(): BaseCollection
+    {
+        $key = $this->related->getQualifiedKeyName();
+
+        return (clone $this->query)->select($key)->pluck($key);
+    }
+
+    /**
      * Chunk the results of the query.
+     *
+     * @param callable(EloquentCollection<int, TRelatedModel>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -553,6 +673,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Chunk the results of a query by comparing numeric IDs.
+     *
+     * @param callable(EloquentCollection<int, TRelatedModel>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -565,6 +687,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Chunk the results of a query by comparing IDs in descending order.
+     *
+     * @param callable(EloquentCollection<int, TRelatedModel>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -577,6 +701,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Execute a callback over each item while chunking by ID.
+     *
+     * @param callable(TRelatedModel, int): mixed $callback
      */
     public function eachById(callable $callback, int $count = 1000, ?string $column = null, ?string $alias = null): bool
     {
@@ -599,6 +725,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Execute a callback over each item while chunking.
+     *
+     * @param callable(TRelatedModel, int): mixed $callback
      */
     public function each(callable $callback, int $count = 1000): bool
     {
@@ -609,6 +737,27 @@ abstract class HasOneOrManyThrough extends Relation
                 }
             }
         });
+    }
+
+    /**
+     * Run a map over each item while chunking.
+     *
+     * @template TReturn
+     *
+     * @param callable(TRelatedModel): TReturn $callback
+     * @return BaseCollection<int, TReturn>
+     */
+    public function chunkMap(callable $callback, int $count = 1000): BaseCollection
+    {
+        $collection = new BaseCollection;
+
+        $this->chunk($count, function (BaseCollection $items) use ($collection, $callback): void {
+            $items->each(function (mixed $item) use ($collection, $callback): void {
+                $collection->push($callback($item));
+            });
+        });
+
+        return $collection;
     }
 
     /**
@@ -658,27 +807,33 @@ abstract class HasOneOrManyThrough extends Relation
     {
         $builder = $this->query->applyScopes();
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $builder->addSelect(
             $this->shouldSelect($builder->getQuery()->columns ? [] : $columns)
         );
     }
 
+    /**
+     * Add the constraints for an internal relationship existence query.
+     *
+     * Unlike Laravel, which inherits Relation's types, the parent query is the declaring model's: Relation's
+     * parent here is the intermediate model.
+     *
+     * @param Builder<TRelatedModel> $query
+     * @param Builder<TDeclaringModel> $parentQuery
+     * @return Builder<TRelatedModel>
+     */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from === $query->getQuery()->from) {
-            // @phpstan-ignore argument.type (template types don't narrow through self-relation detection)
             return $this->getRelationExistenceQueryForSelfRelation($query, $parentQuery, $columns);
         }
 
         if ($parentQuery->getQuery()->from === $this->throughParent->getTable()) {
-            // @phpstan-ignore argument.type (template types don't narrow through self-relation detection)
             return $this->getRelationExistenceQueryForThroughSelfRelation($query, $parentQuery, $columns);
         }
 
         $this->performJoin($query);
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $this->getQualifiedLocalKeyName(),
             '=',
@@ -705,7 +860,6 @@ abstract class HasOneOrManyThrough extends Relation
 
         $query->getModel()->setTable($hash);
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $parentQuery->getQuery()->from . '.' . $this->localKey,
             '=',
@@ -730,7 +884,6 @@ abstract class HasOneOrManyThrough extends Relation
             $query->whereNull($hash . '.' . $this->throughParent->getDeletedAtColumn());
         }
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $parentQuery->getQuery()->from . '.' . $this->localKey,
             '=',

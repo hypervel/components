@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Lock;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -52,17 +56,40 @@ class CacheLockTest extends TestCase
         $this->assertTrue($lock->released);
     }
 
-    public function testGetReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testGetReleaseCancellationSupersedesOrdinaryCallbackFailure(bool $wrapped): void
     {
         $releaseCancellation = new CanceledException('release canceled');
+
+        if ($wrapped) {
+            $releaseCancellation = new RuntimeException('Release cleanup failed.', previous: $releaseCancellation);
+        }
+
         $lock = new FailingReleaseLock($releaseCancellation);
 
         try {
             $lock->get(fn () => throw new RuntimeException('callback failure'));
             $this->fail('Expected the release cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
+    }
+
+    public function testBlockCanAcquireAtTheDeadlineWithAShorterFinalSleep(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $store = new ArrayStore;
+        $store->lock('key', 2)->get();
+
+        $this->assertTrue($store->lock('key', 2)->betweenBlockedAttemptsSleepFor(750)->block(2));
+
+        Sleep::assertSequence([
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(500)->milliseconds(),
+        ]);
     }
 
     public function testBlockPreservesCallbackFailureWhenReleaseAlsoFails(): void
@@ -105,15 +132,22 @@ class CacheLockTest extends TestCase
         $this->assertTrue($lock->released);
     }
 
-    public function testBlockReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testBlockReleaseCancellationSupersedesOrdinaryCallbackFailure(bool $wrapped): void
     {
         $releaseCancellation = new CanceledException('release canceled');
+
+        if ($wrapped) {
+            $releaseCancellation = new RuntimeException('Release cleanup failed.', previous: $releaseCancellation);
+        }
+
         $lock = new FailingReleaseLock($releaseCancellation);
 
         try {
             $lock->block(0, fn () => throw new RuntimeException('callback failure'));
             $this->fail('Expected the release cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
     }

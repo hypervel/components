@@ -12,7 +12,9 @@ use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 
@@ -20,6 +22,8 @@ use function Hypervel\Testbench\testbench_path;
 
 class RouteCacheCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $files;
 
     /**
@@ -72,7 +76,7 @@ class RouteCacheCommandTest extends TestCase
         CleanupActions::run(...$actions);
     }
 
-    public function testRouteCacheSucceedsWithSourceRoutes(): void
+    public function testRoutesAreCachedAtomically(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -80,11 +84,18 @@ class RouteCacheCommandTest extends TestCase
             PHP
         );
 
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('put')->never();
+
+        $this->app->instance('files', $files);
+
         $this->artisan('route:cache')
             ->assertSuccessful()
             ->expectsOutputToContain('Routes cached successfully');
 
         $this->assertFileExists($this->app->getCachedRoutesPath());
+
+        $files->received('replace')->times(1)->with($this->app->getCachedRoutesPath(), Argument::type('string'), null);
     }
 
     public function testRouteCacheFailsWithNoRoutes(): void
@@ -370,11 +381,10 @@ class RouteCacheCommandTest extends TestCase
         );
 
         $publicationException = new RuntimeException('publication failed');
-        $mock = m::mock(Filesystem::class)->makePartial();
-        $mock->shouldReceive('replace')
-            ->once()
-            ->with($cachePath, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $mock = Double::for(new Filesystem)->passthru();
+        $mock->expects('replace')
+            ->with($cachePath, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance(Filesystem::class, $mock);
 
         try {

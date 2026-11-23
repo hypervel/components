@@ -31,6 +31,7 @@ use function Hypervel\Support\now;
  */
 class PersonalAccessToken extends Model implements HasAbilities
 {
+    // @phpstan-ignore hypervel.legacyModelProperty (a subclass's own #[Table] would drop this table name)
     protected ?string $table = 'personal_access_tokens';
 
     /**
@@ -49,6 +50,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Fillable] would merge with a subclass's $fillable instead of letting it replace this list)
     protected array $fillable = [
         'name',
         'token',
@@ -61,6 +63,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Hidden] would merge with a subclass's $hidden instead of letting it replace this list)
     protected array $hidden = [
         'token',
     ];
@@ -108,13 +111,13 @@ class PersonalAccessToken extends Model implements HasAbilities
             return null;
         }
 
-        if ((new static)->getKeyType() === 'int'
+        if (in_array((new static)->getKeyType(), ['int', 'integer'], true)
             && (! ctype_digit($id) || filter_var($id, FILTER_VALIDATE_INT) === false)) {
             return null;
         }
 
         // Read the writer so replica lag cannot hide new tokens or delay revocation.
-        $accessToken = config()->boolean('sanctum.cache.enabled', false)
+        $accessToken = Sanctum::cacheEnabled(config())
             ? static::findTokenUsingCache($id)
             : static::query()->useWritePdo()->find($id);
 
@@ -152,7 +155,7 @@ class PersonalAccessToken extends Model implements HasAbilities
             return $accessToken->getRelation('tokenable');
         }
 
-        if (! config()->boolean('sanctum.cache.enabled', false)) {
+        if (! Sanctum::cacheEnabled(config())) {
             return $accessToken->getAttribute('tokenable');
         }
 
@@ -234,7 +237,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     public function updateLastUsedAt(): void
     {
         $now = now();
-        $cacheEnabled = config()->boolean('sanctum.cache.enabled', false);
+        $cacheEnabled = Sanctum::cacheEnabled(config());
 
         if (
             $cacheEnabled
@@ -269,7 +272,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     protected static function invalidateTokenAfterMutation(self $token): void
     {
-        if (! config()->boolean('sanctum.cache.enabled', false)) {
+        if (! Sanctum::cacheEnabled(config())) {
             return;
         }
 

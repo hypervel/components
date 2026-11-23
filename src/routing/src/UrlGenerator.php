@@ -15,12 +15,16 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
 class UrlGenerator implements UrlGeneratorContract
@@ -348,14 +352,29 @@ class UrlGenerator implements UrlGeneratorContract
         ksort($parameters);
 
         $key = call_user_func($this->keyResolver);
+        $signature = hash_hmac(
+            'sha256',
+            $this->route($name, $parameters, $absolute),
+            is_array($key) ? $key[0] : $key
+        );
+        $url = $this->route($name, $parameters + ['signature' => $signature], $absolute);
 
-        return $this->route($name, $parameters + [
-            'signature' => hash_hmac(
-                'sha256',
-                $this->route($name, $parameters, $absolute),
-                is_array($key) ? $key[0] : $key
-            ),
-        ], $absolute);
+        // Positional values can replace reserved query values, while placeholders can consume the signature or expiry.
+        $query = HeaderUtils::parseQuery(parse_url($url, PHP_URL_QUERY) ?? '');
+
+        if (($query['signature'] ?? null) !== $signature) {
+            throw new InvalidArgumentException(
+                '"Signature" is a reserved parameter when generating signed routes. Please rename your route parameter.'
+            );
+        }
+
+        if (($query['expires'] ?? null) !== (isset($parameters['expires']) ? (string) $parameters['expires'] : null)) {
+            throw new InvalidArgumentException(
+                '"Expires" is a reserved parameter when generating signed routes. Please rename your route parameter.'
+            );
+        }
+
+        return $url;
     }
 
     /**
@@ -462,11 +481,21 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $expires = $request->query('expires');
 
-        if ($expires !== null && ! is_string($expires)) {
+        if ($expires === null) {
+            // Read the raw query verified by hasCorrectSignature(), avoiding a parse/sort/rebuild before parsing again.
+            // REMOVED: Vapor's VAPOR_RAW_QUERY_STRING override; Swoole supplies the raw QUERY_STRING.
+            $queries = HeaderUtils::parseQuery((string) $request->server->get('QUERY_STRING'));
+
+            if (isset($queries['expires'])) {
+                $expires = $queries['expires'];
+            }
+        }
+
+        if ($expires !== null && (! is_string($expires) || ! ctype_digit($expires))) {
             return false;
         }
 
-        return ! ($expires && CarbonImmutable::now()->getTimestamp() > $expires);
+        return $expires === null || CarbonImmutable::now()->getTimestamp() <= $expires;
     }
 
     /**
@@ -661,9 +690,10 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Register the default route parameter resolver.
      *
-     * Boot-only. The callback persists on the worker-shared URL generator and
-     * is evaluated for subsequent route generations across all coroutines.
+     * The callback persists on the worker-shared URL generator and is
+     * evaluated for subsequent route generations across all coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveDefaultsUsing(?Closure $resolver): void
     {
         $this->defaultsResolver = $resolver;
@@ -727,12 +757,21 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Get the default route parameter overrides for the current coroutine.
+     */
+    public function getDefaultParameterOverrides(): array
+    {
+        return CoroutineContext::get(self::DEFAULT_PARAMETERS_CONTEXT_KEY, []);
+    }
+
+    /**
      * Force the scheme for URLs.
      *
-     * Boot-only. The scheme is stored on the worker-shared URL generator
-     * singleton and affects subsequent requests across coroutines; not safe
-     * to call per-request.
+     * The scheme is stored on the worker-shared URL generator singleton and
+     * affects subsequent requests across coroutines; not safe to call
+     * per-request.
      */
+    #[BootOnly(whenShared: true)]
     public function forceScheme(?string $scheme): void
     {
         $this->forceScheme = $scheme ? $scheme . '://' : null;
@@ -749,10 +788,11 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Force the use of the HTTPS scheme for all generated URLs.
      *
-     * Boot-only. The scheme is stored on the worker-shared URL generator
-     * singleton and affects subsequent requests across coroutines; not safe
-     * to call per-request.
+     * The scheme is stored on the worker-shared URL generator singleton and
+     * affects subsequent requests across coroutines; not safe to call
+     * per-request.
      */
+    #[BootOnly(whenShared: true)]
     public function forceHttps(bool $force = true): void
     {
         $this->forceScheme($force ? 'https' : null);
@@ -761,9 +801,10 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Register the URL origin resolver.
      *
-     * Boot-only. The callback persists on the worker-shared URL generator and
-     * is evaluated for subsequent URL generations across all coroutines.
+     * The callback persists on the worker-shared URL generator and is
+     * evaluated for subsequent URL generations across all coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveOriginUsing(?Closure $resolver): void
     {
         $this->originResolver = $resolver;
@@ -782,6 +823,14 @@ class UrlGenerator implements UrlGeneratorContract
         } else {
             CoroutineContext::forget(self::FORCED_ROOT_CONTEXT_KEY);
         }
+    }
+
+    /**
+     * Get the URL origin override for the current coroutine.
+     */
+    public function getForcedOrigin(): ?string
+    {
+        return CoroutineContext::get(self::FORCED_ROOT_CONTEXT_KEY);
     }
 
     // Laravel's deprecated forceRootUrl() alias is intentionally not ported.
@@ -803,13 +852,22 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Get the asset URL origin override for the current coroutine.
+     */
+    public function getForcedAssetOrigin(): ?string
+    {
+        return CoroutineContext::get(self::FORCED_ASSET_ROOT_CONTEXT_KEY);
+    }
+
+    /**
      * Set a callback to be used to format the host of generated URLs.
      *
-     * Boot-only. The callback persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The callback persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function formatHostUsing(Closure $callback): static
     {
         $this->formatHostUsing = $callback;
@@ -820,11 +878,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set a callback to be used to format the path of generated URLs.
      *
-     * Boot-only. The callback persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The callback persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function formatPathUsing(Closure $callback): static
     {
         $this->formatPathUsing = $callback;
@@ -857,11 +916,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the current request instance.
      *
-     * Tests only. Per-request code should rely on RequestContext (read first by
+     * Per-request code should rely on RequestContext (read first by
      * getRequest()); this setter writes the singleton UrlGenerator's fallback
      * request used outside coroutine contexts, plus mutates the shared
      * routeGenerator — runtime use races across coroutines.
      */
+    #[TestsOnly(whenShared: true)]
     public function setRequest(Request $request): void
     {
         $this->request = $request;
@@ -881,11 +941,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the route collection.
      *
-     * Boot or tests only. Replacing the collection mutates the singleton URL
-     * generator for every subsequent request.
+     * Replacing the collection mutates the singleton URL generator for every
+     * subsequent request.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setRoutes(RouteCollectionInterface $routes): static
     {
         $this->routes = $routes;
@@ -908,11 +969,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the session resolver for the generator.
      *
-     * Boot-only. The resolver persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The resolver persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setSessionResolver(callable $sessionResolver): static
     {
         $this->sessionResolver = $sessionResolver;
@@ -923,11 +985,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the encryption key resolver.
      *
-     * Boot-only. The resolver persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The resolver persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setKeyResolver(callable $keyResolver): static
     {
         $this->keyResolver = $keyResolver;
@@ -946,11 +1009,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the callback that should be used to attempt to resolve missing named routes.
      *
-     * Boot-only. The callback persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The callback persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function resolveMissingNamedRoutesUsing(callable $missingNamedRouteResolver): static
     {
         $this->missingNamedRouteResolver = $missingNamedRouteResolver;
@@ -969,11 +1033,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the root controller namespace.
      *
-     * Boot-only. The namespace persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The namespace persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setRootControllerNamespace(string $rootNamespace): static
     {
         $this->rootNamespace = $rootNamespace;

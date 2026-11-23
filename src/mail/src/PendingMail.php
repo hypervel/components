@@ -45,6 +45,8 @@ class PendingMail
 
     /**
      * Set the locale of the message.
+     *
+     * @return $this
      */
     public function locale(?string $locale): static
     {
@@ -55,6 +57,8 @@ class PendingMail
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function to(mixed $users): static
     {
@@ -69,6 +73,8 @@ class PendingMail
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function cc(mixed $users): static
     {
@@ -79,6 +85,8 @@ class PendingMail
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function bcc(mixed $users): static
     {
@@ -108,7 +116,7 @@ class PendingMail
      */
     public function queue(MailableContract $mailable): mixed
     {
-        return $this->mailer->queue( // @phpstan-ignore method.notFound
+        return $this->mailer->queue( // @phpstan-ignore method.notFound (MailQueue contract method, which the framework Mailer implements)
             $this->fill($mailable)
         );
     }
@@ -118,7 +126,7 @@ class PendingMail
      */
     public function later(DateInterval|DateTimeInterface|int $delay, MailableContract $mailable): mixed
     {
-        return $this->mailer->later( // @phpstan-ignore method.notFound
+        return $this->mailer->later( // @phpstan-ignore method.notFound (MailQueue contract method, which the framework Mailer implements)
             $delay,
             $this->fill($mailable)
         );

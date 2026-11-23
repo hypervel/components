@@ -8,11 +8,14 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Testbench\TestCase;
 use Hypervel\View\Component;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class ViewClearCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $compiledPath;
 
     protected function setUp(): void
@@ -66,11 +69,10 @@ class ViewClearCommandTest extends TestCase
 
     public function testViewClearCommandFailsWhenCompiledViewsCannotBeEnumerated(): void
     {
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('glob')
-            ->once()
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('glob')
             ->with($this->compiledPath . '/*')
-            ->andReturnFalse();
+            ->returns(false);
         $this->app->instance(Filesystem::class, $files);
 
         $this->expectException(RuntimeException::class);
@@ -84,16 +86,15 @@ class ViewClearCommandTest extends TestCase
         $first = $this->compiledPath . '/first.php';
         $second = $this->compiledPath . '/second.php';
         $exception = new RuntimeException('first deletion failed');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('glob')
-            ->once()
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('glob')
             ->with($this->compiledPath . '/*')
-            ->andReturn([$first, $second]);
-        $files->shouldReceive('isDirectory')->once()->with($first)->andReturnFalse();
-        $files->shouldReceive('delete')->once()->with($first)->andThrow($exception);
-        $files->shouldReceive('isDirectory')->once()->with($second)->andReturnFalse();
-        $files->shouldReceive('delete')->once()->with($second)->andReturnFalse();
-        $files->shouldReceive('exists')->once()->with($second)->andReturnTrue();
+            ->returns([$first, $second]);
+        $files->expects('isDirectory')->with($first)->returns(false);
+        $files->expects('delete')->with($first)->throws($exception);
+        $files->expects('isDirectory')->with($second)->returns(false);
+        $files->expects('delete')->with($second)->returns(false);
+        $files->expects('exists')->with($second)->returns(true);
         $this->app->instance(Filesystem::class, $files);
 
         $this->expectExceptionObject($exception);
@@ -116,10 +117,10 @@ class ViewClearCommandTest extends TestCase
 
         $view = $this->compiledPath . '/view.php';
         $exception = new RuntimeException('deletion failed');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('glob')->once()->with($this->compiledPath . '/*')->andReturn([$view]);
-        $files->shouldReceive('isDirectory')->once()->with($view)->andReturnFalse();
-        $files->shouldReceive('delete')->once()->with($view)->andThrow($exception);
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('glob')->with($this->compiledPath . '/*')->returns([$view]);
+        $files->expects('isDirectory')->with($view)->returns(false);
+        $files->expects('delete')->with($view)->throws($exception);
         $this->app->instance(Filesystem::class, $files);
 
         $caught = null;
@@ -138,14 +139,13 @@ class ViewClearCommandTest extends TestCase
     public function testViewClearCommandAcceptsConcurrentDisappearance(): void
     {
         $view = $this->compiledPath . '/view.php';
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('glob')
-            ->once()
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('glob')
             ->with($this->compiledPath . '/*')
-            ->andReturn([$view]);
-        $files->shouldReceive('isDirectory')->once()->with($view)->andReturnFalse();
-        $files->shouldReceive('delete')->once()->with($view)->andReturnFalse();
-        $files->shouldReceive('exists')->once()->with($view)->andReturnFalse();
+            ->returns([$view]);
+        $files->expects('isDirectory')->with($view)->returns(false);
+        $files->expects('delete')->with($view)->returns(false);
+        $files->expects('exists')->with($view)->returns(false);
         $this->app->instance(Filesystem::class, $files);
 
         $this->artisan('view:clear')

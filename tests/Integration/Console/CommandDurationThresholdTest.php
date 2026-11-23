@@ -206,9 +206,8 @@ class CommandDurationThresholdTest extends TestCase
 
     public function testItHandlesCallingTerminateWithoutHandle(): void
     {
-        $this->app->make(Kernel::class)->terminate(new StringInput('foo'), 21);
+        $this->expectNotToPerformAssertions();
 
-        // This is a placeholder just to show that the above did not throw an exception.
-        $this->assertTrue(true);
+        $this->app->make(Kernel::class)->terminate(new StringInput('foo'), 21);
     }
 }

@@ -14,17 +14,21 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Tests\ConnectionPool\Fixtures\FooPool;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class IdleConnectionMonitorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMonitorChecksIdleConnectionsAtItsInterval(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->allows('isClosed')->andReturnFalse();
-        $pool->shouldReceive('checkIdleConnection')->atLeast()->once();
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('isClosed')->returns(false);
+        $pool->expects('checkIdleConnection')->times(minimum: 1);
         $timerCount = Timer::stats()['num'];
         $monitor = new IdleConnectionMonitor($pool, 0.001);
 
@@ -42,10 +46,10 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testStartAndStopAreIdempotentAndPermitRestart(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->allows('isClosed')->andReturnFalse();
-        $timer = m::mock(Timer::class);
-        $timer->expects('tick')->with(5.0, m::type('callable'))->twice()->andReturn(1, 2);
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('isClosed')->returns(false);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('tick')->with(5.0, Argument::type('callable'))->times(2)->returns(1, 2);
         $timer->expects('clear')->with(1);
         $timer->expects('clear')->with(2);
         $monitor = new IdleConnectionMonitor($pool, 5.0, $timer);
@@ -60,18 +64,18 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testClosedPoolCannotStartAMonitor(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->allows('isClosed')->andReturnTrue();
-        $timer = m::mock(Timer::class);
-        $timer->shouldNotReceive('tick');
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('isClosed')->returns(true);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('tick')->never();
 
         (new IdleConnectionMonitor($pool, 1.0, $timer))->start();
     }
 
     public function testSynchronousStartupReentryDoesNotCreateAnotherTimer(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->allows('isClosed')->andReturnFalse();
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('isClosed')->returns(false);
         $monitor = new IdleConnectionMonitor($pool, 60.0);
         $timerCount = Timer::stats()['num'];
         $startupCalls = 0;
@@ -113,12 +117,20 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testStartupFailureAllowsTheNextStart(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->allows('isClosed')->andReturnFalse();
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('isClosed')->returns(false);
         $failure = new RuntimeException('timer creation failed');
-        $timer = m::mock(Timer::class);
-        $timer->expects('tick')->with(1.0, m::type('callable'))->ordered()->andThrow($failure);
-        $timer->expects('tick')->with(1.0, m::type('callable'))->ordered()->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $attempts = 0;
+        $timer->expects('tick')->with(1.0, Argument::type('callable'))->times(2)->resolves(
+            static function () use (&$attempts, $failure): int {
+                if (++$attempts === 1) {
+                    throw $failure;
+                }
+
+                return 1;
+            },
+        );
         $timer->expects('clear')->with(1);
         $monitor = new IdleConnectionMonitor($pool, 1.0, $timer);
         $caught = null;
@@ -136,9 +148,9 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testWorkerExitStopsWithoutCheckingIdleConnections(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->allows('isClosed')->andReturnFalse();
-        $pool->shouldNotReceive('checkIdleConnection');
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('isClosed')->returns(false);
+        $pool->expects('checkIdleConnection')->never();
         $monitor = new IdleConnectionMonitor($pool, 60.0);
         $timerCount = Timer::stats()['num'];
 
@@ -154,8 +166,8 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testEachMonitorOwnsItsTimer(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->allows('isClosed')->andReturnFalse();
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('isClosed')->returns(false);
         $first = new IdleConnectionMonitor($pool, 60.0);
         $second = new IdleConnectionMonitor($pool, 60.0);
         $timerCount = Timer::stats()['num'];
@@ -180,15 +192,24 @@ class IdleConnectionMonitorTest extends TestCase
         $pool = new FooPool(new Container, 'test', ['min_retained_connections' => 2]);
         $first = $pool->borrow();
         $second = $pool->borrow();
-        $first->expects('check')->once()->globally()->ordered()->andReturnTrue();
-        $second->expects('check')->once()->globally()->ordered()->andReturnFalse();
+        $checked = [];
+        $first->expects('check')->resolves(static function () use (&$checked): bool {
+            $checked[] = 'first';
+
+            return true;
+        });
+        $second->expects('check')->resolves(static function () use (&$checked): bool {
+            $checked[] = 'second';
+
+            return false;
+        });
         $first->expects('close');
         $second->expects('close');
         $pool->release($first);
         $pool->release($second);
         $callback = null;
-        $timer = m::mock(Timer::class);
-        $timer->expects('tick')->with(1.0, m::type('callable'))->andReturnUsing(
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('tick')->with(1.0, Argument::type('callable'))->resolves(
             static function (float $interval, callable $check) use (&$callback): int {
                 $callback = $check;
 
@@ -204,6 +225,7 @@ class IdleConnectionMonitorTest extends TestCase
             $this->assertSame(2, $pool->getIdleCount());
 
             $callback(false);
+            $this->assertSame(['first', 'second'], $checked);
             $this->assertSame(1, $pool->getManagedCount());
             $this->assertSame(1, $pool->getIdleCount());
         } finally {
@@ -217,7 +239,7 @@ class IdleConnectionMonitorTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        new IdleConnectionMonitor(m::mock(ConnectionPool::class), $interval);
+        new IdleConnectionMonitor(Double::for(ConnectionPool::class)->strict(), $interval);
     }
 
     public static function invalidIntervals(): array

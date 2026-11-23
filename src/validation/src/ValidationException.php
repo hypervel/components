@@ -83,6 +83,8 @@ class ValidationException extends Exception
 
     /**
      * Set the HTTP status code to be used for the response.
+     *
+     * @return $this
      */
     public function status(int $status): static
     {
@@ -93,6 +95,8 @@ class ValidationException extends Exception
 
     /**
      * Set the error bag on the exception.
+     *
+     * @return $this
      */
     public function errorBag(string $errorBag): static
     {
@@ -103,6 +107,8 @@ class ValidationException extends Exception
 
     /**
      * Set the URL to redirect to on a validation error.
+     *
+     * @return $this
      */
     public function redirectTo(string $url): static
     {

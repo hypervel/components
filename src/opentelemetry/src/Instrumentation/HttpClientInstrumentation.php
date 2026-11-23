@@ -7,6 +7,7 @@ namespace Hypervel\OpenTelemetry\Instrumentation;
 use Closure;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\OpenTelemetry\Context\PsrRequestHeadersSetter;
@@ -32,13 +33,10 @@ use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\UrlIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -64,6 +62,10 @@ class HttpClientInstrumentation extends AbstractInstrumentation
     ];
 
     protected const string REDIRECT_COUNT_OPTION = '__redirect_count';
+
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string URL_TEMPLATE = 'url.template';
 
     /** @var array<string, true> */
     protected array $knownMethods = [];
@@ -120,12 +122,12 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         );
 
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.http.client');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.http.client', schemaUrl: $this->schemaUrl());
         }
 
         if ($this->metricEnabled(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.http.client')
+                ->getMeter('hypervel.http.client', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     HttpMetrics::HTTP_CLIENT_REQUEST_DURATION,
                     's',
@@ -185,8 +187,6 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                     }
 
                     $promise = $handler($request, $options);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
                     $this->completeFailure(
                         $exception,
@@ -222,10 +222,6 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                         $startedAt,
                         $requestAttributes,
                     ): PromiseInterface {
-                        if ($reason instanceof CanceledException) {
-                            throw $reason;
-                        }
-
                         if ($reason instanceof Throwable) {
                             $this->completeFailure(
                                 $reason,
@@ -328,7 +324,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                 UrlAttributes::URL_FULL => $this->httpAttributes->fullUrl($uri),
                 UrlAttributes::URL_SCHEME => $uri->getScheme(),
                 HttpAttributes::HTTP_REQUEST_RESEND_COUNT => $resendCount > 0 ? $resendCount : null,
-                HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE => $this->httpAttributes->contentLength(
+                HttpTelemetryAttributes::REQUEST_BODY_SIZE => $this->httpAttributes->contentLength(
                     $request->getHeaderLine('Content-Length'),
                 ),
             ],
@@ -360,16 +356,18 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                     'The OpenTelemetry URL-template resolver must return a string or null.',
                 );
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             self::logError('OpenTelemetry URL-template resolution failed.', ['exception' => $exception]);
 
             return;
         }
 
         if ($template !== null) {
-            $span->setAttribute(UrlIncubatingAttributes::URL_TEMPLATE, $template);
+            $span->setAttribute(self::URL_TEMPLATE, $template);
             $span->updateName($this->httpAttributes->spanName(
                 $methodAttributes[HttpAttributes::HTTP_REQUEST_METHOD],
                 $template,
@@ -401,7 +399,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
             $span->setAttributes(array_replace(
                 $attributes,
                 array_filter([
-                    HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE => $this->httpAttributes->contentLength(
+                    HttpTelemetryAttributes::RESPONSE_BODY_SIZE => $this->httpAttributes->contentLength(
                         $response->getHeaderLine('Content-Length'),
                     ),
                 ], static fn (mixed $value): bool => $value !== null),
@@ -417,7 +415,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
     }
 
     /**
-     * Complete a failed physical request.
+     * Complete a failed or canceled physical request.
      *
      * @param array<string, int|string> $requestAttributes
      */
@@ -428,6 +426,13 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         int $startedAt,
         array $requestAttributes,
     ): void {
+        // HTTP client semantic conventions leave a canceled request's status unset and omit error.type.
+        if ($this->isDirectCancellation($exception)) {
+            $this->complete($span, $context, $startedAt, $requestAttributes);
+
+            return;
+        }
+
         if ($span !== null) {
             $this->exceptionContexts->associate(
                 $exception,

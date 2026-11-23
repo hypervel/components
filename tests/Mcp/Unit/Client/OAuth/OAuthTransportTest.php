@@ -64,6 +64,26 @@ class OAuthTransportTest extends TestCase
         $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list', 'params' => []]));
     }
 
+    public function testThrowsAuthorizationRequiredExceptionOnA403ChallengeCarryingAJsonRpcError(): void
+    {
+        Http::fake([
+            'https://mcp.test/mcp' => Http::response(
+                json_encode(['jsonrpc' => '2.0', 'error' => ['code' => -32600, 'message' => 'Forbidden']]),
+                403,
+                ['WWW-Authenticate' => 'Bearer error="insufficient_scope", scope="files:write"'],
+            ),
+        ]);
+
+        $transport = new HttpTransport('https://mcp.test/mcp');
+
+        try {
+            $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list', 'params' => []]));
+            $this->fail('Expected AuthorizationRequiredException.');
+        } catch (AuthorizationRequiredException $authorizationRequiredException) {
+            $this->assertSame('files:write', $authorizationRequiredException->scope());
+        }
+    }
+
     public function testParsesMixedWwwAuthenticateChallengesWithQuotedCommasAndUnquotedValues(): void
     {
         $challenge = WwwAuthenticateChallenge::parse('Basic realm="api", Bearer resource_metadata="https://mcp.test/.well-known/oauth-protected-resource/a,b", scope=files:read, error_description="needs access"');

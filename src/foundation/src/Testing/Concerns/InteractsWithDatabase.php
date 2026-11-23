@@ -26,6 +26,7 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed>|list<array<string, mixed>> $data
+     * @return $this
      */
     protected function assertDatabaseHas(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null): static
     {
@@ -65,6 +66,7 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed>|list<array<string, mixed>> $data
+     * @return $this
      */
     protected function assertDatabaseMissing(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null): static
     {
@@ -104,6 +106,7 @@ trait InteractsWithDatabase
      * Assert the count of table entries.
      *
      * @param class-string<Model>|iterable<class-string<Model>|string, int>|Model|string $table
+     * @return $this
      */
     protected function assertDatabaseCount(iterable|Model|string $table, ?int $count = null, UnitEnum|string|null $connection = null): static
     {
@@ -127,6 +130,7 @@ trait InteractsWithDatabase
      * Assert that the given table or tables has no entries.
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
+     * @return $this
      */
     protected function assertDatabaseEmpty(iterable|Model|string $table, UnitEnum|string|null $connection = null): static
     {
@@ -151,6 +155,7 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed>|list<array<string, mixed>> $data
+     * @return $this
      */
     protected function assertSoftDeleted(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null, ?string $deletedAtColumn = 'deleted_at'): static
     {
@@ -197,6 +202,7 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed>|list<array<string, mixed>> $data
+     * @return $this
      */
     protected function assertNotSoftDeleted(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null, ?string $deletedAtColumn = 'deleted_at'): static
     {
@@ -242,6 +248,7 @@ trait InteractsWithDatabase
      * Assert the given model exists in the database.
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $model
+     * @return $this
      */
     protected function assertModelExists(iterable|Model|string $model): static
     {
@@ -252,6 +259,7 @@ trait InteractsWithDatabase
      * Assert the given model does not exist in the database.
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $model
+     * @return $this
      */
     protected function assertModelMissing(iterable|Model|string $model): static
     {
@@ -260,6 +268,8 @@ trait InteractsWithDatabase
 
     /**
      * Specify the number of database queries that should occur throughout the test.
+     *
+     * @return $this
      */
     public function expectsDatabaseQueryCount(int $expected, UnitEnum|string|null $connection = null): static
     {
@@ -331,6 +341,8 @@ trait InteractsWithDatabase
             $connection = $database->getDefaultConnection();
         }
 
+        // ConnectionFactory makes every managed connection, including extended drivers, a Connection.
+        /** @var Connection */
         return $database->connection($connection);
     }
 
@@ -386,6 +398,7 @@ trait InteractsWithDatabase
      * Seed a given database connection.
      *
      * @param class-string<Seeder>|list<string>|string $class
+     * @return $this
      */
     public function seed(array|string $class = 'Database\Seeders\DatabaseSeeder'): static
     {

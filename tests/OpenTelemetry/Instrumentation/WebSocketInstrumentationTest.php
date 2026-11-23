@@ -16,7 +16,8 @@ use Hypervel\WebSocketServer\Events\ConnectionClosed;
 use Hypervel\WebSocketServer\Events\ConnectionOpened;
 use Hypervel\WebSocketServer\Events\MessageHandled;
 use Hypervel\WebSocketServer\Events\MessageReceived;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -48,6 +49,8 @@ use function Hypervel\Coroutine\parallel;
 
 class WebSocketInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string DURATION_METRIC = 'hypervel.websocket.message.duration';
 
     private const string MESSAGES_METRIC = 'hypervel.websocket.messages';
@@ -190,21 +193,22 @@ class WebSocketInstrumentationTest extends TestCase
         );
     }
 
-    public function testCancellationProducesNoFalseCompletionTelemetry(): void
+    public function testCanceledMessageEndsItsSpanWithoutAResult(): void
     {
         $this->instrumentation()->register($this->options(activeConnections: false));
         $frame = $this->frame();
 
         $this->events->dispatch(new MessageReceived(1, $frame, 'websocket'));
-        $active = Span::getCurrent()->getContext();
         $this->events->dispatch(new MessageHandled(1, $frame, 'websocket', new CanceledException));
 
-        $this->assertTrue($active->isValid());
-        $this->assertSame($active->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $span = $this->exportedSpan('websocket.message');
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertNull($span->getAttributes()->get('result'));
+        $this->assertNull($span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame([], $span->getEvents());
+        $this->assertFalse(Span::getCurrent()->getContext()->isValid());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(self::MESSAGES_METRIC)->data->dataPoints);
-        $this->assertSame(1, $this->clock->calls);
+        $this->assertNull($this->sumPoint(self::MESSAGES_METRIC)->attributes->get('result'));
     }
 
     public function testMessageIdentityIsAvailableToTheSampler(): void
@@ -372,8 +376,8 @@ class WebSocketInstrumentationTest extends TestCase
      */
     private function instrumentation(): WebSocketInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new WebSocketInstrumentation(
             $this->events,

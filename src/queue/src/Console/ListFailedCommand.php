@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\Jobs\JobName;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -93,7 +94,7 @@ class ListFailedCommand extends Command
             return null;
         }
 
-        if (! isset($payload['data']['command'])) {
+        if (! JobName::hasJobObject($payload)) {
             return is_string($payload['job'] ?? null) ? $payload['job'] : null;
         }
 

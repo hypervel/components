@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hypervel\Contracts\Cache\Store;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 abstract class TagSet
@@ -28,6 +28,17 @@ abstract class TagSet
     {
         $this->store = $store;
         $this->names = $names;
+    }
+
+    /**
+     * Get a copy of the tag set that uses the given store.
+     */
+    public function withStore(Store $store): static
+    {
+        $tagSet = clone $this;
+        $tagSet->store = $store;
+
+        return $tagSet;
     }
 
     /**
@@ -58,9 +69,11 @@ abstract class TagSet
                 if (! $operation($item)) {
                     $result = false;
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }

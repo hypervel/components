@@ -155,6 +155,7 @@ trait GuardsAttributes
      * Set the fillable attributes for the model.
      *
      * @param array<string> $fillable
+     * @return $this
      */
     public function fillable(array $fillable): static
     {
@@ -167,6 +168,7 @@ trait GuardsAttributes
      * Merge new fillable attributes with existing fillable attributes on the model.
      *
      * @param array<string> $fillable
+     * @return $this
      */
     public function mergeFillable(array $fillable): static
     {
@@ -195,6 +197,7 @@ trait GuardsAttributes
      * Set the guarded attributes for the model.
      *
      * @param array<string> $guarded
+     * @return $this
      */
     public function guard(array $guarded): static
     {
@@ -207,6 +210,7 @@ trait GuardsAttributes
      * Merge new guarded attributes with existing guarded attributes on the model.
      *
      * @param array<string> $guarded
+     * @return $this
      */
     public function mergeGuarded(array $guarded): static
     {

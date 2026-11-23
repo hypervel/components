@@ -7,14 +7,18 @@ namespace Hypervel\Database\Eloquent\Relations;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
 
@@ -294,6 +298,34 @@ abstract class Relation implements BuilderContract
     }
 
     /**
+     * Update related keys, splitting unbounded queries at the statement binding limit.
+     *
+     * @param Builder<TRelatedModel> $query
+     * @param BaseCollection<array-key, mixed> $keys
+     * @param array<string, mixed> $values
+     */
+    protected function updateRelatedKeys(Builder $query, string $column, BaseCollection $keys, array $values): void
+    {
+        if ($keys->isEmpty()) {
+            return;
+        }
+
+        // Prepare scopes once so counting bindings and splitting the update do not replay them.
+        $query = $query->applyScopes()->withoutGlobalScopes();
+        $connection = $query->getConnection();
+        $base = $query->getQuery();
+
+        // Limits and offsets select across the whole list and must not be reapplied per chunk.
+        $size = $connection instanceof PdoConnection && $base->limit === null && $base->offset === null
+            ? $connection->maxBindings() - count($values) - count($base->getBindings())
+            : $keys->count();
+
+        foreach (array_chunk($keys->all(), $size) as $chunk) {
+            (clone $query)->whereIn($column, $chunk)->update($values);
+        }
+    }
+
+    /**
      * Run a raw update against the base query.
      */
     public function rawUpdate(array $attributes = []): int
@@ -310,7 +342,6 @@ abstract class Relation implements BuilderContract
      */
     public function getRelationExistenceCountQuery(Builder $query, Builder $parentQuery): Builder
     {
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $this->getRelationExistenceQuery(
             $query,
             $parentQuery,
@@ -329,7 +360,6 @@ abstract class Relation implements BuilderContract
      */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $this->getQualifiedParentKeyName(),
             '=',
@@ -356,6 +386,25 @@ abstract class Relation implements BuilderContract
         return (new BaseCollection($models))->map(function ($value) use ($key) {
             return $key ? $value->getAttribute($key) : $value->getKey();
         })->values()->unique(null, true)->sort()->all();
+    }
+
+    /**
+     * Normalize primary keys for related-model lookups.
+     */
+    protected function parseFindIds(mixed $ids): mixed
+    {
+        if ($ids instanceof Model) {
+            return $ids->getKey();
+        }
+
+        if ($ids instanceof Arrayable) {
+            // Preserve model objects instead of converting their attributes into candidate IDs.
+            $ids = $ids instanceof Enumerable ? $ids->all() : $ids->toArray();
+        }
+
+        return is_array($ids)
+            ? array_map(fn (mixed $id): mixed => $id instanceof Model ? $id->getKey() : $id, $ids)
+            : $ids;
     }
 
     /**
@@ -423,6 +472,19 @@ abstract class Relation implements BuilderContract
     }
 
     /**
+     * Apply query-time casts to the related model instance.
+     */
+    public function withCasts(array $casts): static
+    {
+        $this->query->withCasts($casts);
+
+        // Creation helpers use this model, so follow the query's isolated cast changes.
+        $this->related = $this->query->getModel();
+
+        return $this;
+    }
+
+    /**
      * Get the class name of the related model.
      *
      * @return class-string<TRelatedModel>
@@ -484,9 +546,10 @@ abstract class Relation implements BuilderContract
     /**
      * Prevent polymorphic relationships from being used without model mappings.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every polymorphic resolution across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every polymorphic resolution across all coroutines.
      */
+    #[BootOnly]
     public static function requireMorphMap(bool $requireMorphMap = true): void
     {
         static::$requireMorphMap = $requireMorphMap;
@@ -503,12 +566,13 @@ abstract class Relation implements BuilderContract
     /**
      * Define the morph map for polymorphic relations and require all morphed models to be explicitly mapped.
      *
-     * Boot-only. Sets both worker-wide morph state (requireMorphMap + morphMap)
-     * shared by every coroutine.
+     * Sets both worker-wide morph state (requireMorphMap + morphMap) shared by
+     * every coroutine.
      *
      * @param array<int|string, class-string<Model>> $map
      * @return array<int|string, class-string<Model>>
      */
+    #[BootOnly]
     public static function enforceMorphMap(array $map, bool $merge = true): array
     {
         static::requireMorphMap();
@@ -519,13 +583,13 @@ abstract class Relation implements BuilderContract
     /**
      * Set or get the morph map for polymorphic relations.
      *
-     * Boot-only when setting. The map persists in a static property for the
-     * worker lifetime and applies to every polymorphic resolution across all
-     * coroutines.
+     * A given map persists in a static property for the worker lifetime and
+     * applies to every polymorphic resolution across all coroutines.
      *
      * @param null|array<int|string, class-string<Model>> $map
      * @return array<int|string, class-string<Model>>
      */
+    #[BootOnly(whenNotDefault: 'map')]
     public static function morphMap(?array $map = null, bool $merge = true): array
     {
         $map = static::buildMorphMapFromModels($map);
@@ -580,6 +644,14 @@ abstract class Relation implements BuilderContract
         $alias = array_search($className, static::$morphMap, strict: true);
 
         return $alias !== false ? $alias : $className;
+    }
+
+    /**
+     * Clone the relationship.
+     */
+    public function clone(): static
+    {
+        return clone $this;
     }
 
     /**

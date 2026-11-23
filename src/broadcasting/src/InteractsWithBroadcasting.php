@@ -18,6 +18,8 @@ trait InteractsWithBroadcasting
 
     /**
      * Broadcast the event using a specific broadcaster.
+     *
+     * @return $this
      */
     public function broadcastVia(UnitEnum|array|string|null $connection = null): static
     {

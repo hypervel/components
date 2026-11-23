@@ -20,23 +20,18 @@ class AddEntryTest extends RedisCacheTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithTtl(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1301, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1301.0, 'mykey')
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -44,23 +39,18 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 300, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithZeroTtlStoresNegativeOne(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -68,23 +58,18 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithNegativeTtlStoresNegativeOne(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -92,23 +77,18 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', -5, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithUpdateWhenNxCondition(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'mykey')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -116,23 +96,18 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries'], 'NX');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithUpdateWhenXxCondition(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['XX'], -1, 'mykey')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -140,23 +115,18 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries'], 'XX');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithUpdateWhenGtCondition(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['GT'], 1061, 'mykey')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -164,27 +134,21 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 60, ['_all:tag:users:entries'], 'GT');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', 1061, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1061.0, 'mykey')
+            ->returns($connection->client());
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:posts:entries', 1061.0, 'mykey')
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1, 1]);
+        $connection->client()->expects('exec')
+            ->returns([1, 1]);
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -192,16 +156,13 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 60, ['_all:tag:users:entries', '_all:tag:posts:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithEmptyTagsArrayDoesNothing(): void
     {
         $connection = $this->mockConnection();
 
         // No pipeline or zadd calls should be made
-        $connection->shouldNotReceive('pipeline');
-        $connection->shouldNotReceive('zadd');
+        $connection->client()->expects('pipeline')->never();
+        $connection->client()->expects('zadd')->never();
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -209,23 +170,18 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 60, []);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('custom_prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('custom_prefix:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $operation = new AddEntry($store->getContext());
@@ -233,84 +189,60 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeUsesSequentialCommands(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-
-        // Should NOT use pipeline in cluster mode
-        $connection->shouldNotReceive('pipeline');
+        [$store, $client] = $this->createClusterStore();
 
         // Should use sequential zadd calls directly on connection
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1301, 'mykey')
-            ->andReturn(1);
+        $client->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1301.0, 'mykey')
+            ->returns(1);
 
         $operation = new AddEntry($store->getContext());
         $operation->execute('mykey', 300, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeWithMultipleTags(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-
-        // Should NOT use pipeline in cluster mode
-        $connection->shouldNotReceive('pipeline');
+        [$store, $client] = $this->createClusterStore();
 
         // Should use sequential zadd calls for each tag
-        $expectedScore = 1061;
-        $connection->shouldReceive('zadd')
-            ->once()
+        $expectedScore = 1061.0;
+        $client->expects('zadd')
             ->with('prefix:_all:tag:users:entries', $expectedScore, 'mykey')
-            ->andReturn(1);
-        $connection->shouldReceive('zadd')
-            ->once()
+            ->returns(1);
+        $client->expects('zadd')
             ->with('prefix:_all:tag:posts:entries', $expectedScore, 'mykey')
-            ->andReturn(1);
-        $connection->shouldReceive('zadd')
-            ->once()
+            ->returns(1);
+        $client->expects('zadd')
             ->with('prefix:_all:tag:comments:entries', $expectedScore, 'mykey')
-            ->andReturn(1);
+            ->returns(1);
 
         $operation = new AddEntry($store->getContext());
         $operation->execute('mykey', 60, ['_all:tag:users:entries', '_all:tag:posts:entries', '_all:tag:comments:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeWithUpdateWhenFlag(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
         // Should use zadd with NX flag as array (phpredis requires array for options)
-        $connection->shouldReceive('zadd')
-            ->once()
+        $client->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'mykey')
-            ->andReturn(1);
+            ->returns(1);
 
         $operation = new AddEntry($store->getContext());
         $operation->execute('mykey', 0, ['_all:tag:users:entries'], 'NX');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeWithZeroTtlStoresNegativeOne(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
         // Score should be -1 for forever items (TTL = 0)
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn(1);
+        $client->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns(1);
 
         $operation = new AddEntry($store->getContext());
         $operation->execute('mykey', 0, ['_all:tag:users:entries']);

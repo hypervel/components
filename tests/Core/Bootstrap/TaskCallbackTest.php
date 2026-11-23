@@ -10,7 +10,9 @@ use Hypervel\Core\Bootstrap\TaskCallback;
 use Hypervel\Core\Events\OnTask;
 use Hypervel\Core\Events\TaskTerminated;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Constant;
@@ -19,47 +21,44 @@ use Swoole\Server\Task;
 
 class TaskCallbackTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLegacySignatureBuildsTaskEvent(): void
     {
-        $server = m::mock(Server::class);
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (OnTask $event) use ($server): bool {
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->resolves(function (OnTask $event) use ($server): void {
                 $this->assertSame($server, $event->server);
                 $this->assertSame(12, $event->task->id);
                 $this->assertSame(3, $event->task->worker_id);
                 $this->assertSame(['payload' => true], $event->task->data);
-
-                return true;
-            }));
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+            });
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnFalse();
+            ->returns(false);
 
         $this->makeCallback($dispatcher)->onTask($server, 12, 3, ['payload' => true]);
     }
 
     public function testMissingTaskListenerSkipsFinishAndStillDispatchesTerminalEvent(): void
     {
-        $server = m::mock(Server::class);
-        $server->shouldNotReceive('finish');
+        $server = Double::for(Server::class)->strict();
+        $server->expects('finish')->never();
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnFalse();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(TaskTerminated::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (TaskTerminated $event) use ($server): bool {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(false);
+        $dispatcher->expects('hasListeners')->with(TaskTerminated::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class))
+            ->resolves(function (TaskTerminated $event) use ($server): void {
                 $this->assertSame($server, $event->server);
                 $this->assertSame(12, $event->task->id);
                 $this->assertSame(3, $event->task->worker_id);
                 $this->assertSame(['payload' => true], $event->task->data);
-
-                return true;
-            }));
+            });
 
         $this->makeCallback($dispatcher)->onTask($server, 12, 3, ['payload' => true]);
     }
@@ -67,34 +66,29 @@ class TaskCallbackTest extends TestCase
     #[DataProvider('objectModeSettings')]
     public function testDedicatedTaskSettingsUseNativeObjectSignature(array $settings): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $task = new Task;
         $task->id = 21;
         $task->worker_id = 4;
         $task->data = 'payload';
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (OnTask $event) use ($server, $task): bool {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->resolves(function (OnTask $event) use ($server, $task): void {
                 $this->assertSame($server, $event->server);
                 $this->assertSame($task, $event->task);
-
-                return true;
-            }));
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+            });
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (TaskTerminated $event) use ($server, $task): bool {
+            ->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class))
+            ->resolves(function (TaskTerminated $event) use ($server, $task): void {
                 $this->assertSame($server, $event->server);
                 $this->assertSame($task, $event->task);
-
-                return true;
-            }));
+            });
 
         $this->makeCallback($dispatcher, $settings)->onTask($server, $task);
     }
@@ -110,21 +104,18 @@ class TaskCallbackTest extends TestCase
 
     public function testLegacyAliasPresenceTakesPrecedenceOverTaskObject(): void
     {
-        $server = m::mock(Server::class);
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (OnTask $event): bool {
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->resolves(function (OnTask $event): void {
                 $this->assertSame(31, $event->task->id);
                 $this->assertSame('legacy', $event->task->data);
-
-                return true;
-            }));
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+            });
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnFalse();
+            ->returns(false);
 
         $this->makeCallback($dispatcher, [
             Constant::OPTION_TASK_USE_OBJECT => false,
@@ -134,21 +125,19 @@ class TaskCallbackTest extends TestCase
 
     public function testLegacyResultIsFinishedThroughServer(): void
     {
-        $server = m::mock(Server::class);
-        $server->shouldReceive('finish')->once()->with('completed');
+        $server = Double::for(Server::class)->strict();
+        $server->expects('finish')->with('completed');
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(OnTask::class))
-            ->andReturnUsing(function (OnTask $event): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->resolves(function (OnTask $event): void {
                 $event->setResult('completed');
             });
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnFalse();
+            ->returns(false);
 
         $this->makeCallback($dispatcher)->onTask($server, 41, 6, 'payload');
     }
@@ -156,40 +145,35 @@ class TaskCallbackTest extends TestCase
     public function testLegacyResultIsFinishedBeforeTerminalDispatch(): void
     {
         $order = [];
-        $server = m::mock(Server::class);
-        $server->shouldReceive('finish')
-            ->once()
+        $server = Double::for(Server::class)->strict();
+        $server->expects('finish')
             ->with('completed')
-            ->andReturnUsing(function () use (&$order): bool {
+            ->resolves(function () use (&$order): bool {
                 $order[] = 'finish';
 
                 return true;
             });
 
         $task = null;
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(OnTask::class))
-            ->andReturnUsing(function (OnTask $event) use (&$order, &$task): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->resolves(function (OnTask $event) use (&$order, &$task): void {
                 $task = $event->task;
                 $event->setResult('completed');
                 $order[] = 'task';
             });
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (TaskTerminated $event) use ($server, &$order, &$task): bool {
+            ->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class))
+            ->resolves(function (TaskTerminated $event) use ($server, &$order, &$task): void {
                 $this->assertSame($server, $event->server);
                 $this->assertSame($task, $event->task);
                 $order[] = 'terminated';
-
-                return true;
-            }));
+            });
 
         $this->makeCallback($dispatcher)->onTask($server, 42, 7, 'payload');
 
@@ -199,22 +183,19 @@ class TaskCallbackTest extends TestCase
     public function testTaskFailureSkipsFinishButStillDispatchesTerminalEvent(): void
     {
         $exception = new RuntimeException('Task failed.');
-        $server = m::mock(Server::class);
-        $server->shouldNotReceive('finish');
+        $server = Double::for(Server::class)->strict();
+        $server->expects('finish')->never();
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(OnTask::class))
-            ->andThrow($exception);
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->throws($exception);
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(TaskTerminated::class));
+            ->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class));
 
         try {
             $this->makeCallback($dispatcher)->onTask($server, 43, 8, 'payload');
@@ -227,24 +208,21 @@ class TaskCallbackTest extends TestCase
     public function testFinishFailureStillDispatchesTerminalEvent(): void
     {
         $exception = new RuntimeException('Finish failed.');
-        $server = m::mock(Server::class);
-        $server->shouldReceive('finish')->once()->andThrow($exception);
+        $server = Double::for(Server::class)->strict();
+        $server->expects('finish')->throws($exception);
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(OnTask::class))
-            ->andReturnUsing(function (OnTask $event): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->resolves(function (OnTask $event): void {
                 $event->setResult('completed');
             });
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(TaskTerminated::class));
+            ->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class));
 
         try {
             $this->makeCallback($dispatcher)->onTask($server, 44, 9, 'payload');
@@ -257,20 +235,17 @@ class TaskCallbackTest extends TestCase
     public function testTerminalFailurePropagatesAfterSuccessfulTask(): void
     {
         $exception = new RuntimeException('Terminal dispatch failed.');
-        $server = m::mock(Server::class);
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(OnTask::class));
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class));
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(TaskTerminated::class))
-            ->andThrow($exception);
+            ->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class))
+            ->throws($exception);
 
         try {
             $this->makeCallback($dispatcher)->onTask($server, 45, 10, 'payload');
@@ -284,21 +259,18 @@ class TaskCallbackTest extends TestCase
     {
         $taskException = new RuntimeException('Task failed.');
         $terminalException = new RuntimeException('Terminal dispatch failed.');
-        $server = m::mock(Server::class);
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(OnTask::class))
-            ->andThrow($taskException);
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->throws($taskException);
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(TaskTerminated::class))
-            ->andThrow($terminalException);
+            ->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class))
+            ->throws($terminalException);
 
         try {
             $this->makeCallback($dispatcher)->onTask($server, 46, 11, 'payload');
@@ -312,25 +284,22 @@ class TaskCallbackTest extends TestCase
     {
         $finishException = new RuntimeException('Finish failed.');
         $terminalException = new RuntimeException('Terminal dispatch failed.');
-        $server = m::mock(Server::class);
-        $server->shouldReceive('finish')->once()->andThrow($finishException);
+        $server = Double::for(Server::class)->strict();
+        $server->expects('finish')->throws($finishException);
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OnTask::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(OnTask::class))
-            ->andReturnUsing(function (OnTask $event): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(OnTask::class))
+            ->resolves(function (OnTask $event): void {
                 $event->setResult('completed');
             });
-        $dispatcher->shouldReceive('hasListeners')
-            ->once()
+        $dispatcher->expects('hasListeners')
             ->with(TaskTerminated::class)
-            ->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(TaskTerminated::class))
-            ->andThrow($terminalException);
+            ->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(TaskTerminated::class))
+            ->throws($terminalException);
 
         try {
             $this->makeCallback($dispatcher)->onTask($server, 47, 12, 'payload');

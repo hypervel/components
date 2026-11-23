@@ -7,7 +7,9 @@ namespace Hypervel\Tests\OpenTelemetry\Deferred;
 use Generator;
 use Hypervel\OpenTelemetry\Deferred\Logs\DeferredLoggerProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use OpenTelemetry\API\Logs\LoggerInterface;
 use OpenTelemetry\API\Logs\LoggerProviderInterface;
 use OpenTelemetry\API\Logs\LogRecord;
@@ -17,6 +19,8 @@ use OpenTelemetry\Context\Context;
 
 class DeferredLogsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPreBindLoggerDropsRecordsAndReplaysItsScopeAcrossBindings(): void
     {
         $provider = new DeferredLoggerProvider;
@@ -31,19 +35,17 @@ class DeferredLogsTest extends TestCase
         $this->assertInstanceOf(NoopLogRecordBuilder::class, $preBindBuilder);
         $this->assertFalse($attributes->valid());
 
-        $workerBuilder = m::mock(LogRecordBuilderInterface::class);
-        $workerLogger = m::mock(LoggerInterface::class);
-        $workerLogger->shouldReceive('isEnabled')
-            ->once()
-            ->with(Context::getRoot(), 17, 'exception')
-            ->andReturnTrue();
-        $workerLogger->shouldReceive('logRecordBuilder')->once()->andReturn($workerBuilder);
-        $workerLogger->shouldReceive('emit')->once()->with($record);
-        $workerProvider = m::mock(LoggerProviderInterface::class);
-        $workerProvider->shouldReceive('getLogger')
-            ->once()
+        $workerBuilder = Double::for(LogRecordBuilderInterface::class)->strict();
+        $workerLogger = Double::for(LoggerInterface::class)->strict();
+        $workerLogger->expects('isEnabled')
+            ->with(Argument::same(Context::getRoot()), 17, 'exception')
+            ->returns(true);
+        $workerLogger->expects('logRecordBuilder')->returns($workerBuilder);
+        $workerLogger->expects('emit')->with(Argument::same($record));
+        $workerProvider = Double::for(LoggerProviderInterface::class)->strict();
+        $workerProvider->expects('getLogger')
             ->with('billing', '1.0', 'https://schema.test', ['scope.kind' => 'test'])
-            ->andReturn($workerLogger);
+            ->returns($workerLogger);
 
         $provider->bind($workerProvider);
 
@@ -60,12 +62,11 @@ class DeferredLogsTest extends TestCase
     public function testLoggerRequestedAfterBindComesDirectlyFromTheWorkerProvider(): void
     {
         $provider = new DeferredLoggerProvider;
-        $workerLogger = m::mock(LoggerInterface::class);
-        $workerProvider = m::mock(LoggerProviderInterface::class);
-        $workerProvider->shouldReceive('getLogger')
-            ->once()
+        $workerLogger = Double::for(LoggerInterface::class)->strict();
+        $workerProvider = Double::for(LoggerProviderInterface::class)->strict();
+        $workerProvider->expects('getLogger')
             ->with('worker', null, null, [])
-            ->andReturn($workerLogger);
+            ->returns($workerLogger);
 
         $provider->bind($workerProvider);
 

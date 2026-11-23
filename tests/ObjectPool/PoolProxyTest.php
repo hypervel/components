@@ -16,11 +16,15 @@ use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class PoolProxyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Container $container;
 
     protected PoolManager $manager;
@@ -122,15 +126,15 @@ class PoolProxyTest extends TestCase
         $object = new PoolProxyObject;
         $configureFailure = new RuntimeException('configuration failed');
         $discardFailure = new RuntimeException('discard failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($discardFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($discardFailure));
         $this->container->instance(ExceptionHandler::class, $handler);
 
-        $pool = m::mock(ObjectPoolContract::class);
-        $pool->shouldReceive('borrow')->once()->andReturn($object);
-        $pool->shouldReceive('discard')->once()->with($object)->andThrow($discardFailure);
-        $factory = m::mock(Factory::class);
-        $factory->shouldReceive('getOrCreate')->once()->andReturn($pool);
+        $pool = Double::for(ObjectPoolContract::class)->strict();
+        $pool->expects('borrow')->returns($object);
+        $pool->expects('discard')->with(Argument::same($object))->throws($discardFailure);
+        $factory = Double::for(Factory::class)->strict();
+        $factory->expects('getOrCreate')->returns($pool);
         $proxy = new InspectablePoolProxy(
             $this->definition,
             static fn (): object => $object,
@@ -152,8 +156,8 @@ class PoolProxyTest extends TestCase
     {
         $operationFailure = new RuntimeException('operation failed');
         $finalizationFailure = new RuntimeException('release failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($finalizationFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($finalizationFailure));
         $this->container->instance(ExceptionHandler::class, $handler);
         $proxy = $this->proxy(
             static fn (): object => new PoolProxyObject($operationFailure),

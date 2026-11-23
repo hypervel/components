@@ -8,7 +8,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\OpenTelemetry\Instrumentation\RuntimeInstrumentation;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
 use OpenTelemetry\SDK\Metrics\Data\Gauge;
 use OpenTelemetry\SDK\Metrics\Data\Metric;
@@ -23,6 +24,8 @@ use Swoole\Server;
 
 class RuntimeInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const array METRICS = [
         'php.memory.usage',
         'php.memory.peak_usage',
@@ -91,9 +94,9 @@ class RuntimeInstrumentationTest extends TestCase
             'process.context_switches',
             'hypervel.worker.coroutines',
         ];
-        $container = m::mock(Container::class);
-        $container->shouldNotReceive('make');
-        $this->instrumentation($container, ProcessIdentity::cli())->register($this->options($enabled));
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->never();
+        $this->instrumentation($container->instance(), ProcessIdentity::cli())->register($this->options($enabled));
 
         $metrics = $this->collect();
 
@@ -128,8 +131,8 @@ class RuntimeInstrumentationTest extends TestCase
     public function testEventWorkerZeroResolvesServerOnceAndRecordsOneSnapshotPerCollection(): void
     {
         $snapshotCount = 0;
-        $server = m::mock(Server::class);
-        $server->shouldReceive('stats')->andReturnUsing(
+        $server = Double::for(Server::class)->strict();
+        $server->allows('stats')->resolves(
             static function () use (&$snapshotCount): array {
                 ++$snapshotCount;
 
@@ -142,8 +145,8 @@ class RuntimeInstrumentationTest extends TestCase
                 ];
             },
         );
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with(Server::class)->andReturn($server);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(Server::class)->returns($server);
         $enabled = [
             'hypervel.server.connections',
             'hypervel.server.requests',
@@ -151,7 +154,7 @@ class RuntimeInstrumentationTest extends TestCase
             'hypervel.server.task_queue.size',
             'hypervel.worker.requests',
         ];
-        $this->instrumentation($container, ProcessIdentity::eventWorker(0))
+        $this->instrumentation($container->instance(), ProcessIdentity::eventWorker(0))
             ->register($this->options($enabled));
 
         $metrics = $this->collect();
@@ -168,14 +171,14 @@ class RuntimeInstrumentationTest extends TestCase
 
     public function testOtherServerWorkersRecordOnlyTheirWorkerLocalRequestCount(): void
     {
-        $server = m::mock(Server::class);
-        $server->shouldReceive('stats')->andReturn([
+        $server = Double::for(Server::class)->strict();
+        $server->allows('stats')->returns([
             'connection_num' => 11,
             'request_count' => 120,
             'worker_request_count' => 7,
         ]);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->with(Server::class)->andReturn($server);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->allows('make')->with(Server::class)->returns($server);
         $enabled = [
             'hypervel.server.connections',
             'hypervel.server.requests',
@@ -183,7 +186,7 @@ class RuntimeInstrumentationTest extends TestCase
             'hypervel.server.task_queue.size',
             'hypervel.worker.requests',
         ];
-        $this->instrumentation($container, ProcessIdentity::taskWorker(1))
+        $this->instrumentation($container->instance(), ProcessIdentity::taskWorker(1))
             ->register($this->options($enabled));
 
         $metrics = $this->collect();
@@ -194,8 +197,8 @@ class RuntimeInstrumentationTest extends TestCase
 
     public function testOpcacheMetricsExistOnlyWhenOpcacheIsActiveInEventWorkerZero(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldNotReceive('make');
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->never();
         $enabled = [
             'php.opcache.memory_used',
             'php.opcache.memory_free',
@@ -208,7 +211,7 @@ class RuntimeInstrumentationTest extends TestCase
             'php.opcache.interned_strings.memory_free',
             'php.opcache.interned_strings.count',
         ];
-        $this->instrumentation($container, ProcessIdentity::eventWorker(0))
+        $this->instrumentation($container->instance(), ProcessIdentity::eventWorker(0))
             ->register($this->options($enabled));
 
         $metrics = $this->collect();
@@ -219,18 +222,16 @@ class RuntimeInstrumentationTest extends TestCase
 
     public function testDisabledMetricsDoNotResolveTheMeterOrServer(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldNotReceive('make');
-        $meterProvider = m::mock(MeterProviderInterface::class);
-        $meterProvider->shouldNotReceive('getMeter');
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->never();
+        $meterProvider = Double::for(MeterProviderInterface::class)->strict();
+        $meterProvider->expects('getMeter')->never();
 
         (new RuntimeInstrumentation(
-            $container,
+            $container->instance(),
             $meterProvider,
             ProcessIdentity::eventWorker(0),
         ))->register($this->options([]));
-
-        $this->addToAssertionCount(1);
     }
 
     #[DataProvider('metricProvider')]
@@ -241,23 +242,23 @@ class RuntimeInstrumentationTest extends TestCase
         $processIdentity = $usesServer || str_starts_with($name, 'php.opcache.')
             ? ProcessIdentity::eventWorker(0)
             : ProcessIdentity::cli();
-        $container = m::mock(Container::class);
+        $container = Double::for(Container::class, override: true)->strict();
 
         if ($usesServer) {
-            $server = m::mock(Server::class);
-            $server->shouldReceive('stats')->andReturn([
+            $server = Double::for(Server::class)->strict();
+            $server->allows('stats')->returns([
                 'connection_num' => 1,
                 'request_count' => 1,
                 'tasking_num' => 1,
                 'task_queue_num' => 1,
                 'worker_request_count' => 1,
             ]);
-            $container->shouldReceive('make')->with(Server::class)->andReturn($server);
+            $container->allows('make')->with(Server::class)->returns($server);
         } else {
-            $container->shouldNotReceive('make');
+            $container->expects('make')->never();
         }
 
-        $this->instrumentation($container, $processIdentity)
+        $this->instrumentation($container->instance(), $processIdentity)
             ->register($this->options([$name]));
 
         $metrics = $this->collect();

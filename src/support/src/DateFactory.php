@@ -11,6 +11,7 @@ use Carbon\WeekDay;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use ReflectionClass;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -137,11 +138,12 @@ class DateFactory
     /**
      * Use the given handler when generating dates (class name, callable, or factory).
      *
-     * Boot-only. The selected handler persists in static state for the worker
-     * lifetime and affects date creation in every subsequent request.
+     * The selected handler persists in static state for the worker lifetime
+     * and affects date creation in every subsequent request.
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly]
     public static function use(mixed $handler): void
     {
         if ($handler instanceof Factory) {
@@ -167,9 +169,10 @@ class DateFactory
     /**
      * Use the default date class when generating dates.
      *
-     * Boot-only. Clearing the worker-wide handler affects date creation in
-     * every subsequent request.
+     * Clearing the worker-wide handler affects date creation in every
+     * subsequent request.
      */
+    #[BootOnly]
     public static function useDefault(): void
     {
         static::$dateClass = null;
@@ -180,9 +183,10 @@ class DateFactory
     /**
      * Execute the given callable on each date creation.
      *
-     * Boot-only. The callable persists in a static property for the worker
-     * lifetime and runs on every date creation across all coroutines.
+     * The callable persists in a static property for the worker lifetime
+     * and runs on every date creation across all coroutines.
      */
+    #[BootOnly]
     public static function useCallable(callable $callable): void
     {
         static::$callable = Closure::fromCallable($callable);
@@ -194,11 +198,12 @@ class DateFactory
     /**
      * Use the given date type (class) when generating dates.
      *
-     * Boot-only. The class name persists in a static property for the worker
-     * lifetime and is used for every date creation across all coroutines.
+     * The class name persists in a static property for the worker lifetime
+     * and is used for every date creation across all coroutines.
      *
      * @param class-string<CarbonInterface> $dateClass
      */
+    #[BootOnly]
     public static function useClass(string $dateClass): void
     {
         if (
@@ -219,9 +224,10 @@ class DateFactory
     /**
      * Use the given Carbon factory when generating dates.
      *
-     * Boot-only. The factory persists in a static property for the worker
-     * lifetime and is used for every date creation across all coroutines.
+     * The factory persists in a static property for the worker lifetime
+     * and is used for every date creation across all coroutines.
      */
+    #[BootOnly]
     public static function useFactory(Factory $factory): void
     {
         static::$factory = $factory;

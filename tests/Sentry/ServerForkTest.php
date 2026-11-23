@@ -12,7 +12,8 @@ use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Sentry\Logs\LogsHandler;
 use Hypervel\ServerProcess\AbstractProcess;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Monolog\Handler\BufferHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Sentry\ClientBuilder;
@@ -27,6 +28,8 @@ use Swoole\Server;
 
 class ServerForkTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ServerForkRecordingHttpClient $httpClient;
 
     /**
@@ -72,7 +75,7 @@ class ServerForkTest extends TestCase
 
         $this->assertSame([], $this->getCapturedSentryEventsOfType(EventType::logs()));
 
-        $this->dispatchHypervelEvent(new BeforeServerFork(m::mock(Server::class)));
+        $this->dispatchHypervelEvent(new BeforeServerFork(Double::for(Server::class)->strict()));
 
         $logs = $this->getCapturedSentryEventsOfType(EventType::logs());
 
@@ -108,11 +111,13 @@ class ServerForkTest extends TestCase
      */
     public static function forkedProcessStarts(): iterable
     {
-        yield 'worker' => ['start' => static fn (): BeforeWorkerStart => new BeforeWorkerStart(m::mock(Server::class), 0)];
+        yield 'worker' => ['start' => static fn (): BeforeWorkerStart => new BeforeWorkerStart(Double::for(Server::class)->strict(), 0)];
 
         yield 'custom process' => ['start' => static function (ApplicationContract $app): BeforeProcessHandle {
             // Keep the process start log line out of the test output.
-            $app->instance(StdoutLoggerInterface::class, m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing());
+            $logger = Double::for(StdoutLoggerInterface::class)->strict();
+            $logger->allows('info');
+            $app->instance(StdoutLoggerInterface::class, $logger);
 
             return new BeforeProcessHandle(new ServerForkProcess($app), 0);
         }];
@@ -125,7 +130,7 @@ class ServerForkTest extends TestCase
 
         $this->assertFalse($options->isShareHandleEnabled());
 
-        $this->dispatchHypervelEvent(new BeforeWorkerStart(m::mock(Server::class), 0));
+        $this->dispatchHypervelEvent(new BeforeWorkerStart(Double::for(Server::class)->strict(), 0));
 
         $this->assertSame($sharesAfterStart, $options->isShareHandleEnabled());
     }

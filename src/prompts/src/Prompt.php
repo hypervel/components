@@ -11,6 +11,7 @@ use Hypervel\Prompts\Exceptions\FormRevertedException;
 use Hypervel\Prompts\Output\ConsoleOutput;
 use Hypervel\Prompts\Support\Result;
 use Hypervel\Prompts\Support\Utils;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -225,9 +226,7 @@ abstract class Prompt
             try {
                 $this->restoreTerminalState();
             } catch (Throwable $exception) {
-                if ($operationFailure === null) {
-                    throw $exception;
-                }
+                throw Coroutine::preferCancellation($operationFailure, $exception);
             }
         }
     }
@@ -257,9 +256,10 @@ abstract class Prompt
     /**
      * Register a callback to be invoked when a user cancels a prompt.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every subsequent prompt cancellation.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every subsequent prompt cancellation.
      */
+    #[BootOnly]
     public static function cancelUsing(?Closure $callback): void
     {
         static::$cancelUsing = $callback;
@@ -320,6 +320,19 @@ abstract class Prompt
     }
 
     /**
+     * Determine whether cursor and screen controls can be written to the output.
+     *
+     * Unlike Laravel, this requires a terminal as well as decorated output, so
+     * `--ansi` output in CI and build logs keeps its colors without cursor
+     * movement or erasing.
+     */
+    protected static function canControlTerminal(): bool
+    {
+        return static::output()->isDecorated()
+            && static::terminal()->isOutputTty(static::output());
+    }
+
+    /**
      * Get the terminal instance.
      */
     public static function terminal(): Terminal
@@ -352,7 +365,7 @@ abstract class Prompt
             // The Terminal retains its mode on failure so the same controlling TTY can be retried.
             static::terminal()->restoreTty();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         if ($failure !== null) {

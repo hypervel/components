@@ -11,9 +11,17 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class TrimStringsTest extends TestCase
 {
-    public function testNonStringValuesDoNotPerformExclusionMatching(): void
+    public function testNonStringValuesDoNotCheckExclusions(): void
     {
         $middleware = new TrimStringsTrackingExclusionMatches;
+        $data = ['values' => [[0], [false], [null], [1.5], []]];
+
+        $middleware->handle(new Request($data), function (Request $request) use ($data): void {
+            $this->assertSame($data, $request->query->all());
+        });
+
+        $this->assertSame(0, $middleware->exclusionMatchCount);
+
         $symfonyRequest = new SymfonyRequest([
             'integer' => 123,
             'boolean' => true,

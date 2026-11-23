@@ -17,8 +17,10 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
 use Hypervel\Tests\Console\Fixtures\FakeCacheFactory;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -30,6 +32,8 @@ use Throwable;
 
 class CommandMutexTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Command $command;
 
     protected CommandMutex $commandMutex;
@@ -109,13 +113,14 @@ class CommandMutexTest extends TestCase
 
     public function testCommandReleasesTheExactMutexInstanceThatItAcquired(): void
     {
-        $acquiredMutex = m::mock(CommandMutex::class);
-        $unusedMutex = m::mock(CommandMutex::class);
+        $acquiredMutex = Double::for(CommandMutex::class)->strict();
+        $unusedMutex = Double::for(CommandMutex::class)->strict();
         $resolutions = 0;
 
-        $acquiredMutex->shouldReceive('create')->once()->with($this->command)->andReturnTrue();
-        $acquiredMutex->shouldReceive('forget')->once()->with($this->command)->andReturnTrue();
-        $unusedMutex->shouldReceive('create', 'forget')->never();
+        $acquiredMutex->expects('create')->with(Argument::same($this->command))->returns(true);
+        $acquiredMutex->expects('forget')->with(Argument::same($this->command))->returns(true);
+        $unusedMutex->expects('create')->never();
+        $unusedMutex->expects('forget')->never();
 
         $this->app->bind(CommandMutex::class, function () use ($acquiredMutex, $unusedMutex, &$resolutions) {
             return $resolutions++ === 0 ? $acquiredMutex : $unusedMutex;
@@ -160,8 +165,8 @@ class CommandMutexTest extends TestCase
         }
 
         $commandMutex = $this->mockCommandMutex();
-        $commandMutex->shouldReceive('create')->once()->with($command)->andReturnTrue();
-        $commandMutex->shouldReceive('forget')->once()->with($command)->andReturnTrue();
+        $commandMutex->expects('create')->with(Argument::same($command))->returns(true);
+        $commandMutex->expects('forget')->with(Argument::same($command))->returns(true);
 
         $command->run(
             new ArrayInput(['--isolated' => true]),
@@ -177,8 +182,8 @@ class CommandMutexTest extends TestCase
     public function testAfterExecuteFailureStillReleasesMutex(): void
     {
         $commandMutex = $this->mockCommandMutex();
-        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $commandMutex->expects('create')->returns(true);
+        $commandMutex->expects('forget')->returns(true);
 
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
@@ -202,8 +207,8 @@ class CommandMutexTest extends TestCase
         $command->setHypervel($this->app);
 
         $commandMutex = $this->mockCommandMutex();
-        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $commandMutex->shouldReceive('forget')->once()->andThrow(new RuntimeException('mutex release failed'));
+        $commandMutex->expects('create')->returns(true);
+        $commandMutex->expects('forget')->throws(new RuntimeException('mutex release failed'));
 
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
@@ -233,8 +238,8 @@ class CommandMutexTest extends TestCase
         $cleanup = $cleanupThrows ? new RuntimeException('Observer cleanup failed.') : null;
 
         $commandMutex = $this->mockCommandMutex();
-        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $commandMutex->expects('create')->returns(true);
+        $commandMutex->expects('forget')->returns(true);
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
             static function () use ($cancellation, $cleanup): never {
@@ -271,8 +276,8 @@ class CommandMutexTest extends TestCase
         $cleanup = $cleanupThrows ? new RuntimeException('Mutex cleanup failed.') : null;
 
         $commandMutex = $this->mockCommandMutex();
-        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $commandMutex->shouldReceive('forget')->once()->andReturnUsing(static function () use ($cancellation, $cleanup): never {
+        $commandMutex->expects('create')->returns(true);
+        $commandMutex->expects('forget')->resolves(static function () use ($cancellation, $cleanup): never {
             try {
                 throw $cancellation;
             } finally {
@@ -308,8 +313,8 @@ class CommandMutexTest extends TestCase
         $observed = null;
 
         $commandMutex = $this->mockCommandMutex();
-        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $commandMutex->expects('create')->returns(true);
+        $commandMutex->expects('forget')->returns(true);
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
             function (AfterExecute $event) use (&$observed): void {
@@ -330,9 +335,9 @@ class CommandMutexTest extends TestCase
     /**
      * Replace the bound command mutex with a mock.
      */
-    protected function mockCommandMutex(): CommandMutex&MockInterface
+    protected function mockCommandMutex(): CommandMutex&DoubleInterface
     {
-        $commandMutex = m::mock(CommandMutex::class);
+        $commandMutex = Double::for(CommandMutex::class)->strict();
 
         $this->app->instance(CommandMutex::class, $commandMutex);
 

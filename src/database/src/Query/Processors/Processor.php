@@ -124,7 +124,7 @@ class Processor
      * Process the results of an indexes query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool}>
+     * @return list<array{name: string, columns: list<string>, key_columns: list<null|string>, type: null|string, unique: bool, primary: bool, partial: bool}>
      */
     public function processIndexes(array $results): array
     {

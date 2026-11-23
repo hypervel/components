@@ -11,16 +11,19 @@ use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class MonitorWaitTimesTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testQueuesWithLongWaitsAreFound(): void
     {
         Event::fake();
 
-        $calc = m::mock(WaitTimeCalculator::class);
-        $calc->shouldReceive('calculate')->andReturn([
+        $calc = Double::for(WaitTimeCalculator::class)->strict();
+        $calc->allows('calculate')->returns([
             'redis:test-queue' => 10,
             'redis:test-queue-2' => 80,
         ]);
@@ -41,8 +44,8 @@ class MonitorWaitTimesTest extends IntegrationTestCase
 
         Event::fake();
 
-        $calc = m::mock(WaitTimeCalculator::class);
-        $calc->expects('calculate')->andReturn([
+        $calc = Double::for(WaitTimeCalculator::class)->strict();
+        $calc->expects('calculate')->returns([
             'redis:ignore-queue' => 10,
         ]);
         $this->app->instance(WaitTimeCalculator::class, $calc);
@@ -58,12 +61,12 @@ class MonitorWaitTimesTest extends IntegrationTestCase
     {
         Event::fake();
 
-        $calc = m::mock(WaitTimeCalculator::class);
+        $calc = Double::for(WaitTimeCalculator::class)->strict();
         $calc->expects('calculate')->never();
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('acquireWaitTimeMonitorLock')->once()->andReturnFalse();
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->expects('acquireWaitTimeMonitorLock')->returns(false);
         $this->app->instance(MetricsRepository::class, $metrics);
 
         $listener = new MonitorWaitTimes($metrics);
@@ -77,12 +80,12 @@ class MonitorWaitTimesTest extends IntegrationTestCase
     {
         Event::fake();
 
-        $calc = m::mock(WaitTimeCalculator::class);
+        $calc = Double::for(WaitTimeCalculator::class)->strict();
         $calc->expects('calculate')->never();
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('acquireWaitTimeMonitorLock')->never();
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->expects('acquireWaitTimeMonitorLock')->never();
         $this->app->instance(MetricsRepository::class, $metrics);
 
         $listener = new MonitorWaitTimes($metrics);
@@ -99,14 +102,14 @@ class MonitorWaitTimesTest extends IntegrationTestCase
 
         Event::fake();
 
-        $calc = m::mock(WaitTimeCalculator::class);
-        $calc->expects('calculate')->once()->andReturn([
+        $calc = Double::for(WaitTimeCalculator::class)->strict();
+        $calc->expects('calculate')->returns([
             'redis:default' => 70,
         ]);
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('acquireWaitTimeMonitorLock')->once()->andReturnTrue();
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->expects('acquireWaitTimeMonitorLock')->returns(true);
         $this->app->instance(MetricsRepository::class, $metrics);
 
         $listener = new MonitorWaitTimes($metrics);
@@ -129,14 +132,14 @@ class MonitorWaitTimesTest extends IntegrationTestCase
 
         Event::fake();
 
-        $calc = m::mock(WaitTimeCalculator::class);
-        $calc->expects('calculate')->once()->andReturn([
+        $calc = Double::for(WaitTimeCalculator::class)->strict();
+        $calc->expects('calculate')->returns([
             'redis:default' => 70,
         ]);
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('acquireWaitTimeMonitorLock')->once()->andReturnTrue();
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->expects('acquireWaitTimeMonitorLock')->returns(true);
         $this->app->instance(MetricsRepository::class, $metrics);
 
         $listener = new MonitorWaitTimes($metrics);

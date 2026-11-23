@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -18,6 +20,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\QueueFailedOver;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use RuntimeException;
 use Throwable;
 use UnitEnum;
@@ -87,8 +90,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalSize(): int
     {
-        // Aggregate counts are an optional driver capability outside the core Queue contract.
-        return $this->manager->connection($this->connections[0])->totalSize(); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->totalSize();
     }
 
     /**
@@ -96,7 +98,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalPendingSize(): int
     {
-        return $this->manager->connection($this->connections[0])->totalPendingSize(); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->totalPendingSize();
     }
 
     /**
@@ -104,7 +106,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalDelayedSize(): int
     {
-        return $this->manager->connection($this->connections[0])->totalDelayedSize(); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->totalDelayedSize();
     }
 
     /**
@@ -112,7 +114,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalReservedSize(): int
     {
-        return $this->manager->connection($this->connections[0])->totalReservedSize(); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->totalReservedSize();
     }
 
     /**
@@ -120,8 +122,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
-        // Inspection remains an optional concrete capability, not part of the core Queue contract.
-        return $this->manager->connection($this->connections[0])->pendingJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->pendingJobs($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -129,7 +130,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->delayedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->delayedJobs($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -137,7 +138,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->reservedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->reservedJobs($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -145,7 +146,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function allPendingJobs(): Collection
     {
-        return $this->manager->connection($this->connections[0])->allPendingJobs(); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->allPendingJobs();
     }
 
     /**
@@ -153,7 +154,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function allDelayedJobs(): Collection
     {
-        return $this->manager->connection($this->connections[0])->allDelayedJobs(); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->allDelayedJobs();
     }
 
     /**
@@ -161,7 +162,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function allReservedJobs(): Collection
     {
-        return $this->manager->connection($this->connections[0])->allReservedJobs(); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->allReservedJobs();
     }
 
     /**
@@ -182,6 +183,60 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
         $queue = $this->resolveForwardedQueue($queue);
 
         return $this->attemptOnAllConnections(__FUNCTION__, func_get_args(), $job);
+    }
+
+    /**
+     * Preserve per-job transport overrides in custom queues.
+     */
+    protected function usesCustomBatchDelivery(): bool
+    {
+        return static::class !== self::class;
+    }
+
+    /**
+     * Keep the normal per-job failover order while enrollment waits for its owner.
+     */
+    protected function enqueueBulk(array $jobs, mixed $data, ?string $queue, ?BatchEnqueueAttempt $attempt): mixed
+    {
+        if ($attempt === null) {
+            return parent::enqueueBulk($jobs, $data, $queue, null);
+        }
+
+        $queue = $this->resolveForwardedQueue($queue);
+        $transactions = $this->container->has('db.transactions') ? $this->container->make('db.transactions') : null;
+        foreach ($jobs as $offset => $job) {
+            $delay = $this->getJobDelay($job);
+            $method = $delay === null ? 'push' : 'later';
+            $arguments = $delay === null ? [$job, $data, $queue] : [$delay, $job, $data, $queue];
+            $owner = $attempt->batchTransactionConnection;
+            $explicit = $this->shouldDispatchAfterCommit($job);
+            $onFailure = static function (?bool $queued) use ($attempt, $offset): void {
+                if ($queued === true) {
+                    $attempt->accepted([$offset]);
+                } elseif ($queued === null) {
+                    $attempt->attempting([$offset]);
+                }
+            };
+
+            if ($transactions !== null && ($owner !== null || $explicit)
+                && $this->deferUntilAllTransactionsCommit(
+                    $transactions,
+                    $method,
+                    $arguments,
+                    $job,
+                    $explicit ? null : $owner,
+                    $owner,
+                    static fn () => ($attempt->onDeferredRejection)([$offset]),
+                )) {
+                $attempt->attempting([$offset]);
+                continue;
+            }
+
+            $this->attemptOnConnections($method, $arguments, $job, false, $onFailure);
+            $attempt->accepted([$offset]);
+        }
+
+        return null;
     }
 
     /**
@@ -275,7 +330,14 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
         array $arguments,
         object|string|null $job,
         bool $afterCommitHandled = false,
+        ?Closure $onFailure = null,
     ): mixed {
+        // Each child builds its own transport UUID, even if the previous child already accepted the job.
+        if (is_object($job) && isset($job->batchId) && ! isset($job->batchPositionId)
+            && isset(class_uses_recursive($job)[Batchable::class])) {
+            $job->batchPositionId = (string) Str::uuid();
+        }
+
         $contextKey = self::FAILING_QUEUES_CONTEXT_PREFIX . spl_object_id($this);
         $state = CoroutineContext::get($contextKey);
         $failingQueues = $state !== null && $state[0]->get() === $this ? $state[1] : [];
@@ -287,8 +349,18 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             $forwarded = ['job' => $job, 'afterCommitHandled' => $afterCommitHandled];
         }
 
+        $onFailure ??= $forwarded['onFailure'] ?? null;
+        $outcome = false;
+        if ($onFailure !== null) {
+            $forwarded['onFailure'] = static function (?bool $queued) use (&$childOutcome): void {
+                $childOutcome = $queued;
+            };
+        }
+
         try {
             foreach ($this->connections as $connection) {
+                /** @var null|bool $childOutcome The forwarded child may report its outcome before throwing. */
+                $childOutcome = null;
                 try {
                     return $job === null
                         ? $this->manager->connection($connection)->{$method}(...$arguments)
@@ -297,7 +369,15 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                             fn () => $this->manager->connection($connection)->{$method}(...$arguments),
                         );
                 } catch (Throwable $e) {
-                    if (Coroutine::causedByCancellation($e)) {
+                    // A listener can throw after storage. Forwarding again would publish a second copy.
+                    if ($childOutcome === true) {
+                        $outcome = true;
+                        throw $e;
+                    }
+                    if ($childOutcome === null) {
+                        $outcome = null;
+                    }
+                    if (Coroutine::causedByCancellation($e) || ! $this->transactionCanContinueAfter($e)) {
                         throw $e;
                     }
 
@@ -317,11 +397,44 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                     }
                 }
             }
+            throw $lastException ?? new RuntimeException('All failover queue connections failed.');
+        } catch (Throwable $failure) {
+            try {
+                throw $failure;
+            } finally {
+                $onFailure?->__invoke($outcome);
+            }
         } finally {
             CoroutineContext::set($contextKey, [WeakReference::create($this), $failedQueues]);
         }
+    }
 
-        throw $lastException ?? new RuntimeException('All failover queue connections failed.');
+    /**
+     * Publish once every participating transaction commits, or discard on the first rollback.
+     */
+    protected function afterConnectionsCommit(DatabaseTransactionsManager $transactions, array $connections, Closure $commit, Closure $rollback): void
+    {
+        $pending = array_fill_keys($connections, true);
+        $settled = false;
+
+        // Register rollbacks first because a commit callback may run inline.
+        foreach ($connections as $connection) {
+            $transactions->addCallbackForRollback(static function () use (&$settled, $rollback, $connection): void {
+                if (! $settled) {
+                    $settled = true;
+                    $rollback($connection);
+                }
+            }, $connection);
+        }
+        foreach ($connections as $connection) {
+            $transactions->addCallback(static function () use (&$settled, &$pending, $commit, $connection): void {
+                unset($pending[$connection]);
+                if (! $settled && $pending === []) {
+                    $settled = true;
+                    $commit();
+                }
+            }, $connection);
+        }
     }
 
     /**
@@ -331,7 +444,10 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
         DatabaseTransactionsManager $transactions,
         string $method,
         array $arguments,
-        object|string $job
+        object|string $job,
+        ?string $selectedConnection = null,
+        ?string $enrollmentConnection = null,
+        ?Closure $reject = null,
     ): bool {
         $connections = $transactions->callbackApplicableTransactions()
             ->map(static fn (DatabaseTransactionRecord $transaction): string => $transaction->connection)
@@ -343,63 +459,36 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             return false;
         }
 
-        if (($selectedConnection = $this->resolveOutboxCommitConnection($transactions, $job)) !== null) {
+        if (($selectedConnection ??= $this->resolveOutboxCommitConnection($transactions, $job)) !== null) {
             $connections = [$selectedConnection];
         }
 
         $context = ContextRepository::hasInstance() ? ContextRepository::getInstance()->replicate() : null;
-        $pendingConnections = array_fill_keys($connections, true);
-        $settled = false;
         $releaseLocks = $this->createJobRollbackCallback($job);
-
-        // Cancellation must be ready before addCallback(), which may execute inline.
-        foreach ($connections as $connection) {
-            $transactions->addCallbackForRollback(
-                static function () use (&$settled, $releaseLocks): void {
-                    if ($settled) {
-                        return;
+        $this->afterConnectionsCommit(
+            $transactions,
+            $connections,
+            function () use ($job, $context, $selectedConnection, $method, $arguments, $reject): void {
+                $onFailure = $reject === null ? null : static function (?bool $queued) use ($reject): void {
+                    if ($queued === false) {
+                        $reject();
                     }
-
-                    $settled = true;
+                };
+                // Child payload hooks must see the dispatch-time log context.
+                self::runDeferredEnqueue([$job], fn () => $this->withLogContext($context, fn () => $selectedConnection !== null || $reject !== null
+                    ? $this->attemptOnConnections($method, $arguments, $job, true, $onFailure)
+                    : $this->attemptOnAllConnections($method, $arguments, $job)));
+            },
+            static function (string $connection) use ($releaseLocks, $enrollmentConnection, $reject): void {
+                try {
                     $releaseLocks?->__invoke();
-                },
-                $connection
-            );
-        }
-
-        foreach ($connections as $connection) {
-            $transactions->addCallback(
-                function () use (&$pendingConnections, &$settled, $connection, $method, $arguments, $job, $context, $selectedConnection): void {
-                    if ($settled) {
-                        return;
+                } finally {
+                    if ($connection !== $enrollmentConnection) {
+                        $reject?->__invoke();
                     }
-
-                    unset($pendingConnections[$connection]);
-
-                    if ($pendingConnections !== []) {
-                        return;
-                    }
-
-                    $settled = true;
-
-                    if (is_object($job)) {
-                        DispatchLockContext::claim($job);
-                    }
-
-                    // Child payload hooks run after commit but must see the dispatch-time log context.
-                    try {
-                        $this->withLogContext($context, fn () => $selectedConnection !== null
-                            ? $this->attemptOnConnections($method, $arguments, $job, true)
-                            : $this->attemptOnAllConnections($method, $arguments, $job));
-                    } finally {
-                        if (is_object($job)) {
-                            DispatchLockContext::release($job);
-                        }
-                    }
-                },
-                $connection
-            );
-        }
+                }
+            },
+        );
 
         if (is_object($job)) {
             DispatchLockContext::delegate($job);

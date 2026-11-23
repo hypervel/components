@@ -22,11 +22,13 @@ use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use UnitEnum;
 
 class PasskeyRegistrationTest extends TestCase
 {
+    use VerifiesDoubles;
     use WebAuthnFixtures;
 
     public function testItReturnsRegistrationOptionsForAuthenticatedUser(): void
@@ -154,11 +156,11 @@ class PasskeyRegistrationTest extends TestCase
             'email' => 'test@example.com',
         ]);
 
-        $this->instance(StorePasskey::class, m::mock(StorePasskey::class)
-            ->shouldReceive('__invoke')
-            ->once()
-            ->andThrow(InvalidPasskeyException::make('Unable to register passkey. Please try again.'))
-            ->getMock());
+        $action = Double::for(StorePasskey::class)->strict();
+        $action
+            ->expects('__invoke')
+            ->throws(InvalidPasskeyException::make('Unable to register passkey. Please try again.'));
+        $this->instance(StorePasskey::class, $action);
 
         $this->actingAs($user)
             ->withSession(['auth.password_confirmed_at_web' => time()])
@@ -419,8 +421,8 @@ class PasskeyRegistrationTest extends TestCase
     public function testPasskeyBindingReturnsNotFoundForANonStatefulGuard(): void
     {
         $passkey = $this->createPasskeyForBinding('stateless@example.com');
-        $auth = m::mock(AuthFactory::class);
-        $auth->shouldReceive('guard')->once()->andReturn(m::mock(Guard::class));
+        $auth = Double::for(AuthFactory::class)->strict();
+        $auth->expects('guard')->returns(Double::for(Guard::class)->strict());
         $this->app->instance(AuthFactory::class, $auth);
 
         $binding = Route::getBindingCallback('passkey');
@@ -432,8 +434,8 @@ class PasskeyRegistrationTest extends TestCase
 
     public function testPasskeyBindingDoesNotHideGuardConfigurationFailures(): void
     {
-        $auth = m::mock(AuthFactory::class);
-        $auth->shouldReceive('guard')->once()->andThrow(new InvalidArgumentException('Invalid guard configuration.'));
+        $auth = Double::for(AuthFactory::class)->strict();
+        $auth->expects('guard')->throws(new InvalidArgumentException('Invalid guard configuration.'));
         $this->app->instance(AuthFactory::class, $auth);
 
         $binding = Route::getBindingCallback('passkey');

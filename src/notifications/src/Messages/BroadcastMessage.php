@@ -22,6 +22,8 @@ class BroadcastMessage
 
     /**
      * Set the message data.
+     *
+     * @return $this
      */
     public function data(array $data): static
     {

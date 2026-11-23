@@ -13,7 +13,9 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -21,6 +23,8 @@ use Swoole\Coroutine\CanceledException;
 
 class SignalRegistryRollbackTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     #[RunInSeparateProcess]
@@ -52,8 +56,8 @@ class SignalRegistryRollbackTest extends TestCase
     public function testUnregisterTerminallyCancelsItsWaiterWithoutReporting(): void
     {
         SwooleCoroutine\run(function (): void {
-            $handler = m::mock(ExceptionHandlerContract::class);
-            $handler->shouldNotReceive('report');
+            $handler = Double::for(ExceptionHandlerContract::class)->strict();
+            $handler->expects('report')->never();
             Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
 
             $registry = new SignalRegistry;
@@ -131,11 +135,11 @@ class SignalRegistryRollbackTest extends TestCase
         $releaseReport = new Channel(1);
         $parentCoroutineId = EngineCoroutine::id();
         $reports = 0;
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')
             ->times($creation)
-            ->with($hookFailure)
-            ->andReturnUsing(static function () use ($creation, $reportStarted, $releaseReport, &$reports): void {
+            ->with(Argument::same($hookFailure))
+            ->resolves(static function () use ($creation, $reportStarted, $releaseReport, &$reports): void {
                 if (++$reports !== $creation) {
                     return;
                 }

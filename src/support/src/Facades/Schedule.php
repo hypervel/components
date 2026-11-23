@@ -27,6 +27,7 @@ use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool serverShouldRun(\Hypervel\Console\Scheduling\Event $event, \DateTimeInterface $time)
  * @method static \Hypervel\Console\Scheduling\Schedule useCache(\UnitEnum|string|null $store)
+ * @method static void whenTaskRunsLongerThan(\DateTimeInterface|\Carbon\CarbonInterval|int|float $threshold, callable $handler)
  * @method static void withoutInterruptionPolling()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes at(string $time)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes between(string $startTime, string $endTime)

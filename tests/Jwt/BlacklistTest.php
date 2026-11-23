@@ -11,16 +11,17 @@ use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class BlacklistTest extends TestCase
 {
-    /**
-     * @var MockInterface|StorageContract
-     */
-    private StorageContract $storage;
+    use VerifiesDoubles;
+
+    private StorageContract&DoubleInterface $storage;
 
     private Blacklist $blacklist;
 
@@ -33,7 +34,7 @@ class BlacklistTest extends TestCase
         CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
         $this->testNowTimestamp = Date::now()->timestamp;
-        $this->storage = m::mock(StorageContract::class);
+        $this->storage = Double::for(StorageContract::class)->strict();
         $this->blacklist = new Blacklist($this->storage, refreshTTL: 20160);
     }
 
@@ -50,15 +51,13 @@ class BlacklistTest extends TestCase
 
         $refreshTTL = 20161;
 
-        $this->storage->shouldReceive('get')
+        $this->storage->expects('get')
             ->with('foo')
-            ->once()
-            ->andReturn([]);
+            ->returns([]);
 
-        $this->storage->shouldReceive('add')
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $this->testNowTimestamp], $refreshTTL + 1)
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($this->blacklist->setRefreshTTL($refreshTTL)->add($payload));
     }
@@ -73,11 +72,10 @@ class BlacklistTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('forever')
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('forever')
             ->with('foo', ['valid_until' => $this->testNowTimestamp])
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($this->blacklist->add($payload));
     }
@@ -90,11 +88,10 @@ class BlacklistTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('forever')
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('forever')
             ->with('foo', ['valid_until' => $this->testNowTimestamp])
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($this->blacklist->add($payload));
     }
@@ -107,11 +104,10 @@ class BlacklistTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('forever')
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('forever')
             ->with('foo', ['valid_until' => $this->testNowTimestamp])
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($this->blacklist->setRefreshTTL(null)->add($payload));
     }
@@ -126,8 +122,8 @@ class BlacklistTest extends TestCase
         $entry = ['valid_until' => $this->testNowTimestamp + 300];
         $blacklist = new Blacklist($this->storage, gracePeriod: 300, refreshTTL: null);
 
-        $this->storage->shouldReceive('get')->with('foo')->times(3)->andReturn(null, $entry, $entry);
-        $this->storage->shouldReceive('forever')->with('foo', $entry)->once()->andReturnTrue();
+        $this->storage->expects('get')->with('foo')->times(3)->returns(null, $entry, $entry);
+        $this->storage->expects('forever')->with('foo', $entry)->returns(true);
 
         $this->assertTrue($blacklist->add($payload));
         $this->assertFalse($blacklist->has($payload));
@@ -147,8 +143,8 @@ class BlacklistTest extends TestCase
         $entry = ['valid_until' => $this->testNowTimestamp + 300];
         $blacklist = new Blacklist($this->storage, gracePeriod: 300, refreshTTL: null);
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturn($entry);
-        $this->storage->shouldReceive('forever')->never();
+        $this->storage->expects('get')->with('foo')->returns($entry);
+        $this->storage->expects('forever')->never();
 
         $this->assertTrue($blacklist->add($payload));
     }
@@ -157,7 +153,7 @@ class BlacklistTest extends TestCase
     {
         $payload = ['jti' => 'foo'];
 
-        $this->storage->shouldReceive('forever')->with('foo', 'forever')->once()->andReturnFalse();
+        $this->storage->expects('forever')->with('foo', 'forever')->returns(false);
 
         $this->assertFalse($this->blacklist->addForever($payload));
     }
@@ -172,12 +168,11 @@ class BlacklistTest extends TestCase
         ];
         $blacklist = new Blacklist($this->storage, refreshTTL: null, leeway: 60);
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('forever')->never();
-        $this->storage->shouldReceive('add')
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('forever')->never();
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $this->testNowTimestamp], 12)
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($blacklist->add($payload));
     }
@@ -203,15 +198,13 @@ class BlacklistTest extends TestCase
 
         $refreshTTL = 20161;
 
-        $this->storage->shouldReceive('get')
+        $this->storage->expects('get')
             ->with('foo')
-            ->once()
-            ->andReturn([]);
+            ->returns([]);
 
-        $this->storage->shouldReceive('add')
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $this->testNowTimestamp], $refreshTTL + 1)
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($this->blacklist->setRefreshTTL($refreshTTL)->add($payload));
     }
@@ -229,12 +222,11 @@ class BlacklistTest extends TestCase
 
         $refreshTTL = 20161;
 
-        $this->storage->shouldReceive('get')
+        $this->storage->expects('get')
             ->with('foo')
-            ->once()
-            ->andReturn(['valid_until' => $this->testNowTimestamp]);
+            ->returns(['valid_until' => $this->testNowTimestamp]);
 
-        $this->storage->shouldReceive('add')
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $this->testNowTimestamp], $refreshTTL + 1)
             ->never();
 
@@ -255,15 +247,13 @@ class BlacklistTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->storage->shouldReceive('get')
+        $this->storage->expects('get')
             ->with('foo')
-            ->once()
-            ->andReturn([]);
+            ->returns([]);
 
-        $this->storage->shouldReceive('add')
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $nowTimestamp], 2)
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($this->blacklist->setRefreshTTL(0)->add($payload));
     }
@@ -282,18 +272,16 @@ class BlacklistTest extends TestCase
         $blacklist = new Blacklist($this->storage, refreshTTL: 0);
 
         // Model the clock advancing while the storage lookup is in flight.
-        $this->storage->shouldReceive('get')
+        $this->storage->expects('get')
             ->with('foo')
-            ->once()
-            ->andReturnUsing(function () use ($base) {
+            ->resolves(function () use ($base) {
                 CarbonImmutable::setTestNow($base->addSeconds(2));
 
                 return null;
             });
-        $this->storage->shouldReceive('add')
-            ->with('foo', m::type('array'), m::on(fn (int $minutes): bool => $minutes >= 1))
-            ->once()
-            ->andReturnTrue();
+        $this->storage->expects('add')
+            ->with('foo', Argument::type('array'), Argument::satisfies(fn (int $minutes): bool => $minutes >= 1))
+            ->returns(true);
 
         $this->assertTrue($blacklist->add($payload));
     }
@@ -307,11 +295,10 @@ class BlacklistTest extends TestCase
         ];
         $blacklist = new Blacklist($this->storage, refreshTTL: 5, leeway: 120);
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('add')
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $this->testNowTimestamp], 13)
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($blacklist->add($payload));
     }
@@ -326,11 +313,10 @@ class BlacklistTest extends TestCase
         ];
         $blacklist = new Blacklist($this->storage, refreshTTL: 20, leeway: $leeway);
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('add')
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $this->testNowTimestamp], $minutes)
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($blacklist->add($payload));
     }
@@ -357,7 +343,9 @@ class BlacklistTest extends TestCase
         ];
         $blacklist = new Blacklist($this->storage, refreshTTL: null, leeway: 60);
 
-        $this->storage->shouldReceive('get', 'add', 'forever')->never();
+        $this->storage->expects('get')->never();
+        $this->storage->expects('add')->never();
+        $this->storage->expects('forever')->never();
 
         $this->assertTrue($blacklist->add($payload));
     }
@@ -382,14 +370,13 @@ class BlacklistTest extends TestCase
         // so the entry must be written.
         (new ExpiredClaim(['leeway' => 60]))->validate($payload);
 
-        $this->storage->shouldReceive('get')
+        $this->storage->expects('get')
             ->with('foo')
-            ->twice()
-            ->andReturn(null, ['valid_until' => $this->testNowTimestamp]);
-        $this->storage->shouldReceive('add')
+            ->times(2)
+            ->returns(null, ['valid_until' => $this->testNowTimestamp]);
+        $this->storage->expects('add')
             ->with('foo', ['valid_until' => $this->testNowTimestamp], 2)
-            ->once()
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->assertTrue($blacklist->add($payload));
         $this->assertTrue($blacklist->has($payload));
@@ -403,8 +390,8 @@ class BlacklistTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('add')->with('foo', m::type('array'), 2)->once()->andReturnFalse();
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('add')->with('foo', Argument::type('array'), 2)->returns(false);
 
         $this->assertFalse($this->blacklist->setRefreshTTL(0)->add($payload));
     }
@@ -413,11 +400,10 @@ class BlacklistTest extends TestCase
     {
         $payload = ['iat' => $this->testNowTimestamp, 'jti' => 'foo'];
 
-        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
-        $this->storage->shouldReceive('forever')
+        $this->storage->expects('get')->with('foo')->returns(null);
+        $this->storage->expects('forever')
             ->with('foo', ['valid_until' => $this->testNowTimestamp])
-            ->once()
-            ->andReturnFalse();
+            ->returns(false);
 
         $this->assertFalse($this->blacklist->add($payload));
     }
@@ -433,7 +419,7 @@ class BlacklistTest extends TestCase
             'jti' => 'foobar',
         ];
 
-        $this->storage->shouldReceive('get')->with('foobar')->once()->andReturn(['valid_until' => $this->testNowTimestamp]);
+        $this->storage->expects('get')->with('foobar')->returns(['valid_until' => $this->testNowTimestamp]);
 
         $this->assertTrue($this->blacklist->has($payload));
     }
@@ -450,7 +436,7 @@ class BlacklistTest extends TestCase
             'jti' => 'foobar',
         ];
 
-        $this->storage->shouldReceive('get')->with('foobar')->once()->andReturn($result);
+        $this->storage->expects('get')->with('foobar')->returns($result);
 
         $this->assertFalse($this->blacklist->has($payload));
     }
@@ -477,7 +463,7 @@ class BlacklistTest extends TestCase
             'jti' => 'foobar',
         ];
 
-        $this->storage->shouldReceive('get')->with('foobar')->once()->andReturn('forever');
+        $this->storage->expects('get')->with('foobar')->returns('forever');
 
         $this->assertTrue($this->blacklist->has($payload));
     }
@@ -493,7 +479,7 @@ class BlacklistTest extends TestCase
             'jti' => 'foobar',
         ];
 
-        $this->storage->shouldReceive('get')->with('foobar')->once()->andReturn(null);
+        $this->storage->expects('get')->with('foobar')->returns(null);
 
         $this->assertFalse($this->blacklist->has($payload));
     }
@@ -509,7 +495,7 @@ class BlacklistTest extends TestCase
             'jti' => 'foobar',
         ];
 
-        $this->storage->shouldReceive('destroy')->with('foobar')->andReturn(true);
+        $this->storage->allows('destroy')->with('foobar')->returns(true);
 
         $this->assertTrue($this->blacklist->remove($payload));
     }
@@ -525,7 +511,7 @@ class BlacklistTest extends TestCase
             'jti' => 'foobar',
         ];
 
-        $this->storage->shouldReceive('get')->with('1')->once()->andReturn(['valid_until' => $this->testNowTimestamp]);
+        $this->storage->expects('get')->with('1')->returns(['valid_until' => $this->testNowTimestamp]);
 
         $this->assertTrue($this->blacklist->setKey('sub')->has($payload));
         $this->assertSame('1', $this->blacklist->getKey($payload));
@@ -533,7 +519,7 @@ class BlacklistTest extends TestCase
 
     public function testEmptyTheBlacklistReturnsTheStorageResult(): void
     {
-        $this->storage->shouldReceive('flush')->once()->andReturnFalse();
+        $this->storage->expects('flush')->returns(false);
 
         $this->assertFalse($this->blacklist->clear());
     }

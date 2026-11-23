@@ -30,6 +30,8 @@ class Notification
 
     /**
      * Set the locale to send this notification in.
+     *
+     * @return $this
      */
     public function locale(string $locale): static
     {

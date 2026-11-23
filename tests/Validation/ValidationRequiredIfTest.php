@@ -54,7 +54,7 @@ class ValidationRequiredIfTest extends TestCase
                 new RequiredIf($condition);
                 $this->fail('The RequiredIf constructor must not accept ' . gettype($condition));
             } catch (TypeError) {
-                $this->assertTrue(true);
+                $this->addToAssertionCount(1);
             }
         }
     }

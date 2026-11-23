@@ -1,28 +1,25 @@
 ARG PHP_VERSION=8.4
-ARG SWOOLE_IMAGE_VERSION=6.3.0-rc1
-ARG SWOOLE_VERSION=6.3.0RC1
+ARG SWOOLE_BASE_TAG=6.3.0-rc2-php${PHP_VERSION}
+ARG SWOOLE_VERSION=6.3.0RC2
 
-# Temporarily use upstream nightly images built from swoole-src master because
-# 6.3.0-rc1 has critical bugs fixed on master. Both currently report 6.3.0RC1,
-# so keep the runtime version check below. Once a fixed release is available,
-# update the version arguments above and restore the release-based FROM line.
-# FROM phpswoole/swoole:${SWOOLE_IMAGE_VERSION}-php${PHP_VERSION}
-FROM phpswoole/swoole:php${PHP_VERSION}
+FROM phpswoole/swoole:${SWOOLE_BASE_TAG}
 
 ARG PHP_VERSION
+ARG SWOOLE_BASE_TAG
 ARG SWOOLE_VERSION
 ARG PIE_VERSION=1.4.9
 ARG PIE_CHECKSUM=19a31ddd4bfd08b9eb5eaad2e5f63e76e7919cae7683852da41c80da704ad6c0
 ARG PROTOBUF_VERSION=5.36.1
 
 LABEL org.opencontainers.image.source="https://github.com/hypervel/components"
-LABEL org.opencontainers.image.description="PHP ${PHP_VERSION} and Swoole ${SWOOLE_VERSION} test image for Hypervel components"
+LABEL org.opencontainers.image.description="Hypervel components test image based on phpswoole/swoole:${SWOOLE_BASE_TAG}"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN set -eux; \
     apt-get update; \
     apt-get install --yes --no-install-recommends \
+        ca-certificates \
         curl \
         fswatch \
         git \
@@ -35,14 +32,54 @@ RUN set -eux; \
         libjpeg-dev \
         libtool \
         libmagickwand-dev \
+        libncurses6 \
         libpng-dev \
         libpq-dev \
         libsqlite3-dev \
         libwebp-dev \
+        mariadb-client-compat \
         procps \
         sqlite3 \
+        sqv \
         unzip; \
     rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    install -d /usr/share/postgresql-common/pgdg; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc; \
+    . /etc/os-release; \
+    printf 'Types: deb\nURIs: https://apt.postgresql.org/pub/repos/apt\nSuites: %s-pgdg\nComponents: main\nSigned-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc\n' "$VERSION_CODENAME" \
+        > /etc/apt/sources.list.d/pgdg.sources; \
+    apt-get update; \
+    apt-get install --yes --no-install-recommends postgresql-client-18; \
+    rm -rf /var/lib/apt/lists/*
+
+# The release key expires on 2027-10-23; update its URL when Oracle renews it.
+# Resolve patch releases from signed APT metadata while keeping Oracle's tools separate.
+RUN set -eux; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        https://repo.mysql.com/RPM-GPG-KEY-mysql-2025 \
+        --output /tmp/mysql-release-key.asc; \
+    . /etc/os-release; \
+    printf 'Types: deb\nURIs: https://repo.mysql.com/apt/debian/\nSuites: %s\nComponents: mysql-8.4-lts\nSigned-By: /tmp/mysql-release-key.asc\n' "$VERSION_CODENAME" \
+        > /etc/apt/sources.list.d/mysql-client.sources; \
+    apt-get update; \
+    mysql_package_version="$(apt-cache show --no-all-versions mysql-community-client | sed -n 's/^Version: //p')"; \
+    mysql_version="${mysql_package_version%%-*}"; \
+    mysql_archive="mysql-${mysql_version}-linux-glibc2.28-x86_64-minimal.tar.xz"; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        "https://cdn.mysql.com/Downloads/MySQL-8.4/${mysql_archive}" \
+        --output /tmp/mysql.tar.xz; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        "https://cdn.mysql.com/Downloads/MySQL-8.4/${mysql_archive}.asc" \
+        --output /tmp/mysql.tar.xz.asc; \
+    sqv --keyring /tmp/mysql-release-key.asc /tmp/mysql.tar.xz.asc /tmp/mysql.tar.xz; \
+    mkdir -p /opt/mysql; \
+    tar -xJf /tmp/mysql.tar.xz --strip-components=1 -C /opt/mysql; \
+    rm /etc/apt/sources.list.d/mysql-client.sources /tmp/mysql-release-key.asc /tmp/mysql.tar.xz /tmp/mysql.tar.xz.asc; \
+    rm -r /var/lib/apt/lists
 
 RUN set -eux; \
     bundled_extensions=(pcntl intl gmp pdo_pgsql pdo_mysql pdo_sqlite sqlite3 bcmath fileinfo); \
@@ -95,13 +132,31 @@ RUN set -eux; \
 
 RUN printf '%s\n' 'swoole.use_shortname=Off' > /usr/local/etc/php/conf.d/99-swoole-shortname.ini
 
+# The base image can ship an older Composer than the 2.11+ required for the cooldown.
+COPY --from=composer/composer:latest-bin /composer /usr/local/bin/composer
+
+# The development Composer root declares the FTP capability supplied by Swoole.
+RUN php -r 'if (! function_exists("ftp_connect") || extension_loaded("ftp")) { fwrite(STDERR, "Swoole FTP support without the separate FTP extension is required for filesystem tests.\n"); exit(1); }'
+
 RUN set -eux; \
     test "$(php -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;')" = "${PHP_VERSION}"; \
-    test "$(php -r 'echo phpversion("swoole");')" = "${SWOOLE_VERSION}"; \
+    if [ "${SWOOLE_BASE_TAG}" = "php${PHP_VERSION}" ]; then \
+        php -r 'exit(version_compare((string) phpversion("swoole"), $argv[1], ">=") ? 0 : 1);' "${SWOOLE_VERSION}"; \
+    else \
+        test "$(php -r 'echo phpversion("swoole");')" = "${SWOOLE_VERSION}"; \
+    fi; \
     php -r '$extensions = ["bcmath", "ctype", "curl", "dom", "fileinfo", "filter", "gd", "gmp", "imagick", "intl", "mbstring", "openssl", "pcntl", "pdo", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "posix", "protobuf", "redis", "session", "sockets", "sqlite3", "swoole", "tokenizer", "zlib"]; foreach ($extensions as $extension) { if (! extension_loaded($extension)) { fwrite(STDERR, "Missing required extension: {$extension}\n"); exit(1); } } foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing required GD function: {$function}()\n"); exit(1); } } if (version_compare((string) phpversion("redis"), "6.3.0", "<")) { fwrite(STDERR, "Redis extension 6.3.0 or newer is required for full integration coverage.\n"); exit(1); } if ((bool) ini_get("swoole.use_shortname")) { fwrite(STDERR, "Swoole short names must be disabled.\n"); exit(1); }'; \
     php -r "if (version_compare((string) phpversion('protobuf'), '${PROTOBUF_VERSION}', '<')) { fwrite(STDERR, 'protobuf extension ${PROTOBUF_VERSION} or newer is required for native OTLP coverage.' . PHP_EOL); exit(1); }"; \
     php -r 'foreach (["avif", "heic"] as $format) { $image = new Imagick; try { $image->newImage(1, 1, "white"); $image->setImageFormat($format); if ($image->getImageBlob() === "") { fwrite(STDERR, "Imagick produced an empty {$format} image.\n"); exit(1); } } finally { $image->clear(); $image->destroy(); } }'; \
     composer --version --no-ansi; \
     fswatch --version; \
     git --version; \
-    ps --version
+    ps --version; \
+    mysql --version | grep MariaDB; \
+    mysqldump --version | grep MariaDB; \
+    mariadb --version; \
+    mariadb-dump --version; \
+    /opt/mysql/bin/mysql --version | grep 'MySQL Community Server'; \
+    /opt/mysql/bin/mysqldump --version | grep 'MySQL Community Server'; \
+    pg_dump --version; \
+    sqlite3 --version

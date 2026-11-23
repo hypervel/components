@@ -6,6 +6,7 @@ namespace Hypervel\Support\Traits;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait CapsuleManagerTrait
 {
@@ -34,9 +35,10 @@ trait CapsuleManagerTrait
     /**
      * Make this capsule instance available globally.
      *
-     * Boot or tests only. Swaps the global Capsule instance used by static
-     * calls; request-time use races across coroutines.
+     * Swaps the global Capsule instance used by static calls; request-time
+     * use races across coroutines.
      */
+    #[BootOrTestsOnly]
     public function setAsGlobal(): void
     {
         static::$instance = $this;
@@ -53,9 +55,10 @@ trait CapsuleManagerTrait
     /**
      * Set the IoC container instance.
      *
-     * Boot or tests only. Swaps the Capsule container used by this standalone
-     * manager; request-time use races across coroutines.
+     * Swaps the Capsule container used by this standalone manager;
+     * request-time use races across coroutines.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setContainer(Container $container): void
     {
         $this->container = $container;

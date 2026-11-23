@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Grpc;
 
 use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Grpc\ClientGrpcOperation;
 use Hypervel\Grpc\Contracts\GrpcOperationObserver;
 use Hypervel\Grpc\GrpcOperation;
@@ -16,6 +18,10 @@ use Hypervel\Grpc\ServerGrpcOperation;
 use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -23,6 +29,8 @@ use Throwable;
 
 class GrpcOperationRunnerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testClientObserversReplaceMetadataInRegistrationOrder(): void
     {
         $runner = new GrpcOperationRunner;
@@ -117,6 +125,7 @@ class GrpcOperationRunnerTest extends TestCase
                 throw $startingFailure;
             },
         ));
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($completionFailure));
 
         try {
             $runner->start($this->clientOperation());
@@ -130,7 +139,7 @@ class GrpcOperationRunnerTest extends TestCase
         $this->assertSame(0, $receivedResult->attemptCount);
     }
 
-    public function testSuccessfulFinishAttemptsEveryObserverAndThrowsTheFirstFailureOnce(): void
+    public function testSuccessfulFinishAttemptsEveryObserverThrowsTheFirstFailureOnceAndReportsTheRest(): void
     {
         $runner = new GrpcOperationRunner;
         $firstFailure = new RuntimeException('first failed');
@@ -155,6 +164,7 @@ class GrpcOperationRunnerTest extends TestCase
         ));
         $handle = $runner->start($this->clientOperation());
         $result = new GrpcOperationResult(new Status(StatusCode::Ok), null, 2);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($secondFailure));
 
         try {
             $handle->finish($result);
@@ -169,7 +179,7 @@ class GrpcOperationRunnerTest extends TestCase
         $this->assertSame(['first', 'second'], $finished);
     }
 
-    public function testRealFailureSuppressesOrdinaryObserverFailures(): void
+    public function testRealFailureReportsOrdinaryObserverFailuresInsteadOfThrowingThem(): void
     {
         foreach ([
             new GrpcOperationResult(new Status(StatusCode::Unavailable), null, 1),
@@ -177,15 +187,17 @@ class GrpcOperationRunnerTest extends TestCase
         ] as $result) {
             $runner = new GrpcOperationRunner;
             $finished = 0;
+            $observerFailure = new RuntimeException('observer failed');
 
             $runner->observe($this->observer(
                 fn (): null => null,
-                function () use (&$finished): never {
+                function () use (&$finished, $observerFailure): never {
                     ++$finished;
 
-                    throw new RuntimeException('observer failed');
+                    throw $observerFailure;
                 },
             ));
+            $this->bindReportingHandler()->expects('report')->with(Argument::same($observerFailure));
 
             $runner->start($this->clientOperation())->finish($result);
 
@@ -193,19 +205,39 @@ class GrpcOperationRunnerTest extends TestCase
         }
     }
 
+    public function testObserverRethrowingTheOperationsFailureIsNotReportedAsItsOwn(): void
+    {
+        $runner = new GrpcOperationRunner;
+        $failure = new RuntimeException('transport failed');
+        $runner->observe($this->observer(
+            fn (): null => null,
+            function (GrpcOperation $operation, mixed $token, GrpcOperationResult $result): never {
+                throw $result->exception;
+            },
+        ));
+        $reported = [];
+        $this->bindReportingHandler()->allows('report')->resolves(function (Throwable $throwable) use (&$reported): void {
+            $reported[] = $throwable;
+        });
+
+        $runner->start($this->clientOperation())->finish(new GrpcOperationResult(null, $failure, 1));
+
+        $this->assertSame([], $reported);
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testStartingCancellationSkipsPreviouslyStartedCompletions(bool $cleanupThrows): void
+    public function testStartingCancellationFinishesPreviouslyStartedObservers(bool $cleanupThrows): void
     {
         $runner = new GrpcOperationRunner;
         $cancellation = new CanceledException;
         $failure = $cleanupThrows ? new RuntimeException('Observer cleanup failed.', previous: $cancellation) : $cancellation;
-        $finished = false;
+        $receivedResult = null;
 
         $runner->observe($this->observer(
             fn (): null => null,
-            function () use (&$finished): void {
-                $finished = true;
+            function (GrpcOperation $operation, mixed $token, GrpcOperationResult $result) use (&$receivedResult): void {
+                $receivedResult = $result;
             },
         ));
         $runner->observe($this->observer(
@@ -221,12 +253,12 @@ class GrpcOperationRunnerTest extends TestCase
             $this->assertSame($failure, $exception);
         }
 
-        $this->assertFalse($finished);
+        $this->assertSame($failure, $receivedResult?->exception);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testCompletionCancellationStopsLaterObserversAndSupersedesARealFailure(bool $cleanupThrows): void
+    public function testCompletionCancellationNotifiesLaterObserversAndSupersedesARealFailure(bool $cleanupThrows): void
     {
         $runner = new GrpcOperationRunner;
         $cancellation = new CanceledException;
@@ -259,7 +291,26 @@ class GrpcOperationRunnerTest extends TestCase
         }
 
         $this->assertTrue($handle->isFinished());
-        $this->assertFalse($laterFinished);
+        $this->assertTrue($laterFinished);
+    }
+
+    public function testObserverCancellationDoesNotReplaceTheOperationsOwnCancellation(): void
+    {
+        $runner = new GrpcOperationRunner;
+        $observerFailure = new RuntimeException('Observer cleanup failed.', previous: new CanceledException);
+
+        $runner->observe($this->observer(
+            fn (): null => null,
+            function () use ($observerFailure): never {
+                throw $observerFailure;
+            },
+        ));
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($observerFailure));
+        $handle = $runner->start($this->clientOperation());
+
+        $handle->finish(new GrpcOperationResult(null, new CanceledException, 1));
+
+        $this->assertTrue($handle->isFinished());
     }
 
     private function clientOperation(): ClientGrpcOperation
@@ -278,6 +329,19 @@ class GrpcOperationRunnerTest extends TestCase
             $starting,
             $finished ?? static fn (): null => null,
         );
+    }
+
+    /**
+     * Bind a mocked exception handler for displaced failure reports.
+     */
+    private function bindReportingHandler(): ExceptionHandler&DoubleInterface
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $container->instance(ExceptionHandler::class, $handler);
+
+        return $handler;
     }
 }
 

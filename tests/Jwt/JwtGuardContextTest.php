@@ -17,10 +17,13 @@ use Hypervel\Jwt\Http\Parser\Cookie;
 use Hypervel\Jwt\JwtServiceProvider;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class JwtGuardContextTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected ManagerContract $jwtManager;
 
     protected UserProvider $provider;
@@ -29,8 +32,8 @@ class JwtGuardContextTest extends TestCase
     {
         parent::setUp();
 
-        $this->jwtManager = m::mock(ManagerContract::class);
-        $this->provider = m::mock(UserProvider::class);
+        $this->jwtManager = Double::for(ManagerContract::class)->strict();
+        $this->provider = Double::for(UserProvider::class)->strict();
 
         $this->app->instance('jwt', $this->jwtManager);
         $this->app->make(AuthManager::class)->provider(
@@ -96,8 +99,8 @@ class JwtGuardContextTest extends TestCase
     public function testBearerResolutionRunsAgainForEachRequest(): void
     {
         $user = $this->user(1);
-        $this->jwtManager->shouldReceive('decode')->with('request-token')->twice()->andReturn(['sub' => 1]);
-        $this->provider->shouldReceive('retrieveById')->with(1)->twice()->andReturn($user);
+        $this->jwtManager->expects('decode')->with('request-token')->times(2)->returns(['sub' => 1]);
+        $this->provider->expects('retrieveById')->with(1)->times(2)->returns($user);
 
         $this->withHeader('Authorization', 'Bearer request-token')
             ->getJson('/jwt-context/user')
@@ -111,8 +114,8 @@ class JwtGuardContextTest extends TestCase
 
     public function testAuthMiddlewareAcceptsAValidToken(): void
     {
-        $this->jwtManager->shouldReceive('decode')->with('valid-token')->once()->andReturn(['sub' => 1]);
-        $this->provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($this->user(1));
+        $this->jwtManager->expects('decode')->with('valid-token')->returns(['sub' => 1]);
+        $this->provider->expects('retrieveById')->with(1)->returns($this->user(1));
 
         $this->withHeader('Authorization', 'Bearer valid-token')
             ->getJson('/jwt-context/protected')
@@ -122,19 +125,19 @@ class JwtGuardContextTest extends TestCase
 
     public function testRequestWithoutATokenIsRejectedByAuthMiddlewareAndAGuestElsewhere(): void
     {
-        $this->jwtManager->shouldNotReceive('decode');
-        $this->provider->shouldNotReceive('retrieveById');
+        $this->jwtManager->expects('decode')->never();
+        $this->provider->expects('retrieveById')->never();
 
         $this->assertRejectedByAuthMiddlewareAndAGuestElsewhere();
     }
 
     public function testInvalidTokenIsRejectedByAuthMiddlewareAndAGuestElsewhere(): void
     {
-        $this->jwtManager->shouldReceive('decode')
+        $this->jwtManager->expects('decode')
             ->with('invalid-token')
-            ->twice()
-            ->andThrow(new TokenInvalidException('Token Signature could not be verified.'));
-        $this->provider->shouldNotReceive('retrieveById');
+            ->times(2)
+            ->throws(new TokenInvalidException('Token Signature could not be verified.'));
+        $this->provider->expects('retrieveById')->never();
 
         $this->withHeader('Authorization', 'Bearer invalid-token');
 
@@ -143,8 +146,8 @@ class JwtGuardContextTest extends TestCase
 
     public function testTokenForAMissingUserIsRejectedByAuthMiddlewareAndAGuestElsewhere(): void
     {
-        $this->jwtManager->shouldReceive('decode')->with('orphan-token')->twice()->andReturn(['sub' => 404]);
-        $this->provider->shouldReceive('retrieveById')->with(404)->twice()->andReturnNull();
+        $this->jwtManager->expects('decode')->with('orphan-token')->times(2)->returns(['sub' => 404]);
+        $this->provider->expects('retrieveById')->with(404)->times(2)->returns(null);
 
         $this->withHeader('Authorization', 'Bearer orphan-token');
 
@@ -153,8 +156,8 @@ class JwtGuardContextTest extends TestCase
 
     public function testCookieTokenIsReadAfterEncryptCookiesDecryptsIt(): void
     {
-        $this->jwtManager->shouldReceive('decode')->with('cookie-token')->once()->andReturn(['sub' => 1]);
-        $this->provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($this->user(1));
+        $this->jwtManager->expects('decode')->with('cookie-token')->returns(['sub' => 1]);
+        $this->provider->expects('retrieveById')->with(1)->returns($this->user(1));
 
         $this->withCredentials()
             ->withCookie('token', 'cookie-token')
@@ -165,7 +168,7 @@ class JwtGuardContextTest extends TestCase
 
     public function testCookieThatCannotBeDecryptedLeavesTheRequestAGuest(): void
     {
-        $this->jwtManager->shouldNotReceive('decode');
+        $this->jwtManager->expects('decode')->never();
 
         $this->withCredentials()
             ->withUnencryptedCookie('token', 'not-encrypted')
@@ -176,8 +179,8 @@ class JwtGuardContextTest extends TestCase
 
     public function testExplicitUserSurvivesAcrossRequestsWithoutResolvingBearerTokens(): void
     {
-        $this->jwtManager->shouldNotReceive('decode');
-        $this->provider->shouldNotReceive('retrieveById');
+        $this->jwtManager->expects('decode')->never();
+        $this->provider->expects('retrieveById')->never();
 
         $this->app->make('auth')->guard('jwt')->setUser($this->user(10));
 
@@ -194,7 +197,8 @@ class JwtGuardContextTest extends TestCase
 
     public function testRequestDrivenLogoutClearsParentExplicitUser(): void
     {
-        $this->jwtManager->shouldNotReceive('hasBlacklistEnabled', 'invalidate');
+        $this->jwtManager->expects('hasBlacklistEnabled')->never();
+        $this->jwtManager->expects('invalidate')->never();
         $this->app->make('auth')->guard('jwt')->setUser($this->user(10));
 
         $this->postJson('/jwt-context/logout')->assertNoContent();
@@ -204,7 +208,7 @@ class JwtGuardContextTest extends TestCase
 
     public function testRequestDrivenLoginDoesNotAuthenticateParentWithoutBearerToken(): void
     {
-        $this->jwtManager->shouldReceive('encode')->once()->andReturn('new-token');
+        $this->jwtManager->expects('encode')->returns('new-token');
 
         $this->postJson('/jwt-context/login')
             ->assertOk()

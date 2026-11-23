@@ -37,10 +37,6 @@ class HookedStreamTest extends TestCase
 
     public function testClosingAListenerImmediatelyReleasesItsAddress(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires immediate hooked listener release from https://github.com/swoole/swoole-src/pull/6274.');
-        }
-
         $server = stream_socket_server('tcp://127.0.0.1:0');
         $this->assertIsResource($server);
         $address = stream_socket_get_name($server, false);

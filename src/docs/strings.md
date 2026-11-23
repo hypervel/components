@@ -200,6 +200,8 @@ If you need to clear these caches during tests, you may call `StrCache::flushSta
 [inlineMarkdown](#method-fluent-str-inline-markdown)
 [is](#method-fluent-str-is)
 [isAscii](#method-fluent-str-is-ascii)
+[isBlank](#method-fluent-str-is-blank)
+[isNotBlank](#method-fluent-str-is-not-blank)
 [isEmpty](#method-fluent-str-is-empty)
 [isNotEmpty](#method-fluent-str-is-not-empty)
 [isJson](#method-fluent-str-is-json)
@@ -2936,6 +2938,44 @@ $result = Str::of('Taylor')->isAscii();
 $result = Str::of('ü')->isAscii();
 
 // false
+```
+
+<a name="method-fluent-str-is-blank"></a>
+#### `isBlank` {.collection-method}
+
+The `isBlank` method determines if the given string is blank. A string is considered blank if it is empty or only contains whitespace:
+
+```php
+use Hypervel\Support\Str;
+
+$result = Str::of('   ')->isBlank();
+
+// true
+
+$result = Str::of('<p> </p>')->stripTags()->isBlank();
+
+// true
+
+$result = Str::of('0')->isBlank();
+
+// false
+```
+
+<a name="method-fluent-str-is-not-blank"></a>
+#### `isNotBlank` {.collection-method}
+
+The `isNotBlank` method determines if the given string is not blank:
+
+```php
+use Hypervel\Support\Str;
+
+$result = Str::of('   ')->isNotBlank();
+
+// false
+
+$result = Str::of('Hypervel')->isNotBlank();
+
+// true
 ```
 
 <a name="method-fluent-str-is-empty"></a>

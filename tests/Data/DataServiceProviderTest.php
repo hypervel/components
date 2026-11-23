@@ -13,10 +13,13 @@ use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class DataServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: Structure-cache tests (the cache command and CachedDataConfig); worker memory is the metadata cache boundary.
     // REMOVED: Livewire/Wireable and TypeScript integration tests; Hypervel has no matching Data integration.
 
@@ -54,8 +57,8 @@ class DataServiceProviderTest extends TestCase
             $application->instance('config', new Repository);
             $application->setRunningInConsole(false);
 
-            $creator = m::mock(DataCreator::class);
-            $transformer = m::mock(DataTransformer::class);
+            $creator = Double::for(DataCreator::class)->strict();
+            $transformer = Double::for(DataTransformer::class)->strict();
 
             $application->singleton(DataCreator::class, static fn (): DataCreator => $creator);
             $application->singleton(DataTransformer::class, static fn (): DataTransformer => $transformer);

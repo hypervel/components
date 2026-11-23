@@ -22,10 +22,13 @@ use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class InertiaServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBladeDirectiveIsRegistered(): void
     {
         $this->assertArrayHasKey('inertia', Blade::getCustomDirectives());
@@ -112,7 +115,7 @@ class InertiaServiceProviderTest extends TestCase
 
         $this->assertSame($finder, $this->app->make('inertia.view-finder'));
 
-        $replacement = m::mock(ViewFinderInterface::class);
+        $replacement = Double::for(ViewFinderInterface::class)->strict();
         $this->app->bind('inertia.view-finder', fn () => $replacement);
 
         $this->assertSame($replacement, $this->app->make('inertia.view-finder'));
@@ -123,8 +126,8 @@ class InertiaServiceProviderTest extends TestCase
         config()->set('inertia.pages.paths', ['/inertia-pages']);
         config()->set('inertia.pages.extensions', ['vue']);
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->once()->with('/inertia-pages/Dashboard.vue')->andReturn(true);
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('exists')->with('/inertia-pages/Dashboard.vue')->returns(true);
         $this->app->instance('files', $files);
 
         $finder = $this->app->make('inertia.view-finder');
@@ -138,8 +141,8 @@ class InertiaServiceProviderTest extends TestCase
         config()->set('inertia.pages.paths', ['/inertia-pages']);
         config()->set('inertia.pages.extensions', ['vue']);
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->twice()->with('/inertia-pages/Missing.vue')->andReturn(false);
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('exists')->times(2)->with('/inertia-pages/Missing.vue')->returns(false);
         $this->app->instance('files', $files);
 
         $finder = $this->app->make('inertia.view-finder');
@@ -156,15 +159,11 @@ class InertiaServiceProviderTest extends TestCase
 
     public function testRedirectMiddlewareRegistersThroughTheKernelContract(): void
     {
-        $kernel = m::mock(HttpKernelContract::class);
-        $kernel->shouldReceive('pushMiddleware')
-            ->once()
-            ->with(EnsureGetOnRedirect::class)
-            ->andReturnSelf();
-        $kernel->shouldReceive('prependMiddleware')
-            ->once()
-            ->with(EnsureDeferredCallbacksRun::class)
-            ->andReturnSelf();
+        $kernel = Double::for(HttpKernelContract::class)->strict();
+        $kernel->expects('pushMiddleware')
+            ->with(EnsureGetOnRedirect::class);
+        $kernel->expects('prependMiddleware')
+            ->with(EnsureDeferredCallbacksRun::class);
         $this->app->instance(HttpKernelContract::class, $kernel);
 
         (new InspectableInertiaServiceProvider($this->app))
@@ -189,6 +188,15 @@ class InertiaServiceProviderTest extends TestCase
         $this
             ->from('/bar')
             ->delete('/foo', [], ['X-Inertia' => 'true'])
+            ->assertRedirect('/bar')
+            ->assertStatus(303);
+    }
+
+    public function testRedirectsFromQueryRequestsOutsideTheInertiaMiddlewareAreConvertedTo303(): void
+    {
+        Route::match(['QUERY'], '/foo', fn () => redirect('/bar'));
+
+        $this->json('QUERY', '/foo', ['search' => 'foo'], ['X-Inertia' => 'true'])
             ->assertRedirect('/bar')
             ->assertStatus(303);
     }

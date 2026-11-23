@@ -12,7 +12,8 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 
 #[WithConfig('database.connections.wait', [
@@ -22,6 +23,8 @@ use PHPUnit\Framework\Attributes\TestWith;
 ])]
 class LimiterConnectionReleaseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testWaitingReturnsIdleSessionsButPreservesTransactionsAndPins(bool $funnel): void
@@ -34,14 +37,14 @@ class LimiterConnectionReleaseTest extends TestCase
             $observed[] = $pool->getBorrowedCount();
         });
         $wait = static function () use ($funnel, $connection): void {
-            $redis = m::mock(RedisProxy::class);
+            $redis = Double::for(RedisProxy::class)->strict();
 
             if ($funnel) {
-                $redis->shouldReceive('isCluster')->once()->andReturnFalse();
-                $redis->shouldReceive('withConnection')->twice()->andReturn(false, 'waiting0');
+                $redis->expects('isCluster')->returns(false);
+                $redis->expects('withConnection')->times(2)->returns(false, 'waiting0');
                 $limiter = new ConcurrencyLimiter($redis, 'waiting', 1, 10);
             } else {
-                $redis->shouldReceive('withConnection')->twice()->andReturn([0, time() + 10, '2'], [1, time() + 10, 1]);
+                $redis->expects('withConnection')->times(2)->returns([0, time() + 10, '2'], [1, time() + 10, 1]);
                 $limiter = new DurationLimiter($redis, 'waiting', 1, 10);
             }
 

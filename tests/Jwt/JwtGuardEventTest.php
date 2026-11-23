@@ -25,21 +25,25 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\JwtGuard;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class JwtGuardEventTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDoesNotDispatchEventsWhenNoListenersExist(): void
     {
         $user = $this->user(1);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('encode')->once()->andReturn('token');
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('encode')->returns('token');
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(false);
+        $events->expects('dispatch')->never();
 
         $guard = $this->createGuard(jwtManager: $jwtManager);
         $guard->setDispatcher($events);
@@ -48,8 +52,8 @@ class JwtGuardEventTest extends TestCase
 
     public function testAttemptingEventIsDispatchedWhenListening(): void
     {
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveByCredentials')->once()->andReturn(null);
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveByCredentials')->returns(null);
 
         $events = $this->dispatcherListeningFor(Attempting::class, function (Attempting $event): bool {
             return $event->guard === 'jwt'
@@ -67,12 +71,12 @@ class JwtGuardEventTest extends TestCase
     {
         $user = $this->user(1);
 
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveByCredentials')->once()->andReturn($user);
-        $provider->shouldReceive('validateCredentials')->once()->andReturnTrue();
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveByCredentials')->returns($user);
+        $provider->expects('validateCredentials')->returns(true);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('encode')->once()->andReturn('token');
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('encode')->returns('token');
 
         $events = $this->dispatcherListeningFor(Validated::class, function (Validated $event) use ($user): bool {
             return $event->guard === 'jwt' && $event->user === $user;
@@ -86,8 +90,8 @@ class JwtGuardEventTest extends TestCase
 
     public function testFailedEventIsDispatchedWhenListening(): void
     {
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveByCredentials')->once()->andReturn(null);
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveByCredentials')->returns(null);
 
         $events = $this->dispatcherListeningFor(Failed::class, function (Failed $event): bool {
             return $event->guard === 'jwt'
@@ -106,14 +110,14 @@ class JwtGuardEventTest extends TestCase
     {
         $user = $this->user(1);
 
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveByCredentials')->once()->andReturn($user);
-        $provider->shouldReceive('validateCredentials')->once()->andReturnTrue();
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveByCredentials')->returns($user);
+        $provider->expects('validateCredentials')->returns(true);
 
         $dispatched = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->andReturnTrue();
-        $events->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$dispatched): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')->resolves(function (object $event) use (&$dispatched): void {
             $dispatched[] = $event::class;
         });
 
@@ -142,13 +146,13 @@ class JwtGuardEventTest extends TestCase
         $user = $this->user(1);
         $dispatched = [];
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('encode')->once()->andReturn('token');
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('encode')->returns('token');
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->with(Login::class)->once()->andReturnTrue();
-        $events->shouldReceive('hasListeners')->with(Authenticated::class)->once()->andReturnTrue();
-        $events->shouldReceive('dispatch')->twice()->andReturnUsing(
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(Login::class)->returns(true);
+        $events->expects('hasListeners')->with(Authenticated::class)->returns(true);
+        $events->expects('dispatch')->times(2)->resolves(
             function (object $event) use (&$dispatched): void {
                 $dispatched[] = $event;
             },
@@ -172,11 +176,11 @@ class JwtGuardEventTest extends TestCase
     {
         $user = $this->user(1);
 
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveById')->with(1)->returns($user);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->with('token')->once()->andReturn(['sub' => 1]);
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->with('token')->returns(['sub' => 1]);
 
         $events = $this->dispatcherListeningFor(Authenticated::class, function (Authenticated $event) use ($user): bool {
             return $event->guard === 'jwt' && $event->user === $user;
@@ -195,14 +199,15 @@ class JwtGuardEventTest extends TestCase
 
     public function testNoEventIsDispatchedWhenTheTokenUserIsMissing(): void
     {
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturnNull();
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveById')->with(1)->returns(null);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->with('token')->once()->andReturn(['sub' => 1]);
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->with('token')->returns(['sub' => 1]);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners', 'dispatch')->never();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->never();
+        $events->expects('dispatch')->never();
 
         $guard = $this->createGuard(
             provider: $provider,
@@ -218,8 +223,8 @@ class JwtGuardEventTest extends TestCase
     {
         $user = $this->user(1);
 
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveById')->with(1)->returns($user);
 
         $events = $this->dispatcherListeningFor(Authenticated::class, function (Authenticated $event) use ($user): bool {
             return $event->guard === 'jwt' && $event->user === $user;
@@ -235,14 +240,15 @@ class JwtGuardEventTest extends TestCase
     {
         $user = $this->user(1);
 
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveById')->with(1)->returns($user);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('encode')->twice()->andReturn('token');
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('encode')->times(2)->returns('token');
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners', 'dispatch')->never();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->never();
+        $events->expects('dispatch')->never();
 
         $guard = $this->createGuard(provider: $provider, jwtManager: $jwtManager);
         $guard->setDispatcher($events);
@@ -255,13 +261,13 @@ class JwtGuardEventTest extends TestCase
     {
         $user = $this->user(1);
 
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveById')->with(1)->returns($user);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->with('token')->once()->andReturn(['sub' => 1]);
-        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
-        $jwtManager->shouldReceive('invalidate')->with('token', false)->once()->andReturnTrue();
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->with('token')->returns(['sub' => 1]);
+        $jwtManager->expects('hasBlacklistEnabled')->returns(true);
+        $jwtManager->expects('invalidate')->with('token', false)->returns(true);
 
         $events = $this->dispatcherListeningFor(Logout::class, function (Logout $event) use ($user): bool {
             return $event->guard === 'jwt' && $event->user === $user;
@@ -278,16 +284,15 @@ class JwtGuardEventTest extends TestCase
 
     public function testLogoutWithAnExpiredTokenInvalidatesItAndDispatchesLogoutWithoutAUser(): void
     {
-        $provider = m::mock(UserProvider::class);
-        $provider->shouldNotReceive('retrieveById');
+        $provider = Double::for(UserProvider::class)->strict();
+        $provider->expects('retrieveById')->never();
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')
             ->with('token')
-            ->once()
-            ->andThrow(new TokenExpiredException('Token has expired'));
-        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
-        $jwtManager->shouldReceive('invalidate')->with('token', false)->once()->andReturnTrue();
+            ->throws(new TokenExpiredException('Token has expired'));
+        $jwtManager->expects('hasBlacklistEnabled')->returns(true);
+        $jwtManager->expects('invalidate')->with('token', false)->returns(true);
 
         $events = $this->dispatcherListeningFor(Logout::class, function (Logout $event): bool {
             return $event->guard === 'jwt' && $event->user === null;
@@ -309,15 +314,15 @@ class JwtGuardEventTest extends TestCase
     {
         $user = $this->user(1);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
-        $jwtManager->shouldReceive('invalidate')
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('hasBlacklistEnabled')->returns(true);
+        $jwtManager->expects('invalidate')
             ->with('token', false)
-            ->once()
-            ->andThrow(new JwtException('blacklist write failed'));
+            ->throws(new JwtException('blacklist write failed'));
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners', 'dispatch')->never();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->never();
+        $events->expects('dispatch')->never();
 
         $guard = $this->createGuard(jwtManager: $jwtManager, request: $this->requestWithToken('token'));
         $guard->setUser($user);
@@ -336,8 +341,8 @@ class JwtGuardEventTest extends TestCase
     {
         $listener = static fn (): null => null;
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('listen')->once()->with(Attempting::class, $listener);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('listen')->with(Attempting::class, Argument::same($listener));
 
         $guard = $this->createGuard();
         $guard->setDispatcher($events);
@@ -349,11 +354,11 @@ class JwtGuardEventTest extends TestCase
      */
     private function dispatcherListeningFor(string $eventClass, callable $assertion): Dispatcher
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnUsing(
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->resolves(
             fn (string $class): bool => $class === $eventClass
         );
-        $events->shouldReceive('dispatch')->once()->with(m::on(
+        $events->expects('dispatch')->with(Argument::satisfies(
             fn (object $event): bool => $event instanceof $eventClass && $assertion($event)
         ));
 
@@ -374,8 +379,8 @@ class JwtGuardEventTest extends TestCase
 
         return new JwtGuard(
             name: 'jwt',
-            provider: $provider ?? m::mock(UserProvider::class),
-            jwtManager: $jwtManager ?? m::mock(ManagerContract::class),
+            provider: $provider ?? Double::for(UserProvider::class)->strict(),
+            jwtManager: $jwtManager ?? Double::for(ManagerContract::class)->strict(),
             claimFactory: new ClaimFactory(new Repository([
                 'jwt' => [
                     'issuer' => null,
@@ -394,8 +399,8 @@ class JwtGuardEventTest extends TestCase
      */
     private function user(int|string $id): Authenticatable
     {
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn($id);
+        $user = Double::for(Authenticatable::class)->strict();
+        $user->allows('getAuthIdentifier')->returns($id);
 
         return $user;
     }

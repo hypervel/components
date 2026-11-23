@@ -21,6 +21,7 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
 use Hypervel\Scout\Services\Turbopuffer\TurbopufferClient;
 use Hypervel\Scout\Services\Turbopuffer\TurbopufferNamespace;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use InvalidArgumentException;
@@ -759,6 +760,7 @@ class TurbopufferEngine extends Engine implements DeletesByFilter, SupportsSeman
      *
      * @throws NotSupportedException
      */
+    #[Unsupported('Namespaces are created automatically when documents are added.')]
     public function createIndex(string $name, array $options = []): mixed
     {
         throw new NotSupportedException('Turbopuffer namespaces are created automatically upon adding documents.');

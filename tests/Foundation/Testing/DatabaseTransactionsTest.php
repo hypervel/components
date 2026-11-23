@@ -7,25 +7,30 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PDO;
 use RuntimeException;
 
 class DatabaseTransactionsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBeginTransactionRestoresTheDispatcherWhenItFails(): void
     {
         $failure = new RuntimeException('Transaction begin failed.');
-        $dispatcher = m::mock(Dispatcher::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('setTransactionManager')->once();
-        $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher);
-        $connection->shouldReceive('unsetEventDispatcher')->once()->ordered();
-        $connection->shouldReceive('beginTransaction')->once()->andThrow($failure)->ordered();
-        $connection->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->ordered();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('setTransactionManager');
+        $connection->expects('getEventDispatcher')->returns($dispatcher);
+        $connection->expects('unsetEventDispatcher')->ordered();
+        $connection->expects('beginTransaction')->throws($failure)->ordered();
+        $connection->expects('setEventDispatcher')->with(Argument::same($dispatcher))->ordered();
         $testCase = $this->createTestCase($connection);
 
         try {
@@ -36,16 +41,32 @@ class DatabaseTransactionsTest extends TestCase
         }
     }
 
+    public function testTestTransactionIsRolledBackWhenTheTestLeavesATransactionOpen(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $connection = new SQLiteConnection($pdo, ':memory:');
+        $testCase = $this->createTestCase($connection);
+
+        // The wrapper transaction, followed by one the test leaves open.
+        $connection->beginTransaction();
+        $connection->beginTransaction();
+
+        $testCase->rollbackDatabaseTransactionWork();
+
+        $this->assertFalse($pdo->inTransaction());
+        $this->assertSame(0, $connection->transactionLevel());
+    }
+
     public function testRollbackRestoresTheDispatcherWhenItFails(): void
     {
         $failure = new RuntimeException('Transaction rollback failed.');
-        $dispatcher = m::mock(Dispatcher::class);
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher);
-        $connection->shouldReceive('unsetEventDispatcher')->once()->ordered();
-        $connection->shouldReceive('forgetRecordModificationState')->once()->ordered();
-        $connection->shouldReceive('rollBack')->once()->andThrow($failure)->ordered();
-        $connection->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->ordered();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getEventDispatcher')->returns($dispatcher);
+        $connection->expects('unsetEventDispatcher')->ordered();
+        $connection->expects('forgetRecordModificationState')->ordered();
+        $connection->expects('rollBack')->throws($failure)->ordered();
+        $connection->expects('setEventDispatcher')->with(Argument::same($dispatcher))->ordered();
         $testCase = $this->createTestCase($connection);
 
         try {
@@ -59,10 +80,10 @@ class DatabaseTransactionsTest extends TestCase
     /**
      * Create a test case for the given connection.
      */
-    private function createTestCase(ConnectionInterface $connection): DatabaseTransactionsTestCase
+    private function createTestCase(Connection $connection): DatabaseTransactionsTestCase
     {
-        $database = m::mock(DatabaseManager::class);
-        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $database = Double::for(DatabaseManager::class)->strict();
+        $database->expects('connection')->with(null)->returns($connection);
         $app = new Container;
         $app->instance('db', $database);
 

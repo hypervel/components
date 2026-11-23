@@ -6,10 +6,12 @@ namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Console\Application;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Foundation\Console\RouteListCommand;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Routing\Router;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -305,6 +307,35 @@ class RouteListCommandTest extends TestCase
         $this->assertStringContainsString('RouteListCommandTest.php:', $output);
 
         RouteListCommand::resolveTerminalWidthUsing(null);
+    }
+
+    public function testRoutePathsRespectApplicationAndVendorDirectoryBoundaries(): void
+    {
+        $root = ParallelTesting::tempDir('RouteListPathBoundaries');
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $app = FoundationApplication::getInstance();
+        $originalBasePath = $app->basePath();
+
+        try {
+            $app->setBasePath($root . '/app');
+            $files->ensureDirectoryExists($root . '/app/vendor-tools');
+            $files->ensureDirectoryExists($root . '/app-other');
+            $files->put($root . '/app/vendor-tools/routes.php', '<?php return static fn (): string => "ok";');
+            $files->put($root . '/app-other/routes.php', '<?php return static fn (): string => "ok";');
+            $this->router->get('/vendor-prefix', require $root . '/app/vendor-tools/routes.php');
+            $this->router->get('/external', require $root . '/app-other/routes.php');
+
+            $this->consoleApp->call('route:list', ['--json' => true, '--except-vendor' => true]);
+            $routes = array_column(json_decode($this->consoleApp->output(), true, flags: JSON_THROW_ON_ERROR), null, 'uri');
+
+            $this->assertArrayHasKey('vendor-prefix', $routes);
+            $this->assertSame('vendor-tools/routes.php:1', $routes['vendor-prefix']['path']);
+            $this->assertSame($root . '/app-other/routes.php:1', $routes['external']['path']);
+        } finally {
+            $app->setBasePath($originalBasePath);
+            $files->deleteDirectory($root);
+        }
     }
 
     public function testControllerRoutePathIsNull(): void

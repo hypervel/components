@@ -12,6 +12,7 @@ use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\RuleInferrers\RuleInferrer;
 use Hypervel\Data\Support\Creation\ValidationStrategy;
 use Hypervel\Data\Transformers\Transformer;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 
 class DataConfig
@@ -149,11 +150,12 @@ class DataConfig
     /**
      * Register aliases that abstract data casts store instead of class names.
      *
-     * Boot-only. The aliases persist on the worker-lifetime configuration and
-     * affect every subsequent data cast in the worker.
+     * The aliases persist on the worker-lifetime configuration and affect
+     * every subsequent data cast in the worker.
      *
      * @param array<string, class-string<BaseData>> $map
      */
+    #[BootOnly(whenShared: true)]
     public function enforceMorphMap(array $map): void
     {
         $morphMap = $this->morphMap;

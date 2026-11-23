@@ -27,13 +27,15 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 
 #[WithConfig('database.connections.testing.foreign_key_constraints', true)]
 class PartitionStoreTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     private const string ACCOUNT_A = '00000000-0000-4000-8000-000000000001';
 
@@ -93,7 +95,7 @@ class PartitionStoreTest extends TestCase
 
         CoroutineContext::set('ai-test.account', self::ACCOUNT_A);
         $prompt = $this->prompt(Decisions::from(['call-1' => true]));
-        $context = new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class), approvalStore: $store, conversationId: $conversationId);
+        $context = (new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class)))->withApprovalStore($store, $conversationId);
         $context->claimPendingApprovals(['call-1']);
         $prompt->setRunContext($context);
         $before = DB::table('agent_conversation_messages')->where('id', $messageId)->first();
@@ -146,7 +148,7 @@ class PartitionStoreTest extends TestCase
      */
     private function prompt(?Decisions $decisions = null): AgentPrompt
     {
-        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], m::mock(TextProvider::class), 'model', approvalDecisions: $decisions);
+        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], Double::for(TextProvider::class)->strict(), 'model', approvalDecisions: $decisions);
     }
 
     /**

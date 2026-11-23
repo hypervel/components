@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia;
 
-class OptionalProp implements IgnoreFirstLoad, Onceable
+class OptionalProp implements IgnoreFirstLoad, Onceable, SupportsLiveUpdates
 {
+    use HasLiveUpdates;
     use ResolvesCallables;
     use ResolvesOnce;
 

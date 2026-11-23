@@ -6,6 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Telescope\IncomingDumpEntry;
 use Hypervel\Telescope\Telescope;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
@@ -82,7 +83,11 @@ class DumpWatcher extends Watcher
 
         try {
             return (bool) $this->cache->store()->get('telescope:dump-watcher');
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return false;
         }
     }

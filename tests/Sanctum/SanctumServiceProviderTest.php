@@ -26,12 +26,17 @@ use Hypervel\Sanctum\SanctumGuard;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Server as SwooleServer;
 
 class SanctumServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBootContributesLateTokenModelConfiguredGuardModelsAndFrameworkContainers(): void
     {
         $config = new ConfigRepository([
@@ -70,7 +75,7 @@ class SanctumServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $manager = m::mock(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $resolver = $this->bootAndCaptureResolver($manager, $config);
 
         Sanctum::usePersonalAccessTokenModel(SanctumProviderToken::class);
@@ -96,29 +101,22 @@ class SanctumServiceProviderTest extends TestCase
                 'guards' => [],
             ],
         ]);
-        $repository = m::mock(CacheRepository::class);
-        $manager = m::mock(CacheManager::class);
-        $manager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
-        $manager->shouldReceive('store')->once()->with(null)->andReturn($repository);
-        $validator = m::mock(ModelCacheStoreValidator::class);
-        $validator->shouldReceive('validate')
-            ->once()
-            ->with($repository, 'Sanctum token cache');
+        $repository = Double::for(CacheRepository::class)->strict();
+        $manager = Double::for(CacheManager::class)->strict();
+        $manager->expects('allowSerializableClassesUsing');
+        $manager->expects('store')->with(null)->returns($repository);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
+        $validator->expects('validate')
+            ->with(Argument::same($repository), 'Sanctum token cache');
         $bootedCallback = null;
         $application = $this->consoleApplication($manager, $config);
-        $application->shouldReceive('make')
-            ->once()
+        $application->expects('make')
             ->with(ModelCacheStoreValidator::class)
-            ->andReturn($validator);
-        $application->shouldReceive('booted')
-            ->once()
-            ->with(m::on(function (mixed $callback) use (&$bootedCallback): bool {
-                $bootedCallback = $callback;
+            ->returns($validator);
+        $application->expects('booted')
+            ->with(Argument::capture($bootedCallback));
 
-                return $callback instanceof Closure;
-            }));
-
-        $provider = new SanctumServiceProviderFixture($application);
+        $provider = new SanctumServiceProviderFixture($application->instance());
         $provider->boot();
 
         $this->assertTrue($provider->bootCalled);
@@ -142,23 +140,21 @@ class SanctumServiceProviderTest extends TestCase
                 'guards' => [],
             ],
         ]);
-        $manager = m::mock(CacheManager::class);
-        $manager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
-        $manager->shouldNotReceive('store');
+        $manager = Double::for(CacheManager::class)->strict();
+        $resolver = null;
+        $manager->expects('allowSerializableClassesUsing')
+            ->with(Argument::capture($resolver));
+        $manager->expects('store')->never();
         $bootedCallback = null;
         $application = $this->consoleApplication($manager, $config);
-        $application->shouldNotReceive('make')->with(ModelCacheStoreValidator::class);
-        $application->shouldReceive('booted')
-            ->once()
-            ->with(m::on(function (mixed $callback) use (&$bootedCallback): bool {
-                $bootedCallback = $callback;
+        $application->expects('make')->never()->with(ModelCacheStoreValidator::class);
+        $application->expects('booted')
+            ->with(Argument::capture($bootedCallback));
 
-                return $callback instanceof Closure;
-            }));
+        (new SanctumServiceProviderFixture($application->instance()))->boot();
 
-        (new SanctumServiceProviderFixture($application))->boot();
-
-        $this->assertSame([], $this->capturedResolver($manager)());
+        $this->assertInstanceOf(Closure::class, $resolver);
+        $this->assertSame([], $resolver());
         $this->assertInstanceOf(Closure::class, $bootedCallback);
 
         $bootedCallback();
@@ -187,43 +183,36 @@ class SanctumServiceProviderTest extends TestCase
                 'guards' => [],
             ],
         ]);
-        $masterManager = m::mock(CacheManager::class);
-        $masterManager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
-        $masterManager->shouldNotReceive('store');
-        $workerRepository = m::mock(CacheRepository::class);
-        $workerManager = m::mock(CacheManager::class);
-        $workerManager->shouldReceive('store')->once()->with('worker')->andReturn($workerRepository);
-        $validator = m::mock(ModelCacheStoreValidator::class);
-        $validator->shouldReceive('validate')
-            ->once()
-            ->with($workerRepository, 'Sanctum token cache');
+        $masterManager = Double::for(CacheManager::class)->strict();
+        $masterManager->expects('allowSerializableClassesUsing');
+        $masterManager->expects('store')->never();
+        $workerRepository = Double::for(CacheRepository::class)->strict();
+        $workerManager = Double::for(CacheManager::class)->strict();
+        $workerManager->expects('store')->with('worker')->returns($workerRepository);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
+        $validator->expects('validate')
+            ->with(Argument::same($workerRepository), 'Sanctum token cache');
         $listener = null;
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('listen')
-            ->once()
-            ->with(AfterWorkerStart::class, m::on(function (mixed $callback) use (&$listener): bool {
-                $listener = $callback;
-
-                return $callback instanceof Closure;
-            }));
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')
-            ->twice()
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('listen')
+            ->with(AfterWorkerStart::class, Argument::capture($listener));
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')
+            ->times(2)
             ->with(CacheManager::class)
-            ->andReturn($masterManager, $workerManager);
-        $application->shouldReceive('make')
-            ->twice()
+            ->returns($masterManager, $workerManager);
+        $application->expects('make')
+            ->times(2)
             ->with(ConfigRepositoryContract::class)
-            ->andReturn($masterConfig, $workerConfig);
-        $application->shouldReceive('make')->once()->with('events')->andReturn($events);
-        $application->shouldReceive('make')
-            ->once()
+            ->returns($masterConfig, $workerConfig);
+        $application->expects('make')->with('events')->returns($events);
+        $application->expects('make')
             ->with(ModelCacheStoreValidator::class)
-            ->andReturn($validator);
-        $application->shouldReceive('runningInConsole')->twice()->andReturnFalse();
-        $application->shouldNotReceive('booted');
+            ->returns($validator);
+        $application->expects('runningInConsole')->times(2)->returns(false);
+        $application->expects('booted')->never();
 
-        $provider = new SanctumServiceProviderFixture($application);
+        $provider = new SanctumServiceProviderFixture($application->instance());
         $provider->boot();
 
         $this->assertTrue($provider->bootCalled);
@@ -231,7 +220,7 @@ class SanctumServiceProviderTest extends TestCase
         $this->assertFalse($provider->commandsRegistered);
         $this->assertInstanceOf(Closure::class, $listener);
 
-        $server = m::mock(SwooleServer::class);
+        $server = Double::for(SwooleServer::class)->strict();
         // Store validation runs in request workers and taskworkers, unlike Swoole timer registration.
         $server->taskworker = true;
         $listener(new AfterWorkerStart($server, 8));
@@ -258,7 +247,7 @@ class SanctumServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $manager = m::mock(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $resolver = $this->bootAndCaptureResolver($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -271,12 +260,10 @@ class SanctumServiceProviderTest extends TestCase
 
     public function testDefineRoutesSkipsRegistrationWhenRoutesAreCached(): void
     {
-        $application = m::mock(Application::class);
-        $application->shouldReceive('routesAreCached')->once()->andReturnTrue();
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('routesAreCached')->returns(true);
 
-        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
-
-        $this->addToAssertionCount(1);
+        (new SanctumServiceProviderFixture($application->instance()))->defineRoutesUsingParent();
     }
 
     #[DataProvider('invalidRouteConfigurationProvider')]
@@ -293,17 +280,16 @@ class SanctumServiceProviderTest extends TestCase
         ]);
         $config->set($key, $value);
 
-        $application = m::mock(Application::class);
-        $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
-        $application->shouldReceive('make')
-            ->once()
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('routesAreCached')->returns(false);
+        $application->expects('make')
             ->with(ConfigRepositoryContract::class)
-            ->andReturn($config);
+            ->returns($config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs($message);
 
-        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
+        (new SanctumServiceProviderFixture($application->instance()))->defineRoutesUsingParent();
     }
 
     /**
@@ -332,19 +318,18 @@ class SanctumServiceProviderTest extends TestCase
                 'prefix' => 'sanctum',
             ],
         ]);
-        $application = m::mock(Application::class);
-        $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
-        $application->shouldReceive('make')
-            ->once()
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('routesAreCached')->returns(false);
+        $application->expects('make')
             ->with(ConfigRepositoryContract::class)
-            ->andReturn($config);
+            ->returns($config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs(
             'Configuration value for key [sanctum.routes] must be a boolean, NULL given.'
         );
 
-        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
+        (new SanctumServiceProviderFixture($application->instance()))->defineRoutesUsingParent();
     }
 
     public function testDefineRoutesRequiresPrefixWhenRoutesAreEnabled(): void
@@ -354,42 +339,41 @@ class SanctumServiceProviderTest extends TestCase
                 'routes' => true,
             ],
         ]);
-        $application = m::mock(Application::class);
-        $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
-        $application->shouldReceive('make')
-            ->once()
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('routesAreCached')->returns(false);
+        $application->expects('make')
             ->with(ConfigRepositoryContract::class)
-            ->andReturn($config);
+            ->returns($config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs(
             'Configuration value for key [sanctum.prefix] must be a string, NULL given.'
         );
 
-        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
+        (new SanctumServiceProviderFixture($application->instance()))->defineRoutesUsingParent();
     }
 
     // REMOVED: Hypervel's Middleware::statefulApi() owns middleware priority before kernel construction.
 
     public function testCreateGuardRemainsAProtectedExtensionPoint(): void
     {
-        $application = m::mock(Application::class);
-        $container = m::mock(Container::class);
+        $application = Double::for(Application::class, override: true)->strict();
+        $container = Double::for(Container::class, override: true)->strict();
         $config = new ConfigRepository([
             'sanctum' => [
                 'expiration' => null,
                 'last_used_at' => true,
             ],
         ]);
-        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
-        $container->shouldReceive('make')->twice()->with('config')->andReturn($config);
-        $userProvider = m::mock(UserProvider::class);
-        $authManager = m::mock(AuthManager::class);
-        $authManager->shouldReceive('createUserProvider')->once()->with('users')->andReturn($userProvider);
+        $container->expects('bound')->with('events')->returns(false);
+        $container->expects('make')->times(2)->with('config')->returns($config);
+        $userProvider = Double::for(UserProvider::class)->strict();
+        $authManager = Double::for(AuthManager::class)->strict();
+        $authManager->expects('createUserProvider')->with('users')->returns($userProvider);
 
-        $guard = (new SanctumServiceProviderFixture($application))->createGuardUsingParent(
+        $guard = (new SanctumServiceProviderFixture($application->instance()))->createGuardUsingParent(
             $authManager,
-            $container,
+            $container->instance(),
             'sanctum',
             [
                 'provider' => 'users',
@@ -403,31 +387,26 @@ class SanctumServiceProviderTest extends TestCase
     public function testConfiguredGuardResolutionUsesTheProtectedFactoryExtensionPoint(): void
     {
         $afterResolving = null;
-        $application = m::mock(Application::class);
-        $application->shouldReceive('afterResolving')
-            ->once()
-            ->with(AuthManager::class, m::on(function (mixed $callback) use (&$afterResolving): bool {
-                $afterResolving = $callback;
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('afterResolving')
+            ->with(AuthManager::class, Argument::capture($afterResolving));
+        $application->expects('resolved')->with(AuthManager::class)->returns(false);
 
-                return $callback instanceof Closure;
-            }));
-        $application->shouldReceive('resolved')->once()->with(AuthManager::class)->andReturnFalse();
-
-        $provider = new ResolvingSanctumServiceProviderFixture($application);
-        $provider->guard = m::mock(SanctumGuard::class);
+        $provider = new ResolvingSanctumServiceProviderFixture($application->instance());
+        $provider->guard = Double::for(SanctumGuard::class)->strict();
         $provider->configureGuardUsingParent();
 
         $this->assertInstanceOf(Closure::class, $afterResolving);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('config')->andReturn(new ConfigRepository([
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('config')->returns(new ConfigRepository([
             'auth' => [
                 'guards' => [
                     'sanctum' => ['driver' => 'sanctum'],
                 ],
             ],
         ]));
-        $authManager = new AuthManager($container);
+        $authManager = new AuthManager($container->instance());
 
         $afterResolving($authManager);
 
@@ -448,20 +427,15 @@ class SanctumServiceProviderTest extends TestCase
                 'guards' => [],
             ],
         ]);
-        $manager = m::mock(CacheManager::class);
-        $manager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
-        $manager->shouldNotReceive('store');
+        $manager = Double::for(CacheManager::class)->strict();
+        $manager->expects('allowSerializableClassesUsing');
+        $manager->expects('store')->never();
         $bootedCallback = null;
         $application = $this->consoleApplication($manager, $config);
-        $application->shouldReceive('booted')
-            ->once()
-            ->with(m::on(function (mixed $callback) use (&$bootedCallback): bool {
-                $bootedCallback = $callback;
+        $application->expects('booted')
+            ->with(Argument::capture($bootedCallback));
 
-                return $callback instanceof Closure;
-            }));
-
-        (new SanctumServiceProviderFixture($application))->boot();
+        (new SanctumServiceProviderFixture($application->instance()))->boot();
 
         $this->assertInstanceOf(Closure::class, $bootedCallback);
         $this->expectException(InvalidArgumentException::class);
@@ -484,8 +458,8 @@ class SanctumServiceProviderTest extends TestCase
                 'guards' => [],
             ],
         ]);
-        $manager = m::mock(CacheManager::class);
-        $manager->shouldNotReceive('store');
+        $manager = Double::for(CacheManager::class)->strict();
+        $manager->expects('store')->never();
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -519,8 +493,8 @@ class SanctumServiceProviderTest extends TestCase
                 'guards' => [],
             ],
         ]);
-        $manager = m::mock(CacheManager::class);
-        $manager->shouldNotReceive('store');
+        $manager = Double::for(CacheManager::class)->strict();
+        $manager->expects('store')->never();
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -544,17 +518,15 @@ class SanctumServiceProviderTest extends TestCase
     private function consoleApplication(
         CacheManager $manager,
         ConfigRepositoryContract $config,
-    ): Application|m\MockInterface {
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')
-            ->once()
+    ): DoubleInterface {
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')
             ->with(CacheManager::class)
-            ->andReturn($manager);
-        $application->shouldReceive('make')
-            ->once()
+            ->returns($manager);
+        $application->expects('make')
             ->with(ConfigRepositoryContract::class)
-            ->andReturn($config);
-        $application->shouldReceive('runningInConsole')->twice()->andReturnTrue();
+            ->returns($config);
+        $application->expects('runningInConsole')->times(2)->returns(true);
 
         return $application;
     }
@@ -563,23 +535,16 @@ class SanctumServiceProviderTest extends TestCase
      * Boot the provider and capture its console startup validation callback.
      */
     private function bootAndCaptureStartupValidation(
-        CacheManager|m\MockInterface $manager,
+        CacheManager&DoubleInterface $manager,
         ConfigRepositoryContract $config,
     ): Closure {
-        $manager->shouldReceive('allowSerializableClassesUsing')
-            ->once()
-            ->andReturnSelf();
+        $manager->expects('allowSerializableClassesUsing');
         $startup = null;
         $application = $this->consoleApplication($manager, $config);
-        $application->shouldReceive('booted')
-            ->once()
-            ->with(m::on(function (mixed $callback) use (&$startup): bool {
-                $startup = $callback;
+        $application->expects('booted')
+            ->with(Argument::capture($startup));
 
-                return $callback instanceof Closure;
-            }));
-
-        (new SanctumServiceProviderFixture($application))->boot();
+        (new SanctumServiceProviderFixture($application->instance()))->boot();
 
         $this->assertInstanceOf(Closure::class, $startup);
 
@@ -590,41 +555,16 @@ class SanctumServiceProviderTest extends TestCase
      * Boot the provider and capture its class resolver.
      */
     private function bootAndCaptureResolver(
-        CacheManager|m\MockInterface $manager,
+        CacheManager&DoubleInterface $manager,
         ConfigRepositoryContract $config,
     ): Closure {
         $resolver = null;
-        $manager->shouldReceive('allowSerializableClassesUsing')
-            ->once()
-            ->with(m::on(function (mixed $callback) use (&$resolver): bool {
-                $resolver = $callback;
-
-                return $callback instanceof Closure;
-            }))
-            ->andReturnSelf();
+        $manager->expects('allowSerializableClassesUsing')
+            ->with(Argument::capture($resolver));
         $application = $this->consoleApplication($manager, $config);
-        $application->shouldReceive('booted')->once();
+        $application->expects('booted');
 
-        (new SanctumServiceProviderFixture($application))->boot();
-
-        $this->assertInstanceOf(Closure::class, $resolver);
-
-        return $resolver;
-    }
-
-    /**
-     * Capture the registered class resolver from a manager mock.
-     */
-    private function capturedResolver(CacheManager|m\MockInterface $manager): Closure
-    {
-        $resolver = null;
-        $manager->shouldHaveReceived('allowSerializableClassesUsing')
-            ->with(m::on(function (mixed $callback) use (&$resolver): bool {
-                $resolver = $callback;
-
-                return $callback instanceof Closure;
-            }))
-            ->once();
+        (new SanctumServiceProviderFixture($application->instance()))->boot();
 
         $this->assertInstanceOf(Closure::class, $resolver);
 

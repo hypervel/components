@@ -12,8 +12,8 @@ final readonly class Choice implements Question
     /**
      * Create a new single-choice question whose answer is one of the given options.
      *
-     * @param array<string, mixed>|string $instructions
-     * @param array<array-key, null|array<string, mixed>|string> $options option names mapped to an optional description
+     * @param array<array-key, mixed>|string $instructions
+     * @param array<array-key, null|array<array-key, mixed>|string> $options option names mapped to an optional description
      *
      * @throws InvalidArgumentException if fewer than two options are given
      */

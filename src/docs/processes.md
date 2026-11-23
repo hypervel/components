@@ -4,6 +4,7 @@
 - [Invoking Processes](#invoking-processes)
     - [Array Commands](#array-commands)
     - [Process Options](#process-options)
+    - [Extending Pending Processes](#extending-pending-processes)
     - [Process Output](#process-output)
     - [Pipelines](#process-pipelines)
 - [Asynchronous Processes](#asynchronous-processes)
@@ -198,6 +199,30 @@ if (Process::supportsTty()) {
 > [!WARNING]
 > TTY mode is not supported on Windows.
 
+<a name="extending-pending-processes"></a>
+### Extending Pending Processes
+
+You may add custom methods to `Hypervel\Process\PendingProcess` using macros. Register them in the `boot` method of your application's `App\Providers\AppServiceProvider` class:
+
+```php
+use Hypervel\Process\PendingProcess;
+
+public function boot(): void
+{
+    PendingProcess::macro('withEnvironment', function (string $environment): PendingProcess {
+        return $this->env(['APP_ENV' => $environment]);
+    });
+}
+```
+
+These methods may be called after configuring other process options:
+
+```php
+Process::timeout(10)->withEnvironment('testing')->run('php artisan reports:generate');
+```
+
+Register macros only during worker boot, since they are shared for the worker lifetime.
+
 <a name="process-output"></a>
 ### Process Output
 
@@ -318,7 +343,9 @@ $process = Process::timeout(120)->start('bash import.sh');
 $result = $process->wait();
 ```
 
-An asynchronously started process remains owned by the coroutine that started it. Before that coroutine exits, you must call `wait` to let the process finish or `stop` to terminate it. Returning from `waitUntil` only stops waiting; it does not stop the process.
+An asynchronously started process belongs to the coroutine that started it. Hypervel stops the process if that coroutine exits first, including when it is canceled. Start the process in the coroutine that will wait for its result; handing it to another coroutine does not transfer ownership. Returning from `waitUntil` only stops waiting; it does not stop the process.
+
+You may call `stop` to terminate a process earlier. A process started outside a coroutine, or detached with the `create_new_console` option, is not stopped automatically when a coroutine exits, so you are responsible for waiting for it or stopping it.
 
 <a name="process-ids-and-signals"></a>
 ### Process IDs and Signals
@@ -467,7 +494,7 @@ while ($pool->running()->isNotEmpty()) {
 $results = $pool->wait();
 ```
 
-An asynchronously started pool remains owned by the coroutine that started it. Before that coroutine exits, you must call `wait` to let every process finish or `stop` to terminate the running processes.
+An asynchronously started pool belongs to the coroutine that started it. Its processes are stopped if that coroutine exits first, unless explicitly detached. Start the pool in the coroutine that will wait for its results.
 
 If the pool fails while starting or waiting, Hypervel stops any processes it has already started or still owns before rethrowing the original exception.
 

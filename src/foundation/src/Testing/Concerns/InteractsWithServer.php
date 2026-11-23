@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Support\Env;
 use RuntimeException;
 use Throwable;
 
@@ -28,7 +29,8 @@ trait InteractsWithServer
      */
     protected function setUpInteractsWithServer(): void
     {
-        if (env('TEST_SERVER_HOST') === null) {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        if (Env::get('TEST_SERVER_HOST') === null) {
             $this->markTestSkipped(
                 'Set TEST_SERVER_HOST to run server integration tests for ' . static::class
             );
@@ -65,7 +67,8 @@ trait InteractsWithServer
      */
     protected function getServerHost(): string
     {
-        return (string) env('TEST_SERVER_HOST');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        return (string) Env::get('TEST_SERVER_HOST');
     }
 
     /**

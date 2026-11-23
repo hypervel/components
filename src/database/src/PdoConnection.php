@@ -5,13 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Closure;
+use ErrorException;
+use Exception;
 use Generator;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Events\StatementPrepared;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Number;
+use Hypervel\Support\Str;
 use PDO;
+use PDOException;
 use PDOStatement;
 use RuntimeException;
 use stdClass;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakMap;
 
@@ -42,9 +48,9 @@ class PdoConnection extends Connection
     protected int $fetchMode = PDO::FETCH_OBJ;
 
     /**
-     * The lock clause supported by the current physical connection generation.
+     * Whether the current physical connection generation supports skipping locked rows.
      */
-    protected bool|string|null $lockForPopping = null;
+    protected ?bool $supportsSkipLocked = null;
 
     /**
      * The maximum number of statement bindings supported by the current physical connection generation.
@@ -292,6 +298,11 @@ class PdoConnection extends Connection
         foreach ($bindings as $key => $value) {
             $parameter = $value instanceof BinaryParameter ? $value->value : $value;
 
+            // Unlike Laravel's implicit PDO conversion, preserve float precision before binding as text.
+            if (is_float($parameter) && is_finite($parameter)) {
+                $parameter = Number::toString($parameter);
+            }
+
             $statement->bindValue(
                 is_string($key) ? $key : $key + 1,
                 $parameter,
@@ -334,6 +345,21 @@ class PdoConnection extends Connection
     }
 
     /**
+     * Determine if the given exception was thrown by the database driver.
+     */
+    protected function isDriverError(Exception $exception): bool
+    {
+        // Error handlers convert native PDO and mysqlnd warnings into ErrorException.
+        return $exception instanceof PDOException
+            || ($exception instanceof ErrorException && Str::startsWith($exception->getMessage(), [
+                'PDO::',
+                'PDOStatement::',
+                'Packets out of order. Expected',
+                'Error while sending',
+            ]));
+    }
+
+    /**
      * Get the last inserted ID.
      */
     public function getLastInsertId(?string $sequence = null): int|string
@@ -364,9 +390,14 @@ class PdoConnection extends Connection
         $pdo = $this->resolvePdo();
 
         // Transaction and cleanup failures can invalidate a PDO even without session configurators.
-        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
-            ? $pdo
-            : $this->synchronizeSession($pdo, read: false);
+        if (static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)) {
+            return $pdo;
+        }
+
+        // Replacement must release the old handle through the setters, not this frame.
+        unset($pdo);
+
+        return $this->synchronizeSession(read: false);
     }
 
     /**
@@ -388,9 +419,13 @@ class PdoConnection extends Connection
 
         $pdo = $this->resolveReadPdo();
 
-        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
-            ? $pdo
-            : $this->synchronizeSession($pdo, read: true);
+        if (static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)) {
+            return $pdo;
+        }
+
+        unset($pdo);
+
+        return $this->synchronizeSession(read: true);
     }
 
     /**
@@ -400,6 +435,10 @@ class PdoConnection extends Connection
     {
         return $this->readPdo;
     }
+
+    // Laravel's direct-PDO methods, including getDirectPdo(), are intentionally omitted.
+    // Direct endpoints use named connections so their pools own the handles and cleanup;
+    // migrations select that connection through migrations_connection.
 
     /**
      * Resolve the current write PDO without synchronizing session state.
@@ -476,15 +515,16 @@ class PdoConnection extends Connection
 
         $this->pdo = $pdo;
         $this->readPdo = $readPdo;
-        $this->lockForPopping = null;
+        $this->supportsSkipLocked = null;
         $this->maxBindings = null;
     }
 
     /**
      * Synchronize the desired state for a physical database session.
      */
-    protected function synchronizeSession(PDO $pdo, bool $read): PDO
+    protected function synchronizeSession(bool $read): PDO
     {
+        $pdo = $read ? $this->resolveReadPdo() : $this->resolvePdo();
         $sessionState = static::physicalSessionState($pdo);
 
         if ($sessionState->configuring) {
@@ -497,6 +537,7 @@ class PdoConnection extends Connection
             $sessionState->configuring = true;
 
             try {
+                unset($pdo);
                 $pdo = $this->replaceUnknownSession($read);
             } finally {
                 $sessionState->configuring = false;
@@ -688,30 +729,38 @@ class PdoConnection extends Connection
 
     /**
      * Set the PDO connection.
+     *
+     * @return $this
      */
     public function setPdo(PDO|Closure|null $pdo): static
     {
         $this->transactions = 0;
-        $this->lockForPopping = null;
+        $this->supportsSkipLocked = null;
         $this->maxBindings = null;
 
-        $this->pdo = $pdo;
+        // A dead PDO may warn during destruction; that must not interrupt replacement.
+        @$this->pdo = $pdo;
 
         return $this;
     }
 
     /**
      * Set the PDO connection used for reading.
+     *
+     * @return $this
      */
     public function setReadPdo(PDO|Closure|null $pdo): static
     {
-        $this->readPdo = $pdo;
+        // Suppress only handle destruction, leaving callbacks and rollback errors visible.
+        @$this->readPdo = $pdo;
 
         return $this;
     }
 
     /**
      * Set the read PDO connection configuration.
+     *
+     * @return $this
      */
     public function setReadPdoConfig(array $config): static
     {
@@ -751,15 +800,13 @@ class PdoConnection extends Connection
                 } catch (Throwable $throwable) {
                     $this->markSessionStateUnknown($handle);
 
-                    if (! $this->causedByLostConnection($throwable)
-                        && ($exception === null
-                            || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException))
-                    ) {
-                        $exception = $throwable;
+                    if (! $this->causedByLostConnection($throwable)) {
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
                 }
             }
         } finally {
+            unset($pdo, $readPdo, $handle);
             $this->forgetDriverResources();
         }
 
@@ -843,7 +890,7 @@ class PdoConnection extends Connection
 
             return true;
         } catch (Throwable $exception) {
-            if ($exception instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 
@@ -952,21 +999,19 @@ class PdoConnection extends Connection
     }
 
     /**
-     * Get the lock clause supported when popping queued jobs.
-     *
-     * @internal
+     * Determine whether the server supports skipping locked rows.
      */
-    public function lockForPopping(): bool|string
+    public function supportsSkipLocked(): bool
     {
-        return $this->lockForPopping ??= $this->resolveLockForPopping();
+        return $this->supportsSkipLocked ??= $this->resolveSupportsSkipLocked();
     }
 
     /**
-     * Resolve the lock clause supported when popping queued jobs.
+     * Resolve whether the server supports skipping locked rows.
      */
-    protected function resolveLockForPopping(): bool|string
+    protected function resolveSupportsSkipLocked(): bool
     {
-        return true;
+        return false;
     }
 
     /**
@@ -988,10 +1033,10 @@ class PdoConnection extends Connection
     /**
      * Register a database session configurator.
      *
-     * Boot-only. The configurator persists in a static property for the worker
-     * lifetime and runs on every subsequent synchronized PDO hand-out across all
-     * coroutines.
+     * The configurator persists in a static property for the worker lifetime and
+     * runs on every subsequent synchronized PDO hand-out across all coroutines.
      */
+    #[BootOnly]
     public static function configureSessionUsing(SessionConfigurator $configurator): void
     {
         static::$sessionConfigurators[] = $configurator;

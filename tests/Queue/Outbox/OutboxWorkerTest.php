@@ -21,17 +21,22 @@ use Hypervel\Queue\Outbox\OutboxWorkerOptions;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class OutboxWorkerTest extends TestCase
 {
-    protected OutboxRelay $relay;
+    use VerifiesDoubles;
 
-    protected Cache $cache;
+    protected OutboxRelay&DoubleInterface $relay;
 
-    protected ExceptionHandler $exceptions;
+    protected Cache&DoubleInterface $cache;
+
+    protected ExceptionHandler&DoubleInterface $exceptions;
 
     protected Closure $signalHandler;
 
@@ -42,9 +47,9 @@ class OutboxWorkerTest extends TestCase
         $running = 0;
         $peak = 0;
         $finished = 0;
-        $this->relay->expects('claim')->with('primary', 2)->andReturn([$this->message(1), $this->message(2)]);
-        $this->relay->expects('claim')->with('secondary', 1)->andReturn([$this->message(3)]);
-        $this->relay->shouldReceive('deliver')->twice()->andReturnUsing(function (string $database) use ($releaseFirst, &$running, &$peak, &$finished): bool {
+        $this->relay->expects('claim')->with('primary', 2)->returns([$this->message(1), $this->message(2)]);
+        $this->relay->expects('claim')->with('secondary', 1)->returns([$this->message(3)]);
+        $this->relay->expects('deliver')->times(2)->resolves(function (string $database) use ($releaseFirst, &$running, &$peak, &$finished): bool {
             $peak = max($peak, ++$running);
 
             try {
@@ -73,10 +78,10 @@ class OutboxWorkerTest extends TestCase
         Sleep::fake();
         $worker = $this->worker(['broken', 'healthy']);
         $failure = new RuntimeException('Connection refused.');
-        $this->relay->expects('claim')->with('broken', 1)->andThrow($failure);
-        $this->relay->shouldReceive('claim')->with('healthy', 1)->times(3)->andReturn([$this->message(1)]);
-        $this->relay->shouldReceive('deliver')->with('healthy', m::type('array'))->times(3)->andReturn(true);
-        $this->exceptions->expects('report')->with($failure, ['outbox_database' => 'broken']);
+        $this->relay->expects('claim')->with('broken', 1)->throws($failure);
+        $this->relay->expects('claim')->with('healthy', 1)->times(3)->returns([$this->message(1)]);
+        $this->relay->expects('deliver')->with('healthy', Argument::type('array'))->times(3)->returns(true);
+        $this->exceptions->expects('report')->with(Argument::same($failure), ['outbox_database' => 'broken']);
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(batch: 1, sleep: 60, maxJobs: 3, memory: 1024)));
         Sleep::assertNeverSlept();
@@ -87,9 +92,9 @@ class OutboxWorkerTest extends TestCase
         Sleep::fake();
         $worker = $this->worker(['broken', 'empty']);
         $failure = new RuntimeException('Missing table.');
-        $this->relay->expects('claim')->with('broken', 100)->andThrow($failure);
-        $this->relay->expects('claim')->with('empty', 100)->andReturn([]);
-        $this->exceptions->expects('report')->with($failure, ['outbox_database' => 'broken']);
+        $this->relay->expects('claim')->with('broken', 100)->throws($failure);
+        $this->relay->expects('claim')->with('empty', 100)->returns([]);
+        $this->exceptions->expects('report')->with(Argument::same($failure), ['outbox_database' => 'broken']);
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(memory: 1024, stopWhenEmpty: true)));
         Sleep::assertNeverSlept();
@@ -99,9 +104,9 @@ class OutboxWorkerTest extends TestCase
     {
         Sleep::fake();
         $worker = $this->worker(['first', 'second']);
-        $this->relay->expects('claim')->with('first', 100)->andReturn([$this->message(1)]);
-        $this->relay->expects('claim')->with('second', 100)->andReturn([]);
-        $this->relay->expects('deliver')->with('first', m::type('array'))->andReturn(false);
+        $this->relay->expects('claim')->with('first', 100)->returns([$this->message(1)]);
+        $this->relay->expects('claim')->with('second', 100)->returns([]);
+        $this->relay->expects('deliver')->with('first', Argument::type('array'))->returns(false);
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(memory: 1024, once: true)));
         Sleep::assertNeverSlept();
@@ -110,7 +115,7 @@ class OutboxWorkerTest extends TestCase
     public function testPinnedSourceDoesNotClaimFromOtherConfiguredDatabases(): void
     {
         $worker = $this->worker(['first', 'second']);
-        $this->relay->expects('claim')->with('second', 100)->andReturn([]);
+        $this->relay->expects('claim')->with('second', 100)->returns([]);
 
         $this->assertSame(0, $worker->run('second', new OutboxWorkerOptions(memory: 1024, once: true)));
     }
@@ -120,11 +125,10 @@ class OutboxWorkerTest extends TestCase
         Sleep::fake();
         $worker = $this->worker();
         $claims = 0;
-        $this->relay->shouldReceive('claim')->twice()->andReturnUsing(function () use (&$claims): array {
+        $this->relay->expects('claim')->times(2)->resolves(function () use (&$claims): array {
             return [$this->message(++$claims)];
         });
-        $this->relay->expects('deliver')->andReturn(false);
-        $this->relay->expects('deliver')->andReturn(true);
+        $this->relay->expects('deliver')->times(2)->returns(false, true);
         Sleep::whenFakingSleep(function () use (&$claims): void {
             $this->assertSame(1, $claims);
         });
@@ -137,8 +141,8 @@ class OutboxWorkerTest extends TestCase
     {
         Sleep::fake();
         $worker = $this->worker(['first', 'second']);
-        $this->relay->expects('claim')->with('first', 100)->andReturn([]);
-        $this->relay->expects('claim')->with('second', 100)->andReturn([]);
+        $this->relay->expects('claim')->with('first', 100)->returns([]);
+        $this->relay->expects('claim')->with('second', 100)->returns([]);
         Sleep::whenFakingSleep(function (): void { ($this->signalHandler)(SIGTERM); });
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(sleep: 0.25, memory: 1024)));
@@ -151,10 +155,10 @@ class OutboxWorkerTest extends TestCase
         $worker = $this->worker();
         $claims = 0;
         $sleeps = 0;
-        $this->relay->shouldReceive('claim')->twice()->andReturnUsing(function () use (&$claims): array {
+        $this->relay->expects('claim')->times(2)->resolves(function () use (&$claims): array {
             return ++$claims === 1 ? [] : [$this->message(1)];
         });
-        $this->relay->expects('deliver')->andReturn(true);
+        $this->relay->expects('deliver')->returns(true);
         Sleep::whenFakingSleep(function () use (&$claims, &$sleeps): void {
             $this->assertSame(1, $claims);
             ($this->signalHandler)(++$sleeps === 1 ? SIGUSR2 : SIGCONT);
@@ -170,41 +174,42 @@ class OutboxWorkerTest extends TestCase
         CoroutineContext::set('request-only', true);
         $borrowed = false;
         $reads = 0;
-        $this->cache->shouldReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->times(3)->andReturnUsing(function () use (&$borrowed, &$reads): int {
+        $this->cache->allows('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->resolves(function () use (&$borrowed, &$reads): int {
             $this->assertFalse(CoroutineContext::has('request-only'));
             $borrowed = true;
             Coroutine::defer(static function () use (&$borrowed): void { $borrowed = false; });
 
             return ++$reads === 3 ? 2 : 1;
         });
-        $this->relay->expects('claim')->andReturnUsing(function () use (&$borrowed): array {
+        $this->relay->expects('claim')->resolves(function () use (&$borrowed): array {
             $this->assertFalse($borrowed);
 
             return [$this->message(1)];
         });
-        $this->relay->expects('deliver')->andReturn(true);
+        $this->relay->expects('deliver')->returns(true);
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(memory: 1024)));
         $this->assertFalse($borrowed);
+        $this->cache->received('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->times(3);
     }
 
     public function testRestartSignalIsNotReadWithoutInterruptionPolling(): void
     {
         Worker::$restartable = false;
         $worker = $this->worker();
-        $this->cache->shouldNotReceive('get');
-        $this->relay->expects('claim')->andReturn([$this->message(1)]);
-        $this->relay->expects('deliver')->andReturn(true);
+        $this->relay->expects('claim')->returns([$this->message(1)]);
+        $this->relay->expects('deliver')->returns(true);
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(maxJobs: 1, memory: 1024)));
+        $this->cache->received('get')->never();
     }
 
     public function testEscapingTaskFailureStopsAdmissionAndPropagates(): void
     {
         $worker = $this->worker();
         $failure = new RuntimeException('Reporter unavailable.');
-        $this->relay->expects('claim')->andReturn([$this->message(1)]);
-        $this->relay->expects('deliver')->andThrow($failure);
+        $this->relay->expects('claim')->returns([$this->message(1)]);
+        $this->relay->expects('deliver')->throws($failure);
 
         try {
             $worker->run(null, new OutboxWorkerOptions(memory: 1024));
@@ -221,8 +226,8 @@ class OutboxWorkerTest extends TestCase
         $blocker = new Channel(1);
         $released = false;
         $caught = null;
-        $this->relay->expects('claim')->andReturn([$this->message(1)]);
-        $this->relay->expects('deliver')->andReturnUsing(static function () use ($started, $blocker, &$released): bool {
+        $this->relay->expects('claim')->returns([$this->message(1)]);
+        $this->relay->expects('deliver')->resolves(static function () use ($started, $blocker, &$released): bool {
             Coroutine::defer(static function () use (&$released): void { $released = true; });
             $started->push(true);
             $blocker->pop(5);
@@ -262,7 +267,7 @@ class OutboxWorkerTest extends TestCase
 
         try {
             $worker = $this->worker();
-            $this->relay->expects('claim')->with('primary', 100)->andReturn([]);
+            $this->relay->expects('claim')->with('primary', 100)->returns([]);
 
             $this->assertSame(Worker::EXIT_SUCCESS, $worker->run(null, new OutboxWorkerOptions(memory: '50%', once: true)));
             $this->assertSame(Worker::EXIT_MEMORY_LIMIT, $this->worker()->run(null, new OutboxWorkerOptions(memory: '1%')));
@@ -276,20 +281,20 @@ class OutboxWorkerTest extends TestCase
      */
     protected function worker(array $databases = ['primary']): OutboxWorker
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $repository->shouldReceive('getDatabases')->andReturn($databases);
-        $this->relay = m::mock(OutboxRelay::class);
-        $this->exceptions = m::mock(ExceptionHandler::class);
-        $this->cache = m::mock(Cache::class);
-        $this->cache->shouldReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->andReturn(null)->byDefault();
-        $cacheFactory = m::mock(CacheFactory::class);
-        $cacheFactory->shouldReceive('store')->andReturn($this->cache);
-        $signals = m::mock(SignalRegistry::class);
-        $signals->expects('register')->andReturnUsing(function (object $owner, array $signals, Closure $callback): void {
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $repository->allows('getDatabases')->returns($databases);
+        $this->relay = Double::for(OutboxRelay::class)->strict();
+        $this->exceptions = Double::for(ExceptionHandler::class)->strict();
+        $this->cache = Double::for(Cache::class)->strict();
+        $this->cache->allows('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->returns(null);
+        $cacheFactory = Double::for(CacheFactory::class)->strict();
+        $cacheFactory->allows('store')->returns($this->cache);
+        $signals = Double::for(SignalRegistry::class)->strict();
+        $signals->expects('register')->resolves(function (object $owner, array $signals, Closure $callback): void {
             $this->assertSame($owner, $callback);
             $this->signalHandler = $callback;
         });
-        $signals->expects('unregister')->with(m::on(fn (object $owner): bool => $owner === $this->signalHandler));
+        $signals->expects('unregister')->with(Argument::satisfies(fn (object $owner): bool => $owner === $this->signalHandler));
 
         return new OutboxWorker($repository, $this->relay, $cacheFactory, $this->exceptions, $signals);
     }

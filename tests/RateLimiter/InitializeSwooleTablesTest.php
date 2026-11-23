@@ -10,10 +10,13 @@ use Hypervel\RateLimiter\Listeners\InitializeSwooleTables;
 use Hypervel\RateLimiter\Swoole\TableManager;
 use Hypervel\RateLimiter\Swoole\TableState;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class InitializeSwooleTablesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testInitializesEverySwooleStoreAndSealsTheTableManager(): void
     {
         $config = new Repository([
@@ -25,10 +28,10 @@ class InitializeSwooleTablesTest extends TestCase
                 ],
             ],
         ]);
-        $tables = m::mock(TableManager::class);
-        $tables->shouldReceive('get')->once()->with('first')->andReturn(m::mock(TableState::class));
-        $tables->shouldReceive('get')->once()->with('second')->andReturn(m::mock(TableState::class));
-        $tables->shouldReceive('seal')->once();
+        $tables = Double::for(TableManager::class)->strict();
+        $tables->expects('get')->with('first')->returns(Double::for(TableState::class)->strict());
+        $tables->expects('get')->with('second')->returns(Double::for(TableState::class)->strict());
+        $tables->expects('seal');
 
         (new InitializeSwooleTables($config, $tables))->handle(new BeforeServerStart('server'));
     }

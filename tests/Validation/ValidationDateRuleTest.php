@@ -30,6 +30,15 @@ class ValidationDateRuleTest extends TestCase
         $this->assertSame('date_format:"d/m/Y"', (string) $rule);
     }
 
+    public function testDateEqualsRule(): void
+    {
+        $rule = Rule::date()->equals('2024-01-01');
+        $this->assertSame('date|date_equals:"2024-01-01"', (string) $rule);
+
+        $rule = Rule::date()->format('d/m/Y')->equals(CarbonImmutable::parse('2024-01-01'));
+        $this->assertSame('date_format:"d/m/Y"|date_equals:"01/01/2024"', (string) $rule);
+    }
+
     public function testAfterTodayRule(): void
     {
         $rule = Rule::date()->afterToday();

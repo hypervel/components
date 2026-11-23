@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 
 /**
  * Worker-lifetime LRU cache of compiled rule plans.
  *
- * Plans are keyed by the normalized rule definition (string-only arrays).
+ * Plans are keyed by captured declarations containing only plain data.
  * Plans are pure data — safe to cache across requests. A cached null-equivalent
  * (un-cacheable) is represented by returning null from get(), not stored.
  *
@@ -36,17 +37,12 @@ final class RulePlanCache
     private static array $plans = [];
 
     /**
-     * Get a cached plan for the given rule array.
+     * Get a cached plan using its already-prepared key.
      *
-     * Returns null if the rules contain non-string elements (un-cacheable)
-     * or if no cached plan exists.
-     *
-     * @param list<mixed> $rules
+     * Return null for rules with executable or opaque state, or when no plan exists.
      */
-    public static function get(array $rules): ?AttributePlan
+    public static function get(?string $key): ?AttributePlan
     {
-        $key = self::cacheKey($rules);
-
         if ($key === null || ! isset(self::$plans[$key])) {
             return null;
         }
@@ -61,26 +57,16 @@ final class RulePlanCache
     }
 
     /**
-     * Store a compiled plan in the cache.
-     *
-     * @param list<mixed> $rules
+     * Store a compiled plan under its already-prepared key.
      */
-    public static function put(array $rules, AttributePlan $plan): void
+    public static function put(?string $key, AttributePlan $plan): void
     {
-        $key = self::cacheKey($rules);
-
         if ($key === null) {
             return;
         }
 
-        // Remove any existing entry for this key FIRST. Two reasons:
-        //  1. A re-put at capacity must not evict an unrelated entry.
-        //     Without this unset, count() stays at maxSize, the loop below
-        //     evicts array_key_first(), and only THEN does the final
-        //     assignment land — silently displacing an innocent entry.
-        //  2. A re-put must refresh the key to most-recently-used. Just
-        //     overwriting the existing slot would leave it at its current
-        //     (old) insertion position.
+        // Remove before evicting so replacement neither evicts another entry
+        // nor leaves this key at its old position.
         unset(self::$plans[$key]);
 
         while (count(self::$plans) >= self::$maxSize) {
@@ -91,11 +77,12 @@ final class RulePlanCache
     }
 
     /**
-     * Set the maximum cache size. Intended for tests.
+     * Set the maximum cache size.
      *
-     * Tests only. The cache size persists in a static property for the worker
-     * lifetime and affects every subsequent validation rule plan cache write.
+     * The cache size persists in a static property for the worker lifetime
+     * and affects every subsequent validation rule plan cache write.
      */
+    #[TestsOnly]
     public static function setMaxSize(int $size): void
     {
         if ($size < 1) {
@@ -103,28 +90,6 @@ final class RulePlanCache
         }
 
         self::$maxSize = $size;
-    }
-
-    /**
-     * Produce a stable cache key for string-only rule arrays.
-     *
-     * Returns null if the array contains any non-string element (un-cacheable
-     * because Rule objects and Closures can't produce a stable key).
-     *
-     * @param list<mixed> $rules
-     */
-    private static function cacheKey(array $rules): ?string
-    {
-        $parts = [];
-
-        foreach ($rules as $item) {
-            if (! is_string($item)) {
-                return null;
-            }
-            $parts[] = $item;
-        }
-
-        return serialize($parts);
     }
 
     /**

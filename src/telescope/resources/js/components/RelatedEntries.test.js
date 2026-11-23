@@ -1,7 +1,9 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { Dropdown } from 'bootstrap';
 import { afterEach, expect, it } from 'vite-plus/test';
+import { createRouter, createWebHistory } from 'vue-router';
 import Base from '../base';
+import routes from '../routes';
 import RelatedEntries from './RelatedEntries.vue';
 
 const contents = {
@@ -29,13 +31,17 @@ const batch = Object.entries(contents).map(([type, content]) => ({
 let wrapper;
 let container;
 
-function mountRelated() {
+function telescopeRouter() {
+    return createRouter({ history: createWebHistory('/telescope/'), routes });
+}
+
+function mountRelated(router) {
     container = document.createElement('div');
     document.body.appendChild(container);
     wrapper = mount(RelatedEntries, {
         attachTo: container,
         props: { entry: {}, batch },
-        global: { mixins: [Base], stubs: { 'router-link': true } },
+        global: { mixins: [Base], plugins: [router] },
     });
 }
 
@@ -46,9 +52,11 @@ afterEach(() => {
 });
 
 it('makes every related entry type reachable and preserves router history state', async () => {
-    const state = { back: '/previous', current: '/entry', forward: null, position: 3, scroll: null };
-    window.history.replaceState(state, '', '/entry');
-    mountRelated();
+    const router = telescopeRouter();
+    await router.push('/requests/previous-id');
+    await router.push('/requests/request-id');
+    const state = window.history.state;
+    mountRelated(router);
 
     expect(wrapper.findAll('.nav-item:not(.dropdown)')).toHaveLength(7);
     expect(wrapper.findAll('.dropdown-item').map((link) => link.text())).toEqual([
@@ -60,13 +68,58 @@ it('makes every related entry type reachable and preserves router history state'
         'HTTP Client (1)',
     ]);
     await wrapper.findAll('.dropdown-item').at(-1).trigger('click');
+    await flushPromises();
     expect(window.location.hash).toBe('#client_requests');
-    expect(window.history.state).toEqual(state);
+    expect(window.history.state).toMatchObject({
+        back: state.back,
+        current: '/requests/request-id#client_requests',
+        position: state.position,
+    });
     expect(wrapper.find('.dropdown-toggle').classes()).toContain('active');
 });
 
+it('restores the selected tab when going back to the entry', async () => {
+    const router = telescopeRouter();
+    const mountForRouter = () =>
+        mount(RelatedEntries, {
+            props: {
+                entry: { id: 'request-id', content: {} },
+                batch: batch.filter(({ type }) => ['log', 'query'].includes(type)),
+            },
+            global: { plugins: [router], mixins: [Base] },
+        });
+    const tab = (mounted, title) => mounted.findAll('.nav-pills a').find((link) => link.text().startsWith(title));
+
+    await router.push('/requests/request-id');
+
+    wrapper = mountForRouter();
+    await flushPromises();
+
+    expect(tab(wrapper, 'Logs').classes()).toContain('active');
+
+    await tab(wrapper, 'Queries').trigger('click');
+    await flushPromises();
+
+    expect(window.location.hash).toBe('#queries');
+
+    await router.push('/queries/query-id');
+
+    const returned = new Promise((resolve) => window.addEventListener('popstate', resolve, { once: true }));
+    window.history.back();
+    await returned;
+    await flushPromises();
+
+    expect(window.location.pathname + window.location.hash).toBe('/telescope/requests/request-id#queries');
+
+    wrapper.unmount();
+    wrapper = mountForRouter();
+    await flushPromises();
+
+    expect(tab(wrapper, 'Queries').classes()).toContain('active');
+});
+
 it('releases the dropdown when changing entries removes the overflow tabs', async () => {
-    mountRelated();
+    mountRelated(telescopeRouter());
     const element = wrapper.find('.dropdown-toggle').element;
     expect(Dropdown.getInstance(element)).not.toBeNull();
     await wrapper.setProps({ entry: { id: 'next' }, batch: batch.slice(0, 1) });

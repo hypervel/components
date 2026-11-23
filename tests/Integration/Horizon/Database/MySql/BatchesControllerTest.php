@@ -28,10 +28,8 @@ class BatchesControllerTest extends MySqlTestCase
     {
         parent::defineEnvironment($app);
 
-        $app->make('config')->set('queue.batching', [
-            'database' => $app->make('config')->string('database.default'),
-            'table' => 'job_batches',
-        ]);
+        $config = $app->make('config');
+        $config->set('queue.batching.database', $config->string('database.default'));
     }
 
     protected function afterRefreshingDatabase(): void
@@ -39,10 +37,11 @@ class BatchesControllerTest extends MySqlTestCase
         Schema::create('job_batches', static function (Blueprint $table): void {
             $table->string('id')->primary();
             $table->string('name');
+            $table->string('driver')->default('database');
             $table->integer('total_jobs');
             $table->integer('pending_jobs');
             $table->integer('failed_jobs');
-            $table->longText('failed_job_ids');
+            $table->integer('outstanding_failed_jobs');
             $table->mediumText('options')->nullable();
             $table->integer('cancelled_at')->nullable();
             $table->integer('created_at');
@@ -81,7 +80,7 @@ class BatchesControllerTest extends MySqlTestCase
             'total_jobs' => 0,
             'pending_jobs' => 0,
             'failed_jobs' => 0,
-            'failed_job_ids' => '[]',
+            'outstanding_failed_jobs' => 0,
             'options' => serialize([]),
             'created_at' => time(),
             'cancelled_at' => null,

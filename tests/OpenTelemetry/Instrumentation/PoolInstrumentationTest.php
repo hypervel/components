@@ -19,7 +19,8 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\OpenTelemetry\Instrumentation\PoolInstrumentation;
 use Hypervel\Redis\Pool\PoolManager as RedisPoolManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
 use OpenTelemetry\SDK\Metrics\Data\Metric;
 use OpenTelemetry\SDK\Metrics\Data\NumberDataPoint;
@@ -28,12 +29,13 @@ use OpenTelemetry\SDK\Metrics\MeterProvider;
 use OpenTelemetry\SDK\Metrics\MeterProviderBuilder;
 use OpenTelemetry\SDK\Metrics\MetricExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
-use OpenTelemetry\SemConv\Incubating\Metrics\DbIncubatingMetrics;
 use Swoole\Coroutine\Channel;
 use WeakReference;
 
 class PoolInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private InMemoryExporter $exporter;
 
     private ExportingReader $reader;
@@ -58,10 +60,10 @@ class PoolInstrumentationTest extends TestCase
     {
         $databasePool = $this->connectionPool(current: 4, idle: 2, max: 10, waiters: 1);
         $redisPool = $this->connectionPool(current: 3, idle: 1, max: 8, waiters: 2);
-        $databasePools = m::mock(DatabasePoolManager::class);
-        $databasePools->shouldReceive('getPools')->once()->andReturn(['default' => $databasePool]);
-        $redisPools = m::mock(RedisPoolManager::class);
-        $redisPools->shouldReceive('getPools')->once()->andReturn(['default' => $redisPool]);
+        $databasePools = Double::for(DatabasePoolManager::class)->strict();
+        $databasePools->expects('getPools')->returns(['default' => $databasePool]);
+        $redisPools = Double::for(RedisPoolManager::class)->strict();
+        $redisPools->expects('getPools')->returns(['default' => $redisPool]);
         $objectPools = new ObjectPoolManager;
         $definitions = new PoolDefinitionManagerStub($objectPools);
         $autoDefinition = $definitions->definition(
@@ -94,6 +96,7 @@ class PoolInstrumentationTest extends TestCase
             $metrics = $this->collect();
 
             $connectionCount = $metrics['db.client.connection.count'];
+            $this->assertSame('https://opentelemetry.io/schemas/1.45.0', $connectionCount->instrumentationScope->getSchemaUrl());
             $this->assertPoint($connectionCount, 2, [
                 'db.client.connection.pool.name' => 'database:default',
                 'db.client.connection.state' => 'idle',
@@ -110,10 +113,10 @@ class PoolInstrumentationTest extends TestCase
                 'db.client.connection.pool.name' => 'redis:default',
                 'db.client.connection.state' => 'used',
             ]);
-            $this->assertPoint($metrics['db.client.connection.max'], 10, [
+            $this->assertPoint($metrics['db.client.connection.limit'], 10, [
                 'db.client.connection.pool.name' => 'database:default',
             ]);
-            $this->assertPoint($metrics['db.client.connection.max'], 8, [
+            $this->assertPoint($metrics['db.client.connection.limit'], 8, [
                 'db.client.connection.pool.name' => 'redis:default',
             ]);
             $this->assertPoint($metrics['db.client.connection.pending_requests'], 1, [
@@ -152,13 +155,13 @@ class PoolInstrumentationTest extends TestCase
                 'hypervel.object_pool.name' => 'app:reports',
                 'hypervel.object_pool.state' => 'used',
             ]);
-            $this->assertPoint($metrics['hypervel.object_pool.max'], 4, [
+            $this->assertPoint($metrics['hypervel.object_pool.limit'], 4, [
                 'hypervel.object_pool.name' => $autoIdentity,
             ]);
-            $this->assertPoint($metrics['hypervel.object_pool.max'], 5, [
+            $this->assertPoint($metrics['hypervel.object_pool.limit'], 5, [
                 'hypervel.object_pool.name' => $namedIdentity,
             ]);
-            $this->assertPoint($metrics['hypervel.object_pool.max'], 6, [
+            $this->assertPoint($metrics['hypervel.object_pool.limit'], 6, [
                 'hypervel.object_pool.name' => 'app:reports',
             ]);
             $this->assertPoint($metrics['hypervel.object_pool.pending_requests'], 0, [
@@ -183,12 +186,12 @@ class PoolInstrumentationTest extends TestCase
                 $finishDestroy->pop(1.0);
             },
         );
-        $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldReceive('getPools')->twice()->andReturn(['app:reports' => $pool]);
-        $databasePools = m::mock(DatabasePoolManager::class);
-        $databasePools->shouldNotReceive('getPools');
-        $redisPools = m::mock(RedisPoolManager::class);
-        $redisPools->shouldNotReceive('getPools');
+        $objectPools = Double::for(ObjectPoolManager::class)->strict();
+        $objectPools->expects('getPools')->times(2)->returns(['app:reports' => $pool]);
+        $databasePools = Double::for(DatabasePoolManager::class)->strict();
+        $databasePools->expects('getPools')->never();
+        $redisPools = Double::for(RedisPoolManager::class)->strict();
+        $redisPools->expects('getPools')->never();
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $instrumentation->register($this->options(enabled: ['hypervel.object_pool.objects']));
         $borrowed = $pool->borrow();
@@ -223,14 +226,14 @@ class PoolInstrumentationTest extends TestCase
 
     public function testDisabledMetricsDoNotResolveTheMeterOrInspectPoolRegistries(): void
     {
-        $databasePools = m::mock(DatabasePoolManager::class);
-        $databasePools->shouldNotReceive('getPools');
-        $redisPools = m::mock(RedisPoolManager::class);
-        $redisPools->shouldNotReceive('getPools');
-        $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldNotReceive('getPools');
-        $meterProvider = m::mock(MeterProviderInterface::class);
-        $meterProvider->shouldNotReceive('getMeter');
+        $databasePools = Double::for(DatabasePoolManager::class)->strict();
+        $databasePools->expects('getPools')->never();
+        $redisPools = Double::for(RedisPoolManager::class)->strict();
+        $redisPools->expects('getPools')->never();
+        $objectPools = Double::for(ObjectPoolManager::class)->strict();
+        $objectPools->expects('getPools')->never();
+        $meterProvider = Double::for(MeterProviderInterface::class)->strict();
+        $meterProvider->expects('getMeter')->never();
 
         $instrumentation = new PoolInstrumentation(
             $databasePools,
@@ -239,71 +242,69 @@ class PoolInstrumentationTest extends TestCase
             $meterProvider,
         );
         $instrumentation->register($this->options(enabled: []));
-
-        $this->addToAssertionCount(1);
     }
 
     public function testIndividualConnectionMetricsReadOnlyTheirRequiredSourceValues(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->shouldReceive('getOptions')->once()->andReturn(ConnectionPoolOptions::fromArray(['max_connections' => 12]));
-        $pool->shouldNotReceive('getManagedCount');
-        $pool->shouldNotReceive('getIdleCount');
-        $pool->shouldNotReceive('getWaitingCount');
-        $pool->shouldNotReceive('getStats');
-        $databasePools = m::mock(DatabasePoolManager::class);
-        $databasePools->shouldReceive('getPools')->once()->andReturn(['primary' => $pool]);
-        $redisPools = m::mock(RedisPoolManager::class);
-        $redisPools->shouldReceive('getPools')->once()->andReturn([]);
-        $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldNotReceive('getPools');
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->expects('getOptions')->returns(ConnectionPoolOptions::fromArray(['max_connections' => 12]));
+        $pool->expects('getManagedCount')->never();
+        $pool->expects('getIdleCount')->never();
+        $pool->expects('getWaitingCount')->never();
+        $pool->expects('getStats')->never();
+        $databasePools = Double::for(DatabasePoolManager::class)->strict();
+        $databasePools->expects('getPools')->returns(['primary' => $pool]);
+        $redisPools = Double::for(RedisPoolManager::class)->strict();
+        $redisPools->expects('getPools')->returns([]);
+        $objectPools = Double::for(ObjectPoolManager::class)->strict();
+        $objectPools->expects('getPools')->never();
 
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $instrumentation->register($this->options(
-            enabled: [DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX],
+            enabled: ['db.client.connection.limit'],
         ));
         $metrics = $this->collect();
 
-        $this->assertSame([DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX], array_keys($metrics));
-        $this->assertPoint($metrics[DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX], 12, [
+        $this->assertSame(['db.client.connection.limit'], array_keys($metrics));
+        $this->assertPoint($metrics['db.client.connection.limit'], 12, [
             'db.client.connection.pool.name' => 'database:primary',
         ]);
     }
 
     public function testIndividualObjectMetricsReadOnlyTheirRequiredSourceValues(): void
     {
-        $objectPool = m::mock(ObjectPool::class);
-        $objectPool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['max_objects' => 7]));
-        $objectPool->shouldNotReceive('getStats');
-        $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldReceive('getPools')->once()->andReturn(['app:bounded' => $objectPool]);
-        $databasePools = m::mock(DatabasePoolManager::class);
-        $databasePools->shouldNotReceive('getPools');
-        $redisPools = m::mock(RedisPoolManager::class);
-        $redisPools->shouldNotReceive('getPools');
+        $objectPool = Double::for(ObjectPool::class)->strict();
+        $objectPool->expects('getOptions')->returns(PoolOptions::fromArray(['max_objects' => 7]));
+        $objectPool->expects('getStats')->never();
+        $objectPools = Double::for(ObjectPoolManager::class)->strict();
+        $objectPools->expects('getPools')->returns(['app:bounded' => $objectPool]);
+        $databasePools = Double::for(DatabasePoolManager::class)->strict();
+        $databasePools->expects('getPools')->never();
+        $redisPools = Double::for(RedisPoolManager::class)->strict();
+        $redisPools->expects('getPools')->never();
 
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
-        $instrumentation->register($this->options(enabled: ['hypervel.object_pool.max']));
+        $instrumentation->register($this->options(enabled: ['hypervel.object_pool.limit']));
         $metrics = $this->collect();
 
-        $this->assertSame(['hypervel.object_pool.max'], array_keys($metrics));
-        $this->assertPoint($metrics['hypervel.object_pool.max'], 7, [
+        $this->assertSame(['hypervel.object_pool.limit'], array_keys($metrics));
+        $this->assertPoint($metrics['hypervel.object_pool.limit'], 7, [
             'hypervel.object_pool.name' => 'app:bounded',
         ]);
     }
 
     public function testBoundCallbacksStopCollectingAfterTheInstrumentationIsDestroyed(): void
     {
-        $databasePools = m::mock(DatabasePoolManager::class);
-        $databasePools->shouldReceive('getPools')->once()->andReturn([]);
-        $redisPools = m::mock(RedisPoolManager::class);
-        $redisPools->shouldReceive('getPools')->once()->andReturn([]);
-        $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldNotReceive('getPools');
+        $databasePools = Double::for(DatabasePoolManager::class)->strict();
+        $databasePools->expects('getPools')->returns([]);
+        $redisPools = Double::for(RedisPoolManager::class)->strict();
+        $redisPools->expects('getPools')->returns([]);
+        $objectPools = Double::for(ObjectPoolManager::class)->strict();
+        $objectPools->expects('getPools')->never();
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $reference = WeakReference::create($instrumentation);
         $instrumentation->register($this->options(enabled: [
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT,
+            'db.client.connection.count',
         ]));
 
         $this->collect();
@@ -316,10 +317,10 @@ class PoolInstrumentationTest extends TestCase
 
     public function testRemovedObjectPoolDisappearsFromTheNextCollection(): void
     {
-        $databasePools = m::mock(DatabasePoolManager::class);
-        $databasePools->shouldNotReceive('getPools');
-        $redisPools = m::mock(RedisPoolManager::class);
-        $redisPools->shouldNotReceive('getPools');
+        $databasePools = Double::for(DatabasePoolManager::class)->strict();
+        $databasePools->expects('getPools')->never();
+        $redisPools = Double::for(RedisPoolManager::class)->strict();
+        $redisPools->expects('getPools')->never();
         $objectPools = new ObjectPoolManager;
         $objectPools->pool('app:ephemeral', static fn (): object => new PoolMetricObject);
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
@@ -358,11 +359,11 @@ class PoolInstrumentationTest extends TestCase
      */
     private function connectionPool(int $current, int $idle, int $max, int $waiters): ConnectionPool
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->shouldReceive('getManagedCount')->once()->andReturn($current);
-        $pool->shouldReceive('getIdleCount')->once()->andReturn($idle);
-        $pool->shouldReceive('getOptions')->once()->andReturn(ConnectionPoolOptions::fromArray(['max_connections' => $max]));
-        $pool->shouldReceive('getWaitingCount')->once()->andReturn($waiters);
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->expects('getManagedCount')->returns($current);
+        $pool->expects('getIdleCount')->returns($idle);
+        $pool->expects('getOptions')->returns(ConnectionPoolOptions::fromArray(['max_connections' => $max]));
+        $pool->expects('getWaitingCount')->returns($waiters);
 
         return $pool;
     }
@@ -376,11 +377,11 @@ class PoolInstrumentationTest extends TestCase
     private function options(?array $enabled = null): array
     {
         $names = [
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT,
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX,
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS,
+            'db.client.connection.count',
+            'db.client.connection.limit',
+            'db.client.connection.pending_requests',
             'hypervel.object_pool.objects',
-            'hypervel.object_pool.max',
+            'hypervel.object_pool.limit',
             'hypervel.object_pool.pending_requests',
         ];
 

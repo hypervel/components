@@ -9,14 +9,18 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\MustVerifyEmail;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Auth\EmailVerificationRequest;
+use Hypervel\Foundation\Auth\User;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
 
 class EmailVerificationRequestTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[Override]
     protected function defineRoutes(Router $router): void
     {
@@ -30,8 +34,8 @@ class EmailVerificationRequestTest extends TestCase
     public function testAuthorizeReturnsTrueWhenIdAndHashMatch(): void
     {
         $user = $this->mockUser(123, 'user@example.com');
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(false);
-        $user->shouldReceive('markEmailAsVerified')->once();
+        $user->allows('hasVerifiedEmail')->returns(false);
+        $user->expects('markEmailAsVerified');
 
         $this->actingAs($user)
             ->get('/email/verify/123/' . sha1('user@example.com'))
@@ -61,14 +65,34 @@ class EmailVerificationRequestTest extends TestCase
         Event::fake([Verified::class]);
 
         $user = $this->mockUser(123, 'user@example.com');
-        $user->shouldReceive('hasVerifiedEmail')->once()->andReturn(false);
-        $user->shouldReceive('markEmailAsVerified')->once();
+        $user->expects('hasVerifiedEmail')->returns(false);
+        $user->expects('markEmailAsVerified');
 
         $this->actingAs($user)
             ->get('/email/verify/123/' . sha1('user@example.com'))
             ->assertOk();
 
         Event::assertDispatched(Verified::class);
+    }
+
+    public function testFulfillDispatchesEventForUserUsingOnlyTheVerificationTrait(): void
+    {
+        Event::fake([Verified::class]);
+
+        $user = Double::for(User::class)->strict();
+        $user->allows('getKey')->returns(123);
+        $user->allows('getAuthIdentifier')->returns(123);
+        $user->allows('getEmailForVerification')->returns('user@example.com');
+        $user->expects('hasVerifiedEmail')->returns(false);
+        $user->expects('markEmailAsVerified')->returns(true);
+
+        $this->assertNotInstanceOf(MustVerifyEmail::class, $user);
+
+        $this->actingAs($user)
+            ->get('/email/verify/123/' . sha1('user@example.com'))
+            ->assertOk();
+
+        Event::assertDispatched(Verified::class, static fn (Verified $event): bool => $event->user === $user);
     }
 
     public function testPassiveObserverDoesNotCauseVerifiedEventToDispatch(): void
@@ -82,8 +106,8 @@ class EmailVerificationRequestTest extends TestCase
         );
 
         $user = $this->mockUser(123, 'user@example.com');
-        $user->shouldReceive('hasVerifiedEmail')->once()->andReturn(false);
-        $user->shouldReceive('markEmailAsVerified')->once();
+        $user->expects('hasVerifiedEmail')->returns(false);
+        $user->expects('markEmailAsVerified');
 
         $this->actingAs($user)
             ->get('/email/verify/123/' . sha1('user@example.com'))
@@ -97,8 +121,8 @@ class EmailVerificationRequestTest extends TestCase
         Event::fake([Verified::class]);
 
         $user = $this->mockUser(123, 'user@example.com');
-        $user->shouldReceive('hasVerifiedEmail')->once()->andReturn(true);
-        $user->shouldNotReceive('markEmailAsVerified');
+        $user->expects('hasVerifiedEmail')->returns(true);
+        $user->expects('markEmailAsVerified')->never();
 
         $this->actingAs($user)
             ->get('/email/verify/123/' . sha1('user@example.com'))
@@ -119,11 +143,15 @@ class EmailVerificationRequestTest extends TestCase
      */
     private function mockUser(int|string $id, string $email): Authenticatable&MustVerifyEmail
     {
-        $user = m::mock(Authenticatable::class, MustVerifyEmail::class);
-        $user->shouldReceive('getKey')->andReturn($id);
-        $user->shouldReceive('getAuthIdentifier')->andReturn($id);
-        $user->shouldReceive('getEmailForVerification')->andReturn($email);
+        $user = Double::for(EmailVerificationUser::class)->strict();
+        $user->allows('getKey')->returns($id);
+        $user->allows('getAuthIdentifier')->returns($id);
+        $user->allows('getEmailForVerification')->returns($email);
 
         return $user;
     }
+}
+
+class EmailVerificationUser extends User implements MustVerifyEmail
+{
 }

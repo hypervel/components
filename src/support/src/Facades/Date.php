@@ -126,9 +126,9 @@ class Date extends Facade
     protected static function resolveFacadeInstance(string $name): mixed
     {
         if (! isset(static::$resolvedInstance[$name]) && (static::$app === null || ! static::$app->bound($name))) {
-            $class = static::DEFAULT_FACADE;
-
-            static::swap(new $class);
+            // Laravel swaps the default in. The framework binds `date`, so this only serves a
+            // missing or bare container, and caching the default keeps the test-only swap() out.
+            static::$resolvedInstance[$name] = new (static::DEFAULT_FACADE);
         }
 
         return parent::resolveFacadeInstance($name);

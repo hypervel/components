@@ -9,10 +9,13 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ListenerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Create a real in-memory SQLite connection.
      */
@@ -56,9 +59,9 @@ class ListenerTest extends TestCase
     {
         $listener = new Listener;
 
-        $connection = m::mock(Connection::class);
-        $connection->expects('getName')->times(150)->andReturn('testing');
-        $connection->expects('prepareBindings')->times(100)->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getName')->times(150)->returns('testing');
+        $connection->expects('prepareBindings')->times(100)->resolves(fn (array $bindings): array => $bindings);
 
         for ($index = 0; $index < 150; ++$index) {
             $listener->onQueryExecuted(
@@ -173,11 +176,11 @@ class ListenerTest extends TestCase
 
     public function testLongQueriesAndBindingsAreBounded(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('getName')->andReturn('testing');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getName')->returns('testing');
         $connection->expects('prepareBindings')
             ->with(['first', 'second', 'third'])
-            ->andReturn(['first', 'second', 'third']);
+            ->returns(['first', 'second', 'third']);
 
         $listener = new Listener;
         $listener->onQueryExecuted(new QueryExecuted(

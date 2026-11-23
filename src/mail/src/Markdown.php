@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
@@ -18,6 +19,48 @@ use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 class Markdown
 {
+    /**
+     * References that keep interpolated punctuation out of Markdown and HTML syntax.
+     *
+     * Unlike Laravel, ampersands and quotes are encoded too, as the default encoder does, so secured
+     * encoding never lets a value break out of an HTML attribute or turn literal entity text into a character.
+     */
+    protected const array ENCODED_CHARACTERS = [
+        '\\' => '&#0000092;',
+        '[' => '&#0000091;',
+        ']' => '&#0000093;',
+        '<' => '&#0000060;',
+        '>' => '&#0000062;',
+        '&' => '&#0000038;',
+        '"' => '&#0000034;',
+        "'" => '&#0000039;',
+    ];
+
+    /**
+     * Restore references left escaped in code or unchanged in raw HTML.
+     *
+     * Zero padding keeps ordinary entity examples and literal backslashes intact. Angle brackets,
+     * ampersands and quotes remain escaped so restoration cannot introduce HTML tags, attributes or entities.
+     */
+    protected const array DECODED_CHARACTERS = [
+        '&amp;#0000092;' => '\\',
+        '&amp;#0000091;' => '[',
+        '&amp;#0000093;' => ']',
+        '&amp;#0000060;' => '&lt;',
+        '&amp;#0000062;' => '&gt;',
+        '&amp;#0000038;' => '&amp;',
+        '&amp;#0000034;' => '&quot;',
+        '&amp;#0000039;' => '&#039;',
+        '&#0000092;' => '\\',
+        '&#0000091;' => '[',
+        '&#0000093;' => ']',
+        '&#0000060;' => '&lt;',
+        '&#0000062;' => '&gt;',
+        '&#0000038;' => '&amp;',
+        '&#0000034;' => '&quot;',
+        '&#0000039;' => '&#039;',
+    ];
+
     /**
      * The current theme being used when generating emails.
      */
@@ -61,7 +104,7 @@ class Markdown
         $viewFactory = $this->viewFactoryWithMailNamespace($this->htmlComponentPaths());
 
         $bladeCompiler = $viewFactory
-            ->getEngineResolver() // @phpstan-ignore method.notFound
+            ->getEngineResolver() // @phpstan-ignore method.notFound (view Factory method outside the contract)
             ->resolve('blade')
             ->getCompiler();
 
@@ -75,15 +118,7 @@ class Markdown
                 }
 
                 return EncodedHtmlString::withEncoding(
-                    function ($value) {
-                        $replacements = [
-                            '[' => '\[',
-                            '<' => '&lt;',
-                            '>' => '&gt;',
-                        ];
-
-                        return str_replace(array_keys($replacements), array_values($replacements), $value);
-                    },
+                    fn ($value) => strtr((string) $value, static::ENCODED_CHARACTERS),
                     $render
                 );
             }
@@ -99,8 +134,12 @@ class Markdown
                 : 'mail::themes.' . $theme;
         }
 
+        if (static::$withSecuredEncoding === true) {
+            $contents = strtr($contents, static::DECODED_CHARACTERS);
+        }
+
         return new HtmlString(($inliner ?: new CssToInlineStyles)->convert(
-            str_replace('\[', '[', $contents),
+            $contents,
             $viewFactory->make($theme, $data)->render()
         ));
     }
@@ -128,21 +167,18 @@ class Markdown
             return new HtmlString(static::converter()->convert((string) $text)->getContent());
         }
 
-        return new HtmlString(EncodedHtmlString::withEncoding(
+        $contents = EncodedHtmlString::withEncoding(
             function ($value) {
-                $replacements = [
-                    '[' => '\[',
-                    '<' => '\<',
-                ];
-
-                $html = str_replace(array_keys($replacements), array_values($replacements), $value);
+                $html = strtr((string) $value, static::ENCODED_CHARACTERS);
 
                 return static::converter([
                     'html_input' => 'escape',
                 ])->convert($html)->getContent();
             },
             fn () => static::converter()->convert((string) $text)->getContent()
-        ));
+        );
+
+        return new HtmlString(strtr($contents, static::DECODED_CHARACTERS));
     }
 
     /**
@@ -215,9 +251,10 @@ class Markdown
     /**
      * Register new mail component paths.
      *
-     * Boot-only. Mutates the shared Markdown renderer's component paths; use
-     * scoped view namespaces for per-render component path changes.
+     * Mutates the shared Markdown renderer's component paths; use scoped
+     * view namespaces for per-render component path changes.
      */
+    #[BootOnly(whenShared: true)]
     public function loadComponentsFrom(array $paths = []): void
     {
         $this->componentPaths = $paths;
@@ -226,9 +263,12 @@ class Markdown
     /**
      * Set the default theme to be used.
      *
-     * Boot-only. Mutates the shared Markdown renderer's default theme; pass a
-     * per-render theme to render() for message-specific themes.
+     * Mutates the shared Markdown renderer's default theme; pass a per-render
+     * theme to render() for message-specific themes.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function theme(string $theme): static
     {
         $this->theme = $theme;
@@ -247,9 +287,10 @@ class Markdown
     /**
      * Enable secured encoding when parsing Markdown.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent Markdown render across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent Markdown render across all coroutines.
      */
+    #[BootOnly]
     public static function withSecuredEncoding(): void
     {
         static::$withSecuredEncoding = true;
@@ -258,9 +299,10 @@ class Markdown
     /**
      * Disable secured encoding when parsing Markdown.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent Markdown render across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent Markdown render across all coroutines.
      */
+    #[BootOnly]
     public static function withoutSecuredEncoding(): void
     {
         static::$withSecuredEncoding = false;

@@ -10,6 +10,8 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use JsonSerializable;
 use Override;
@@ -49,9 +51,10 @@ class JsonApiResource extends JsonResource
     /**
      * Set the JSON:API version for the request.
      *
-     * Boot-only. The configuration persists in a static property for the worker
-     * lifetime and applies to every JSON:API response across all coroutines.
+     * The configuration persists in a static property for the worker lifetime
+     * and applies to every JSON:API response across all coroutines.
      */
+    #[BootOnly]
     public static function configure(?string $version = null, array $ext = [], array $profile = [], array $meta = []): void
     {
         static::$jsonApiInformation = array_filter([
@@ -141,6 +144,14 @@ class JsonApiResource extends JsonResource
     }
 
     /**
+     * Get metadata for this resource's relationship identifier.
+     */
+    public function toIdentifierMeta(Request $request): array
+    {
+        return [];
+    }
+
+    /**
      * Get any additional data that should be returned with the resource array.
      */
     #[Override]
@@ -148,7 +159,7 @@ class JsonApiResource extends JsonResource
     {
         $jsonApiRequest = $this->resolveJsonApiRequestFrom($request);
 
-        $included = $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $jsonApiRequest);
+        $included = $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $jsonApiRequest, $this->jsonOptions());
 
         return [
             ...($included !== [] || $jsonApiRequest->has('include')) ? ['included' => $included] : [],
@@ -196,7 +207,7 @@ class JsonApiResource extends JsonResource
         $request = $this->resolveJsonApiRequestFrom($request);
 
         // Merge duplicate linkage before the primary resource is serialized.
-        $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $request);
+        $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $request, $this->jsonOptions());
 
         return parent::toResponse($request);
     }
@@ -225,6 +236,7 @@ class JsonApiResource extends JsonResource
      * @throws BadMethodCallException
      */
     #[Override]
+    #[Unsupported]
     public static function wrap(string $value): never
     {
         throw new BadMethodCallException(sprintf('Using %s() method is not allowed.', __METHOD__));
@@ -236,6 +248,7 @@ class JsonApiResource extends JsonResource
      * @throws BadMethodCallException
      */
     #[Override]
+    #[Unsupported]
     public static function withoutWrapping(): never
     {
         throw new BadMethodCallException(sprintf('Using %s() method is not allowed.', __METHOD__));
@@ -250,6 +263,7 @@ class JsonApiResource extends JsonResource
         parent::flushState();
 
         static::$jsonApiInformation = [];
+        static::$loadsRelationshipsByDefault = [];
         static::$maxRelationshipDepth = static::DEFAULT_MAX_RELATIONSHIP_DEPTH;
     }
 }

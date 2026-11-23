@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\PHPUnit;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Testbench\Concerns\HandlesAssertions;
 use Hypervel\Testing\Concerns\InteractsWithMockery;
@@ -35,7 +36,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
         try {
             $this->tearDownTheTestEnvironmentUsingMockery();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

@@ -9,16 +9,19 @@ use Hypervel\Passport\AccessToken;
 use Hypervel\Passport\Contracts\OAuthenticatable;
 use Hypervel\Passport\HasApiTokens;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class HasApiTokensTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testTokenCanIndicatesIfTokenHasGivenScope(): void
     {
         $user = new HasApiTokensTestStub;
-        $token = m::mock(AccessToken::class);
-        $token->expects('can')->with('scope')->andReturn(true);
-        $token->expects('can')->with('another-scope')->andReturn(false);
+        $token = Double::for(AccessToken::class)->strict();
+        $token->expects('can')->with('scope')->returns(true);
+        $token->expects('can')->with('another-scope')->returns(false);
 
         $this->assertTrue($user->withAccessToken($token)->tokenCan('scope'));
         $this->assertFalse($user->withAccessToken($token)->tokenCan('another-scope'));

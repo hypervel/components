@@ -9,17 +9,19 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Sentry\Version;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class VersionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSdkVersionIsTheInstalledPackageVersion(): void
     {
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('version')
-            ->once()
+        $manifest = Double::for(PackageManifest::class)->strict();
+        $manifest->expects('version')
             ->with('hypervel/sentry')
-            ->andReturn('1.2.3');
+            ->returns('1.2.3');
 
         Container::getInstance()->singleton(PackageManifest::class, fn () => $manifest);
 
@@ -28,11 +30,10 @@ class VersionTest extends TestCase
 
     public function testSdkVersionFallsBackToTheFrameworkVersion(): void
     {
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('version')
-            ->once()
+        $manifest = Double::for(PackageManifest::class)->strict();
+        $manifest->expects('version')
             ->with('hypervel/sentry')
-            ->andReturn(null);
+            ->returns(null);
 
         Container::getInstance()->singleton(PackageManifest::class, fn () => $manifest);
 

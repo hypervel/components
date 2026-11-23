@@ -22,7 +22,10 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
 use Hypervel\ObjectPool\Lease;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Traits\Conditionable;
+use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
@@ -506,6 +509,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Reject access to the borrowed Flysystem driver.
      */
+    #[Unsupported('Use withDriver() for borrow-scoped access.')]
     public function getDriver(): never
     {
         throw $this->borrowedInternalsException();
@@ -514,6 +518,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Reject access to the borrowed Flysystem adapter.
      */
+    #[Unsupported('Use withAdapter() for borrow-scoped access.')]
     public function getAdapter(): never
     {
         throw $this->borrowedInternalsException();
@@ -522,6 +527,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Reject access to a borrowed client.
      */
+    #[Unsupported('Use withClient() for borrow-scoped access.')]
     public function getClient(): never
     {
         throw $this->borrowedInternalsException();
@@ -529,6 +535,12 @@ trait InteractsWithPooledFilesystem
 
     /**
      * Run a callback with borrow-scoped access to the Flysystem driver.
+     *
+     * @template TDriver of FilesystemOperator
+     * @template T
+     *
+     * @param Closure(TDriver): T $callback
+     * @return T
      */
     public function withDriver(Closure $callback): mixed
     {
@@ -565,6 +577,12 @@ trait InteractsWithPooledFilesystem
 
     /**
      * Run a callback with borrow-scoped access to the Flysystem adapter.
+     *
+     * @template TAdapter of FlysystemAdapter
+     * @template T
+     *
+     * @param Closure(TAdapter): T $callback
+     * @return T
      */
     public function withAdapter(Closure $callback): mixed
     {
@@ -573,6 +591,12 @@ trait InteractsWithPooledFilesystem
 
     /**
      * Run a callback with borrow-scoped access to the driver client.
+     *
+     * @template TClient
+     * @template T
+     *
+     * @param Closure(TClient): T $callback
+     * @return T
      */
     public function withClient(Closure $callback): mixed
     {
@@ -592,9 +616,10 @@ trait InteractsWithPooledFilesystem
     /**
      * Define a custom callback that generates file download responses.
      *
-     * Boot-only. The callback persists on the manager-cached disk for the
-     * worker lifetime and is written to every borrowed adapter.
+     * The callback persists on the manager-cached disk for the worker
+     * lifetime and is written to every borrowed adapter.
      */
+    #[BootOnly(whenShared: true)]
     public function serveUsing(?Closure $callback): void
     {
         $this->serveCallback = $callback;
@@ -603,9 +628,10 @@ trait InteractsWithPooledFilesystem
     /**
      * Define a custom temporary URL builder callback.
      *
-     * Boot-only. The callback persists on the manager-cached disk for the
-     * worker lifetime and is written to every borrowed adapter.
+     * The callback persists on the manager-cached disk for the worker
+     * lifetime and is written to every borrowed adapter.
      */
+    #[BootOnly(whenShared: true)]
     public function buildTemporaryUrlsUsing(?Closure $callback): void
     {
         $this->temporaryUrlCallback = $callback;
@@ -614,9 +640,10 @@ trait InteractsWithPooledFilesystem
     /**
      * Define a custom temporary upload URL builder callback.
      *
-     * Boot-only. The callback persists on the manager-cached disk for the
-     * worker lifetime and is written to every borrowed adapter.
+     * The callback persists on the manager-cached disk for the worker
+     * lifetime and is written to every borrowed adapter.
      */
+    #[BootOnly(whenShared: true)]
     public function buildTemporaryUploadUrlsUsing(?Closure $callback): void
     {
         $this->temporaryUploadUrlCallback = $callback;

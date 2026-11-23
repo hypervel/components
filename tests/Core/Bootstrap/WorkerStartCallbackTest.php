@@ -16,50 +16,50 @@ use Hypervel\Core\Events\MainWorkerStart;
 use Hypervel\Core\Events\OtherWorkerStart;
 use Hypervel\Core\Logger\StdoutLogger;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Psr\Log\LogLevel;
 use Swoole\Server;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class WorkerStartCallbackTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLifecycleEventsAndStartupLoggingRemainOrdered(): void
     {
         $sequence = [];
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(MainWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(MainWorkerStart::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(true);
+        $dispatcher->expects('dispatch')
             ->ordered()
-            ->with(m::type(BeforeWorkerStart::class))
-            ->andReturnUsing(function () use (&$sequence): void {
+            ->with(Argument::type(BeforeWorkerStart::class))
+            ->resolves(function () use (&$sequence): void {
                 $sequence[] = 'before';
             });
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
+        $dispatcher->expects('dispatch')
             ->ordered()
-            ->with(m::type(MainWorkerStart::class))
-            ->andReturnUsing(function () use (&$sequence): void {
+            ->with(Argument::type(MainWorkerStart::class))
+            ->resolves(function () use (&$sequence): void {
                 $sequence[] = 'main';
             });
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
+        $dispatcher->expects('dispatch')
             ->ordered()
-            ->with(m::type(AfterWorkerStart::class))
-            ->andReturnUsing(function () use (&$sequence): void {
+            ->with(Argument::type(AfterWorkerStart::class))
+            ->resolves(function () use (&$sequence): void {
                 $sequence[] = 'after';
             });
 
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('info')
-            ->once()
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('info')
             ->with('Worker#0 started.')
-            ->andReturnUsing(function () use (&$sequence): void {
+            ->resolves(function () use (&$sequence): void {
                 $sequence[] = 'started';
             });
 
@@ -73,17 +73,17 @@ class WorkerStartCallbackTest extends TestCase
 
     public function testWorkerStartsAndResumesCoordinationWithoutLifecycleListeners(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnFalse();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(MainWorkerStart::class)->andReturnFalse();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(false);
+        $dispatcher->expects('hasListeners')->with(MainWorkerStart::class)->returns(false);
+        $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(false);
+        $dispatcher->expects('dispatch')->never();
 
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('info')->once()->with('Worker#0 started.');
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('info')->with('Worker#0 started.');
         $coordinator = CoordinatorManager::until(Constants::WORKER_START);
 
         (new WorkerStartCallback($dispatcher, $logger))->onWorkerStart($server, 0);
@@ -98,22 +98,21 @@ class WorkerStartCallbackTest extends TestCase
         ]);
         $output = new BufferedOutput;
         $logger = new StdoutLogger($config, $output);
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(MainWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(BeforeWorkerStart::class))
-            ->andReturnUsing(function () use ($config): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(MainWorkerStart::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(true);
+        $dispatcher->expects('dispatch')
+            ->with(Argument::type(BeforeWorkerStart::class))
+            ->resolves(function () use ($config): void {
                 $config->set('app.stdout_log.level', [LogLevel::INFO]);
                 $config->set('app.stdout_log.format', 'json');
             });
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(MainWorkerStart::class));
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(AfterWorkerStart::class));
+        $dispatcher->expects('dispatch')->with(Argument::type(MainWorkerStart::class));
+        $dispatcher->expects('dispatch')->with(Argument::type(AfterWorkerStart::class));
 
         (new WorkerStartCallback($dispatcher, $logger))->onWorkerStart($server, 0);
 
@@ -124,19 +123,19 @@ class WorkerStartCallbackTest extends TestCase
 
     public function testCustomLoggerOwnsItsConfiguration(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = true;
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(OtherWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(BeforeWorkerStart::class));
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(OtherWorkerStart::class));
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(AfterWorkerStart::class));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(OtherWorkerStart::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(true);
+        $dispatcher->expects('dispatch')->with(Argument::type(BeforeWorkerStart::class));
+        $dispatcher->expects('dispatch')->with(Argument::type(OtherWorkerStart::class));
+        $dispatcher->expects('dispatch')->with(Argument::type(AfterWorkerStart::class));
 
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('info')->once()->with('TaskWorker#2 started.');
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('info')->with('TaskWorker#2 started.');
 
         (new WorkerStartCallback($dispatcher, $logger))->onWorkerStart($server, 2);
     }

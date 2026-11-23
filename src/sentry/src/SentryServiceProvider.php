@@ -7,6 +7,7 @@ namespace Hypervel\Sentry;
 use ArrayObject;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Console\Events\ScheduledTaskStarting;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -18,6 +19,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Routing\Contracts\CallableDispatcher;
@@ -75,6 +77,7 @@ class SentryServiceProvider extends ServiceProvider
         // We do not want these settings to hit the PHP SDK because they are Hypervel specific and the PHP SDK will throw errors
         'tracing',
         'breadcrumbs',
+        'crons',
         'features',
         'pool',
         // We resolve the integrations through the container later, so we initially do not pass it to the SDK yet
@@ -93,8 +96,8 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * The abstract type to bind Sentry as in the service container.
      *
-     * Boot-only. This value is read while registering container aliases and
-     * config paths; runtime changes split later config reads from the
+     * This value is read while registering container aliases and config
+     * paths; runtime changes split later config reads from the
      * already-registered binding.
      */
     public static string $abstract = 'sentry';
@@ -317,6 +320,13 @@ class SentryServiceProvider extends ServiceProvider
                             return false;
                         }
 
+                        // We also remove the default transaction integration so it can be readded
+                        // after our own integration. This way the route name set by Hypervel takes
+                        // precedence over the fallbacks of the SDK
+                        if ($integration instanceof SdkIntegration\TransactionIntegration) {
+                            return false;
+                        }
+
                         return true;
                     });
 
@@ -334,6 +344,10 @@ class SentryServiceProvider extends ServiceProvider
                     ],
                     $userIntegrations
                 );
+
+                if ($options->hasDefaultIntegrations()) {
+                    $integrations[] = new SdkIntegration\TransactionIntegration;
+                }
 
                 if (is_callable($userIntegrationOption)) {
                     return $userIntegrationOption($integrations);
@@ -564,6 +578,15 @@ class SentryServiceProvider extends ServiceProvider
         $dispatcher = $this->app->make('events');
 
         $handler->subscribe($dispatcher);
+
+        // Termination completes the request transaction, and cancellation can stop a request before it.
+        $dispatcher->listen(RequestCanceled::class, static function (RequestCanceled $event): void {
+            $container = Container::getInstance();
+
+            if ($container->resolvedScoped(TracingMiddleware::class)) {
+                $container->make(TracingMiddleware::class)->requestCanceled($event);
+            }
+        });
     }
 
     /**
@@ -575,11 +598,21 @@ class SentryServiceProvider extends ServiceProvider
             return;
         }
 
-        $viewObserver = static function (ViewFactory $viewFactory): void {
-            $viewFactory->observeRendering(static function (View $view): void {
+        $app = $this->app;
+
+        $viewObserver = static function (ViewFactory $viewFactory) use ($app): void {
+            $viewFactory->observeRendering(static function (View $view) use ($app): void {
+                $viewName = $view->name();
+                $basePath = $app->basePath();
+
+                // Views rendered from a file are named after their full path, strip the base path to keep the name short
+                if (str_starts_with($viewName, $basePath . DIRECTORY_SEPARATOR)) {
+                    $viewName = substr($viewName, strlen($basePath));
+                }
+
                 // The decorator reads this during the same render call; keep it
                 // coroutine-local so concurrent renders do not swap view names.
-                CoroutineContext::set(ViewEngineDecorator::CONTEXT_KEY, $view->name());
+                CoroutineContext::set(ViewEngineDecorator::CONTEXT_KEY, $viewName);
             });
         };
 

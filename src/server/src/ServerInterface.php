@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Server as SwooleServer;
 
 interface ServerInterface
@@ -17,6 +18,7 @@ interface ServerInterface
     /**
      * Initialize the server with the given configuration.
      */
+    #[BootOnly]
     public function init(ServerConfig $config): ServerInterface;
 
     /**

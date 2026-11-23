@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Closure;
-use Exception;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Grammar;
@@ -18,6 +17,7 @@ use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Override;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class DatabaseSchemaBlueprintTest extends SqliteTestCase
@@ -354,6 +354,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertSame([
             'name' => 'items_active_index',
             'columns' => ['account_id', 'archived_at'],
+            'key_columns' => ['account_id', 'archived_at'],
             'type' => null,
             'unique' => false,
             'primary' => false,
@@ -472,7 +473,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         });
 
         $schema->table('children', function (Blueprint $table) {
-            $table->renameColumn('id', 'uuid');
+            $table->renameColumn('ID', 'uuid');
             $table->text('name')->change();
         });
 
@@ -482,6 +483,141 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
             ['user_id'],
             $schema->getForeignKeys('children')[0]['columns'],
         );
+        $this->assertSame(['id'], $schema->getForeignKeys('children')[0]['foreign_columns']);
+    }
+
+    public function testColumnChangesDropsAndIndexGuardsUseNativeCaseMatching(): void
+    {
+        DB::statement('CREATE TABLE cased_columns (id INTEGER PRIMARY KEY, note VARCHAR, obsolete TEXT)');
+        Schema::table('cased_columns', function (Blueprint $table): void {
+            $table->index('ID', 'cased_index');
+            $table->dropColumn('OBSOLETE');
+            $table->text('NOTE')->nullable()->change();
+        });
+
+        $this->assertSame(['id', 'note'], Schema::getColumnListing('cased_columns'));
+        $this->assertSame('text', Schema::getColumnType('cased_columns', 'note'));
+        $this->assertTrue(Schema::hasIndex('cased_columns', ['id']));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRebuildPreservesImplicitForeignKeyTargets(bool $parentExists): void
+    {
+        if ($parentExists) {
+            DB::statement('CREATE TABLE parents (id INTEGER PRIMARY KEY)');
+        }
+        DB::statement('CREATE TABLE children (parent_id INTEGER REFERENCES parents, note VARCHAR)');
+        Schema::table('children', function (Blueprint $table): void {
+            $table->text('note')->nullable()->change();
+        });
+
+        $this->assertNull(DB::select('PRAGMA foreign_key_list(children)')[0]->to);
+        if (! $parentExists) {
+            DB::statement('CREATE TABLE parents (id INTEGER PRIMARY KEY)');
+        }
+        $this->assertSame(['id'], Schema::getForeignKeys('children')[0]['foreign_columns']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSelfReferenceRenamePreservesPrefixedQualifiedIdentity(bool $existing): void
+    {
+        $connection = DB::connection();
+        $reference = $existing ? ' REFERENCES PRE_NODES(ID)' : '';
+        $connection->statement("CREATE TABLE pre_nodes (id INTEGER PRIMARY KEY, parent_id INTEGER{$reference}, note VARCHAR)");
+        $prefix = $connection->getTablePrefix();
+        $connection->setTablePrefix('pre_');
+
+        try {
+            Schema::table('main.nodes', function (Blueprint $table) use ($existing): void {
+                if (! $existing) {
+                    $table->foreign('parent_id')->references('ID')->on('nodes');
+                }
+                $table->renameColumn('id', 'key');
+                $table->text('note')->nullable()->change();
+            });
+
+            $this->assertSame('key', $connection->select('PRAGMA foreign_key_list(pre_nodes)')[0]->to);
+            $connection->statement('PRAGMA foreign_keys = ON');
+            $connection->statement('INSERT INTO pre_nodes (key, parent_id) VALUES (1, NULL), (2, 1)');
+            $this->assertSame(2, $connection->scalar('SELECT count(*) FROM pre_nodes'));
+
+            Schema::table('main.nodes', function (Blueprint $table): void {
+                $table->dropForeign(['PARENT_ID']);
+            });
+            $this->assertSame([], Schema::getForeignKeys('main.nodes'));
+        } finally {
+            $connection->setTablePrefix($prefix);
+            $connection->statement('PRAGMA foreign_keys = OFF');
+        }
+    }
+
+    #[DataProvider('primaryKeyForms')]
+    public function testRebuildPreservesPrimaryKeyAllocation(string $definition, string $options, bool $automatic, ?int $initialId, bool $declared, bool $empty): void
+    {
+        DB::statement("CREATE TABLE rowid_facts (id {$definition}, note VARCHAR DEFAULT 'autoincrement', \"autoincrement\" TEXT /* autoincrement */){$options}");
+        DB::table('rowid_facts')->insert(['id' => $initialId, 'note' => 'kept']);
+        if ($automatic) {
+            DB::table('rowid_facts')->insert(['id' => 2, 'note' => 'deleted']);
+            DB::table('rowid_facts')->where('id', 2)->delete();
+        }
+        if ($empty) {
+            DB::table('rowid_facts')->delete();
+        }
+        $this->assertSame($automatic, Schema::getColumn('rowid_facts', 'id')['auto_increment']);
+
+        Schema::table('rowid_facts', function (Blueprint $table): void {
+            $table->text('note')->nullable()->change();
+        });
+
+        $this->assertSame($automatic, Schema::getColumn('rowid_facts', 'id')['auto_increment']);
+        $this->assertSame($empty ? [] : [$initialId], DB::table('rowid_facts')->pluck('id')->all());
+        if ($automatic) {
+            $this->assertSame($declared ? 3 : 2, DB::table('rowid_facts')->insertGetId(['note' => 'next']));
+        }
+        if ($options !== '') {
+            $this->assertStringContainsString('without rowid', strtolower(DB::scalar("SELECT sql FROM sqlite_master WHERE name = 'rowid_facts'")));
+        }
+    }
+
+    /**
+     * Provide distinct native primary-key forms and empty AUTOINCREMENT history.
+     */
+    public static function primaryKeyForms(): array
+    {
+        return [
+            'plain alias' => ['INTEGER PRIMARY KEY', '', true, 1, false, false],
+            'autoincrement' => ['INTEGER PRIMARY KEY AUTOINCREMENT', '', true, 1, true, false],
+            'empty autoincrement' => ['INTEGER PRIMARY KEY AUTOINCREMENT', '', true, 1, true, true],
+            'inline descending' => ['INTEGER PRIMARY KEY DESC', '', false, null, false, false],
+            'without rowid' => ['INTEGER PRIMARY KEY', ' WITHOUT ROWID', false, 1, false, false],
+        ];
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAutoIncrementChangeInAPrefixedAttachedTable(bool $declared): void
+    {
+        $connection = DB::connection();
+        $prefix = $connection->getTablePrefix();
+        $connection->statement("ATTACH DATABASE ':memory:' AS audit");
+        $connection->setTablePrefix('pre_');
+
+        try {
+            $connection->statement('CREATE TABLE audit.PRE_IDS (id INTEGER PRIMARY KEY' . ($declared ? ' AUTOINCREMENT' : '') . ', note TEXT)');
+            $connection->statement("INSERT INTO audit.PRE_IDS VALUES (7, 'kept'), (8, 'deleted')");
+            $connection->statement('DELETE FROM audit.PRE_IDS WHERE id = 8');
+            $this->assertTrue(Schema::hasTable('audit.ids'));
+            Schema::table('audit.ids', function (Blueprint $table): void {
+                $table->integer('id')->autoIncrement()->change();
+            });
+
+            $this->assertSame($declared ? 9 : 8, $connection->table('audit.ids')->insertGetId(['note' => 'next']));
+        } finally {
+            $connection->setTablePrefix($prefix);
+            $connection->statement('DETACH DATABASE audit');
+        }
     }
 
     public function testRebuildReemitsInlineUniqueConstraints(): void
@@ -711,7 +847,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $connection = DB::connection();
         $schema = $connection->getSchemaBuilder();
         $connection->statement(
-            'create table contacts (score integer check (score > 0), name varchar)'
+            'create table CONTACTS (score integer check (score > 0), name varchar)'
         );
         $exception = null;
 
@@ -1389,19 +1525,11 @@ SQL);
             $table->timestamp('created_at');
         });
 
-        try {
-            // this would only fail in mysql, postgres and sql server
-            Schema::table('users', function (Blueprint $table) {
-                $table->renameColumn('created_at', 'new_created_at');
-            });
+        Schema::table('users', function (Blueprint $table) {
+            $table->renameColumn('created_at', 'new_created_at');
+        });
 
-            $this->addToAssertionCount(1); // it did not throw
-        } catch (Exception $e) {
-            // Expecting something similar to:
-            // QueryException
-            //   SQLSTATE[42000]: Syntax error or access violation: 1426 Too big precision 10 specified for 'my_timestamp'. Maximum is 6....
-            $this->fail('test_it_does_not_set_precision_higher_than_supported_when_renaming_timestamps has failed. Error: ' . $e->getMessage());
-        }
+        $this->assertSame(['new_created_at'], Schema::getColumnListing('users'));
     }
 
     public function testItEnsuresDroppingForeignKeyIsAvailable(): void

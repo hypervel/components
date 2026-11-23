@@ -383,7 +383,7 @@ class ModelInspector
     protected function columnIsUnique(string $column, array $indexes): bool
     {
         return (new BaseCollection($indexes))->contains(
-            fn ($index) => count($index['columns']) === 1 && $index['columns'][0] === $column && $index['unique']
+            fn ($index) => count($index['columns']) === 1 && $index['columns'][0] === $column && $index['unique'] && ! $index['partial']
         );
     }
 }

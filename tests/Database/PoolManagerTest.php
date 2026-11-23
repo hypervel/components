@@ -17,7 +17,9 @@ use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
@@ -29,6 +31,8 @@ use WeakReference;
 
 class PoolManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPoolReturnsSameInstance(): void
     {
         $container = $this->mockContainerWithPools();
@@ -438,19 +442,19 @@ class PoolManagerTest extends TestCase
 
     public function testPurgeAllDetachesPoolsBeforeClosingThem(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $original = m::mock(DatabasePool::class);
-        $replacement = m::mock(DatabasePool::class);
-        $original->shouldReceive('start')->once();
-        $replacement->shouldReceive('start')->once();
-        $replacement->shouldReceive('isClosed')->andReturnFalse();
-        $container->shouldReceive('make')
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $original = Double::for(DatabasePool::class)->strict();
+        $replacement = Double::for(DatabasePool::class)->strict();
+        $original->expects('start');
+        $replacement->expects('start');
+        $replacement->allows('isClosed')->returns(false);
+        $container->expects('make')
             ->with(DatabasePool::class, ['name' => 'default'])
-            ->twice()
-            ->andReturn($original, $replacement);
-        $poolManager = new PoolManager($container);
+            ->times(2)
+            ->returns($original, $replacement);
+        $poolManager = new PoolManager($container->instance());
         $resolvedDuringClose = null;
-        $original->shouldReceive('close')->once()->andReturnUsing(
+        $original->expects('close')->resolves(
             function () use ($poolManager, &$resolvedDuringClose): void {
                 $resolvedDuringClose = $poolManager->pool('default');
             }
@@ -468,22 +472,22 @@ class PoolManagerTest extends TestCase
     {
         $firstFailure = new RuntimeException('first close failed');
         $secondFailure = new RuntimeException('second close failed');
-        $firstPool = m::mock(DatabasePool::class);
-        $secondPool = m::mock(DatabasePool::class);
-        $thirdPool = m::mock(DatabasePool::class);
-        $firstPool->shouldReceive('start')->once();
-        $secondPool->shouldReceive('start')->once();
-        $thirdPool->shouldReceive('start')->once();
-        $firstPool->shouldReceive('close')->once()->andThrow($firstFailure);
-        $secondPool->shouldReceive('close')->once()->andThrow($secondFailure);
-        $thirdPool->shouldReceive('close')->once();
+        $firstPool = Double::for(DatabasePool::class)->strict();
+        $secondPool = Double::for(DatabasePool::class)->strict();
+        $thirdPool = Double::for(DatabasePool::class)->strict();
+        $firstPool->expects('start');
+        $secondPool->expects('start');
+        $thirdPool->expects('start');
+        $firstPool->expects('close')->throws($firstFailure);
+        $secondPool->expects('close')->throws($secondFailure);
+        $thirdPool->expects('close');
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(DatabasePool::class, ['name' => 'first'])->once()->andReturn($firstPool);
-        $container->shouldReceive('make')->with(DatabasePool::class, ['name' => 'second'])->once()->andReturn($secondPool);
-        $container->shouldReceive('make')->with(DatabasePool::class, ['name' => 'third'])->once()->andReturn($thirdPool);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('make')->with(DatabasePool::class, ['name' => 'first'])->returns($firstPool);
+        $container->expects('make')->with(DatabasePool::class, ['name' => 'second'])->returns($secondPool);
+        $container->expects('make')->with(DatabasePool::class, ['name' => 'third'])->returns($thirdPool);
 
-        $poolManager = new PoolManager($container);
+        $poolManager = new PoolManager($container->instance());
         $poolManager->pool('first');
         $poolManager->pool('second');
         $poolManager->pool('third');
@@ -531,19 +535,19 @@ class PoolManagerTest extends TestCase
 
     public function testPurgeDetachesPoolBeforeClosingIt(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $original = m::mock(DatabasePool::class);
-        $replacement = m::mock(DatabasePool::class);
-        $original->shouldReceive('start')->once();
-        $replacement->shouldReceive('start')->once();
-        $replacement->shouldReceive('isClosed')->andReturnFalse();
-        $container->shouldReceive('make')
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $original = Double::for(DatabasePool::class)->strict();
+        $replacement = Double::for(DatabasePool::class)->strict();
+        $original->expects('start');
+        $replacement->expects('start');
+        $replacement->allows('isClosed')->returns(false);
+        $container->expects('make')
             ->with(DatabasePool::class, ['name' => 'default'])
-            ->twice()
-            ->andReturn($original, $replacement);
-        $poolManager = new PoolManager($container);
+            ->times(2)
+            ->returns($original, $replacement);
+        $poolManager = new PoolManager($container->instance());
         $resolvedDuringClose = null;
-        $original->shouldReceive('close')->once()->andReturnUsing(
+        $original->expects('close')->resolves(
             function () use ($poolManager, &$resolvedDuringClose): void {
                 $resolvedDuringClose = $poolManager->pool('default');
             }
@@ -729,21 +733,21 @@ class PoolManagerTest extends TestCase
     {
         $ordinaryFailure = new RuntimeException('write pool close failed');
         $cancellation = new CanceledException;
-        $writePool = m::mock(DatabasePool::class);
-        $readPool = m::mock(DatabasePool::class);
-        $cachePool = m::mock(DatabasePool::class);
-        $poolManager = new PoolManager(m::mock(ContainerContract::class));
+        $writePool = Double::for(DatabasePool::class)->strict();
+        $readPool = Double::for(DatabasePool::class)->strict();
+        $cachePool = Double::for(DatabasePool::class)->strict();
+        $poolManager = new PoolManager(Double::for(ContainerContract::class, override: true)->strict()->instance());
         $detachedPools = null;
 
-        $writePool->shouldReceive('close')->once()->andReturnUsing(
+        $writePool->expects('close')->resolves(
             function () use ($poolManager, &$detachedPools, $ordinaryFailure): never {
                 $detachedPools = $poolManager->getPools();
 
                 throw $ordinaryFailure;
             }
         );
-        $readPool->shouldReceive('close')->once()->andThrow($cancellation);
-        $cachePool->shouldNotReceive('close');
+        $readPool->expects('close')->throws($cancellation);
+        $cachePool->expects('close')->never();
 
         $pools = new ReflectionProperty($poolManager, 'pools');
         $pools->setValue($poolManager, [
@@ -781,7 +785,7 @@ class PoolManagerTest extends TestCase
         return $container;
     }
 
-    private function mockContainerWithPools(?array $connections = null): m\MockInterface|ContainerContract
+    private function mockContainerWithPools(?array $connections = null): ContainerContract
     {
         $connections ??= [
             'default' => $this->connectionConfig(),
@@ -794,18 +798,18 @@ class PoolManagerTest extends TestCase
             ],
         ]);
 
-        $container = m::mock(ContainerContract::class);
-        $factory = new ConnectionFactory($container);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $factory = new ConnectionFactory($container->instance());
 
-        $container->shouldReceive('make')->with('config')->andReturn($config);
-        $container->shouldReceive('make')->with('db.factory')->andReturn($factory);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-        $container->shouldReceive('make')->with(DatabasePool::class, m::any())->andReturnUsing(
-            fn ($class, $arguments) => new PoolManagerTestPool($container, $arguments['name'])
+        $container->allows('make')->with('config')->returns($config);
+        $container->allows('make')->with('db.factory')->returns($factory);
+        $container->allows('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
+        $container->allows('make')->with(DatabasePool::class, Argument::any())->resolves(
+            fn ($class, $arguments) => new PoolManagerTestPool($container->instance(), $arguments['name'])
         );
 
-        return $container;
+        return $container->instance();
     }
 
     private function connectionConfig(array $overrides = []): array

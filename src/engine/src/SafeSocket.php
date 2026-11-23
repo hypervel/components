@@ -8,6 +8,7 @@ use Hypervel\Contracts\Engine\Socket\SocketOptionInterface;
 use Hypervel\Contracts\Engine\SocketInterface;
 use Hypervel\Engine\Exceptions\SocketClosedException;
 use Hypervel\Engine\Exceptions\SocketTimeoutException;
+use Hypervel\Support\FailureReporter;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\Socket;
 use Throwable;
@@ -156,6 +157,7 @@ class SafeSocket implements SocketInterface
         $started = false;
 
         try {
+            // @phpstan-ignore hypervel.rawCoroutine (the engine package sits below hypervel/coroutine, and the send loop contains every failure, including its logger's)
             Coroutine::create(function () use (&$started): void {
                 $started = true;
 
@@ -187,7 +189,12 @@ class SafeSocket implements SocketInterface
                     if (! $exception instanceof SocketClosedException
                         && ! $exception instanceof SocketTimeoutException
                     ) {
-                        $this->logger?->critical((string) $exception);
+                        // A failing logger must not escape this raw coroutine before the socket closes.
+                        try {
+                            $this->logger?->critical((string) $exception);
+                        } catch (Throwable $loggingFailure) {
+                            FailureReporter::report($loggingFailure);
+                        }
                     }
 
                     $this->close();

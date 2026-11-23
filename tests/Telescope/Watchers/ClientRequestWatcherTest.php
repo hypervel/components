@@ -11,6 +11,8 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\CachingStream;
+use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
@@ -25,8 +27,11 @@ use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 enum ClientRequestWatcherTestIntTag: int
 {
@@ -285,6 +290,29 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'password' => '********',
             'name' => 'Taylor',
         ], $entry->content['payload']);
+    }
+
+    #[TestWith([false], 'request body')]
+    #[TestWith([true], 'cached response body')]
+    public function testBodyProducerCancellationEscapesRecording(bool $response): void
+    {
+        $failure = new RuntimeException('Body cleanup failed.', previous: new CanceledException);
+        $body = new PumpStream(static fn () => throw $failure);
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'text/plain'], $response ? new CachingStream($body) : 'ok'),
+        ]);
+        $request = new Request('POST', 'https://example.com', [], $response ? '' : $body);
+        $caught = null;
+
+        try {
+            $this->executeTransfer($client, $request);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            $body->close();
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     public function testRawJsonRequestRetainsAndMasksAtTheEntryContentChildLimit(): void
@@ -776,6 +804,19 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('photo.jpg', $entry->content['payload']['image']['name']);
         $this->assertSame(($image->getSize() / 1000) . 'KB', $entry->content['payload']['image']['size']);
         $this->assertSame(['foo' => 'bar'], $entry->content['payload']['image']['headers']);
+    }
+
+    public function testClientRequestWatcherReportsTheSizeOfAnEmptyResourceFileUpload(): void
+    {
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
+
+        $file = UploadedFile::fake()->create('empty.txt', 0);
+
+        Http::attach('file', $file->tempFile)->post('https://hypervel.org/fake-upload-file-route');
+
+        $this->assertSame('0KB', $this->loadTelescopeEntries()->first()->content['payload']['file']['size']);
     }
 
     public function testItStoresAndDisplaysArrayOfRequestHeaders(): void

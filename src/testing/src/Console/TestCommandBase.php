@@ -10,6 +10,7 @@ use Dotenv\Exception\InvalidPathException;
 use Dotenv\Parser\Parser;
 use Dotenv\Store\StoreBuilder;
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
 use Hypervel\Support\Str;
@@ -148,19 +149,19 @@ abstract class TestCommandBase extends Command
             try {
                 $this->cleanupTemporaryConfigurationFile();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             try {
                 $this->coverage?->cleanup();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             try {
                 $this->cleanupProfileDirectory();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

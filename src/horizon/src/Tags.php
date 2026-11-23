@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionProperty;
@@ -96,8 +97,9 @@ class Tags
         $models = [];
 
         foreach ($targets as $target) {
+            // Unlike Laravel, a parent's private properties are read too, since the target holds them.
             $models[] = collect(
-                (new ReflectionClass($target))->getProperties()
+                ClassMetadataCache::allProperties($target)
             )->map(function ($property) use ($target) {
                 $value = static::getValue($property, $target);
 

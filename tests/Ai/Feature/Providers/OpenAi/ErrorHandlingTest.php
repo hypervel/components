@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\OpenAi;
 
 use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\InsufficientCreditsException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
@@ -46,6 +47,22 @@ class ErrorHandlingTest extends TestCase
                 'error' => [
                     'type' => 'rate_limit_error',
                     'message' => 'Rate limit exceeded',
+                ],
+            ], 429),
+        ]);
+
+        (new AssistantAgent)->prompt('Hi', provider: 'openai');
+    }
+
+    public function testInsufficientQuotaResponseThrowsInsufficientCreditsException(): void
+    {
+        $this->expectException(InsufficientCreditsException::class);
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'error' => [
+                    'type' => 'insufficient_quota',
+                    'code' => 'insufficient_quota',
+                    'message' => 'You exceeded your current quota, please check your plan and billing details.',
                 ],
             ], 429),
         ]);

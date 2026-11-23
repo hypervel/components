@@ -11,11 +11,14 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseQueryBuilderEmbeddingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('attachmentPaths')]
     public function testEmbeddingValidationCanRejectBeforeChangingTheOuterQuery(Closure $attach): void
     {
@@ -95,9 +98,9 @@ class DatabaseQueryBuilderEmbeddingTest extends TestCase
      */
     protected function builder(): EmbeddingAwareQueryBuilder
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getDatabaseName')->andReturn('database');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getTablePrefix')->returns('');
+        $connection->allows('getDatabaseName')->returns('database');
 
         return new EmbeddingAwareQueryBuilder($connection, new Grammar($connection), new Processor);
     }

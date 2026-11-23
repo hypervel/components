@@ -146,8 +146,7 @@ class CoroutineSafetyTest extends TestCase
             $results = [$first[0] => $first[1], $second[0] => $second[1]];
 
             if ($cleanupThrows) {
-                $this->assertInstanceOf(ImageException::class, $results['owner']);
-                $this->assertSame($cleanupException, $results['owner']->getPrevious());
+                $this->assertSame($cleanupException, $results['owner']);
                 $this->assertInstanceOf(CanceledException::class, $cleanupException->getPrevious());
             } else {
                 $this->assertInstanceOf(CanceledException::class, $results['owner']);
@@ -156,7 +155,7 @@ class CoroutineSafetyTest extends TestCase
             $this->assertTrue(Coroutine::causedByCancellation($results['owner']));
             $this->assertInstanceOf(ImageException::class, $results['waiter']);
             $this->assertInstanceOf(ForeignCancellationException::class, $results['waiter']->getPrevious());
-            $this->assertSame($cleanupThrows ? $cleanupException : $results['owner'], $results['waiter']->getPrevious()->getPrevious());
+            $this->assertSame($results['owner'], $results['waiter']->getPrevious()->getPrevious());
             $this->assertFalse(Coroutine::causedByCancellation($results['waiter']));
         } finally {
             $release->push(true, 0.001);

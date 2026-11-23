@@ -8,6 +8,7 @@ use Hypervel\Auth\Events\Registered;
 use Hypervel\Auth\Listeners\SendEmailVerificationNotification;
 use Hypervel\Foundation\Events\DiscoverEvents;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\ServiceProvider;
@@ -157,11 +158,12 @@ class EventServiceProvider extends ServiceProvider
     /**
      * Add the given event discovery paths to the application's event discovery paths.
      *
-     * Boot-only. The path list persists in a static property used during
-     * provider boot; runtime use has no effect on already-discovered events.
+     * The path list persists in a static property used during provider boot;
+     * runtime use has no effect on already-discovered events.
      *
      * @param iterable<int, string>|string $paths
      */
+    #[BootOnly]
     public static function addEventDiscoveryPaths(iterable|string $paths): void
     {
         static::$eventDiscoveryPaths = (new LazyCollection(static::$eventDiscoveryPaths))
@@ -173,11 +175,12 @@ class EventServiceProvider extends ServiceProvider
     /**
      * Set the globally configured event discovery paths.
      *
-     * Boot-only. The path list persists in a static property used during
-     * provider boot; runtime use has no effect on already-discovered events.
+     * The path list persists in a static property used during provider boot;
+     * runtime use has no effect on already-discovered events.
      *
      * @param iterable<int, string> $paths
      */
+    #[BootOnly]
     public static function setEventDiscoveryPaths(iterable $paths): void
     {
         static::$eventDiscoveryPaths = $paths;
@@ -194,9 +197,10 @@ class EventServiceProvider extends ServiceProvider
     /**
      * Disable event discovery for the application.
      *
-     * Boot-only. The flag persists in a static property used during provider
-     * boot; runtime use has no effect on already-discovered events.
+     * The flag persists in a static property used during provider boot;
+     * runtime use has no effect on already-discovered events.
      */
+    #[BootOnly]
     public static function disableEventDiscovery(): void
     {
         static::$shouldDiscoverEvents = false;

@@ -15,6 +15,7 @@ use Hypervel\Di\Aop\ProxyMarker;
 use Hypervel\Di\Aop\ProxyMethod;
 use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Composer;
 use ReflectionClass;
 
@@ -55,8 +56,9 @@ class GenerateProxies
     /**
      * Generate and register proxies in the given directory before their targets load.
      *
-     * Boot or tests only. Loaded classes cannot be replaced in the running process.
+     * Loaded classes cannot be replaced in the running process.
      */
+    #[BootOrTestsOnly]
     public function generate(string $proxyDir): void
     {
         if (! AspectCollector::hasAspects()) {

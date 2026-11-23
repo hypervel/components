@@ -27,32 +27,38 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 #[WithMigration]
 class EloquentUserProviderCacheTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected const string DEFAULT_KEY_PREFIX = EloquentUserProvider::DEFAULT_CACHE_PREFIX;
 
     protected CacheManager $realCacheManager;
 
-    protected MockInterface $cacheManager;
+    protected CacheManager&DoubleInterface $cacheManager;
 
-    protected MockInterface $cacheCoordinator;
+    protected ModelCacheCoordinator&DoubleInterface $cacheCoordinator;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->realCacheManager = $this->app->make(CacheManager::class);
-        $this->cacheManager = m::mock(CacheManager::class);
-        $this->cacheCoordinator = m::mock(ModelCacheCoordinator::class);
+        $this->cacheManager = Double::for(CacheManager::class)->strict();
+        $this->cacheCoordinator = Double::for(ModelCacheCoordinator::class)->strict();
         $this->app->instance('cache', $this->cacheManager);
         $this->app->instance(ModelCacheCoordinator::class, $this->cacheCoordinator);
     }
@@ -144,7 +150,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
 
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repo, $expectedKey);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repo), $expectedKey);
 
         $this->makeCachedProvider();
 
@@ -158,7 +164,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
 
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repo, $expectedKey);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repo), $expectedKey);
 
         $this->makeCachedProvider();
 
@@ -169,9 +175,8 @@ class EloquentUserProviderCacheTest extends TestCase
     {
         $user = User::query()->firstOrFail();
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, $this->buildKey($user->getAuthIdentifier()));
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), $this->buildKey($user->getAuthIdentifier()));
 
         $this->makeCachedProvider();
 
@@ -179,7 +184,7 @@ class EloquentUserProviderCacheTest extends TestCase
             $user->name = 'Updated';
             $user->save();
 
-            $this->cacheCoordinator->shouldNotHaveReceived('invalidate');
+            $this->cacheCoordinator->unused();
         });
     }
 
@@ -187,16 +192,15 @@ class EloquentUserProviderCacheTest extends TestCase
     {
         $user = User::query()->firstOrFail();
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, $this->buildKey($user->getAuthIdentifier()));
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), $this->buildKey($user->getAuthIdentifier()));
 
         $this->makeCachedProvider();
 
         DB::transaction(function () use ($user): void {
             $user->delete();
 
-            $this->cacheCoordinator->shouldNotHaveReceived('invalidate');
+            $this->cacheCoordinator->unused();
         });
     }
 
@@ -204,7 +208,7 @@ class EloquentUserProviderCacheTest extends TestCase
     {
         $user = User::query()->firstOrFail();
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldNotReceive('invalidate');
+        $this->cacheCoordinator->expects('invalidate')->never();
 
         $this->makeCachedProvider();
 
@@ -224,9 +228,8 @@ class EloquentUserProviderCacheTest extends TestCase
     {
         $user = User::query()->firstOrFail();
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, $this->buildKey($user->getAuthIdentifier()));
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), $this->buildKey($user->getAuthIdentifier()));
         $default = DB::connection();
         $secondary = DB::connection('auth_secondary');
 
@@ -239,7 +242,7 @@ class EloquentUserProviderCacheTest extends TestCase
             $this->fireUserEvent('saved', $user);
 
             $secondary->commit();
-            $this->cacheCoordinator->shouldNotHaveReceived('invalidate');
+            $this->cacheCoordinator->unused();
 
             $default->commit();
         } finally {
@@ -258,7 +261,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $user = (new User)->setConnection('auth_secondary');
         $user->setRawAttributes(['id' => 1], true);
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repo, $this->buildKey(1));
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repo), $this->buildKey(1));
         $connection = DB::connection('auth_secondary');
         $manager = $connection->getTransactionManager();
 
@@ -277,7 +280,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $user = (new User)->setConnection('auth_secondary');
         $user->setRawAttributes(['id' => 1], true);
         $this->stubCache();
-        $this->cacheCoordinator->shouldNotReceive('invalidate');
+        $this->cacheCoordinator->expects('invalidate')->never();
         $connection = DB::connection('auth_secondary');
         $manager = $connection->getTransactionManager();
 
@@ -309,12 +312,10 @@ class EloquentUserProviderCacheTest extends TestCase
         });
 
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, self::DEFAULT_KEY_PREFIX . ':' . User::class . ':before:' . $user->getAuthIdentifier());
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, 'admin_users:' . User::class . ':before:' . $user->getAuthIdentifier());
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), self::DEFAULT_KEY_PREFIX . ':' . User::class . ':before:' . $user->getAuthIdentifier());
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), 'admin_users:' . User::class . ':before:' . $user->getAuthIdentifier());
 
         $this->makeCachedProvider();
 
@@ -345,9 +346,9 @@ class EloquentUserProviderCacheTest extends TestCase
         });
 
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->twice()
-            ->with($repo, self::DEFAULT_KEY_PREFIX . ':' . User::class . ':owner:' . $user->getKey());
+        $this->cacheCoordinator->expects('invalidate')
+            ->times(2)
+            ->with(Argument::same($repo), self::DEFAULT_KEY_PREFIX . ':' . User::class . ':owner:' . $user->getKey());
 
         $this->makeCachedProvider();
 
@@ -389,8 +390,8 @@ class EloquentUserProviderCacheTest extends TestCase
         $keyA = self::DEFAULT_KEY_PREFIX . ':' . User::class . ':' . $user->getAuthIdentifier();
         $keyB = 'admin_users:' . User::class . ':' . $user->getAuthIdentifier();
 
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoA, $keyA);
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoB, $keyB);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repoA), $keyA);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repoB), $keyB);
 
         $providerA = new EloquentUserProvider($this->app->make('hash'), User::class);
         $providerA->enableCache('redis-a');
@@ -413,8 +414,8 @@ class EloquentUserProviderCacheTest extends TestCase
         $earliest = new RuntimeException('first store failed');
         $later = new RuntimeException('second store failed');
 
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoA, $keyA)->andThrow($earliest);
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoB, $keyB)->andThrow($later);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repoA), $keyA)->throws($earliest);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repoB), $keyB)->throws($later);
 
         $providerA = new EloquentUserProvider($this->app->make('hash'), User::class);
         $providerA->enableCache('redis-a');
@@ -434,17 +435,52 @@ class EloquentUserProviderCacheTest extends TestCase
         $this->assertSame($earliest, $caught);
     }
 
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testModelEventInvalidationStopsOnCancellationAfterAnOrdinaryFailure(bool $wrapped): void
+    {
+        $user = User::query()->firstOrFail();
+        $failure = new CanceledException('Invalidation canceled.');
+
+        if ($wrapped) {
+            $failure = new RuntimeException('Invalidation cleanup failed.', previous: $failure);
+        }
+
+        foreach (['first', 'second', 'third'] as $name) {
+            $repository = $this->stubCache($name);
+            $expectation = $this->cacheCoordinator->expects('invalidate')
+                ->with(Argument::same($repository), $this->buildKey($user->getAuthIdentifier()));
+
+            if ($name === 'third') {
+                $expectation->never();
+            } else {
+                $expectation->throws($name === 'first' ? new RuntimeException('Store unavailable.') : $failure);
+            }
+
+            (new EloquentUserProvider($this->app->make('hash'), User::class))->enableCache($name);
+        }
+
+        $caught = null;
+
+        try {
+            $user->name = 'Updated';
+            $user->save();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+    }
+
     public function testChangingProviderModelKeepsBothModelKeyspacesInvalidatable(): void
     {
         $user = User::query()->firstOrFail();
         $alternateUser = AuthCacheAlternateUser::query()->firstOrFail();
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, $this->buildKey($user->getAuthIdentifier()));
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, self::DEFAULT_KEY_PREFIX . ':' . AuthCacheAlternateUser::class . ':' . $alternateUser->getAuthIdentifier());
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), $this->buildKey($user->getAuthIdentifier()));
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), self::DEFAULT_KEY_PREFIX . ':' . AuthCacheAlternateUser::class . ':' . $alternateUser->getAuthIdentifier());
 
         $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
         $provider->enableCache(null);
@@ -461,8 +497,8 @@ class EloquentUserProviderCacheTest extends TestCase
     {
         // Two distinct providers with different configs. If the save/deleted
         // listeners were attached per-enableCache, the single save below would
-        // invoke forget 4 times (2 listeners × 2 descriptors). We expect
-        // exactly 2 forget calls — one listener, iterating 2 descriptors.
+        // invoke invalidate 4 times (2 listeners × 2 descriptors). We expect
+        // exactly 2 invalidate calls — one listener, iterating 2 descriptors.
         $repoA = $this->stubCache('redis-a');
         $repoB = $this->stubCache('redis-b');
 
@@ -470,8 +506,8 @@ class EloquentUserProviderCacheTest extends TestCase
         $keyA = self::DEFAULT_KEY_PREFIX . ':' . User::class . ':' . $user->getAuthIdentifier();
         $keyB = 'admin_users:' . User::class . ':' . $user->getAuthIdentifier();
 
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoA, $keyA);
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoB, $keyB);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repoA), $keyA);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repoB), $keyB);
 
         $providerA = new EloquentUserProvider($this->app->make('hash'), User::class);
         $providerA->enableCache('redis-a');
@@ -493,7 +529,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
 
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repo, $expectedKey);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repo), $expectedKey);
 
         $provider = $this->makeCachedProvider();
 
@@ -506,7 +542,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
 
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repo, $expectedKey);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repo), $expectedKey);
 
         $provider = $this->makeCachedProvider();
 
@@ -550,21 +586,21 @@ class EloquentUserProviderCacheTest extends TestCase
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
 
         $repo = $this->stubCache();
-        $this->cacheCoordinator->shouldReceive('fill')
-            ->twice()
+        $fills = 0;
+        $this->cacheCoordinator->expects('fill')
+            ->times(2)
             ->with(
-                $repo,
-                m::type(Closure::class),
+                Argument::same($repo),
+                Argument::type(Closure::class),
                 $expectedKey,
                 300,
-                m::type(Closure::class),
+                Argument::type(Closure::class),
                 true,
-                m::type(Closure::class),
+                Argument::type(Closure::class),
             )
-            ->andReturnUsing(
-                fn (CacheRepository $cache, Closure $source, string $key, int $ttl, Closure $read) => $read(),
-                fn () => $user,
-            );
+            ->resolves(function (CacheRepository $cache, Closure $source, string $key, int $ttl, Closure $read) use (&$fills, $user): Authenticatable {
+                return ++$fills === 1 ? $read() : $user;
+            });
 
         $withQueryInvocations = 0;
         $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
@@ -816,11 +852,11 @@ class EloquentUserProviderCacheTest extends TestCase
         ));
     }
 
-    protected function stubCache(?string $name = null): MockInterface
+    protected function stubCache(?string $name = null): CacheRepository&DoubleInterface
     {
-        $repo = m::mock(CacheRepository::class);
-        $repo->shouldReceive('getStore')->andReturn(m::mock(FileStore::class));
-        $this->cacheManager->shouldReceive('store')->with($name)->andReturn($repo);
+        $repo = Double::for(CacheRepository::class)->strict();
+        $repo->allows('getStore')->returns(Double::for(FileStore::class)->strict());
+        $this->cacheManager->allows('store')->with($name)->returns($repo);
 
         return $repo;
     }

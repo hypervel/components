@@ -6,13 +6,20 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use BadMethodCallException;
 use DateTime;
+use Hypervel\Cache\Redis\Operations\AllTag\Flush;
+use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use Redis;
 use RuntimeException;
@@ -20,6 +27,7 @@ use RuntimeException;
 class RedisStoreTest extends TestCase
 {
     use InteractsWithRedis;
+    use VerifiesDoubles;
 
     public function testCacheTtl(): void
     {
@@ -319,6 +327,206 @@ class RedisStoreTest extends TestCase
 
         $keyCount = Cache::store('redis')->connection()->keys('*');
         $this->assertCount(0, $keyCount);
+    }
+
+    public function testItStoresAndRetrievesValues(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        $this->assertNull($store->get('foo'));
+
+        $this->assertTrue($store->put('foo', 'bar', 60));
+        $this->assertTrue($store->put('number', 5, 60));
+        $this->assertTrue($store->put('float', 1.5, 60));
+
+        $this->assertSame('bar', $store->get('foo'));
+        $this->assertEquals(5, $store->get('number'));
+        $this->assertEquals(1.5, $store->get('float'));
+    }
+
+    public function testItStoresAndRetrievesManyValues(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        $this->assertTrue($store->putMany(['foo' => 'bar', 'fizz' => 'buzz', 'norf' => 'quz'], 60));
+
+        $this->assertSame(
+            ['foo' => 'bar', 'fizz' => 'buzz', 'norf' => 'quz', 'missing' => null],
+            $store->many(['foo', 'fizz', 'norf', 'missing'])
+        );
+    }
+
+    public function testItIncrementsAndDecrementsValues(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        $store->put('count', 1, 60);
+
+        $this->assertSame(6, $store->increment('count', 5));
+        $this->assertEquals(6, $store->get('count'));
+        $this->assertSame(4, $store->decrement('count', 2));
+        $this->assertEquals(4, $store->get('count'));
+    }
+
+    public function testItStoresValuesForeverAndCanTouchThem(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+        $connection = $store->connection();
+
+        $this->assertTrue($store->forever('forever', 'value'));
+        $this->assertSame('value', $store->get('forever'));
+        $this->assertSame(-1, $connection->ttl($store->getPrefix() . 'forever'));
+
+        $store->put('touched', 'value', 10);
+
+        $this->assertTrue($store->touch('touched', 100));
+        $this->assertGreaterThan(10, $connection->ttl($store->getPrefix() . 'touched'));
+        $this->assertSame('value', $store->get('touched'));
+    }
+
+    public function testFlushStaleTagsRemovesExpiredEntriesAndStopsScanning(): void
+    {
+        $store = Cache::store('redis');
+
+        $store->clear();
+
+        // Backdate membership scores while leaving Redis values alive, so pruning
+        // must remove expired scores rather than relying on orphan cleanup.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->subMinutes(5));
+
+        try {
+            $store->tags(['foo'])->put('expired', 'value', 60);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+
+        $store->tags(['foo'])->put('fresh', 'value', 3600);
+
+        $tagSet = $store->getPrefix() . '_all:tag:foo:entries';
+
+        $this->assertSame(2, $store->connection()->zcard($tagSet));
+
+        // The scan has to recognize it is back at its starting cursor, or this never returns...
+        $store->flushStaleTags();
+
+        $this->assertSame(1, $store->connection()->zcard($tagSet));
+        $this->assertSame('value', $store->tags(['foo'])->get('fresh'));
+    }
+
+    #[WithConfig('database.redis.options.prefix', 'app_')]
+    #[WithConfig('database.redis.options.scan', Redis::SCAN_PREFIX)]
+    public function testFlushStaleTagsDoesNotDoublePrefixTheMatchPatternWithScanPrefix(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->subMinutes(5));
+
+        try {
+            $store->tags(['foo'])->put('expired', 'value', 60);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+
+        $tagSet = $store->getPrefix() . '_all:tag:foo:entries';
+        $connection = $store->connection();
+
+        $this->assertSame(1, $connection->zcard($tagSet));
+
+        $store->flushStaleTags();
+
+        $this->assertSame(0, $connection->zcard($tagSet));
+    }
+
+    public function testItForgetsAndFlushesValues(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        $store->put('foo', 'bar', 60);
+        $store->put('fizz', 'buzz', 60);
+
+        $this->assertTrue($store->forget('foo'));
+        $this->assertNull($store->get('foo'));
+        $this->assertSame('buzz', $store->get('fizz'));
+
+        $this->assertTrue($store->flush());
+        $this->assertNull($store->get('fizz'));
+    }
+
+    public function testFlushingManyTagsOnlyPassesEachEntrysOwnTagToTheScript(): void
+    {
+        // Hypervel runs flush scripts on the raw connection, which dispatches no command events,
+        // so the per-script arguments are asserted in Cache\Redis\Operations\AllTag\FlushTest.
+        $store = Cache::store('redis');
+        $connection = $store->connection();
+
+        $store->clear();
+
+        $prefix = $store->getPrefix();
+
+        $store->tags(['people'])->put('person-1', 'Sally', 300);
+        $store->tags(['people', 'artist'])->put('person-2', 'John', 300);
+        $store->tags(['artist'])->forever('person-3', 'Taylor');
+        $store->tags(['other'])->put('person-4', 'Abigail', 300);
+
+        $store->tags(['people', 'artist', 'empty-1', 'empty-2'])->flush();
+
+        $this->assertNull($store->tags(['people'])->get('person-1'));
+        $this->assertNull($store->tags(['people', 'artist'])->get('person-2'));
+        $this->assertNull($store->tags(['artist'])->get('person-3'));
+        $this->assertSame('Abigail', $store->tags(['other'])->get('person-4'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:people:entries'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:artist:entries'));
+        $this->assertSame(1, $connection->zcard($prefix . '_all:tag:other:entries'));
+    }
+
+    public function testFlushingTagsWhileASharedKeyIsRewrittenLeavesNoLiveValueUnindexed(): void
+    {
+        $store = Cache::store('redis');
+        $connection = $store->connection();
+
+        $store->clear();
+
+        $prefix = $store->getPrefix();
+
+        $store->tags(['people', 'artist'])->forever('person', 'Sally');
+
+        // Hypervel's flush scripts dispatch no command events, so the rewrite happens when the
+        // second tag's entries are requested, after the first tag's script has run.
+        $context = $store->getStore()->getContext();
+        $scanner = new GetEntries($context);
+        $requests = 0;
+        $entries = Double::for(GetEntries::class)->strict();
+        $entries->expects('execute')
+            ->times(2)
+            ->resolves(function (array $tagIds) use ($scanner, $store, &$requests): LazyCollection {
+                if (++$requests === 2) {
+                    $store->tags(['people', 'artist'])->forever('person', 'John');
+                }
+
+                return $scanner->execute($tagIds);
+            });
+
+        (new Flush($context, $entries))->execute($store->tags(['people', 'artist'])->getTags()->tagIds());
+
+        $itemKey = $store->tags(['people', 'artist'])->taggedItemKey('person');
+
+        if ($store->tags(['people', 'artist'])->get('person') !== null) {
+            $this->assertContains($itemKey, $connection->zrange($prefix . '_all:tag:people:entries', 0, -1));
+            $this->assertContains($itemKey, $connection->zrange($prefix . '_all:tag:artist:entries', 0, -1));
+        }
+
+        $store->tags(['people'])->flush();
+        $store->tags(['artist'])->flush();
+
+        $this->assertNull($store->tags(['people', 'artist'])->get('person'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:people:entries'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:artist:entries'));
     }
 
     public function testLocksCanBeFlushed(): void

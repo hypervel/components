@@ -7,6 +7,8 @@ namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
 use Hypervel\Ai\Attributes\CacheInstructions;
 use Hypervel\Ai\Attributes\CacheToolDefinitions;
 use Hypervel\Ai\Gateway\Anthropic\AnthropicSchemaSanitizer;
+use Hypervel\Ai\Gateway\StepContext;
+use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
 use Hypervel\Ai\ObjectSchema;
 use Hypervel\Ai\Providers\Provider;
@@ -79,6 +81,39 @@ trait BuildsTextRequests
         }
 
         return $this->applyPromptCacheBreakpoints(array_merge($body, $providerOptions), $options);
+    }
+
+    /**
+     * Run the step in the code execution container the previous step used.
+     */
+    protected function withContainer(array $body, StepContext $stepContext): array
+    {
+        if (blank($stepContext->continuationToken)) {
+            return $body;
+        }
+
+        if (is_array($body['container'] ?? null)) {
+            $body['container']['id'] ??= $stepContext->continuationToken;
+        } else {
+            $body['container'] ??= $stepContext->continuationToken;
+        }
+
+        return $body;
+    }
+
+    /**
+     * Keep the container the request ran in when the response doesn't name one.
+     *
+     * Anthropic only returns the container when the step runs code, so a step that only calls local tools would
+     * otherwise drop it, and the next code step would start in a new container without the earlier files.
+     */
+    protected function withRequestContainer(StepResponse $step, array $body): StepResponse
+    {
+        $container = $body['container'] ?? null;
+
+        $step->continuationToken ??= is_array($container) ? ($container['id'] ?? null) : $container;
+
+        return $step;
     }
 
     /**

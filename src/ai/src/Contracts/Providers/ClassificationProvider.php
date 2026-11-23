@@ -9,6 +9,7 @@ use Hypervel\Ai\Contracts\Question;
 use Hypervel\Ai\Files\File;
 use Hypervel\Ai\Responses\ClassificationResponse;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface ClassificationProvider extends Provider
 {
@@ -30,6 +31,7 @@ interface ClassificationProvider extends Provider
     /**
      * Set the provider's classification gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useClassificationGateway(ClassificationGateway $gateway): self;
 
     /**

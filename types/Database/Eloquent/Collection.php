@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Support\Stringable;
 
 use function PHPStan\Testing\assertType;
 
@@ -33,45 +34,45 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAggregate('string', 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAggregate(['string'], 'string'));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAggregate(['string' => ['foo' => fn ($q) => $q]], 'string'));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAggregate(['string' => []], 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAggregate(['string'], 'string', 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAggregate(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
 }], 'string', 'string'));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadCount('string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadCount(['string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadCount(['string' => ['foo' => fn ($q) => $q]]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadCount(['string' => []]));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadCount(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
 }]));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMax('string', 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMax(['string'], 'string'));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMax(['string' => ['foo' => fn ($q) => $q]], 'string'));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMax(['string' => []], 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMax(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
 }], 'string'));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMin('string', 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMin(['string'], 'string'));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMin(['string' => ['foo' => fn ($q) => $q]], 'string'));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMin(['string' => []], 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMin(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
 }], 'string'));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadSum('string', 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadSum(['string'], 'string'));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadSum(['string' => ['foo' => fn ($q) => $q]], 'string'));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadSum(['string' => []], 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadSum(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
 }], 'string'));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAvg('string', 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAvg(['string'], 'string'));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAvg(['string' => ['foo' => fn ($q) => $q]], 'string'));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAvg(['string' => []], 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAvg(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
 }], 'string'));
 
 /**
@@ -90,9 +91,9 @@ function assertEloquentCollectionAggregateExpressionTypes(Collection $collection
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists('string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string' => ['foo' => fn ($q) => $q]]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string' => []]));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
 }]));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMissing('string'));
@@ -102,17 +103,21 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load
     // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
 }]));
 
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', ['string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', ['string' => ['foo' => fn ($q) => $q]]));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', ['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
-}]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', [User::class => ['string']]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', [User::class => ['string' => ['foo' => fn ($q) => $q]]]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', [User::class => ['string' => function ($query) {
+    assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $query);
+}]]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', [User::class => 'string']));
 
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', ['string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', ['string' => ['foo' => fn ($q) => $q]]));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', ['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
-}]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', [User::class => ['string']]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', [User::class => ['foo' => fn ($q) => $q]]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', [User::class => ['string' => function ($query) {
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
+}]]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', [User::class => 'string']));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorph('string', [2 => ['string']]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMorphCount('string', [2 => ['string' => []]]));
 
 assertType('bool', $collection->contains(function ($user) {
     assertType('User', $user);
@@ -127,7 +132,7 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merg
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge([new User]));
 
 assertType(
-    'Hypervel\Support\Collection<int, User>',
+    'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->map(function ($user, $int) {
         assertType('User', $user);
         assertType('int', $int);
@@ -137,7 +142,7 @@ assertType(
 );
 
 assertType(
-    'Hypervel\Support\Collection<int, User>',
+    'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->mapWithKeys(function ($user, $int) {
         assertType('User', $user);
         assertType('int', $int);
@@ -146,7 +151,7 @@ assertType(
     })
 );
 assertType(
-    'Hypervel\Support\Collection<string, User>',
+    'Hypervel\Database\Eloquent\Collection<string, User>',
     $collection->mapWithKeys(function ($user, $int) {
         return ['string' => new User];
     })
@@ -179,6 +184,9 @@ assertType(
     'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->fresh(['string'])
 );
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->fresh(['string' => function ($relation) {
+    assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+}]));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->diff($collection));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->diff([new User]));
@@ -219,6 +227,11 @@ assertType('array<User>', $collection->getDictionary([new User]));
 
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->pluck('string'));
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->pluck(['string']));
+assertType('Hypervel\Support\Collection<(int|string), int>', $collection->pluck(fn (User $user): int => 1));
+assertType('Hypervel\Support\Collection<string, mixed>', $collection->pluck('string', fn (User $user): string => 'key'));
+assertType('Hypervel\Support\Collection<string, mixed>', $collection->pluck('string', fn (User $user) => 'key'));
+assertType('Hypervel\Support\Collection<int, string>', $collection->pluck(fn (User $user): string => 'value', fn (User $user): int => 1));
+assertType('Hypervel\Support\Collection<string, int>', $collection->pluck(fn (User $user): int => 1, fn (User $user): Stringable => new Stringable('key')));
 
 assertType('Hypervel\Support\Collection<int, int>', $collection->keys());
 

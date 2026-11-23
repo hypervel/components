@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\QueryException;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDOException;
 
 class DatabaseQueryExceptionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testIfItEmbedsBindingsIntoSql(): void
     {
         $connection = $this->getMockConnection();
@@ -26,7 +30,7 @@ class DatabaseQueryExceptionTest extends TestCase
         $pdoException = new PDOException('Mock SQL error');
         $exception = new QueryException($connection->getName(), $sql, $bindings, $pdoException);
 
-        DB::shouldReceive('connection')->andReturn($connection);
+        DB::swap($this->getConnectionResolver($connection));
         $result = $exception->getRawSql();
 
         $this->assertSame($expectedSql, $result);
@@ -44,7 +48,7 @@ class DatabaseQueryExceptionTest extends TestCase
         $pdoException = new PDOException('Mock SQL error');
         $exception = new QueryException($connection->getName(), $sql, $bindings, $pdoException);
 
-        DB::shouldReceive('connection')->andReturn($connection);
+        DB::swap($this->getConnectionResolver($connection));
         $result = $exception->getRawSql();
 
         $this->assertSame($expectedSql, $result);
@@ -154,17 +158,17 @@ class DatabaseQueryExceptionTest extends TestCase
     public function testBindingsAreEmbeddedInTheMessageByDefault(): void
     {
         $pdoException = new PDOException('Mock SQL error');
-        $exception = new QueryException('mysql', 'SELECT * FROM users WHERE email = ?', ['foo@example.com'], $pdoException);
+        $exception = new QueryException('mysql', 'SELECT * FROM users WHERE email = ? AND balance = ?', ['foo@example.com', 1.234567890123456], $pdoException);
 
-        $this->assertSame('Mock SQL error (Connection: mysql, SQL: SELECT * FROM users WHERE email = foo@example.com)', $exception->getMessage());
+        $this->assertSame('Mock SQL error (Connection: mysql, SQL: SELECT * FROM users WHERE email = foo@example.com AND balance = 1.234567890123456)', $exception->getMessage());
     }
 
     public function testBindingsCanBeMaskedInTheMessage(): void
     {
         $pdoException = new PDOException('Mock SQL error');
-        $exception = new QueryException('mysql', 'SELECT * FROM users WHERE email = ?', ['foo@example.com'], $pdoException, [], null, true);
+        $exception = new QueryException('mysql', 'SELECT * FROM users WHERE email = ? AND balance = ?', ['foo@example.com', 1.234567890123456], $pdoException, [], null, true);
 
-        $this->assertSame('Mock SQL error (Connection: mysql, SQL: SELECT * FROM users WHERE email = ?)', $exception->getMessage());
+        $this->assertSame('Mock SQL error (Connection: mysql, SQL: SELECT * FROM users WHERE email = ? AND balance = ?)', $exception->getMessage());
     }
 
     public function testMaskingBindingsDoesNotAffectTheAccessors(): void
@@ -181,15 +185,26 @@ class DatabaseQueryExceptionTest extends TestCase
      */
     protected function getMockConnection(): Connection
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
 
         $grammar = new Grammar($connection);
 
-        $connection->shouldReceive('getName')->andReturn('default');
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
-        $connection->shouldReceive('escape')->with(1, false)->andReturn(1);
-        $connection->shouldReceive('escape')->with('br', false)->andReturn("'br'");
+        $connection->allows('getName')->returns('default');
+        $connection->allows('getQueryGrammar')->returns($grammar);
+        $connection->allows('escape')->with(1, false)->returns('1');
+        $connection->allows('escape')->with('br', false)->returns("'br'");
 
         return $connection;
+    }
+
+    /**
+     * Resolve the connection used to render the failed query.
+     */
+    protected function getConnectionResolver(Connection $connection): ConnectionResolverInterface
+    {
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->expects('connection')->with('default')->returns($connection);
+
+        return $resolver;
     }
 }

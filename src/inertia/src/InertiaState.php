@@ -74,12 +74,12 @@ class InertiaState implements ReplicableContext
     public array $page = [];
 
     /**
-     * The cached SSR response for the current request.
+     * The cached SSR response for the current page.
      */
     public ?SsrResponse $ssrResponse = null;
 
     /**
-     * Whether the SSR gateway has been dispatched for this request.
+     * Whether the SSR gateway has been dispatched for the current page.
      */
     public bool $ssrDispatched = false;
 
@@ -126,7 +126,24 @@ class InertiaState implements ReplicableContext
     }
 
     /**
-     * Dispatch SSR if it has not already been dispatched for this request.
+     * Set the page data for the current request.
+     *
+     * @param array<string, mixed> $page
+     */
+    public function setPage(array $page): static
+    {
+        if ($page !== $this->page) {
+            $this->ssrDispatched = false;
+            $this->ssrResponse = null;
+        }
+
+        $this->page = $page;
+
+        return $this;
+    }
+
+    /**
+     * Dispatch SSR if it has not already been dispatched for the current page.
      */
     public function dispatchSsr(): ?SsrResponse
     {

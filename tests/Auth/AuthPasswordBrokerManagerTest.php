@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use BackedEnum;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Auth\Passwords\PasswordBroker as PasswordBrokerImplementation;
 use Hypervel\Auth\Passwords\PasswordBrokerManager;
@@ -14,13 +15,16 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Hashing\Hasher;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 
@@ -28,6 +32,8 @@ use function Hypervel\Coroutine\parallel;
 
 class AuthPasswordBrokerManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResolveBrokerNameForGuardReturnsDeclaredBroker(): void
     {
         $manager = new PasswordBrokerManager($this->makeContainer([
@@ -196,8 +202,8 @@ class AuthPasswordBrokerManagerTest extends TestCase
 
     public function testSetDefaultDriverOverridesGuardDeclaration(): void
     {
-        $auth = $this->mockAuthFactory('web');
-        $auth->shouldNotReceive('getDefaultDriver');
+        $auth = Double::for(AuthFactory::class)->strict();
+        $auth->expects('getDefaultDriver')->never();
 
         $container = $this->makeContainer([
             'auth' => [
@@ -219,7 +225,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
     #[DataProvider('backedBrokerNames')]
     public function testBrokerCanResolveBackedEnum(BackedEnum $name, string $expected): void
     {
-        $broker = m::mock(PasswordBrokerContract::class);
+        $broker = Double::for(PasswordBrokerContract::class)->strict();
         $manager = new AuthPasswordBrokerManagerStub(new Container);
         $manager->resolvedBroker = $broker;
 
@@ -307,20 +313,18 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = m::mock());
-        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
-        $container->instance('hash', m::mock(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
-        $auth->shouldReceive('createUserProvider')
-            ->once()
+        $auth->expects('createUserProvider')
             ->with('admins')
-            ->andReturn(m::mock(UserProvider::class));
-        $connection = m::mock(ConnectionInterface::class);
+            ->returns(Double::for(UserProvider::class)->strict());
+        $connection = Double::for(Connection::class)->strict();
         $resolutions = 0;
-        $database->shouldReceive('connection')
-            ->once()
+        $database->expects('connection')
             ->with('passwords')
-            ->andReturnUsing(function () use (&$resolutions, $connection) {
+            ->resolves(function () use (&$resolutions, $connection) {
                 ++$resolutions;
 
                 return $connection;
@@ -352,22 +356,21 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = m::mock());
-        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
-        $container->instance('hash', m::mock(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
-        $auth->shouldReceive('createUserProvider')
-            ->once()
+        $auth->expects('createUserProvider')
             ->with('zero')
-            ->andReturn(m::mock(UserProvider::class));
-        $database->shouldNotReceive('connection');
+            ->returns(Double::for(UserProvider::class)->strict());
+        $database->expects('connection')->never();
 
         $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('0'));
     }
 
     public function testBrokerWithEmptyNameUsesDefaultDriver(): void
     {
-        $broker = m::mock(PasswordBrokerContract::class);
+        $broker = Double::for(PasswordBrokerContract::class)->strict();
         $manager = new AuthPasswordBrokerManagerStub(new Container);
         $manager->resolvedBroker = $broker;
         $manager->setDefaultDriver('users');
@@ -384,16 +387,15 @@ class AuthPasswordBrokerManagerTest extends TestCase
             ],
             'auth' => require __DIR__ . '/../../src/foundation/config/auth.php',
         ]);
-        $container->instance('auth', $auth = m::mock());
-        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
-        $container->instance('hash', m::mock(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
-        $auth->shouldReceive('createUserProvider')
-            ->once()
+        $auth->expects('createUserProvider')
             ->with('users')
-            ->andReturn(m::mock(UserProvider::class));
-        $connection = m::mock(ConnectionInterface::class);
-        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+            ->returns(Double::for(UserProvider::class)->strict());
+        $connection = Double::for(Connection::class)->strict();
+        $database->expects('connection')->with(null)->returns($connection);
 
         $broker = (new PasswordBrokerManager($container))->broker('users');
         $repository = (new ReflectionProperty($broker, 'tokens'))->getValue($broker);
@@ -419,15 +421,14 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = m::mock());
-        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
-        $container->instance('hash', m::mock(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
-        $auth->shouldReceive('createUserProvider')
-            ->once()
+        $auth->expects('createUserProvider')
             ->with('users')
-            ->andReturn(m::mock(UserProvider::class));
-        $database->shouldNotReceive('connection');
+            ->returns(Double::for(UserProvider::class)->strict());
+        $database->expects('connection')->never();
 
         $broker = (new PasswordBrokerManager($container))->broker('users');
         $repository = (new ReflectionProperty($broker, 'tokens'))->getValue($broker);
@@ -454,18 +455,16 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = m::mock());
-        $container->instance('cache', $cache = m::mock());
-        $container->instance('hash', m::mock(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('cache', $cache = Double::for(CacheFactory::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
-        $auth->shouldReceive('createUserProvider')
-            ->once()
+        $auth->expects('createUserProvider')
             ->with('users')
-            ->andReturn(m::mock(UserProvider::class));
-        $cache->shouldReceive('store')
-            ->once()
+            ->returns(Double::for(UserProvider::class)->strict());
+        $cache->expects('store')
             ->with(null)
-            ->andReturn(m::mock(CacheRepository::class));
+            ->returns(Double::for(CacheRepository::class)->strict());
 
         $this->assertInstanceOf(
             PasswordBrokerContract::class,
@@ -514,10 +513,10 @@ class AuthPasswordBrokerManagerTest extends TestCase
     public function testRefreshingDispatcherUpdatesOnlyConcreteResolvedBrokers(): void
     {
         $manager = new AuthPasswordBrokerManagerStub(new Container);
-        $concreteBroker = m::mock(PasswordBrokerImplementation::class);
-        $customBroker = m::mock(PasswordBrokerContract::class);
-        $events = m::mock(Dispatcher::class);
-        $concreteBroker->shouldReceive('setDispatcher')->once()->with($events);
+        $concreteBroker = Double::for(PasswordBrokerImplementation::class)->strict();
+        $customBroker = Double::for(PasswordBrokerContract::class)->strict();
+        $events = Double::for(Dispatcher::class)->strict();
+        $concreteBroker->expects('setDispatcher')->with(Argument::same($events));
         $manager->seedBroker('concrete', $concreteBroker);
         $manager->seedBroker('custom', $customBroker);
 
@@ -566,8 +565,8 @@ class AuthPasswordBrokerManagerTest extends TestCase
      */
     private function mockAuthFactory(string $guard): AuthFactory
     {
-        $auth = m::mock(AuthFactory::class);
-        $auth->shouldReceive('getDefaultDriver')->andReturn($guard)->byDefault();
+        $auth = Double::for(AuthFactory::class)->strict();
+        $auth->allows('getDefaultDriver')->returns($guard);
 
         return $auth;
     }

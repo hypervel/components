@@ -11,11 +11,14 @@ use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\FacebookProvider;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionMethod;
 
 class FacebookProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMapUserToObjectWithAccessTokenResponse(): void
     {
         $provider = $this->getProvider();
@@ -61,7 +64,7 @@ class FacebookProviderTest extends TestCase
     public function testAccessTokenProfileRequestPreservesDocumentedQueryParameters(): void
     {
         $provider = $this->getProvider();
-        $httpClient = m::mock(Client::class);
+        $httpClient = Double::for(Client::class)->strict();
         $provider->setHttpClient($httpClient);
 
         $httpClient->expects('get')->with('https://graph.facebook.com/v23.0/me', [
@@ -73,7 +76,7 @@ class FacebookProviderTest extends TestCase
                 'fields' => 'name,email,gender,verified,link,picture.width(1920)',
                 'appsecret_proof' => hash_hmac('sha256', 'access-token', 'client_secret'),
             ],
-        ])->andReturn(new Response(body: json_encode([
+        ])->returns(new Response(body: json_encode([
             'id' => '123456',
             'name' => 'Test User',
         ])));
@@ -81,10 +84,13 @@ class FacebookProviderTest extends TestCase
         $this->assertSame('123456', $provider->userFromToken('access-token')->getId());
     }
 
+    /**
+     * Create the Facebook provider.
+     */
     private function getProvider(): FacebookProvider
     {
         return new FacebookProvider(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect',

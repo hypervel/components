@@ -37,6 +37,7 @@ use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\LazyLoadingViolationException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -45,6 +46,7 @@ use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Hash;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
@@ -95,7 +97,9 @@ trait HasAttributes
     /**
      * The attributes that should be cast.
      *
-     * @var array<string, string>
+     * A cast may be declared as [$cast, ...$arguments], which the model normalizes to a string when it is constructed.
+     *
+     * @var array<string, non-empty-list<int|string>|string>
      */
     protected array $casts = [];
 
@@ -178,6 +182,8 @@ trait HasAttributes
 
     /**
      * The accessors to append to the model's array form.
+     *
+     * @var array<string>
      */
     protected array $appends = [];
 
@@ -758,10 +764,12 @@ trait HasAttributes
      */
     protected function mutateAttributeForArray(string $key, mixed $value): mixed
     {
-        if ($this->isClassCastable($key)) {
+        // Unlike Laravel, an enum cast serializes through its get accessor, since instantiating the
+        // enum as a class cast throws. The accessor lookup also fills the read cache for this
+        // spelling, as cacheMutatedAttributes() keeps only snake case keys.
+        if (! $this->isEnumCastable($key) && $this->isClassCastable($key)) {
             $value = $this->getClassCastableAttributeValue($key, $value);
-        } elseif (isset(static::$getAttributeMutatorCache[get_class($this)][$key])
-                  && static::$getAttributeMutatorCache[get_class($this)][$key] === true) {
+        } elseif ($this->hasAttributeGetMutator($key)) {
             $value = $this->mutateAttributeMarkedAttribute($key, $value);
 
             $value = $value instanceof DateTimeInterface
@@ -776,6 +784,8 @@ trait HasAttributes
 
     /**
      * Merge new casts with existing casts on the model.
+     *
+     * @return $this
      */
     public function mergeCasts(array $casts): static
     {
@@ -1218,6 +1228,8 @@ trait HasAttributes
 
     /**
      * Set a given JSON attribute on the model.
+     *
+     * @return $this
      */
     public function fillJsonAttribute(string $key, mixed $value): static
     {
@@ -1260,9 +1272,12 @@ trait HasAttributes
         // A custom caster may read the accessor while preparing the new stored value.
         unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
 
+        // A caster may decline an assigned object that differs from what it reads back,
+        // so the next read builds the value from the stored attributes instead.
         if ($caster instanceof CastsInboundAttributes
             || ! is_object($value)
-            || ($caster->withoutObjectCaching ?? false)) {
+            || ($caster->withoutObjectCaching ?? false)
+            || (method_exists($caster, 'shouldCacheObject') && ! $caster->shouldCacheObject($this, $key, $value))) {
             unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         } else {
             $this->classCastCache[$key] = $value;
@@ -1392,7 +1407,7 @@ trait HasAttributes
     /**
      * Decode the given JSON back into an array or object.
      */
-    public function fromJson(?string $value, bool $asObject = false): mixed
+    public function fromJson(string|int|float|null $value, bool $asObject = false): mixed
     {
         if ($value === null || $value === '') {
             return null;
@@ -1420,9 +1435,10 @@ trait HasAttributes
     /**
      * Set the encrypter instance that will be used to encrypt attributes.
      *
-     * Boot-only. The encrypter persists in a static property for the worker
-     * lifetime and is used by primitive encrypted casts across all coroutines.
+     * The encrypter persists in a static property for the worker lifetime and
+     * is used by primitive encrypted casts across all coroutines.
      */
+    #[BootOnly]
     public static function encryptUsing(?EncrypterContract $encrypter): void
     {
         static::$encrypter = $encrypter;
@@ -1451,7 +1467,6 @@ trait HasAttributes
             return Hash::make($value);
         }
 
-        /* @phpstan-ignore staticMethod.notFound */
         if (! Hash::verifyConfiguration($value)) {
             throw new RuntimeException("Could not verify the hashed value's configuration.");
         }
@@ -1482,10 +1497,17 @@ trait HasAttributes
      *
      * @throws MathException
      */
-    protected function asDecimal(float|string $value, int $decimals): string
+    protected function asDecimal(float|int|string $value, int $decimals): string
     {
+        $value = is_float($value) ? Number::toString($value) : (string) $value;
+
+        // Bound scientific-notation expansion without restricting explicit decimal precision.
+        if (Number::exceedsMaxExponent($value)) {
+            throw new MathException('Unable to cast value to a decimal.');
+        }
+
         try {
-            return (string) BigDecimal::of((string) $value)->toScale($decimals, RoundingMode::HalfUp);
+            return (string) BigDecimal::of($value)->toScale($decimals, RoundingMode::HalfUp);
         } catch (BrickMathException $e) {
             throw new MathException('Unable to cast value to a decimal.', previous: $e);
         }
@@ -1542,7 +1564,6 @@ trait HasAttributes
         // that is returned back out to the developers after we convert it here.
         try {
             $date = Date::createFromFormat($format, $value);
-            // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
         } catch (InvalidFormatException) {
             $date = null;
         }
@@ -1583,6 +1604,7 @@ trait HasAttributes
     {
         return $date instanceof DateTimeImmutable
             ? CarbonImmutable::instance($date)->toJSON()
+            // @phpstan-ignore hypervel.mutableDate (copies the date only to serialize it, keeping a mutable Carbon subclass's toJSON())
             : Carbon::instance($date)->toJSON();
     }
 
@@ -1609,6 +1631,8 @@ trait HasAttributes
 
     /**
      * Set the date format used by the model.
+     *
+     * @return $this
      */
     public function setDateFormat(string $format): static
     {
@@ -1649,7 +1673,7 @@ trait HasAttributes
     /**
      * Get the attributes that should be cast.
      *
-     * @return array<string, list<string>|string|Stringable>
+     * @return array<string, non-empty-list<int|string>|string|Stringable>
      */
     protected function casts(): array
     {
@@ -1734,7 +1758,9 @@ trait HasAttributes
 
         $castType = $this->parseCasterClass($casts[$key]);
 
-        if (in_array($castType, static::$primitiveCastTypes)) {
+        // Unlike Laravel, a primitive cast in another case, such as BOOLEAN, is primitive here too, as getCastType()
+        // normalizes it for reads, so writes do not throw.
+        if (in_array($castType, static::$primitiveCastTypes) || in_array($this->getCastType($key), static::$primitiveCastTypes)) {
             return $this->castMetadataCache['classCastable'][$key] = false;
         }
 
@@ -1851,8 +1877,8 @@ trait HasAttributes
     /**
      * Flush the caster cache for the model.
      *
-     * Boot or tests only. Clears the worker-wide caster instance cache shared
-     * by every coroutine; next attribute access rebuilds the casters.
+     * Clears the worker-wide caster instance cache shared by every coroutine;
+     * next attribute access rebuilds the casters.
      */
     public static function flushCasterCache(): void
     {
@@ -2078,12 +2104,14 @@ trait HasAttributes
 
     /**
      * Set the array of model attributes. No checking is done.
+     *
+     * @return $this
      */
     public function setRawAttributes(array $attributes, bool $sync = false): static
     {
         $this->attributes = $attributes;
 
-        // Synchronizing original values must not write back objects from the old row.
+        // Laravel clears these after syncing, which writes objects from the old row over the replacement values.
         $this->classCastCache = [];
         $this->classCastStoredValues = [];
         $this->attributeCastCache = [];
@@ -2177,6 +2205,8 @@ trait HasAttributes
 
     /**
      * Sync the original attributes with the current.
+     *
+     * @return $this
      */
     public function syncOriginal(): static
     {
@@ -2187,6 +2217,8 @@ trait HasAttributes
 
     /**
      * Sync a single original attribute with its current value.
+     *
+     * @return $this
      */
     public function syncOriginalAttribute(string $attribute): static
     {
@@ -2197,6 +2229,7 @@ trait HasAttributes
      * Sync multiple original attribute with their current values.
      *
      * @param array<string>|string $attributes
+     * @return $this
      */
     public function syncOriginalAttributes(array|string $attributes): static
     {
@@ -2213,23 +2246,36 @@ trait HasAttributes
 
     /**
      * Sync the changed attributes.
+     *
+     * @return $this
      */
     public function syncChanges(): static
     {
-        return $this->syncChangesFrom($this->getDirty());
+        /** @var null|array{model: static, changes: array<string, mixed>} $pending */
+        $pending = CoroutineContext::get(self::SYNC_CHANGES_CONTEXT_KEY);
+        $this->changes = ($pending['model'] ?? null) === $this ? $pending['changes'] : $this->getDirty();
+        $this->previous = array_intersect_key($this->getRawOriginal(), $this->changes);
+
+        return $this;
     }
 
     /**
      * Sync the supplied changed attributes.
      *
      * @param array<string, mixed> $changes
+     * @return $this
      */
     private function syncChangesFrom(array $changes): static
     {
-        $this->changes = $changes;
-        $this->previous = array_intersect_key($this->getRawOriginal(), $changes);
+        // Pass stored values through the zero-argument hook so overrides run without repeating cached setters.
+        $previous = CoroutineContext::get(self::SYNC_CHANGES_CONTEXT_KEY);
+        CoroutineContext::set(self::SYNC_CHANGES_CONTEXT_KEY, ['model' => $this, 'changes' => $changes]);
 
-        return $this;
+        try {
+            return $this->syncChanges();
+        } finally {
+            CoroutineContext::set(self::SYNC_CHANGES_CONTEXT_KEY, $previous);
+        }
     }
 
     /**
@@ -2257,6 +2303,8 @@ trait HasAttributes
 
     /**
      * Discard attribute changes and reset the attributes to their original state.
+     *
+     * @return $this
      */
     public function discardChanges(): static
     {
@@ -2466,7 +2514,7 @@ trait HasAttributes
     /**
      * Compare JSON values using the structure exposed by their cast.
      */
-    protected function jsonIsEquivalent(?string $attribute, ?string $original, bool $asObject): bool
+    protected function jsonIsEquivalent(string|int|float|null $attribute, string|int|float|null $original, bool $asObject): bool
     {
         $current = $this->fromJson($attribute, $asObject);
 
@@ -2524,6 +2572,7 @@ trait HasAttributes
      * Append attributes to query when building a query.
      *
      * @param array<string>|string $attributes
+     * @return $this
      */
     public function append(array|string $attributes): static
     {
@@ -2536,6 +2585,8 @@ trait HasAttributes
 
     /**
      * Get the accessors that are being appended to model arrays.
+     *
+     * @return array<string>
      */
     public function getAppends(): array
     {
@@ -2544,6 +2595,9 @@ trait HasAttributes
 
     /**
      * Set the accessors to append to model arrays.
+     *
+     * @param array<string> $appends
+     * @return $this
      */
     public function setAppends(array $appends): static
     {
@@ -2556,6 +2610,7 @@ trait HasAttributes
      * Merge new appended attributes with existing appended attributes on the model.
      *
      * @param array<string> $appends
+     * @return $this
      */
     public function mergeAppends(array $appends): static
     {
@@ -2578,6 +2633,8 @@ trait HasAttributes
 
     /**
      * Remove all appended properties from the model.
+     *
+     * @return $this
      */
     public function withoutAppends(): static
     {
@@ -2586,6 +2643,8 @@ trait HasAttributes
 
     /**
      * Get the mutated attributes for a given instance.
+     *
+     * @return list<string>
      */
     public function getMutatedAttributes(): array
     {
@@ -2643,6 +2702,6 @@ trait HasAttributes
             }
 
             return false;
-        })->map->name->values()->all(); // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
+        })->map->name->values()->all();
     }
 }

@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -146,7 +147,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     protected function setUpDatabaseTraits(array $uses): void
     {
         if (isset($uses[Concerns\WithWorkbench::class])) {
-            $this->setUpWithWorkbench(); // @phpstan-ignore method.notFound
+            $this->setUpWithWorkbench(); // @phpstan-ignore method.notFound (provided by WithWorkbench, checked above)
         }
 
         // Reset before database attributes register paths against retained schema state.
@@ -199,10 +200,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             return;
         }
 
-        $method = $this->resolvePhpUnitTestMethodName();
-
-        if ($method === null
-            || (new ReflectionMethod(static::class, $method))->getAttributes(WithMigration::class) === []) {
+        if ((new ReflectionMethod(static::class, $this->name()))->getAttributes(WithMigration::class) === []) {
             return;
         }
 
@@ -282,7 +280,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             try {
                 parent::tearDown();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             if ($exception !== null) {
@@ -302,7 +300,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             try {
                 $teardown();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -350,7 +348,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         try {
             static::tearDownAfterClassUsingPHPUnit();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

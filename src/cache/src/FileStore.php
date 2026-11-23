@@ -9,11 +9,12 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Filesystem\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 
 class FileStore implements CanFlushLocks, LockProvider, Store
 {
@@ -105,6 +106,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
             return false;
         }
 
+        // A releasing owner can unlink this inode between opening it and acquiring its lock.
+        if ($file->wasDeleted()) {
+            $file->close();
+
+            return false;
+        }
+
         $expire = $file->read(10);
 
         if (empty($expire) || $this->currentTime() >= $expire) {
@@ -139,6 +147,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
             return false;
         }
 
+        // Release may replace the path after this refresh opens the old inode.
+        if ($file->wasDeleted()) {
+            $file->close();
+
+            return false;
+        }
+
         $contents = $file->read();
 
         if (strlen($contents) < 10) {
@@ -166,15 +181,72 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     }
 
     /**
+     * Read the owner of a live lock without removing its file.
+     */
+    public function getLockOwner(string $key): ?string
+    {
+        try {
+            $contents = $this->files->get($this->path($key), true);
+
+            if ($this->currentTime() >= (int) substr($contents, 0, 10)) {
+                return null;
+            }
+
+            return $this->unserialize(substr($contents, 10));
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
+            return null;
+        }
+    }
+
+    /**
+     * Remove a lock file only while its expected owner holds it.
+     */
+    public function forgetIfOwned(string $key, string $expectedOwner): bool
+    {
+        if (! $this->files->exists($path = $this->path($key))) {
+            return false;
+        }
+
+        $file = new LockableFile($path, 'c+');
+
+        try {
+            $file->getExclusiveLock(block: true);
+
+            // A waiting release must never unlink the replacement for its old inode.
+            if ($file->wasDeleted()) {
+                return false;
+            }
+
+            $contents = $file->read();
+            $empty = strlen($contents) < 10;
+            $owned = ! $empty && $this->unserialize(substr($contents, 10)) === $expectedOwner;
+            $live = $owned && $this->currentTime() < (int) substr($contents, 0, 10);
+
+            // Keep the lock through deletion; acquisition rejects any orphaned open handle.
+            $deleted = ($owned || $empty) && $this->files->delete($path);
+
+            return $live && $deleted;
+        } finally {
+            $file->close();
+        }
+    }
+
+    /**
      * Get the number of seconds until the given key expires.
      */
     public function remainingSeconds(string $key): ?float
     {
         try {
             $expire = (int) substr($this->files->get($this->path($key), true), 0, 10);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return null;
         }
 
@@ -354,9 +426,12 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     /**
      * Set the working directory of the cache.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setDirectory(string $directory): static
     {
         $this->directory = $directory;
@@ -367,9 +442,12 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     /**
      * Set the cache directory where locks should be stored.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setLockDirectory(?string $lockDirectory): static
     {
         $this->lockDirectory = $lockDirectory;
@@ -454,9 +532,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
                 0,
                 10
             );
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $this->emptyPayload();
         }
 
@@ -473,9 +553,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         try {
             $data = $this->unserialize(substr($contents, 10));
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->forget($key);
 
             return $this->emptyPayload();

@@ -191,6 +191,33 @@ class LoadConfigurationTest extends TestCase
         $this->assertNotNull($config->get('auth'));
     }
 
+    public function testKeepsNestedFilesBelowFrameworkOnlyConfiguration(): void
+    {
+        $app = new Application(__DIR__ . '/../Fixtures');
+        $app->useConfigPath(__DIR__ . '/../Fixtures/nested-config');
+
+        (new LoadConfiguration)->bootstrap($app);
+
+        $config = $app->make('config');
+
+        $this->assertSame('stripe-key', $config->string('services.stripe.key'));
+        $this->assertIsArray($config->get('services.postmark'));
+    }
+
+    public function testAppliesBaseEntriesAnOverriddenFileLoaderAddsOrChanges(): void
+    {
+        $app = new Application(__DIR__ . '/../Fixtures');
+        $app->useConfigPath(__DIR__ . '/../Fixtures/nested-config');
+
+        (new ResidualBaseLoadConfiguration)->bootstrap($app);
+
+        $config = $app->make('config');
+
+        $this->assertSame(['enabled' => true], $config->get('additional'));
+        $this->assertSame('override', $config->string('session.driver'));
+        $this->assertSame('stripe-key', $config->string('services.stripe.key'));
+    }
+
     public function testFailedReloadRestoresThePreviousRepositoryAndException(): void
     {
         $app = new Application;
@@ -210,6 +237,19 @@ class LoadConfigurationTest extends TestCase
 
         $this->assertSame($originalConfig, $app->make(Repository::class));
         $this->assertSame('Original Hypervel', $originalConfig->get('app.name'));
+    }
+}
+
+class ResidualBaseLoadConfiguration extends LoadConfiguration
+{
+    protected function loadConfigurationFile(RepositoryContract $repository, string $name, string $path, array $base): array
+    {
+        $base = parent::loadConfigurationFile($repository, $name, $path, $base);
+
+        $base['additional'] = ['enabled' => true];
+        $base['session']['driver'] = 'override';
+
+        return $base;
     }
 }
 

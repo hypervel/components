@@ -24,7 +24,8 @@ use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Swoole\Server;
 use Throwable;
 
@@ -33,7 +34,11 @@ use Throwable;
 class ReverbTestCase extends TestCase
 {
     use InteractsWithSwooleTables;
+    use VerifiesDoubles;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -96,8 +101,8 @@ class ReverbTestCase extends TestCase
         $config->set('database.redis.queue', $redisConnection);
         $config->set('database.redis.reverb', $redisConnection);
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('sendMessage')->zeroOrMoreTimes();
+        $server = Double::for(Server::class)->strict();
+        $server->allows('sendMessage')->returns(true);
         $server->setting = ['worker_num' => 1];
         $server->worker_id = 0;
         $app->instance(Server::class, $server);

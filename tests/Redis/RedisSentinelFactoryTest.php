@@ -9,7 +9,8 @@ use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RedisSentinel;
 use RuntimeException;
@@ -17,26 +18,15 @@ use Swoole\Coroutine\CanceledException;
 
 class RedisSentinelFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResolveMasterAcceptsDocumentedMinimalSentinelConfiguration(): void
     {
-        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel = Double::for(RedisSentinel::class)->strict();
         $sentinel->expects('getMasterAddrByName')
             ->with('primary')
-            ->andReturn(['10.0.0.1', 6380]);
-        $factory = new class($sentinel) extends RedisSentinelFactory {
-            public array $createdWith = [];
-
-            public function __construct(private RedisSentinel $sentinel)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                $this->createdWith[] = $options;
-
-                return $this->sentinel;
-            }
-        };
+            ->returns(['10.0.0.1', 6380]);
+        $factory = new RedisSentinelFactoryFixture($sentinel);
         $config = (new RedisConfig(new Repository([
             'database' => [
                 'redis' => [
@@ -66,28 +56,15 @@ class RedisSentinelFactoryTest extends TestCase
 
     public function testResolveMasterFallsBackAcrossNodesAndUsesSentinelSettings(): void
     {
-        $first = m::mock(RedisSentinel::class);
+        $first = Double::for(RedisSentinel::class)->strict();
         $first->expects('getMasterAddrByName')
             ->with('primary')
-            ->andThrow(new RuntimeException('Unavailable.'));
-        $second = m::mock(RedisSentinel::class);
+            ->throws(new RuntimeException('Unavailable.'));
+        $second = Double::for(RedisSentinel::class)->strict();
         $second->expects('getMasterAddrByName')
             ->with('primary')
-            ->andReturn(['10.0.0.1', '6380']);
-        $factory = new class([$first, $second]) extends RedisSentinelFactory {
-            public array $createdWith = [];
-
-            public function __construct(private array $sentinels)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                $this->createdWith[] = $options;
-
-                return array_shift($this->sentinels);
-            }
-        };
+            ->returns(['10.0.0.1', '6380']);
+        $factory = new RedisSentinelFactoryFixture($first, $second);
 
         $master = $factory->resolveMaster($this->sentinelConfig([
             'nodes' => ['tcp://127.0.0.1:26379', 'tcp://127.0.0.2:26380'],
@@ -112,20 +89,11 @@ class RedisSentinelFactoryTest extends TestCase
     public function testResolveMasterPreservesExactCancellation(): void
     {
         $cancellation = new CanceledException('sentinel canceled');
-        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel = Double::for(RedisSentinel::class)->strict();
         $sentinel->expects('getMasterAddrByName')
             ->with('primary')
-            ->andThrow($cancellation);
-        $factory = new class($sentinel) extends RedisSentinelFactory {
-            public function __construct(private RedisSentinel $sentinel)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                return $this->sentinel;
-            }
-        };
+            ->throws($cancellation);
+        $factory = new RedisSentinelFactoryFixture($sentinel);
 
         try {
             $factory->resolveMaster($this->sentinelConfig());
@@ -137,24 +105,11 @@ class RedisSentinelFactoryTest extends TestCase
 
     public function testResolveMasterUsesSentinelPasswordWithoutUsername(): void
     {
-        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel = Double::for(RedisSentinel::class)->strict();
         $sentinel->expects('getMasterAddrByName')
             ->with('primary')
-            ->andReturn(['10.0.0.1', 6380]);
-        $factory = new class($sentinel) extends RedisSentinelFactory {
-            public array $createdWith = [];
-
-            public function __construct(private RedisSentinel $sentinel)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                $this->createdWith[] = $options;
-
-                return $this->sentinel;
-            }
-        };
+            ->returns(['10.0.0.1', 6380]);
+        $factory = new RedisSentinelFactoryFixture($sentinel);
 
         $factory->resolveMaster($this->sentinelConfig([
             'password' => 'secret',
@@ -166,24 +121,11 @@ class RedisSentinelFactoryTest extends TestCase
     #[DataProvider('sentinelEndpoints')]
     public function testResolveMasterPreservesSentinelEndpoint(string $node, string $host): void
     {
-        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel = Double::for(RedisSentinel::class)->strict();
         $sentinel->expects('getMasterAddrByName')
             ->with('primary')
-            ->andReturn(['10.0.0.1', 6380]);
-        $factory = new class($sentinel) extends RedisSentinelFactory {
-            public array $createdWith = [];
-
-            public function __construct(private RedisSentinel $sentinel)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                $this->createdWith[] = $options;
-
-                return $this->sentinel;
-            }
-        };
+            ->returns(['10.0.0.1', 6380]);
+        $factory = new RedisSentinelFactoryFixture($sentinel);
 
         $factory->resolveMaster($this->sentinelConfig([
             'nodes' => [$node],
@@ -206,22 +148,9 @@ class RedisSentinelFactoryTest extends TestCase
     #[DataProvider('sentinelContexts')]
     public function testResolveMasterNormalizesSentinelContext(array $context, ?array $expected): void
     {
-        $sentinel = m::mock(RedisSentinel::class);
-        $sentinel->expects('getMasterAddrByName')->andReturn(['10.0.0.1', 6380]);
-        $factory = new class($sentinel) extends RedisSentinelFactory {
-            public array $createdWith = [];
-
-            public function __construct(private RedisSentinel $sentinel)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                $this->createdWith[] = $options;
-
-                return $this->sentinel;
-            }
-        };
+        $sentinel = Double::for(RedisSentinel::class)->strict();
+        $sentinel->expects('getMasterAddrByName')->returns(['10.0.0.1', 6380]);
+        $factory = new RedisSentinelFactoryFixture($sentinel);
 
         $factory->resolveMaster($this->sentinelConfig([
             'context' => $context,
@@ -293,20 +222,11 @@ class RedisSentinelFactoryTest extends TestCase
 
     public function testResolveMasterAggregatesEveryNodeFailure(): void
     {
-        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel = Double::for(RedisSentinel::class)->strict();
         $sentinel->expects('getMasterAddrByName')
             ->with('primary')
-            ->andThrow(new RuntimeException('Connection refused.'));
-        $factory = new class($sentinel) extends RedisSentinelFactory {
-            public function __construct(private RedisSentinel $sentinel)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                return $this->sentinel;
-            }
-        };
+            ->throws(new RuntimeException('Connection refused.'));
+        $factory = new RedisSentinelFactoryFixture($sentinel);
 
         try {
             $factory->resolveMaster($this->sentinelConfig([
@@ -324,18 +244,9 @@ class RedisSentinelFactoryTest extends TestCase
 
     public function testResolveMasterRejectsMalformedMasterResponse(): void
     {
-        $sentinel = m::mock(RedisSentinel::class);
-        $sentinel->expects('getMasterAddrByName')->andReturn(['', 'not-a-port']);
-        $factory = new class($sentinel) extends RedisSentinelFactory {
-            public function __construct(private RedisSentinel $sentinel)
-            {
-            }
-
-            public function create(array $options = []): RedisSentinel
-            {
-                return $this->sentinel;
-            }
-        };
+        $sentinel = Double::for(RedisSentinel::class)->strict();
+        $sentinel->expects('getMasterAddrByName')->returns(['', 'not-a-port']);
+        $factory = new RedisSentinelFactoryFixture($sentinel);
 
         $this->expectException(InvalidRedisConnectionException::class);
         $this->expectExceptionMessageIsOrContains(
@@ -362,5 +273,33 @@ class RedisSentinelFactoryTest extends TestCase
                 'context' => [],
             ], $overrides),
         ];
+    }
+}
+
+class RedisSentinelFactoryFixture extends RedisSentinelFactory
+{
+    public array $createdWith = [];
+
+    /**
+     * @var list<RedisSentinel>
+     */
+    private array $sentinels;
+
+    /**
+     * Create a factory with configured Sentinel clients.
+     */
+    public function __construct(RedisSentinel ...$sentinels)
+    {
+        $this->sentinels = $sentinels;
+    }
+
+    /**
+     * Return the next configured Sentinel client.
+     */
+    public function create(array $options = []): RedisSentinel
+    {
+        $this->createdWith[] = $options;
+
+        return array_shift($this->sentinels);
     }
 }

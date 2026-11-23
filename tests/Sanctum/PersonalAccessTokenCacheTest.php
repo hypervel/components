@@ -20,7 +20,8 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -32,6 +33,7 @@ use function Hypervel\Coroutine\parallel;
 class PersonalAccessTokenCacheTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -221,11 +223,13 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
     }
 
-    public function testNonNumericTokenIdForIntegerKeyModelDoesNotQueryOrCache(): void
+    #[TestWith([PersonalAccessToken::class])]
+    #[TestWith([IntegerKeyPersonalAccessToken::class])]
+    public function testNonNumericTokenIdForIntegerKeyModelDoesNotQueryOrCache(string $modelClass): void
     {
         DB::enableQueryLog();
 
-        $this->assertNull(PersonalAccessToken::findToken('abc|missing'));
+        $this->assertNull($modelClass::findToken('abc|missing'));
 
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:abc'));
@@ -251,12 +255,14 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:1'));
     }
 
-    public function testOverflowingIntegerTokenIdDoesNotQueryOrCache(): void
+    #[TestWith([PersonalAccessToken::class])]
+    #[TestWith([IntegerKeyPersonalAccessToken::class])]
+    public function testOverflowingIntegerTokenIdDoesNotQueryOrCache(string $modelClass): void
     {
         $id = PHP_INT_MAX . '0';
         DB::enableQueryLog();
 
-        $this->assertNull(PersonalAccessToken::findToken("{$id}|missing"));
+        $this->assertNull($modelClass::findToken("{$id}|missing"));
 
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$id}"));
@@ -490,8 +496,8 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $token = $this->createToken();
         $cacheManager = $this->app->make(CacheManager::class);
-        $cacheDouble = m::mock(CacheManager::class);
-        $cacheDouble->shouldNotReceive('store');
+        $cacheDouble = Double::for(CacheManager::class)->strict();
+        $cacheDouble->expects('store')->never();
         $this->app->instance('cache', $cacheDouble);
 
         try {
@@ -1810,6 +1816,11 @@ class PersonalAccessTokenCacheTest extends TestCase
     }
 }
 
+class IntegerKeyPersonalAccessToken extends PersonalAccessToken
+{
+    protected string $keyType = 'integer';
+}
+
 class StringKeyPersonalAccessToken extends PersonalAccessToken
 {
     protected ?string $table = 'string_key_personal_access_tokens';
@@ -1828,7 +1839,7 @@ class NamespacedPersonalAccessToken extends PersonalAccessToken
 {
     protected ?string $table = 'namespaced_personal_access_tokens';
 
-    protected string $primaryKey = 'token_id';
+    protected ?string $primaryKey = 'token_id';
 
     /**
      * Get cache key for token and tokenable.

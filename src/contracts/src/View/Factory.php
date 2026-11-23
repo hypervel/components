@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\View;
 
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Attributes\BootOnly;
 
 interface Factory
 {
@@ -32,6 +33,7 @@ interface Factory
     /**
      * Add a piece of shared data to the environment.
      */
+    #[BootOnly(whenShared: true)]
     public function share(array|string $key, mixed $value = null): mixed;
 
     /**
@@ -46,12 +48,18 @@ interface Factory
 
     /**
      * Add a new namespace to the loader.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function addNamespace(string $namespace, string|array $hints): static;
 
     /**
      * Replace the namespace hints for the given namespace.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function replaceNamespace(string $namespace, string|array $hints): static;
 
     /**

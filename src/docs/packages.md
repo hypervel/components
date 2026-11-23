@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
     - [A Note on Facades](#a-note-on-facades)
     - [Testing Packages](#testing-packages)
+    - [Static Analysis](#static-analysis)
     - [Generating Facade Docblocks](#generating-facade-docblocks)
 - [Package Discovery](#package-discovery)
     - [Test State Cleanup](#test-state-cleanup)
@@ -49,6 +50,11 @@ When writing a Hypervel application, it generally does not matter if you use con
 For package unit tests that do not need an application, require `hypervel/testing` as a development dependency and have your package's base test case extend `Hypervel\Testing\UnitTestCase`. This provides Hypervel's coroutine and cleanup lifecycle without booting the framework.
 
 Use `Hypervel\Testbench\TestCase` when a package test needs an application container, configuration, service providers, database, routes, or an application filesystem. Application suites should continue to extend their own `Tests\TestCase` and may mark individual methods with `#[UnitTest]` when those methods do not need to boot the application. The [testing documentation](/docs/{{version}}/testing#choosing-a-test-case) provides examples of each base.
+
+<a name="static-analysis"></a>
+### Static Analysis
+
+See the [static analysis documentation](/docs/{{version}}/static-analysis#packages) to analyze your package with Testbench and ship PHPStan support for applications that use it.
 
 <a name="generating-facade-docblocks"></a>
 ### Generating Facade Docblocks

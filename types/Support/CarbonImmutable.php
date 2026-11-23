@@ -14,6 +14,7 @@ assertType(CarbonImmutable::class, $date->addMicroseconds(1.5));
 assertType(CarbonImmutable::class, $date->addMinute());
 assertType(CarbonImmutable::class, $date->addMinutes());
 assertType(CarbonImmutable::class, $date->addMinutes(1.5));
+assertType(CarbonImmutable::class, $date->addMonths(2, anchorDay: 31));
 assertType(CarbonImmutable::class, $date->addSecond());
 assertType(CarbonImmutable::class, $date->addSeconds());
 assertType(CarbonImmutable::class, $date->addSeconds(1.5));

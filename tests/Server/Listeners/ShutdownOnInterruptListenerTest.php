@@ -45,7 +45,9 @@ class ShutdownOnInterruptListenerTest extends TestCase
             $this->assertFalse(posix_kill(-$pid, 0), 'Server processes were left running after shutdown.');
         } finally {
             // Only the fixture can lead a group with its PID, so this kills anything a failed test left in it.
-            posix_kill(-$pid, SIGKILL);
+            if ($pid !== null) {
+                posix_kill(-$pid, SIGKILL);
+            }
             $process->stop(0);
         }
     }
@@ -53,10 +55,6 @@ class ShutdownOnInterruptListenerTest extends TestCase
     #[DataProvider('coordinatorModes')]
     public function testReplacementWorkersKeepTheirSignalHandlers(string $mode, int $workerNum, array $readyLines): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier leave workers forked after a manager signal registration unable to wait for signals.');
-        }
-
         $process = $this->startServer($mode, $workerNum, 'coroutine');
         $pid = $process->getPid();
 
@@ -82,7 +80,9 @@ class ShutdownOnInterruptListenerTest extends TestCase
             $this->assertStringContainsString('server shutdown', $process->getOutput());
             $this->assertFalse(posix_kill(-$pid, 0), 'Server processes were left running after shutdown.');
         } finally {
-            posix_kill(-$pid, SIGKILL);
+            if ($pid !== null) {
+                posix_kill(-$pid, SIGKILL);
+            }
             $process->stop(0);
         }
     }
@@ -120,7 +120,9 @@ class ShutdownOnInterruptListenerTest extends TestCase
             $this->assertStringContainsString('application interrupt received', $process->getOutput());
             $this->assertStringContainsString('server shutdown', $process->getOutput());
         } finally {
-            posix_kill(-$pid, SIGKILL);
+            if ($pid !== null) {
+                posix_kill(-$pid, SIGKILL);
+            }
             $process->stop(0);
         }
     }

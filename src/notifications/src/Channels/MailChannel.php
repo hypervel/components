@@ -12,10 +12,12 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Mail\Markdown;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\SentMessage;
+use Hypervel\Mail\TextMessage;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
@@ -36,7 +38,7 @@ class MailChannel
      */
     public function send(mixed $notifiable, Notification $notification): ?SentMessage
     {
-        $message = $notification->toMail($notifiable); // @phpstan-ignore method.notFound
+        $message = $notification->toMail($notifiable); // @phpstan-ignore method.notFound (notifications sent through this channel define toMail())
 
         if (! $notifiable->routeNotificationFor('mail', $notification)
             && ! $message instanceof Mailable
@@ -97,10 +99,18 @@ class MailChannel
      */
     protected function buildMarkdownText(MailMessage $message): Closure
     {
-        return fn ($data) => $this->markdown->renderText(
-            $message->markdown,
-            array_merge($data, $message->data()),
-        );
+        return function (array $data) use ($message): HtmlString {
+            if (isset($data['message'])) {
+                $data = array_merge($data, [
+                    'message' => new TextMessage($data['message']),
+                ]);
+            }
+
+            return $this->markdown->renderText(
+                $message->markdown,
+                array_merge($data, $message->data()),
+            );
+        };
     }
 
     /**
@@ -234,6 +244,8 @@ class MailChannel
 
     /**
      * Run the callbacks for the message.
+     *
+     * @return $this
      */
     protected function runCallbacks(Message $mailMessage, MailMessage $message): static
     {

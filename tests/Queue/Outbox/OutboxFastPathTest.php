@@ -25,14 +25,18 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use UnitEnum;
 
 class OutboxFastPathTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure isolated databases without installing any outbox tables.
      */
@@ -63,8 +67,8 @@ class OutboxFastPathTest extends TestCase
 
     public function testLocalSelectionWithoutATransactionPreservesTimerIds(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->with(60.0, m::type('callable'))->twice()->andReturn(41, 42);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(60.0, Argument::type('callable'))->times(2)->returns(41, 42);
         $queue = new BackgroundQueue(timer: $timer);
         $queue->setContainer($this->app)->setConnectionName('local');
 
@@ -159,15 +163,15 @@ class OutboxFastPathTest extends TestCase
 
     public function testFailoverSuppressesChildDefaultsAndRestoresThemAfterNestedFailure(): void
     {
-        $primary = new FailingOutboxRedisQueue(m::mock(Factory::class), 'orders');
+        $primary = new FailingOutboxRedisQueue(Double::for(Factory::class)->strict(), 'orders');
         $primary->setContainer($this->app)->setConnectionName('primary')->setConfig(['outbox' => true]);
         $sync = $this->app->make('queue')->connection('sync');
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->with('primary')->andReturn($primary);
-        $manager->shouldReceive('connection')->with('sync')->andReturn($sync);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->allows('connection')->with('primary')->returns($primary);
+        $manager->allows('connection')->with('sync')->returns($sync);
         $inner = new FailoverQueue($manager, $this->app->make('events'), ['primary']);
         $inner->setContainer($this->app)->setConnectionName('inner');
-        $manager->shouldReceive('connection')->with('inner')->andReturn($inner);
+        $manager->allows('connection')->with('inner')->returns($inner);
         $outer = new FailoverQueue($manager, $this->app->make('events'), ['inner', 'sync']);
         $outer->setContainer($this->app)->setConnectionName('outer');
 
@@ -186,8 +190,8 @@ class OutboxFastPathTest extends TestCase
     #[DataProvider('transactionOutcomes')]
     public function testSelectedFailoverDefersTheWholeAttemptWithoutSchema(bool $commit): void
     {
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->with('sync')->andReturn($this->app->make('queue')->connection('sync'));
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->allows('connection')->with('sync')->returns($this->app->make('queue')->connection('sync'));
         $queue = new FailoverQueue($manager, $this->app->make('events'), ['sync']);
         $queue->setContainer($this->app)->setConnectionName('failover')->setConfig(['outbox' => true]);
         $log = $this->app->make(OutboxExecutionLog::class);
@@ -228,14 +232,14 @@ class OutboxFastPathTest extends TestCase
             }
         };
         $first->setContainer($this->app)->setConnectionName('first');
-        $target = new FastPathRecordingRedisQueue(m::mock(Factory::class), dispatchAfterCommit: true);
+        $target = new FastPathRecordingRedisQueue(Double::for(Factory::class)->strict(), dispatchAfterCommit: true);
         $target->setContainer($this->app)->setConnectionName('target')->setConfig(['outbox' => true]);
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->with('first')->andReturn($first);
-        $manager->shouldReceive('connection')->with('target')->andReturn($target);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->allows('connection')->with('first')->returns($first);
+        $manager->allows('connection')->with('target')->returns($target);
         $inner = new FailoverQueue($manager, $this->app->make('events'), ['first', 'target'], true);
         $inner->setContainer($this->app)->setConnectionName('inner');
-        $manager->shouldReceive('connection')->with('inner')->andReturn($inner);
+        $manager->allows('connection')->with('inner')->returns($inner);
         $outer = new FailoverQueue($manager, $this->app->make('events'), ['inner']);
         $outer->setContainer($this->app)->setConnectionName('outer');
         $job = (new UniqueOutboxLocalJob)->onOutboxDatabase('secondary')->afterCommit();
@@ -264,11 +268,11 @@ class OutboxFastPathTest extends TestCase
     public function testSyncFallbackDoesNotSuppressIndependentContinuation(string $kind): void
     {
         (require dirname(__DIR__, 3) . '/src/testbench/hypervel/migrations/0001_01_01_000009_testbench_create_job_outbox_table.php')->up();
-        $target = new FastPathRecordingRedisQueue(m::mock(Factory::class));
+        $target = new FastPathRecordingRedisQueue(Double::for(Factory::class)->strict());
         $target->setContainer($this->app)->setConnectionName('target')->setConfig(['outbox' => true]);
         $this->app->instance(RedisQueue::class, $target);
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->with('sync')->andReturn($this->app->make('queue')->connection('sync'));
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->allows('connection')->with('sync')->returns($this->app->make('queue')->connection('sync'));
         $failover = new FailoverQueue($manager, $this->app->make('events'), ['sync']);
         $failover->setContainer($this->app)->setConnectionName('failover');
 

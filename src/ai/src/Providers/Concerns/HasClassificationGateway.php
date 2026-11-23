@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\ClassificationGateway;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasClassificationGateway
 {
@@ -21,8 +22,9 @@ trait HasClassificationGateway
     /**
      * Set the provider's classification gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useClassificationGateway(ClassificationGateway $gateway): self
     {
         $this->classificationGateway = $gateway;

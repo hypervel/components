@@ -8,7 +8,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testing\ParallelTesting;
-use Hypervel\Tests\Integration\Queue\Fixtures\OutboxClaimTestCase;
+use Hypervel\Tests\Integration\Queue\Database\OutboxClaimTestCase;
 
 #[RequiresDatabase('sqlite')]
 class OutboxClaimTest extends OutboxClaimTestCase

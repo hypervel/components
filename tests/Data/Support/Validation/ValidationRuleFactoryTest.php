@@ -8,8 +8,10 @@ use Hypervel\Data\Attributes\Validation\Max;
 use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\ValidationAttribute;
 use Hypervel\Data\Exceptions\CouldNotCreateValidationRule;
+use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Data\Support\Validation\ValidationRuleFactory;
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\Rule;
 use ReflectionClass;
 
 class ValidationRuleFactoryTest extends TestCase
@@ -37,6 +39,15 @@ class ValidationRuleFactoryTest extends TestCase
     public function testCreatesTheAttributeForARuleString(): void
     {
         $this->assertEquals(new Min('3'), (new ValidationRuleFactory)->create('min:3'));
+    }
+
+    public function testCreatesMembershipAttributesWithoutLosingNormalizedValues(): void
+    {
+        foreach (['in' => 'in', 'notIn' => 'not_in', 'contains' => 'contains', 'doesntContain' => 'doesnt_contain'] as $method => $keyword) {
+            $attribute = (new ValidationRuleFactory)->create(Rule::{$method}([false, 1, null, 1.25]));
+
+            $this->assertSame([$keyword, '0', '1', null, '1.25'], $attribute->getRule(ValidationPath::create())->toArray());
+        }
     }
 
     public function testRejectsAnUnknownKeyword(): void

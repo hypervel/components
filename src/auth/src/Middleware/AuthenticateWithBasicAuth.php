@@ -35,7 +35,7 @@ class AuthenticateWithBasicAuth
      */
     public function handle(Request $request, Closure $next, ?string $guard = null, ?string $field = null): Response
     {
-        $this->auth->guard($guard)->basic($field ?: 'email'); /* @phpstan-ignore method.notFound (basic() is on SupportsBasicAuth, not the Guard contract) */
+        $this->auth->guard($guard)->basic($field ?: 'email');
 
         return $next($request);
     }

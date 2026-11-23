@@ -9,10 +9,13 @@ use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\TagMode;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class BenchmarkContextTest extends RedisCacheIntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testCleanupRemovesEveryBenchmarkKeyFamilyAndPreservesUnrelatedKeysInAnyMode(): void
     {
         $this->setTagMode(TagMode::Any);
@@ -81,7 +84,7 @@ class BenchmarkContextTest extends RedisCacheIntegrationTestCase
             items: 1,
             tagsPerItem: 1,
             heavyTags: 1,
-            command: m::mock(Command::class),
+            command: Double::for(Command::class)->strict(),
             cacheManager: $this->app->make(CacheContract::class),
         );
     }

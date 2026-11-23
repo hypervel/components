@@ -29,12 +29,15 @@ use Hypervel\View\Engines\FileEngine;
 use Hypervel\View\Engines\PhpEngine;
 use Hypervel\View\Factory as ViewFactory;
 use Hypervel\View\FileViewFinder;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 use function Hypervel\Coroutine\parallel;
 
 class MarkdownCoroutineSafetyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $filesystem;
 
     protected string $tempDir;
@@ -205,7 +208,7 @@ class MarkdownCoroutineSafetyTest extends TestCase
     public function testMailChannelUsesNotificationThemeWithoutMutatingMarkdownSingleton(): void
     {
         $markdown = $this->swapThemeProbeMarkdownIntoContainer();
-        $channel = new ThemeProbeMailChannel(m::mock(MailFactory::class), $markdown);
+        $channel = new ThemeProbeMailChannel(Double::for(MailFactory::class)->strict(), $markdown);
         $message = (new NotificationMailMessage)->theme('theme-a');
 
         $this->assertSame('theme-a:theme-a', $channel->renderHtml($message));
@@ -245,7 +248,7 @@ class MarkdownCoroutineSafetyTest extends TestCase
 
     protected function encodingMarker(): string
     {
-        return (new EncodedHtmlString('['))->toHtml() === '\['
+        return (new EncodedHtmlString('['))->toHtml() !== '['
             ? 'scoped'
             : 'default';
     }
@@ -255,11 +258,11 @@ class MarkdownCoroutineSafetyTest extends TestCase
         $container = new Container;
         $filesystem = $this->filesystem;
         $resolver = new EngineResolver;
-        $application = m::mock(ApplicationContract::class);
+        $application = Double::for(ApplicationContract::class, override: true)->strict();
         $compiledPath = $this->tempDir . '/views';
         $bladeCompiler = new BladeCompiler($filesystem, $compiledPath, shouldCache: false);
 
-        $application->shouldReceive('getNamespace')->andReturn('App\\');
+        $application->allows('getNamespace')->returns('App\\');
         $filesystem->ensureDirectoryExists($compiledPath);
 
         $resolver->register('blade', fn () => new CompilerEngine($bladeCompiler, $filesystem));
@@ -273,7 +276,7 @@ class MarkdownCoroutineSafetyTest extends TestCase
         );
 
         $factory->setContainer($container);
-        $container->instance(ApplicationContract::class, $application);
+        $container->instance(ApplicationContract::class, $application->instance());
         $container->instance(ViewFactory::class, $factory);
         $container->instance(ViewFactoryContract::class, $factory);
         Container::setInstance($container);
@@ -434,6 +437,14 @@ class MarkdownTestView implements ViewContract
     public function getData(): array
     {
         return [];
+    }
+
+    /**
+     * Get the data used to render the view.
+     */
+    public function gatherData(): array
+    {
+        return $this->getData();
     }
 
     public function getPath(): string

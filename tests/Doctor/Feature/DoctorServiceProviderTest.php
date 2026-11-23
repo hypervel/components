@@ -12,6 +12,7 @@ use Hypervel\Doctor\Diagnostics\ApplicationKeyIsSet;
 use Hypervel\Doctor\Diagnostics\BootstrapCacheMatchesEnvironment;
 use Hypervel\Doctor\Diagnostics\CacheStoreIsReachable;
 use Hypervel\Doctor\Diagnostics\ComposerAuditPasses;
+use Hypervel\Doctor\Diagnostics\ComposerAutoloadIsAuthoritative;
 use Hypervel\Doctor\Diagnostics\ComposerAutoloadIsValid;
 use Hypervel\Doctor\Diagnostics\ComposerLockIsFresh;
 use Hypervel\Doctor\Diagnostics\ConfigurationCanBeCached;
@@ -1108,6 +1109,7 @@ class DoctorServiceProviderTest extends TestCase
             RequiredPhpExtensionsAreLoaded::class,
             RecommendedPhpExtensionsAreLoaded::class,
             ComposerAutoloadIsValid::class,
+            ComposerAutoloadIsAuthoritative::class,
             ComposerLockIsFresh::class,
             ConfigurationFilesCanBeLoaded::class,
             ConfigurationCanBeCached::class,
@@ -1142,6 +1144,7 @@ class DoctorServiceProviderTest extends TestCase
             RequiredPhpExtensionsAreLoaded::class,
             RecommendedPhpExtensionsAreLoaded::class,
             ComposerAutoloadIsValid::class,
+            ComposerAutoloadIsAuthoritative::class,
             ComposerLockIsFresh::class,
             ConfigurationFilesCanBeLoaded::class,
             ConfigurationCanBeCached::class,

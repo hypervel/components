@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Exceptions\Renderer;
 
 use Closure;
-use Composer\Autoload\ClassLoader;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Composer;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
@@ -91,7 +92,7 @@ class Exception
         return once(function () {
             $classMap = array_map(function ($path) {
                 return (string) realpath($path);
-            }, array_values(ClassLoader::getRegisteredLoaders())[0]->getClassMap());
+            }, Composer::getLoader()->getClassMap());
 
             $trace = $this->exception->getTrace();
 
@@ -233,7 +234,8 @@ class Exception
     {
         return array_map(function (array $query): array {
             $bindings = array_map(static fn (mixed $binding): string => match (gettype($binding)) {
-                'integer', 'double' => (string) $binding,
+                'integer' => (string) $binding,
+                'double' => Number::toString($binding),
                 'NULL' => 'NULL',
                 default => "'{$binding}'",
             }, $query['bindings']);

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Coroutine;
 
 use Closure;
 use Exception;
+use Google\Cloud\Core\Exception\ServiceException;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -19,18 +20,25 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Event;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
+use function Hypervel\Coroutine\wait;
 
 class CoroutineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('cancellationExceptions')]
     public function testCancellationClassificationRespectsCoroutineBoundaries(Throwable $exception, bool $expected): void
     {
@@ -46,17 +54,63 @@ class CoroutineTest extends TestCase
         $cleanup = new RuntimeException('Cleanup failed.', previous: $cancellation);
         $child = new ChildCancellationException('The child stopped.', previous: $cleanup);
         $foreign = new ForeignCancellationException('The shared operation stopped.', previous: $cleanup);
+        $dualCause = new ServiceException('Cleanup request failed.', 0, new RuntimeException('Transport failed.'));
+
+        try {
+            try {
+                throw new CanceledException;
+            } finally {
+                throw $dualCause;
+            }
+        } catch (ServiceException) {
+            // PHP adds the unwinding cancellation separately from Google's service cause.
+        }
 
         return [
             'direct cancellation' => [$cancellation, true],
             'cleanup replaced cancellation' => [$cleanup, true],
             'nested cleanup' => [new RuntimeException(previous: $cleanup), true],
+            'Google service cause' => [new ServiceException('Request failed.', 0, $cancellation), true],
+            'Google foreign cause' => [new ServiceException('Request failed.', 0, $foreign), false],
+            'Google service cause and PHP cancellation' => [$dualCause, true],
             'independent child' => [$child, false],
             'wrapped independent child' => [new RuntimeException(previous: $child), false],
             'grandchild boundary' => [new ChildCancellationException(previous: $child), false],
             'shared operation' => [$foreign, false],
             'wrapped shared operation' => [new RuntimeException(previous: $foreign), false],
             'ordinary error' => [new RuntimeException, false],
+        ];
+    }
+
+    #[DataProvider('cancellationPrecedence')]
+    public function testFailureSelectionPreservesTheFirstFailureUnlessCancellationTakesPrecedence(
+        ?Throwable $kept,
+        Throwable $next,
+        Throwable $expected,
+    ): void {
+        $this->assertSame($expected, Coroutine::preferCancellation($kept, $next));
+    }
+
+    /**
+     * Provide primary and cleanup failures with distinct cancellation ownership.
+     */
+    public static function cancellationPrecedence(): array
+    {
+        $ordinary = new RuntimeException('Operation failed.');
+        $cleanup = new RuntimeException('Cleanup failed.');
+        $cancellation = new CanceledException;
+        $wrapped = new RuntimeException('Canceled cleanup failed.', previous: $cancellation);
+        $foreign = new ForeignCancellationException(previous: $wrapped);
+
+        return [
+            'first failure' => [null, $ordinary, $ordinary],
+            'ordinary cleanup' => [$ordinary, $cleanup, $ordinary],
+            'direct cleanup cancellation' => [$ordinary, $cancellation, $cancellation],
+            'wrapped cleanup cancellation' => [$ordinary, $wrapped, $wrapped],
+            'primary cancellation' => [$cancellation, $cleanup, $cancellation],
+            'first cancellation wins' => [$wrapped, $cancellation, $wrapped],
+            'foreign cleanup is not our cancellation' => [$ordinary, $foreign, $ordinary],
+            'own cancellation beats foreign failure' => [$foreign, $wrapped, $wrapped],
         ];
     }
 
@@ -74,9 +128,109 @@ class CoroutineTest extends TestCase
             $completed = true;
         });
 
-        $this->assertTrue(Coroutine::join([$coroutineId], 1));
+        $this->assertTrue(Coroutine::join([$coroutineId, $coroutineId], 1));
         $this->assertTrue($completed);
         $this->assertFalse(Coroutine::exists($coroutineId));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testJoinThrowsWhenTheWaitIsCanceled(bool $throw): void
+    {
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+        $parent = Coroutine::id();
+        Event::defer(static fn () => EngineCoroutine::cancelById($parent, $throw));
+
+        $this->expectException(CanceledException::class);
+        try {
+            Coroutine::join([$child], 1);
+        } finally {
+            $release->close();
+        }
+    }
+
+    public function testUninterruptibleJoinReportsWhetherAnyChildRemainsActive(): void
+    {
+        $finished = Coroutine::create(static fn () => null);
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+
+        try {
+            $this->assertFalse(Coroutine::joinUninterruptibly([$finished, $child], 0.001));
+        } finally {
+            $release->close();
+        }
+
+        $this->assertTrue(Coroutine::joinUninterruptibly([$finished, $child]));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testUninterruptibleJoinPropagatesCancellationAfterChildExit(bool $throw): void
+    {
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+        $failure = null;
+        $waiter = Coroutine::create(static function () use ($child, &$failure): void {
+            try {
+                Coroutine::joinUninterruptibly([$child, $child], 0);
+            } catch (CanceledException $exception) {
+                $failure = $exception;
+            }
+        });
+
+        try {
+            EngineCoroutine::cancelById($waiter, $throw);
+            $this->assertTrue(Coroutine::exists($waiter));
+        } finally {
+            $release->close();
+            Coroutine::join([$waiter]);
+        }
+
+        $this->assertInstanceOf(CanceledException::class, $failure);
+    }
+
+    public function testRepeatedInterruptionsDoNotRestartTheJoinTimeout(): void
+    {
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+        $failure = null;
+        $waiter = Coroutine::create(static function () use ($child, &$failure): void {
+            try {
+                Coroutine::joinUninterruptibly([$child], 0.03);
+            } catch (CanceledException $exception) {
+                $failure = $exception;
+            }
+        });
+
+        try {
+            $limit = hrtime(true) + 500_000_000;
+            while (Coroutine::exists($waiter) && hrtime(true) < $limit) {
+                EngineCoroutine::cancelById($waiter);
+                Coroutine::sleep(0.002);
+            }
+
+            $this->assertInstanceOf(CanceledException::class, $failure);
+            $this->assertTrue(Coroutine::exists($child));
+        } finally {
+            $release->close();
+            Coroutine::join([$waiter]);
+        }
+    }
+
+    public function testJoiningFinishedChildrenAfterAnEarlierWaitWasCanceled(): void
+    {
+        $parent = Coroutine::id();
+        Event::defer(static fn () => EngineCoroutine::cancelById($parent));
+        $channel = new Channel(1);
+        $channel->pop(1);
+        $this->assertTrue($channel->isCanceled());
+
+        $finished = Coroutine::create(static fn () => null);
+        $this->assertTrue(Coroutine::joinUninterruptibly([$finished]));
+        $this->assertSame('done', wait(static fn () => 'done'));
+        $this->assertSame(['done'], parallel([static fn () => 'done']));
     }
 
     public function testCoroutineParentId(): void
@@ -112,34 +266,25 @@ class CoroutineTest extends TestCase
     public function testCoroutineAndDeferWithException(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
 
         $exception = new Exception;
-        $handler->shouldReceive('report')->with($exception)->twice();
+        $handler->expects('report')->with(Argument::same($exception))->times(2);
 
-        $chan = new Channel(1);
-        go(static function () use ($chan, $exception) {
-            Coroutine::defer(static function () use ($chan, $exception) {
-                try {
-                    throw $exception;
-                } finally {
-                    $chan->push(1);
-                }
-            });
+        go(static function () use ($exception): never {
+            Coroutine::defer(static fn () => throw $exception);
 
             throw $exception;
         });
-
-        $this->assertTrue(true);
     }
 
     public function testTerminalCancellationIsNotReported(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->never();
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
         $blocker = new Channel(1);
@@ -150,6 +295,70 @@ class CoroutineTest extends TestCase
 
         $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
         $this->assertFalse(Coroutine::exists($coroutineId));
+    }
+
+    public function testTerminalBoundaryReportsCleanupFailureDuringCancellationOnce(): void
+    {
+        $container = new Container;
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $failure = new RuntimeException('Coroutine cleanup failed.');
+        $handler->expects('report')->with(Argument::same($failure));
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
+        $blocker = new Channel(1);
+
+        $coroutineId = Coroutine::create(static function () use ($blocker, $failure): void {
+            try {
+                $blocker->pop();
+            } finally {
+                throw $failure;
+            }
+        });
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
+            $this->assertFalse(Coroutine::exists($coroutineId));
+            $this->assertInstanceOf(CanceledException::class, $failure->getPrevious());
+        } finally {
+            $blocker->close();
+            Coroutine::join([$coroutineId], 1);
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTerminalBoundaryContainsCancellationDuringReporting(bool $cleanupFails): void
+    {
+        $container = new Container;
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
+        $failure = new RuntimeException('The coroutine failed.');
+        $cleanupFailure = new RuntimeException('The reporter cleanup failed.');
+        $blocker = new Channel(1);
+        $handler->expects('report')->with(Argument::same($failure))
+            ->resolves(static function () use ($blocker, $cleanupFails, $cleanupFailure): void {
+                try {
+                    $blocker->pop();
+                } finally {
+                    if ($cleanupFails) {
+                        throw $cleanupFailure;
+                    }
+                }
+            });
+
+        $coroutineId = Coroutine::create(static fn () => throw $failure);
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
+            $this->assertFalse(Coroutine::exists($coroutineId));
+            if ($cleanupFails) {
+                $this->assertTrue(Coroutine::causedByCancellation($cleanupFailure));
+            }
+        } finally {
+            $blocker->close();
+            Coroutine::join([$coroutineId], 1);
+        }
     }
 
     public function testAfterCreatedCallbacksAreExecuted(): void
@@ -303,11 +512,11 @@ class CoroutineTest extends TestCase
     {
         try {
             $container = new Container;
-            $handler = m::mock(ExceptionHandlerContract::class);
+            $handler = Double::for(ExceptionHandlerContract::class)->strict();
             $container->instance(ExceptionHandlerContract::class, $handler);
             Container::setInstance($container);
 
-            $handler->shouldReceive('report')->once();
+            $handler->expects('report');
 
             Coroutine::reportExceptions(false);
             Coroutine::create(function () {
@@ -331,10 +540,10 @@ class CoroutineTest extends TestCase
     public function testAfterCreatedCallbackExceptionDoesNotStopOthers(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
-        $handler->shouldReceive('report')->once();
+        $handler->expects('report');
 
         $secondCallbackRan = false;
         $mainCallableRan = false;
@@ -355,14 +564,17 @@ class CoroutineTest extends TestCase
         $this->assertTrue($mainCallableRan);
     }
 
-    public function testOwnedCoroutineTransfersOwnershipBeforeStartupFailureReportingCanSuspend(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOwnedCoroutineTransfersOwnershipBeforeStartupFailureReportingCanSuspend(bool $cleanupFails): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
         CoroutineContext::set('request-id', 'child-request');
         $exception = new RuntimeException('The startup hook failed.');
+        $cleanupFailure = new RuntimeException('The reporter cleanup failed.');
         $reportStarted = new Channel(1);
         $releaseReport = new Channel(1);
         $reportedContext = null;
@@ -371,14 +583,23 @@ class CoroutineTest extends TestCase
         $secondCallbackRan = false;
         $mainCallableRan = false;
 
-        $handler->shouldReceive('report')
-            ->once()
-            ->with($exception)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$reportedContext): void {
+        $handler->expects('report')
+            ->with(Argument::same($exception))
+            ->resolves(static function () use ($reportStarted, $releaseReport, &$reportedContext, $cleanupFails, $cleanupFailure): void {
                 $reportedContext = CoroutineContext::get('request-id');
                 $reportStarted->push(true);
-                $releaseReport->pop();
+                try {
+                    $releaseReport->pop();
+                } finally {
+                    if ($cleanupFails) {
+                        throw $cleanupFailure;
+                    }
+                }
             });
+
+        if ($cleanupFails) {
+            $handler->expects('report')->with(Argument::same($cleanupFailure));
+        }
 
         Coroutine::afterCreated(static function () use ($exception): void {
             throw $exception;
@@ -413,6 +634,11 @@ class CoroutineTest extends TestCase
             $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
             $this->assertFalse(Coroutine::exists($coroutineId));
             $this->assertSame(1, $finalized);
+            $this->assertFalse($secondCallbackRan);
+            $this->assertFalse($mainCallableRan);
+            if ($cleanupFails) {
+                $this->assertTrue(Coroutine::causedByCancellation($cleanupFailure));
+            }
         } finally {
             $releaseReport->push(true, 0.001);
 
@@ -435,10 +661,9 @@ class CoroutineTest extends TestCase
 
         try {
             $container = new Container;
-            $handler = m::mock(ExceptionHandlerContract::class);
-            $handler->shouldReceive('report')
-                ->once()
-                ->andThrow(new RuntimeException('The exception reporter failed.'));
+            $handler = Double::for(ExceptionHandlerContract::class)->strict();
+            $handler->expects('report')
+                ->throws(new RuntimeException('The exception reporter failed.'));
             $container->instance(ExceptionHandlerContract::class, $handler);
             Container::setInstance($container);
 

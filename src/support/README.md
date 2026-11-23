@@ -5,11 +5,13 @@ Support for Hypervel
 
 ## Differences From Laravel
 
+- The framework binds `date` to `DateFactory`, so a `Date` facade subclass's `DEFAULT_FACADE` only applies while `date` is unbound. In an application, bind `date` to your factory instead.
 - `all([])` on `Fluent`, `ValidatedInput`, and `UriQueryString` returns an empty array. Use `all()` to retrieve every field.
 - Laravel's deferred service-provider metadata APIs are intentionally omitted. Hypervel registers providers once for a long-lived worker, so the per-request bootstrap optimization those APIs support does not apply.
 - Node package-manager detection walks from the current directory to the filesystem root, so applications inside a workspace use the nearest ancestor lockfile. Within each directory, detection prefers Bun, pnpm, Yarn, then npm.
 - pnpm and Yarn execute installed package binaries with `pnpm exec` and `yarn run`, keeping development tools tied to the project's installed versions.
-- Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`, so concrete UUID type declarations and package-specific UUID methods must be adapted when porting code.
+- Hypervel's `Str` UUID methods, factories, sequences, freeze callbacks, and `uuid()` input helpers use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`, so concrete UUID type declarations and package-specific UUID methods must be adapted when porting code.
+- UUID input helpers and validation accept only hyphenated text, in either letter case. Normalize compact, braced, or `urn:uuid:` input before use.
 - Hypervel's `Str::orderedUuid()` returns a UUIDv7. Laravel returns a timestamp-first COMB UUIDv4, so code that checks UUID versions or relies on their ordering must account for the difference.
 - `Carbon::createFromId()` accepts ULIDs and v1, v6, and v7 UUIDs. Symfony UID does not provide timestamps for UUIDv2, so those values are rejected.
 

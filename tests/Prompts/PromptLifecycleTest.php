@@ -16,6 +16,7 @@ use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Prompts\text;
 
@@ -201,6 +202,15 @@ class PromptLifecycleTest extends TestCase
 
         $this->assertFalse($fallbackInvoked);
         $this->assertFalse(TextPrompt::shouldFallback());
+    }
+
+    public function testTerminalCleanupCancellationPropagatesAfterSubmissionFails(): void
+    {
+        Prompt::fake([Key::ENTER]);
+        Prompt::terminal()->shouldReceive('restoreTty')->once()->andThrow(new CanceledException);
+        $this->expectException(CanceledException::class);
+
+        (new TextPrompt('Name', transform: static fn () => throw new RuntimeException('Submission failed.')))->prompt();
     }
 
     public function testCursorOwnershipIsReleasedWhenOperationCleanupCannotRestoreIt(): void

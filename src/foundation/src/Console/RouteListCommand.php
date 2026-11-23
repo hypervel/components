@@ -11,6 +11,7 @@ use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\ViewController;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -242,7 +243,7 @@ class RouteListCommand extends Command
         return str_replace(
             '\\',
             '/',
-            ltrim(Str::after($path, base_path()), DIRECTORY_SEPARATOR)
+            Str::replaceStart(base_path() . DIRECTORY_SEPARATOR, '', $path)
         ) . ':' . $reflection->getStartLine();
     }
 
@@ -268,7 +269,7 @@ class RouteListCommand extends Command
             return false;
         }
 
-        return is_string($path) && str_starts_with($path, base_path('vendor'));
+        return is_string($path) && str_starts_with($path, base_path('vendor') . DIRECTORY_SEPARATOR);
     }
 
     /**
@@ -457,7 +458,7 @@ class RouteListCommand extends Command
             ? (new ReflectionClass($actionClass))->getFilename()
             : false;
 
-        if (is_string($path) && str_starts_with($path, base_path('vendor'))) {
+        if (is_string($path) && str_starts_with($path, base_path('vendor') . DIRECTORY_SEPARATOR)) {
             $actionCollection = (new Stringable($action))->explode('\\');
 
             return $name . $actionCollection->take(2)->implode('\\') . '   ' . $actionCollection->last();
@@ -493,9 +494,10 @@ class RouteListCommand extends Command
     /**
      * Set a callback that should be used when resolving the terminal width.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent route:list render.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent route:list render.
      */
+    #[TestsOnly]
     public static function resolveTerminalWidthUsing(?Closure $resolver): void
     {
         static::$terminalWidthResolver = $resolver;

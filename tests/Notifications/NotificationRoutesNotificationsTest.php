@@ -10,19 +10,23 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\RoutesNotifications;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use stdClass;
 
 class NotificationRoutesNotificationsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testNotificationCanBeDispatched(): void
     {
         $container = $this->getContainer();
-        $factory = m::mock(Dispatcher::class);
+        $factory = Double::for(Dispatcher::class)->strict();
         $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance;
         $instance = new stdClass;
-        $factory->expects('send')->with($notifiable, $instance);
+        $factory->expects('send')->with(Argument::same($notifiable), Argument::same($instance));
 
         $notifiable->notify($instance);
     }
@@ -30,11 +34,11 @@ class NotificationRoutesNotificationsTest extends TestCase
     public function testNotificationCanBeSentNow(): void
     {
         $container = $this->getContainer();
-        $factory = m::mock(Dispatcher::class);
+        $factory = Double::for(Dispatcher::class)->strict();
         $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance;
         $instance = new stdClass;
-        $factory->expects('sendNow')->with($notifiable, $instance, null);
+        $factory->expects('sendNow')->with(Argument::same($notifiable), Argument::same($instance), null);
 
         $notifiable->notifyNow($instance);
     }

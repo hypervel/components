@@ -22,6 +22,7 @@
     - [Abstract Data Objects](#abstract-data-objects)
     - [Backed Enums](#backed-enums)
 - [Casts and Transformers](#casts-and-transformers)
+    - [Unserializing Values](#unserializing-values)
     - [Custom Casts](#custom-casts)
     - [Custom Transformers](#custom-transformers)
     - [Global Casts and Transformers](#global-casts-and-transformers)
@@ -898,6 +899,38 @@ class InvoiceData extends Data
 }
 ```
 
+<a name="unserializing-values"></a>
+### Unserializing Values
+
+The `UnserializeCast` runs PHP's `unserialize` function on a value. This is useful when you store serialized values yourself, for example in a database column or a cache:
+
+```php
+use Hypervel\Data\Attributes\WithCast;
+use Hypervel\Data\Casts\UnserializeCast;
+
+class SongData extends Data
+{
+    public function __construct(
+        public string $title,
+        #[WithCast(UnserializeCast::class, allowedClasses: [SongMetadata::class])]
+        public SongMetadata $metadata,
+    ) {
+    }
+}
+```
+
+The `allowedClasses` argument lists the classes that may be created while unserializing. Any other class becomes a `__PHP_Incomplete_Class` object, so a property typed as that class fails with a `TypeError`. This also applies to nested objects: when `SongMetadata` holds a `CarbonImmutable` date, `CarbonImmutable` must be listed as well. By default, no classes are allowed, so only scalar values, arrays, and enum cases are restored. You may pass `true` to allow every class.
+
+> [!WARNING]
+> Only unserialize trusted data. Class restrictions do not make user-controlled serialized data safe. For user input, use JSON and validate the decoded values.
+
+When the value cannot be unserialized, an exception is thrown. You may make the cast fail silently instead, which leaves the value to the built-in conversion:
+
+```php
+#[WithCast(UnserializeCast::class, failSilently: true, allowedClasses: [SongMetadata::class])]
+public SongMetadata $metadata;
+```
+
 <a name="custom-casts"></a>
 ### Custom Casts
 
@@ -1082,9 +1115,11 @@ class UserData extends Data
 }
 ```
 
-There is no need to add `Required` or `StringType` here; they are inferred from the property declarations. Attributes take precedence over inferred rules of the same type. You may also use `#[Rule('required|string')]` or `#[Rule(['required', 'string'])]` for ordinary rule syntax. See the [validation rule reference](/docs/{{version}}/validation#available-validation-rules) for rule behavior.
+There is no need to add `Required` or `StringType` here; they are inferred from the property declarations. Attributes take precedence over inferred rules of the same type. You may also use ordinary rule syntax with `#[Rule('required', 'string')]` or `#[Rule(['required', 'string'])]`. See the [validation rule reference](/docs/{{version}}/validation#available-validation-rules) for rule behavior.
 
 To skip validation for one property, add `#[WithoutValidation]`. Its input is still used during creation, so use this only when that value does not need validation.
+
+Membership attributes use the same [value comparisons as their validation rules](/docs/{{version}}/validation#membership-comparisons). Pass a values array to include null, such as `#[In([null, 'active'])]`.
 
 Database-aware `Exists` and `Unique` attributes support the familiar fluent constraints. Within an attribute, use constraint classes such as `WhereConstraint`, `WhereInConstraint`, or `WhereNullConstraint` to add conditions:
 
@@ -1156,7 +1191,7 @@ public static function rules(ValidationContext $context): array
 
 The `ValidationContext` provides the current object's input as `payload`, the complete input as `fullPayload`, and the object's input `path`. A class rule replaces inferred rules for that property. Add `#[MergeValidationRules]` to the class to merge them instead. Property keys use PHP property names; Hypervel translates them to the mapped input paths.
 
-Validation attributes, including `#[Rule]`, may reference another property by its PHP name; Hypervel converts it to the input name. Rule strings returned from `rules()` or rule hooks are passed to the validator as written, so use input names there, or return an attribute such as `new RequiredWith('lastName')`.
+Validation attributes, including `#[Rule]`, may reference another property by its PHP name; Hypervel converts it to the input name. Date rules treat a plain string as written, so use `new FieldReference('lastName')` to reference a property. Rule strings and rule builders returned from `rules()` or rule hooks are passed to the validator as written, so use input names there, or return an attribute such as `new RequiredWith('lastName')`.
 
 For references from a nested object to the root input, use `FieldReference`:
 

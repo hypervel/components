@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Server\OnCloseInterface;
 use Hypervel\Contracts\Server\OnMessageInterface;
 use Hypervel\Contracts\Server\OnOpenInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Reverb\Connection as ReverbConnection;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
@@ -217,7 +218,7 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
                 try {
                     $disconnect();
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
 

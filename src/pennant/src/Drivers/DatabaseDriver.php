@@ -18,6 +18,7 @@ use Hypervel\Pennant\Contracts\UsesDatabaseConnection;
 use Hypervel\Pennant\Events\UnknownFeatureResolved;
 use Hypervel\Pennant\Feature;
 use Hypervel\Pennant\FeaturePartition;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use InvalidArgumentException;
@@ -130,11 +131,12 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
     /**
      * Define an initial feature flag state resolver.
      *
-     * Boot or tests only. The definition persists on the store for the worker
-     * lifetime and applies to every subsequent request.
+     * On a shared store, the definition persists for the worker lifetime and
+     * applies to every subsequent request.
      *
      * @param (callable(mixed $scope): mixed) $resolver
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function define(string $feature, callable $resolver): void
     {
         $this->featureStateResolvers[$feature] = $resolver;

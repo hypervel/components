@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait RegistersWatchers
 {
@@ -24,10 +25,10 @@ trait RegistersWatchers
     /**
      * Flush the registered watchers.
      *
-     * Boot or tests only. Clears the worker-wide watcher registry; runtime use
-     * can cause later watcher checks to diverge from already-registered
-     * listeners.
+     * Clears the worker-wide watcher registry; runtime use can cause later
+     * watcher checks to diverge from already-registered listeners.
      */
+    #[BootOrTestsOnly]
     public static function flushWatchers(): void
     {
         static::$watchers = [];

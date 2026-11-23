@@ -15,19 +15,22 @@ use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures\SlackChannelTestNotifiable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class NotificationSlackChannelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('payloadDataProvider')]
     public function testCorrectPayloadIsSentToSlack(Notification $notification, array $payload): void
     {
-        $guzzleHttp = m::mock(Client::class);
+        $guzzleHttp = Double::for(Client::class)->strict();
 
         $slackChannel = new SlackWebhookChannel($guzzleHttp);
 
-        $guzzleHttp->shouldReceive('post')->andReturnUsing(function (string $argUrl, array $argPayload) use ($payload): Response {
+        $guzzleHttp->expects('post')->resolves(function (string $argUrl, array $argPayload) use ($payload): Response {
             $this->assertSame('url', $argUrl);
             $this->assertEquals($payload, $argPayload);
 
@@ -52,7 +55,7 @@ class NotificationSlackChannelTest extends TestCase
 
     public function testModernBlockKitPayloadIsSentToSlack(): void
     {
-        $guzzleHttp = m::mock(Client::class);
+        $guzzleHttp = Double::for(Client::class)->strict();
         $notification = new class extends Notification {
             /**
              * Get the Slack representation of the notification.
@@ -63,12 +66,12 @@ class NotificationSlackChannelTest extends TestCase
             }
         };
 
-        $guzzleHttp->shouldReceive('post')->once()->with('url', [
+        $guzzleHttp->expects('post')->with('url', [
             'json' => [
                 'channel' => null,
                 'text' => 'Modern content',
             ],
-        ])->andReturn(new Response);
+        ])->returns(new Response);
 
         $response = (new SlackWebhookChannel($guzzleHttp))->send(
             new SlackChannelTestNotifiable('url'),
@@ -153,8 +156,8 @@ class NotificationSlackChannelTest extends TestCase
 
     public function testDisabledWebhookDoesNotRequireASlackMessageMethod(): void
     {
-        $http = m::mock(Client::class);
-        $http->shouldNotReceive('post');
+        $http = Double::for(Client::class)->strict();
+        $http->expects('post')->never();
 
         $this->assertNull((new SlackWebhookChannel($http))->send(
             new SlackChannelTestNotifiable,

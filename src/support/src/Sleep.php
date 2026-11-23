@@ -8,6 +8,8 @@ use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Engine\Coroutine;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -110,6 +112,8 @@ class Sleep
 
     /**
      * Sleep for the given duration. Replaces any previously defined duration.
+     *
+     * @return $this
      */
     protected function duration(DateInterval|float|int $duration): static
     {
@@ -133,6 +137,8 @@ class Sleep
 
     /**
      * Sleep for the given number of minutes.
+     *
+     * @return $this
      */
     public function minutes(): static
     {
@@ -144,6 +150,8 @@ class Sleep
 
     /**
      * Sleep for one minute.
+     *
+     * @return $this
      */
     public function minute(): static
     {
@@ -152,6 +160,8 @@ class Sleep
 
     /**
      * Sleep for the given number of seconds.
+     *
+     * @return $this
      */
     public function seconds(): static
     {
@@ -162,6 +172,8 @@ class Sleep
 
     /**
      * Sleep for one second.
+     *
+     * @return $this
      */
     public function second(): static
     {
@@ -170,6 +182,8 @@ class Sleep
 
     /**
      * Sleep for the given number of milliseconds.
+     *
+     * @return $this
      */
     public function milliseconds(): static
     {
@@ -180,6 +194,8 @@ class Sleep
 
     /**
      * Sleep for one millisecond.
+     *
+     * @return $this
      */
     public function millisecond(): static
     {
@@ -188,6 +204,8 @@ class Sleep
 
     /**
      * Sleep for the given number of microseconds.
+     *
+     * @return $this
      */
     public function microseconds(): static
     {
@@ -198,6 +216,8 @@ class Sleep
 
     /**
      * Sleep for one microsecond.
+     *
+     * @return $this
      */
     public function microsecond(): static
     {
@@ -206,6 +226,8 @@ class Sleep
 
     /**
      * Add additional time to sleep for.
+     *
+     * @return $this
      */
     public function and(float|int $duration): static
     {
@@ -216,6 +238,8 @@ class Sleep
 
     /**
      * Sleep while a given callback returns "true".
+     *
+     * @return $this
      */
     public function while(Closure $callback): static
     {
@@ -290,12 +314,19 @@ class Sleep
         $microseconds = (int) $this->duration->totalMicroseconds - $seconds * Carbon::MICROSECONDS_PER_SECOND;
 
         while ($while()) {
-            if ($seconds > 0) {
-                sleep($seconds);
+            // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
+            if ($seconds > 0 && sleep($seconds) !== 0 && Coroutine::isCanceled()) {
+                // Sleeping again would hide the coroutine's cancellation from its caller.
+                return;
             }
 
             if ($microseconds > 0) {
+                // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
                 usleep($microseconds);
+
+                if (Coroutine::isCanceled()) {
+                    return;
+                }
             }
         }
     }
@@ -325,9 +356,10 @@ class Sleep
     /**
      * Stay awake and capture any attempts to sleep.
      *
-     * Tests only. Sleep fakes persist in static state for the worker lifetime
-     * and affect every subsequent sleep call.
+     * Sleep fakes persist in static state for the worker lifetime and affect
+     * every subsequent sleep call.
      */
+    #[TestsOnly]
     public static function fake(bool $value = true, bool $syncWithCarbon = false): void
     {
         static::$fake = $value;
@@ -426,6 +458,8 @@ class Sleep
 
     /**
      * Indicate that the instance should not sleep.
+     *
+     * @return $this
      */
     protected function shouldNotSleep(): static
     {
@@ -436,6 +470,8 @@ class Sleep
 
     /**
      * Only sleep when the given condition is true.
+     *
+     * @return $this
      */
     public function when(bool|Closure $condition): static
     {
@@ -446,6 +482,8 @@ class Sleep
 
     /**
      * Don't sleep when the given condition is true.
+     *
+     * @return $this
      */
     public function unless(bool|Closure $condition): static
     {
@@ -455,9 +493,10 @@ class Sleep
     /**
      * Specify a callback that should be invoked when faking sleep within a test.
      *
-     * Tests only. The callback persists in static state for the worker lifetime
-     * and runs for every subsequent faked sleep.
+     * The callback persists in static state for the worker lifetime and runs
+     * for every subsequent faked sleep.
      */
+    #[TestsOnly]
     public static function whenFakingSleep(callable $callback): void
     {
         static::$fakeSleepCallbacks[] = $callback;
@@ -466,9 +505,10 @@ class Sleep
     /**
      * Indicate that Carbon's "now" should be kept in sync when sleeping.
      *
-     * Tests only. The flag persists in static state for the worker lifetime and
-     * affects every subsequent faked sleep.
+     * The flag persists in static state for the worker lifetime and affects
+     * every subsequent faked sleep.
      */
+    #[TestsOnly]
     public static function syncWithCarbon(bool $value = true): void
     {
         static::$syncWithCarbon = $value;

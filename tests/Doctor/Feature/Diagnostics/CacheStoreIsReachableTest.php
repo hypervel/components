@@ -19,7 +19,8 @@ use Hypervel\Support\Facades\File;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -27,6 +28,8 @@ use Throwable;
 
 class CacheStoreIsReachableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $directory;
 
     private ?string $originalEnvironmentFile;
@@ -359,13 +362,17 @@ class CacheStoreIsReachableTest extends TestCase
     }
 
     #[DataProvider('probeExceptions')]
-    public function testCleanupPreservesPrimaryFailuresAndCancellation(bool $primaryCanceled, bool $cleanupCanceled): void
+    public function testCleanupPreservesPrimaryFailuresAndCancellation(bool $primaryCanceled, bool $cleanupCanceled, bool $cleanupCarried = false): void
     {
         $primary = $primaryCanceled ? new CanceledException('primary canceled') : new RuntimeException('primary failed');
-        $cleanup = $cleanupCanceled ? new CanceledException('cleanup canceled') : new RuntimeException('cleanup failed');
-        $store = m::mock(Store::class);
-        $store->expects('put')->andThrow($primary);
-        $store->expects('forget')->andThrow($cleanup);
+        $cleanup = match (true) {
+            $cleanupCarried => new RuntimeException('cleanup failed', previous: new CanceledException('cleanup canceled')),
+            $cleanupCanceled => new CanceledException('cleanup canceled'),
+            default => new RuntimeException('cleanup failed'),
+        };
+        $store = Double::for(Store::class)->strict();
+        $store->expects('put')->throws($primary);
+        $store->expects('forget')->throws($cleanup);
         Cache::extend('probe', fn (): Repository => new Repository($store));
         config(['cache.default' => 'probe', 'cache.stores.probe' => ['driver' => 'probe']]);
         $caught = null;
@@ -391,7 +398,7 @@ class CacheStoreIsReachableTest extends TestCase
      */
     public static function probeExceptions(): array
     {
-        return [[false, false], [true, false], [false, true], [true, true]];
+        return [[false, false], [true, false], [false, true], [true, true], [false, true, true]];
     }
 
     public function testNullStoreIsSkippedAndSessionStoreCanRoundTrip(): void

@@ -6,6 +6,7 @@ namespace Hypervel\OpenTelemetry\Instrumentation;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
@@ -24,7 +25,6 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\SDK\Common\Exception\StackTraceFormatter;
 use OpenTelemetry\SemConv\Attributes\CodeAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ExceptionInstrumentation extends AbstractInstrumentation
@@ -67,7 +67,7 @@ class ExceptionInstrumentation extends AbstractInstrumentation
         $logsEnabled = $this->options->enabled('logs');
 
         if ($logsEnabled) {
-            $this->logger = $this->loggerProvider->getLogger('hypervel.exceptions');
+            $this->logger = $this->loggerProvider->getLogger('hypervel.exceptions', schemaUrl: $this->schemaUrl());
             $this->message = $this->options->enabled('message');
             $this->stackTrace = $this->options->enabled('stack_trace');
             $this->exceptionContexts->enable();
@@ -78,7 +78,7 @@ class ExceptionInstrumentation extends AbstractInstrumentation
 
         if ($this->metricEnabled(self::EXCEPTIONS_METRIC)) {
             $this->exceptions = $this->meterProvider
-                ->getMeter('hypervel.exceptions')
+                ->getMeter('hypervel.exceptions', schemaUrl: $this->schemaUrl())
                 ->createCounter(
                     self::EXCEPTIONS_METRIC,
                     '{exception}',
@@ -200,9 +200,11 @@ class ExceptionInstrumentation extends AbstractInstrumentation
         foreach ($this->openTelemetry->exceptionEnrichers() as $enricher) {
             try {
                 $enricher($builder, $exception);
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 self::logError('OpenTelemetry exception enrichment failed.', ['exception' => $throwable]);
             }
         }

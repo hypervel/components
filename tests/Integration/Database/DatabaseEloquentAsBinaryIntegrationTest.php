@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\BinaryParameter;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
@@ -30,8 +31,11 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
     {
         Schema::create('binary_identifiers', function (Blueprint $table): void {
             $table->increments('id');
+            $table->integer('counter')->default(0);
             $table->binary('uuid', length: 16, fixed: true)->unique();
             $table->binary('ulid', length: 16, fixed: true);
+            $table->integer('parent_id')->nullable();
+            $table->timestamp('updated_at')->nullable();
         });
 
         Schema::create('binary_primary_keys', function (Blueprint $table): void {
@@ -39,6 +43,13 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
             $table->string('name');
             $table->integer('counter')->default(0);
             $table->timestamp('deleted_at')->nullable();
+            $table->integer('identifier_id')->nullable();
+            $table->timestamp('updated_at')->nullable();
+        });
+
+        Schema::create('binary_touch_links', function (Blueprint $table): void {
+            $table->integer('parent_id');
+            $table->binary('related_uuid', length: 16, fixed: true);
         });
     }
 
@@ -153,6 +164,71 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
 
         $this->assertSame($upsertUuid, $upserted->uuid);
         $this->assertSame($upsertUlid, $upserted->ulid);
+    }
+
+    #[TestWith(['increment'])]
+    #[TestWith(['decrement'])]
+    #[TestWith(['incrementEach'])]
+    #[TestWith(['decrementEach'])]
+    public function testIncrementAndDecrementBindBinaryExtraAttributes(string $method): void
+    {
+        $model = AsBinaryIdentifierModel::create([
+            'counter' => 10,
+            'uuid' => '00000000-0000-0000-0000-000000000001',
+            'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        ]);
+        $uuid = '00ff7f80-4048-43c2-b80b-40491d165946';
+        $extra = ['uuid' => $uuid];
+
+        str_ends_with($method, 'Each')
+            ? $model->{$method}(['counter' => 1], $extra)
+            : $model->{$method}('counter', 1, $extra);
+
+        $this->assertTrue(AsBinaryIdentifierModel::query()
+            ->where('uuid', new BinaryParameter(Uuid::fromString($uuid)->toBinary()))
+            ->exists());
+        $this->assertFalse($model->isDirty('uuid'));
+        $this->assertSame($uuid, $model->fresh()->uuid);
+    }
+
+    #[TestWith(['through'])]
+    #[TestWith(['pivot'])]
+    public function testRelationTouchBindsFrameworkSelectedBinaryKeys(string $kind): void
+    {
+        $parent = AsBinaryIdentifierModel::create([
+            'uuid' => '00000000-0000-0000-0000-000000000001',
+            'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        ]);
+        $intermediate = TouchingAsBinaryIdentifierModel::create([
+            'uuid' => '00ff7f80-4048-43c2-b80b-40491d165946',
+            'ulid' => '2WBHE5RQ2WBHE5RQ2WBHE5RQ2W',
+            'parent_id' => $parent->getKey(),
+            'updated_at' => '2000-01-01 00:00:00',
+        ]);
+
+        if ($kind === 'through') {
+            $related = TouchingAsBinaryPrimaryKeyModel::create([
+                'id' => $intermediate->uuid,
+                'name' => 'related',
+                'identifier_id' => $intermediate->getKey(),
+                'updated_at' => '2000-01-01 00:00:00',
+            ]);
+            $relation = $parent->hasManyThrough(TouchingAsBinaryPrimaryKeyModel::class, AsBinaryIdentifierModel::class, 'parent_id', 'identifier_id');
+        } else {
+            $related = $intermediate;
+            $parent->getConnection()->table('binary_touch_links')->insert([
+                'parent_id' => $parent->getKey(),
+                'related_uuid' => new BinaryParameter($related->getRawOriginal('uuid')),
+            ]);
+            $relation = $parent->belongsToMany(TouchingAsBinaryIdentifierModel::class, 'binary_touch_links', 'parent_id', 'related_uuid', 'id', 'uuid');
+        }
+
+        $this->assertTrue($relation->sole()->is($related));
+
+        $relation->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', $related->fresh()->getRawOriginal('updated_at'));
+        $this->assertNull($parent->fresh()->getRawOriginal('updated_at'));
     }
 
     #[DataProvider('fillAndInsertMethods')]
@@ -285,6 +361,32 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
         $previous = $query()->cursorPaginate(2, cursor: $next->previousCursor()->encode());
 
         $this->assertSame([$ids[0], $ids[1]], $previous->pluck('id')->all());
+    }
+
+    public function testCursorPaginationUsesBinaryCastsAddedByGlobalScopes(): void
+    {
+        $ids = [
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+        ];
+
+        foreach ($ids as $id) {
+            AsBinaryPrimaryKeyModel::create(['id' => $id, 'name' => $id]);
+        }
+
+        $query = fn () => ScopedAsBinaryPrimaryKeyModel::query()->withGlobalScope('binary-id', function (Builder $builder): void {
+            $builder->withCasts(['id' => AsBinary::uuid()]);
+        });
+
+        $first = $query()->cursorPaginate(1);
+        $nextQuery = $query();
+        $second = $nextQuery->cursorPaginate(1, cursor: $first->nextCursor()->encode());
+
+        $this->assertSame([$ids[0]], $first->pluck('id')->all());
+        $this->assertSame([$ids[1]], $second->pluck('id')->all());
+        $this->assertSame([$ids[1]], $nextQuery->get()->pluck('id')->all());
+        $this->assertNull($second->nextCursor());
+        $this->assertSame([$ids[0]], $query()->cursorPaginate(1, cursor: $second->previousCursor()->encode())->pluck('id')->all());
     }
 
     public function testCompoundCursorPaginationPreservesBinaryEqualityAcrossUnions(): void
@@ -463,6 +565,31 @@ class AsBinaryPrimaryKeyModel extends Model
         return [
             'id' => AsBinary::uuid(),
         ];
+    }
+}
+
+class TouchingAsBinaryIdentifierModel extends AsBinaryIdentifierModel
+{
+    public const ?string CREATED_AT = null;
+
+    public bool $timestamps = true;
+}
+
+class TouchingAsBinaryPrimaryKeyModel extends AsBinaryPrimaryKeyModel
+{
+    public const ?string CREATED_AT = null;
+
+    public bool $timestamps = true;
+}
+
+class ScopedAsBinaryPrimaryKeyModel extends AsBinaryPrimaryKeyModel
+{
+    /**
+     * Leave cast selection to the query's global scope.
+     */
+    protected function casts(): array
+    {
+        return [];
     }
 }
 

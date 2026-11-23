@@ -260,6 +260,11 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             $finishReason = FinishReason::Stop;
         }
 
+        // Like the Anthropic API, Converse can end a message holding toolUse blocks with end_turn, so the tool calls still need to run.
+        if ($finishReason === FinishReason::Stop && $toolCalls !== []) {
+            $finishReason = FinishReason::ToolCalls;
+        }
+
         return new StepResponse(
             text: $structuredOutput ?? $output,
             toolCalls: $toolCalls,
@@ -562,6 +567,11 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
 
         if ($toolCalls === [] && $structured && $finishReason === FinishReason::ToolCalls) {
             $finishReason = FinishReason::Stop;
+        }
+
+        // Like the Anthropic API, Converse can end a message holding toolUse blocks with end_turn, so the tool calls still need to run.
+        if ($finishReason === FinishReason::Stop && $toolCalls !== []) {
+            $finishReason = FinishReason::ToolCalls;
         }
 
         $replayBlocks = array_values($responseContent);

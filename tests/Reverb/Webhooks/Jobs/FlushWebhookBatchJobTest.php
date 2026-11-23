@@ -12,11 +12,15 @@ use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Reverb\Webhooks\WebhookPayload;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class FlushWebhookBatchJobTest extends ReverbTestCase
 {
+    /**
+     * Fake webhook delivery and flush jobs.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -26,9 +30,9 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
 
     public function testClearsDebounceBeforeClaiming(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock')->with('123456')->once()->ordered();
-        $buffer->shouldReceive('claim')->once()->ordered()->andReturnNull();
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->expects('clearFlushLock')->with('123456')->ordered();
+        $buffer->expects('claim')->ordered()->returns(null);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
@@ -38,11 +42,11 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
     public function testDeliversTheClaimedBatchAndAcknowledgesItsClaim(): void
     {
         $batch = $this->claimedBatch();
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturn($batch);
-        $buffer->shouldReceive('acknowledge')->with('123456', 'claim-token')->once();
-        $buffer->shouldReceive('hasRemaining')->andReturn(false);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns($batch);
+        $buffer->expects('acknowledge')->with('123456', 'claim-token');
+        $buffer->allows('hasRemaining')->returns(false);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
@@ -57,16 +61,16 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
     {
         $batch = $this->claimedBatch();
         $config = $this->defaultWebhookConfig();
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturn($batch);
-        $buffer->shouldReceive('acknowledge')->with('123456', 'claim-token')->once();
-        $buffer->shouldReceive('hasRemaining')->andReturn(false);
-        $sender = m::mock(WebhookSender::class);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns($batch);
+        $buffer->expects('acknowledge')->with('123456', 'claim-token');
+        $buffer->allows('hasRemaining')->returns(false);
+        $sender = Double::for(WebhookSender::class)->strict();
         $sender->expects('send')->with(
-            m::on(static fn (Application $application): bool => $application->id() === '123456'),
+            Argument::satisfies(static fn (Application $application): bool => $application->id() === '123456'),
             $config,
-            $batch['payload'],
+            Argument::same($batch['payload']),
         );
 
         $job = new FlushWebhookBatchJob('123456', $config);
@@ -78,13 +82,13 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
     public function testFailedSendKeepsTheClaimForRecovery(): void
     {
         $failure = new RuntimeException('The sender could not accept the batch.');
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturn($this->claimedBatch());
-        $buffer->shouldNotReceive('acknowledge');
-        $buffer->shouldNotReceive('hasRemaining');
-        $sender = m::mock(WebhookSender::class);
-        $sender->expects('send')->andThrow($failure);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns($this->claimedBatch());
+        $buffer->expects('acknowledge')->never();
+        $buffer->expects('hasRemaining')->never();
+        $sender = Double::for(WebhookSender::class)->strict();
+        $sender->expects('send')->throws($failure);
 
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
 
@@ -100,10 +104,10 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
 
     public function testBailsWhenClaimReturnsEmpty(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturnNull();
-        $buffer->shouldNotReceive('acknowledge');
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns(null);
+        $buffer->expects('acknowledge')->never();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
@@ -114,11 +118,11 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
 
     public function testReschedulesWhenItemsRemain(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturn($this->claimedBatch());
-        $buffer->shouldReceive('acknowledge');
-        $buffer->shouldReceive('hasRemaining')->andReturn(true);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns($this->claimedBatch());
+        $buffer->allows('acknowledge');
+        $buffer->allows('hasRemaining')->returns(true);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
@@ -129,11 +133,11 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
 
     public function testDoesNotRescheduleWhenBufferEmpty(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturn($this->claimedBatch());
-        $buffer->shouldReceive('acknowledge');
-        $buffer->shouldReceive('hasRemaining')->andReturn(false);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns($this->claimedBatch());
+        $buffer->allows('acknowledge');
+        $buffer->allows('hasRemaining')->returns(false);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
@@ -144,11 +148,11 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
 
     public function testUsesAppKeyAndSecretForSigning(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturn($this->claimedBatch());
-        $buffer->shouldReceive('acknowledge');
-        $buffer->shouldReceive('hasRemaining')->andReturn(false);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns($this->claimedBatch());
+        $buffer->allows('acknowledge');
+        $buffer->allows('hasRemaining')->returns(false);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
@@ -162,11 +166,11 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
 
     public function testPassesCustomHeadersToDeliveryJob(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock');
-        $buffer->shouldReceive('claim')->andReturn($this->claimedBatch());
-        $buffer->shouldReceive('acknowledge');
-        $buffer->shouldReceive('hasRemaining')->andReturn(false);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->allows('clearFlushLock');
+        $buffer->allows('claim')->returns($this->claimedBatch());
+        $buffer->allows('acknowledge');
+        $buffer->allows('hasRemaining')->returns(false);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $config = $this->defaultWebhookConfig();

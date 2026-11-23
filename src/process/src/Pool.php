@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -47,7 +47,8 @@ class Pool
     /**
      * Start all of the processes in the pool.
      *
-     * The caller must wait for or stop the pool before its owning coroutine exits.
+     * Start the pool in the coroutine that will wait for it. Its processes are
+     * stopped when that coroutine exits unless explicitly detached by their options.
      *
      * @throws InvalidArgumentException
      */
@@ -76,9 +77,7 @@ class Pool
                 // Keep partial construction transactional instead of abandoning already-started children.
                 (new InvokedProcessPool($invokedProcesses))->stop(0);
             } catch (Throwable $cleanupException) {
-                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                    throw $cleanupException;
-                }
+                throw Coroutine::preferCancellation($exception, $cleanupException);
             }
 
             throw $exception;

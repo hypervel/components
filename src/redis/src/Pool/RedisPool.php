@@ -10,6 +10,7 @@ use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\ConnectionPool\UsageTracker;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConfig;
@@ -184,16 +185,18 @@ class RedisPool extends ConnectionPool
                 || ($connection->isIdleExpired($now)
                     && $this->getManagedCount() > $this->options->minRetainedConnections);
             $healthy = ! $expired && $connection->heartbeatCheck($this->options->heartbeatTimeout);
-        } catch (CanceledException $cancellation) {
-            try {
-                $this->discardHeartbeatConnection($connection);
-            } catch (CanceledException) {
-            } catch (Throwable $exception) {
-                $this->report($exception);
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                try {
+                    $this->discardHeartbeatConnection($connection);
+                } catch (CanceledException) {
+                } catch (Throwable $cleanupException) {
+                    $this->report($cleanupException);
+                }
+
+                throw $exception;
             }
 
-            throw $cancellation;
-        } catch (Throwable $exception) {
             $this->report('Redis heartbeat failed: ' . $exception);
             $healthy = false;
         }

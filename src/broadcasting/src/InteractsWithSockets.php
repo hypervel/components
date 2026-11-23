@@ -15,6 +15,8 @@ trait InteractsWithSockets
 
     /**
      * Exclude the current user from receiving the broadcast.
+     *
+     * @return $this
      */
     public function dontBroadcastToCurrentUser(): static
     {
@@ -25,6 +27,8 @@ trait InteractsWithSockets
 
     /**
      * Broadcast the event to everyone.
+     *
+     * @return $this
      */
     public function broadcastToEveryone(): static
     {

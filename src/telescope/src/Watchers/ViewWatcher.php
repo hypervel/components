@@ -60,7 +60,7 @@ class ViewWatcher extends Watcher
     {
         $path = $view->getPath();
 
-        if (Str::startsWith($path, base_path())) {
+        if (Str::startsWith($path, base_path() . DIRECTORY_SEPARATOR)) {
             $path = substr($path, strlen(base_path()));
         }
 
@@ -74,7 +74,7 @@ class ViewWatcher extends Watcher
     {
         return Collection::make($view->getData())->filter(function ($value, $key) {
             return ! in_array($key, ['app', '__env', 'obLevel', 'errors'], true);
-        })->keys()->toArray();
+        })->keys()->all();
     }
 
     /**

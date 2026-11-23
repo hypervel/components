@@ -5,24 +5,32 @@ declare(strict_types=1);
 namespace Hypervel\Console\Scheduling;
 
 use BadMethodCallException;
+use Carbon\CarbonInterval;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
+use Hypervel\Console\Events\ScheduledTaskFailed;
+use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
+use stdClass;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use UnitEnum;
 
@@ -33,6 +41,7 @@ use function Hypervel\Support\enum_value;
  */
 class Schedule
 {
+    use InteractsWithTime;
     use Macroable {
         __call as macroCall;
     }
@@ -50,6 +59,11 @@ class Schedule
     public const int FRIDAY = 5;
 
     public const int SATURDAY = 6;
+
+    /**
+     * The context key prefix for the task a duration handler has reported in the current run.
+     */
+    protected const string TASK_DURATION_HANDLED_CONTEXT_KEY_PREFIX = '__console.scheduling_task_duration_handled.';
 
     /**
      * All of the events on the schedule.
@@ -204,7 +218,7 @@ class Schedule
                     : $job;
 
                 if ($job instanceof ShouldQueue) {
-                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); // @phpstan-ignore property.notFound, property.notFound
+                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); // @phpstan-ignore property.notFound (Queueable property), property.notFound (Queueable property)
                 } else {
                     $this->dispatchNow($job);
                 }
@@ -440,9 +454,12 @@ class Schedule
     /**
      * Specify the cache store that should be used to store mutexes.
      *
-     * Boot-only. Mutates the shared mutex instances used by this worker's
-     * schedule; per-request use races across coroutines.
+     * Mutates the shared mutex instances used by this worker's schedule;
+     * per-request use races across coroutines.
+     *
+     * @return $this
      */
+    #[BootOnly]
     public function useCache(UnitEnum|string|null $store): static
     {
         if (is_null($store)) {
@@ -489,9 +506,10 @@ class Schedule
      *
      * This prevents the scheduler from hitting the application cache to determine if it needs to pause or interrupt.
      *
-     * Boot-only. Mutates process-global scheduler flags; runtime use changes
-     * pause and interrupt behavior for every concurrent scheduler run.
+     * Mutates process-global scheduler flags; runtime use changes pause and
+     * interrupt behavior for every concurrent scheduler run.
      */
+    #[BootOnly]
     public static function withoutInterruptionPolling(): void
     {
         static::$pausable = false;
@@ -515,12 +533,58 @@ class Schedule
     /**
      * Indicate that every event on the schedule should only run on one server for each cron expression.
      *
-     * Boot-only. The flag persists for the worker lifetime and affects every
-     * schedule evaluated in the process.
+     * The flag persists for the worker lifetime and affects every schedule
+     * evaluated in the process.
      */
+    #[BootOnly]
     public static function alwaysOnOneServer(bool $value = true): void
     {
         static::$alwaysOnOneServer = $value;
+    }
+
+    /**
+     * Register a callback to be invoked when a scheduled task runs for longer than a given amount of time.
+     *
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching scheduler event.
+     *
+     * @param callable(Event, float): mixed $handler
+     */
+    #[BootOnly]
+    public function whenTaskRunsLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
+    {
+        $threshold = $threshold instanceof DateTimeInterface
+            ? $this->secondsUntil($threshold)
+            : $threshold;
+
+        $threshold = $threshold instanceof CarbonInterval
+            ? $threshold->totalSeconds
+            : $threshold;
+
+        // Identifies this registration, even when the same handler is registered twice. The listener
+        // retains the object, so its id cannot be reused by another registration.
+        $registration = new stdClass;
+
+        Container::getInstance()->make(EventDispatcher::class)->listen(
+            [ScheduledTaskFinished::class, ScheduledTaskFailed::class],
+            // ScheduledTaskFailed follows ScheduledTaskFinished when a command exits with an error or a
+            // Finished listener throws. Each run has its own coroutine, so this marker reports a run once.
+            function (ScheduledTaskFinished|ScheduledTaskFailed $event) use ($threshold, $handler, $registration): void {
+                if ($event->runtime === null || $event->runtime <= $threshold) {
+                    return;
+                }
+
+                $handledKey = self::TASK_DURATION_HANDLED_CONTEXT_KEY_PREFIX . spl_object_id($registration);
+
+                if (CoroutineContext::get($handledKey) === $event->task) {
+                    return;
+                }
+
+                CoroutineContext::set($handledKey, $event->task);
+
+                $handler($event->task, $event->runtime);
+            }
+        );
     }
 
     /**

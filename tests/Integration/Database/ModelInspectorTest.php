@@ -16,7 +16,9 @@ use Hypervel\Database\Eloquent\ModelInspector;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Http\Fixtures\ModelInspectorTestModelResource;
 
 class ModelInspectorTest extends DatabaseTestCase
@@ -63,6 +65,20 @@ class ModelInspectorTest extends DatabaseTestCase
         $this->assertJson($output);
         $modelInfo = json_decode($output, true);
         $this->assertModelInfo($modelInfo);
+    }
+
+    #[RequiresDatabase(['pgsql', 'sqlite'])]
+    public function testPartialUniqueIndexDoesNotMakeTheAttributeGloballyUnique(): void
+    {
+        DB::statement('CREATE UNIQUE INDEX partial_name ON model_info_extractor_test_model (name) WHERE nullable_date IS NOT NULL');
+        Schema::table('model_info_extractor_test_model', function (Blueprint $table): void {
+            $table->unique('uuid');
+        });
+
+        $attributes = (new ModelInspector($this->app))->inspect(ModelInspectorTestModel::class)['attributes']->keyBy('name');
+
+        $this->assertFalse($attributes['name']['unique']);
+        $this->assertTrue($attributes['uuid']['unique']);
     }
 
     public function testCommandPreservesAttributeDefaults(): void

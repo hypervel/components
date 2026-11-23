@@ -8,6 +8,7 @@ use DateTimeZone;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Reflector;
 use InvalidArgumentException;
 use LogicException;
@@ -110,6 +111,7 @@ class CallbackEvent extends Event
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Only command and exec tasks can run in the background.')]
     public function runInBackground(): static
     {
         throw new RuntimeException('Scheduled closures can not be run in the background.');
@@ -151,6 +153,8 @@ class CallbackEvent extends Event
      *
      * The expiration time of the underlying cache lock may be specified in minutes.
      *
+     * @return $this
+     *
      * @throws LogicException
      */
     public function withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true): static
@@ -166,6 +170,8 @@ class CallbackEvent extends Event
 
     /**
      * Allow the event to only run on one server for each cron expression.
+     *
+     * @return $this
      *
      * @throws LogicException
      */

@@ -17,6 +17,7 @@ use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Configuration\ApplicationBuilder;
@@ -25,6 +26,8 @@ use Hypervel\Log\Context\ContextServiceProvider;
 use Hypervel\Log\LogServiceProvider;
 use Hypervel\Routing\RoutingServiceProvider;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
 use Hypervel\Support\ServiceProvider;
@@ -33,7 +36,6 @@ use Hypervel\Support\Traits\Macroable;
 use JsonException;
 use ReflectionClass;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -223,7 +225,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Configure and create a new application builder instance.
+     *
+     * The builder's provider list persists in a static property used when the
+     * application registers its providers.
      */
+    #[BootOnly]
     public static function configure(?string $basePath = null): ApplicationBuilder
     {
         $basePath = match (true) {
@@ -250,6 +256,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         return match (true) {
             isset($_ENV['APP_BASE_PATH']) => $_ENV['APP_BASE_PATH'],
             isset($_SERVER['APP_BASE_PATH']) => $_SERVER['APP_BASE_PATH'],
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the base path is needed before the environment file and configuration load)
             is_string($basePath = Env::get('APP_BASE_PATH')) => $basePath,
             default => dirname(array_values(array_filter(
                 array_keys(ClassLoader::getRegisteredLoaders()),
@@ -379,11 +386,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the base path for the application.
      *
-     * Boot-only. Rebinds path instances on the singleton container; runtime use
-     * races across coroutines and breaks every concurrent path resolution.
+     * Rebinds path instances on the singleton container; runtime use races
+     * across coroutines and breaks every concurrent path resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setBasePath(string $basePath): static
     {
         $this->basePath = rtrim($basePath, '\/');
@@ -395,7 +403,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Bind all of the application paths in the container.
+     *
+     * Rebinds path instances on the singleton container; runtime use races
+     * across coroutines and breaks every concurrent path resolution.
      */
+    #[BootOnly(whenShared: true)]
     protected function bindPathsInContainer(): void
     {
         $this->instance('path', $this->path());
@@ -426,9 +438,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the application directory.
      *
-     * Boot-only. The configured path and its container binding are shared by
-     * every request in the worker.
+     * The configured path and its container binding are shared by every
+     * request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useAppPath(string $path): static
     {
         $this->appPath = $path;
@@ -457,9 +472,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the bootstrap file directory.
      *
-     * Boot-only. The configured path and its container binding are shared by
-     * every request in the worker.
+     * The configured path and its container binding are shared by every
+     * request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useBootstrapPath(string $path): static
     {
         $this->bootstrapPath = $path;
@@ -488,9 +506,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the configuration directory.
      *
-     * Boot-only. The configured path and its container binding are shared by
-     * every request in the worker.
+     * The configured path and its container binding are shared by every
+     * request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useConfigPath(string $path): static
     {
         $this->configPath = $path;
@@ -511,9 +532,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the database directory.
      *
-     * Boot-only. The configured path and its container binding are shared by
-     * every request in the worker.
+     * The configured path and its container binding are shared by every
+     * request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useDatabasePath(string $path): static
     {
         $this->databasePath = $path;
@@ -534,9 +558,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the language file directory.
      *
-     * Boot-only. The configured path and its container binding are shared by
-     * every request in the worker.
+     * The configured path and its container binding are shared by every
+     * request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useLangPath(string $path): static
     {
         $this->langPath = $path;
@@ -557,9 +584,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the public / web directory.
      *
-     * Boot-only. The configured path and its container binding are shared by
-     * every request in the worker.
+     * The configured path and its container binding are shared by every
+     * request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function usePublicPath(string $path): static
     {
         $this->publicPath = $path;
@@ -613,9 +643,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the storage directory.
      *
-     * Boot-only. The configured path and its container binding are shared by
-     * every request in the worker.
+     * The configured path and its container binding are shared by every
+     * request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useStoragePath(string $path): static
     {
         $this->storagePath = $path;
@@ -636,10 +669,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the directory for the environment file.
      *
-     * Boot-only. The configured path is shared by every request in the worker.
+     * The configured path is shared by every request in the worker.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useEnvironmentPath(string $path): static
     {
         $this->environmentPath = $path;
@@ -650,11 +684,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the environment file to be loaded during bootstrapping.
      *
-     * Boot-only. The configured filename is shared by every request in the
-     * worker.
+     * The configured filename is shared by every request in the worker.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function loadEnvironmentFrom(string $file): static
     {
         $this->environmentFile = $file;
@@ -753,6 +787,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function normalizeCachePath(string $key, string $default): string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (cache paths are read before configuration loads, including the configuration cache's own)
         if (is_null($env = Env::get($key))) {
             return $this->bootstrapPath($default);
         }
@@ -765,11 +800,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Add new prefix to list of absolute path prefixes.
      *
-     * Boot-only. The prefix persists on the application singleton and affects
-     * cache-path resolution for every request in the worker.
+     * The prefix persists on the application singleton and affects cache-path
+     * resolution for every request in the worker.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function addAbsoluteCachePathPrefix(string $prefix): static
     {
         $this->absoluteCachePathPrefixes[] = $prefix;
@@ -791,7 +827,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function environment(UnitEnum|array|string ...$environments): bool|string
     {
         if ($environments !== []) {
-            $patterns = is_array($environments[0]) ? $environments[0] : $environments;
+            // Hypervel: a named environments: argument is keyed by name, so read the first value, not key 0.
+            $first = $environments[array_key_first($environments)];
+            $patterns = is_array($first) ? $first : $environments;
 
             return Str::is(array_map(enum_value(...), $patterns), $this->make('env'));
         }
@@ -817,7 +855,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Detect the application's current environment.
+     *
+     * The detected environment is shared by every request in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function detectEnvironment(Closure $callback): string
     {
         // Server commands use HTTP semantics during boot but still receive startup arguments.
@@ -839,6 +880,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             return $this->isRunningInConsole;
         }
 
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the server command sets this in the process environment its workers inherit)
         return $this->isRunningInConsole = (bool) (Env::get('APP_RUNNING_IN_CONSOLE') ?? true);
     }
 
@@ -861,10 +903,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set whether the application is running in the console.
      *
-     * Boot-only. The flag persists on the singleton Application for the worker
-     * lifetime and is read by every runningInConsole() check across all
-     * coroutines.
+     * The flag persists on the singleton Application for the worker lifetime
+     * and is read by every runningInConsole() check across all coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setRunningInConsole(bool $runningInConsole): void
     {
         $this->isRunningInConsole = $runningInConsole;
@@ -932,11 +974,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Indicate that the framework's base configuration should not be merged.
      *
-     * Boot-only. The setting changes configuration bootstrap behavior for the
-     * entire worker.
+     * The setting changes configuration bootstrap behavior for the entire
+     * worker.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function dontMergeFrameworkConfiguration(): static
     {
         $this->mergeFrameworkConfiguration = false;
@@ -956,9 +999,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Register a new registered listener.
      *
-     * Boot-only. The callback persists in the Application's registeredCallbacks
-     * array and fires once per service provider registration during boot.
+     * The callback persists in the Application's registeredCallbacks array and
+     * fires once per service provider registration during boot.
      */
+    #[BootOnly(whenShared: true)]
     public function registered(callable $callback): void
     {
         $this->registeredCallbacks[] = $callback;
@@ -971,7 +1015,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
      * 1. Framework providers (Hypervel\* from app.providers) — always first
      * 2. Discovered providers (from composer packages) — sorted by priority
      * 3. Application providers (non-Hypervel\* from app.providers) — always last
+     *
+     * The providers' bindings persist on the application for every subsequent
+     * request in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function registerConfiguredProviders(): void
     {
         $providers = (new Collection($this->make('config')->array('app.providers')))
@@ -1032,7 +1080,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Register a service provider with the application.
+     *
+     * The provider's bindings persist on the application for every subsequent
+     * request in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function register(ServiceProvider|string $provider, bool $force = false): ServiceProvider
     {
         if (($registered = $this->getProvider($provider)) && ! $force) {
@@ -1181,10 +1233,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Register a new boot listener.
      *
-     * Boot-only. The callback fires once during application boot; runtime use
-     * after boot stores the closure on the singleton Application with no
-     * future boot to listen for.
+     * The callback fires once during application boot; runtime use after boot
+     * stores the closure on the singleton Application with no future boot to
+     * listen for.
      */
+    #[BootOnly(whenShared: true)]
     public function booting(callable $callback): void
     {
         $this->bootingCallbacks[] = $callback;
@@ -1193,10 +1246,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Register a new "booted" listener.
      *
-     * Boot-only. If the app has already booted, the callback fires immediately
-     * and is never invoked again, but remains stored on the singleton
-     * Application for the worker lifetime.
+     * If the app has already booted, the callback fires immediately and is
+     * never invoked again, but remains stored on the singleton Application for
+     * the worker lifetime.
      */
+    #[BootOnly(whenShared: true)]
     public function booted(callable $callback): void
     {
         $this->bootedCallbacks[] = $callback;
@@ -1209,13 +1263,14 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Register a terminating callback with the application.
      *
-     * Boot-only. Callbacks persist for the worker's lifetime and fire on every
-     * subsequent request — per-request use leaks the closure and anything it
-     * captures across every request the worker handles. Use defer() for
-     * per-request "after the response" cleanup.
+     * Callbacks persist for the worker's lifetime and fire on every subsequent
+     * request — per-request use leaks the closure and anything it captures
+     * across every request the worker handles. Use defer() for per-request
+     * "after the response" cleanup.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function terminating(callable|string $callback): static
     {
         $this->terminatingCallbacks[] = $callback;
@@ -1234,8 +1289,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             try {
                 $this->call($callback);
             } catch (Throwable $throwable) {
-                // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
-                if ($throwable instanceof CanceledException) {
+                if (Coroutine::causedByCancellation($throwable)) {
                     throw $throwable;
                 }
 
@@ -1351,9 +1405,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the current application fallback locale.
      *
-     * Boot-only. The fallback is stored on the shared translator and affects
-     * every request in the worker.
+     * The fallback is stored on the shared translator and affects every
+     * request in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function setFallbackLocale(string $fallbackLocale): void
     {
         $this->make(TranslatorContract::class)->setFallback($fallbackLocale);
@@ -1517,7 +1572,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Routing\UrlGenerator::class,
                 \Hypervel\Contracts\Routing\UrlGenerator::class,
             ],
-            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
+            'validation.presence' => [\Hypervel\Validation\PresenceVerifierInterface::class],
             'validator' => [
                 \Hypervel\Validation\Factory::class,
                 \Hypervel\Contracts\Validation\Factory::class,
@@ -1537,7 +1592,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Flush the container of all bindings and resolved instances.
+     *
+     * Clears the worker-lifetime application registry; runtime use breaks
+     * every concurrent resolution in the worker.
      */
+    #[TestsOnly]
     public function flush(): void
     {
         parent::flush();

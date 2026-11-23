@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Foundation\Exceptions;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -13,9 +14,15 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
-use Mockery as m;
+use Hypervel\View\ViewException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\ErrorHandler\Exception\FlattenException;
+use Throwable;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\package_path;
@@ -23,11 +30,15 @@ use function Hypervel\Testbench\package_path;
 #[WithConfig('app.debug', true)]
 class RenderBladeFilesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Define the test environment.
      */
     protected function defineEnvironment(ApplicationContract $app): void
     {
+        $app->make('config')->set('view.compiled_extension', 'cache');
+
         after_resolving($app, 'view.engine.resolver', function (EngineResolver $resolver): void {
             $resolver->resolve('blade')->getCompiler()->withoutComponentTags();
         });
@@ -117,13 +128,64 @@ class RenderBladeFilesTest extends TestCase
 
     public function testBladeMapperSkipsMissingOriginalAndCompiledPaths(): void
     {
-        CoroutineContext::set(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, [
-            ParallelTesting::tempDir('MissingBladeSource') . '/missing.blade.php',
-        ]);
+        $compiler = $this->app->make('blade.compiler');
+        $path = ParallelTesting::tempDir('MissingBladeSource') . '/missing.blade.php';
+        $compiled = $compiler->getCompiledPath($path);
+        $files = new Filesystem;
+        $files->delete($compiled);
+        $mapper = $this->app->make(BladeMapper::class);
 
-        $method = new ReflectionMethod(BladeMapper::class, 'getKnownPaths');
+        $this->assertNull($mapper->findCompiledView($compiled));
 
-        $this->assertSame([], $method->invoke($this->app->make(BladeMapper::class)));
+        try {
+            $files->ensureDirectoryExists(dirname($compiled));
+            $files->put($compiled, '/**PATH ' . $path . ' ENDPATH**/');
+            $this->assertNull($mapper->findCompiledView($compiled));
+        } finally {
+            $files->delete($compiled);
+        }
+    }
+
+    #[TestWith([false, false], 'default echo format')]
+    #[TestWith([true, false], 'custom echo format')]
+    #[TestWith([true, true], 'custom echo format with symlinked cache')]
+    public function testBladeMapperFindsTheSourceAfterRenderingHasUnwound(bool $customFormat, bool $symlinkedCache): void
+    {
+        $files = new Filesystem;
+        $directory = ParallelTesting::tempDir('RenderBladeFilesTest');
+        $files->deleteDirectory($directory);
+        $files->ensureDirectoryExists($directory);
+        $path = $directory . '/failing.blade.php';
+        $files->put($directory . '/other.blade.php', 'Another view');
+        $files->put($path, "/**PATH {$directory}/other.blade.php ENDPATH**/\n{{ missing_blade_mapping_test_function() }}");
+
+        try {
+            if ($symlinkedCache) {
+                $files->ensureDirectoryExists($directory . '/compiled');
+                symlink($directory . '/compiled', $directory . '/linked');
+                config(['view.compiled' => $directory . '/linked']);
+                $this->app->forgetInstance('blade.compiler');
+                $this->app->make('view.engine.resolver')->forget('blade');
+            }
+
+            $compiler = $this->app->make('blade.compiler');
+            $render = fn (): string => $this->app->make('view')->file($path)->render();
+
+            try {
+                $customFormat
+                    ? $compiler->usingEchoFormat('strtoupper(e(%s))', $render)
+                    : $render();
+                $this->fail('The view did not fail.');
+            } catch (ViewException $exception) {
+                $this->assertSame([], CoroutineContext::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY));
+                $mapped = $this->app->make(BladeMapper::class)->map(FlattenException::createFromThrowable($exception));
+                $frames = array_values(array_filter($mapped->getTrace(), static fn (array $frame): bool => ($frame['file'] ?? null) === $path));
+                $this->assertNotEmpty($frames);
+                $this->assertSame(2, $frames[0]['line']);
+            }
+        } finally {
+            $files->deleteDirectory($directory);
+        }
     }
 
     public function testBladeMapperPreservesCompiledLineWhenOriginalDisappears(): void
@@ -137,18 +199,21 @@ class RenderBladeFilesTest extends TestCase
         );
     }
 
-    public function testBladeMapperPreservesCancellationDuringSourceMapping(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBladeMapperPreservesCancellationDuringSourceMapping(bool $throwingCleanup): void
     {
         $cancellation = new CanceledException('canceled');
-        $compiler = m::mock(BladeCompiler::class);
-        $compiler->shouldReceive('compileString')->once()->andThrow($cancellation);
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
+        $compiler = Double::for(BladeCompiler::class)->strict();
+        $compiler->expects('compileString')->throws($cancellation);
         $method = new ReflectionMethod(BladeMapper::class, 'compileSourcemap');
 
         try {
             $method->invoke(new BladeMapper($compiler), 'plain text');
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }

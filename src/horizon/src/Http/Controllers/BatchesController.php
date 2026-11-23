@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Http\Controllers;
 
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Database\QueryException;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
@@ -31,7 +32,7 @@ class BatchesController extends Controller
     public function index(Request $request): array
     {
         try {
-            $batches = $request->query('query')
+            $batches = $request->filled('query')
                 ? $this->searchBatches($request)
                 : $this->batches->get(50, $request->query('before_id'));
         } catch (QueryException $e) {
@@ -56,7 +57,7 @@ class BatchesController extends Controller
 
         $beforeId = $request->query('before_id');
 
-        return DB::connection(Config::get('queue.batching.database'))
+        $ids = DB::connection(Config::get('queue.batching.database'))
             ->table(Config::string('queue.batching.table'))
             ->where(function ($q) use ($pattern) {
                 $q->whereRaw("lower(name) like lower(?) escape '!'", [$pattern])
@@ -65,8 +66,13 @@ class BatchesController extends Controller
             ->orderByDesc('id')
             ->limit(50)
             ->when($beforeId !== null && $beforeId !== '', fn ($q) => $q->where('id', '<', $beforeId))
-            ->pluck('id')
-            ->map(fn ($id) => $this->batches->find($id))
+            ->pluck('id');
+
+        if ($this->batches instanceof DatabaseBatchRepository) {
+            return $this->batches->findMany($ids->all());
+        }
+
+        return $ids->map(fn ($id) => $this->batches->find($id))
             ->filter()
             ->values()
             ->all();
@@ -77,7 +83,7 @@ class BatchesController extends Controller
      */
     public function show(string $id): array
     {
-        $batch = $this->batches->find($id);
+        $batch = $this->batches->find($id)?->loadMissingJobCounts();
 
         if ($batch) {
             $failedJobs = app(JobRepository::class)
@@ -98,15 +104,10 @@ class BatchesController extends Controller
         $batch = $this->batches->find($id);
 
         if ($batch) {
-            app(JobRepository::class)
-                ->getJobs($batch->failedJobIds)
-                ->reject(function ($job) {
-                    $payload = json_decode($job->payload);
-
-                    return isset($payload->retry_of);
-                })->each(function ($job) {
-                    dispatch(new RetryFailedJob($job->id));
-                });
+            // Each outstanding job has one delivery ID, which may itself be a failed Horizon retry.
+            foreach ($batch->failedJobIds as $jobId) {
+                dispatch(new RetryFailedJob($jobId));
+            }
         }
     }
 }

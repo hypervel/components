@@ -42,7 +42,15 @@ class ReadFile extends FilesystemTool
                 throw $exception;
             }
 
-            return "File [{$path}] does not exist.";
+            // Unlike upstream, a failed lookup of an existing file is reported instead of described as missing.
+            // Missing files and other failures throw the same exception, so only a failure checks existence...
+            if (! $this->fileExists($disk, $path)) {
+                return "File [{$path}] does not exist.";
+            }
+
+            report($exception);
+
+            return "Unable to read [{$path}].";
         }
 
         if ($size > static::MAX_BYTES) {
@@ -51,7 +59,12 @@ class ReadFile extends FilesystemTool
 
         $contents = $disk->get($path);
 
-        if ($contents === null || ! mb_check_encoding($contents, 'UTF-8')) {
+        // Disks that do not throw return null when the read fails.
+        if ($contents === null) {
+            return "Unable to read [{$path}].";
+        }
+
+        if (! mb_check_encoding($contents, 'UTF-8')) {
             return "File [{$path}] appears to be binary and cannot be read as text. Use GetFileUrl to access it.";
         }
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Concerns;
 
 use Hypervel\Support\Arr;
+use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 
 trait ReplacesAttributes
@@ -40,7 +42,7 @@ trait ReplacesAttributes
      */
     protected function replaceBetween(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace([':min', ':max'], $parameters, $message);
+        return str_replace([':min', ':max'], array_map($this->parameterToString(...), $parameters), $message);
     }
 
     /**
@@ -126,7 +128,7 @@ trait ReplacesAttributes
      */
     protected function replaceMin(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':min', (string) $parameters[0], $message);
+        return str_replace(':min', $this->parameterToString($parameters[0]), $message);
     }
 
     /**
@@ -146,7 +148,7 @@ trait ReplacesAttributes
      */
     protected function replaceMax(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':max', (string) $parameters[0], $message);
+        return str_replace(':max', $this->parameterToString($parameters[0]), $message);
     }
 
     /**
@@ -217,13 +219,13 @@ trait ReplacesAttributes
      */
     protected function replaceMultipleOf(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':value', (string) ($parameters[0] ?? ''), $message);
+        return str_replace(':value', $this->parameterToString($parameters[0] ?? ''), $message);
     }
 
     /**
      * Replace all place-holders for the in rule.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function replaceIn(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -245,7 +247,7 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the not_in rule.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function replaceNotIn(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -439,7 +441,15 @@ trait ReplacesAttributes
      */
     protected function replaceSize(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':size', (string) $parameters[0], $message);
+        return str_replace(':size', $this->parameterToString($parameters[0]), $message);
+    }
+
+    /**
+     * Convert a rule parameter or message value to text without rounding floats.
+     */
+    private function parameterToString(mixed $value): string
+    {
+        return is_float($value) ? Number::toString($value) : (string) $value;
     }
 
     /**
@@ -453,7 +463,14 @@ trait ReplacesAttributes
             return str_replace(':value', $this->getDisplayableAttribute($parameters[0]), $message);
         }
 
-        return str_replace(':value', (string) $this->getSize($attribute, $value), $message);
+        try {
+            $size = $this->getSize($attribute, $value);
+        } catch (MathException) {
+            // Rejected exponents fail validation; rendering their message must not throw.
+            $size = $this->trim($value);
+        }
+
+        return str_replace(':value', $this->parameterToString($size), $message);
     }
 
     /**
@@ -732,7 +749,7 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the doesnt_contain rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function replaceDoesntContain(string $message, string $attribute, string $rule, array $parameters): string
     {

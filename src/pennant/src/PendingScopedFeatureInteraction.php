@@ -35,6 +35,8 @@ class PendingScopedFeatureInteraction
 
     /**
      * Add scope to the feature interaction.
+     *
+     * @return $this
      */
     public function for(mixed $scope): static
     {

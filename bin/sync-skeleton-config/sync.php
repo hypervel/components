@@ -204,7 +204,7 @@ class SkeletonConfigSync
         // App classes do exist in skeletons; this suppression is needed only when
         // PHPStan analyzes the framework's defaults outside an application.
         foreach (array_reverse(PhpToken::tokenize($source)) as $token) {
-            if ($token->id === T_COMMENT && trim($token->text) === '// @phpstan-ignore class.notFound') {
+            if ($token->id === T_COMMENT && str_starts_with($token->text, '// @phpstan-ignore class.notFound (')) {
                 $start = $token->pos;
 
                 while ($start > 0 && $source[$start - 1] === ' ') {

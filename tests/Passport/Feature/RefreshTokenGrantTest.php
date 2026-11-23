@@ -18,12 +18,15 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 use function Hypervel\Testbench\artisan;
 
 class RefreshTokenGrantTest extends PassportTestCase
 {
+    use VerifiesDoubles;
     use WithHypervelMigrations;
 
     /**
@@ -169,16 +172,20 @@ class RefreshTokenGrantTest extends PassportTestCase
     #[WithConfig('passport.cache', ['enabled' => true, 'store' => 'file', 'ttl' => 300, 'prefix' => 'passport'])]
     public function testRefreshReturnsUsableTokensWhenInvalidationFailsAfterCommit(): void
     {
-        $coordinator = m::mock(ModelCacheCoordinator::class, [$this->app])->makePartial();
+        $realCoordinator = new ModelCacheCoordinator($this->app);
+        $coordinator = Double::for($realCoordinator)->passthru();
         $this->app->instance(ModelCacheCoordinator::class, $coordinator);
         $client = ClientFactory::new()->create();
         $oldToken = $this->getNewAccessToken($client);
         $oldRefresh = Passport::refreshToken()->newQuery()->sole();
         $failure = new LockTimeoutException;
-        $coordinator->shouldReceive('invalidate')->once()
-            ->with($this->app->make('cache')->store('file'), 'passport:tokens:' . $oldRefresh->access_token_id)
-            ->andThrow($failure);
-        $coordinator->shouldReceive('invalidate')->withAnyArgs()->passthru()->byDefault();
+        $tokenCacheKey = 'passport:tokens:' . $oldRefresh->access_token_id;
+        $coordinator->expects('invalidate')
+            ->with($this->app->make('cache')->store('file'), $tokenCacheKey)
+            ->throws($failure);
+        $coordinator->allows('invalidate')
+            ->with(Argument::any(), Argument::not($tokenCacheKey))
+            ->resolves($realCoordinator->invalidate(...));
         Exceptions::fake();
 
         $newToken = $this->post('/oauth/token', [

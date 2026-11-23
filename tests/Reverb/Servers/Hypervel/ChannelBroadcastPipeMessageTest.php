@@ -13,7 +13,8 @@ use Hypervel\Reverb\Servers\Hypervel\MetricsRequestPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\MetricsResponsePipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\TerminateUserPipeMessage;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Server;
 
@@ -31,7 +32,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
             exceptSocketId: null,
         );
 
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         event(new OnPipeMessage($server, 0, $message));
 
@@ -59,7 +60,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
             exceptSocketId: $connectionOne->id(),
         );
 
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         event(new OnPipeMessage($server, 0, $message));
 
@@ -82,7 +83,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
             exceptSocketId: null,
         );
 
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         event(new OnPipeMessage($server, 0, $message));
 
@@ -95,7 +96,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         $connection = $this->subscribeConnection('test-channel');
 
         // Send a non-ChannelBroadcastPipeMessage — the listener should ignore it
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         event(new OnPipeMessage($server, 0, 'some-other-data'));
 
@@ -114,7 +115,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
             exceptSocketId: null,
         );
 
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         event(new OnPipeMessage($server, 0, $message));
 
@@ -134,7 +135,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
             exceptSocketId: null,
         );
 
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         event(new OnPipeMessage($server, 0, $message));
 
@@ -170,7 +171,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
             exceptSocketId: null,
         );
 
-        event(new OnPipeMessage(m::mock(Server::class), 0, $message));
+        event(new OnPipeMessage(Double::for(Server::class)->strict(), 0, $message));
 
         // Lock should be cleared — re-acquire should succeed
         $this->assertTrue($sharedState->tryCacheMissLock('123456', 'cache-test-channel'));
@@ -183,10 +184,10 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         $cacheConnection->resetReceived();
         $laterConnection->resetReceived();
         $failure = new RuntimeException('cache lock failed');
-        $sharedState = m::mock(SharedState::class);
+        $sharedState = Double::for(SharedState::class)->strict();
         $sharedState->expects('clearCacheMissLock')
             ->with('123456', 'cache-first')
-            ->andThrow($failure);
+            ->throws($failure);
         $this->app->instance(SharedState::class, $sharedState);
         $message = new ChannelBroadcastPipeMessage(
             appId: '123456',
@@ -196,7 +197,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         );
 
         try {
-            event(new OnPipeMessage(m::mock(Server::class), 0, $message));
+            event(new OnPipeMessage(Double::for(Server::class)->strict(), 0, $message));
             $this->fail('Expected the first pipe delivery failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
@@ -216,18 +217,18 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
 
     public function testMetricsRequestReturnsTheLocalWorkerSlice(): void
     {
-        $metrics = m::mock(MetricsHandler::class);
+        $metrics = Double::for(MetricsHandler::class)->strict();
         $metrics->expects('get')
-            ->with(m::on(fn (PendingMetric $metric): bool => $metric->key() === 'request'
+            ->with(Argument::satisfies(fn (PendingMetric $metric): bool => $metric->key() === 'request'
                 && $metric->application()->id() === '123456'
                 && $metric->type()->value === 'connections'))
-            ->andReturn(['count' => 1]);
+            ->returns(['count' => 1]);
         $this->app->instance(MetricsHandler::class, $metrics);
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->expects('sendMessage')
-            ->with(m::on(fn (MetricsResponsePipeMessage $message): bool => $message->requestId === 'request'
+            ->with(Argument::satisfies(fn (MetricsResponsePipeMessage $message): bool => $message->requestId === 'request'
                 && $message->payload === ['count' => 1]), 2)
-            ->andReturnTrue();
+            ->returns(true);
 
         event(new OnPipeMessage($server, 2, new MetricsRequestPipeMessage(
             'request',
@@ -240,11 +241,11 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
     public function testMetricsResponseIsDeliveredToThePendingGather(): void
     {
         $message = new MetricsResponsePipeMessage('request', ['count' => 1]);
-        $metrics = m::mock(MetricsHandler::class);
-        $metrics->expects('receive')->with($message);
+        $metrics = Double::for(MetricsHandler::class)->strict();
+        $metrics->expects('receive')->with(Argument::same($message));
         $this->app->instance(MetricsHandler::class, $metrics);
 
-        event(new OnPipeMessage(m::mock(Server::class), 2, $message));
+        event(new OnPipeMessage(Double::for(Server::class)->strict(), 2, $message));
     }
 
     public function testTerminateUserMessageDisconnectsMatchingLocalConnections(): void
@@ -259,7 +260,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         ]);
 
         event(new OnPipeMessage(
-            m::mock(Server::class),
+            Double::for(Server::class)->strict(),
             2,
             new TerminateUserPipeMessage('123456', 'matching'),
         ));

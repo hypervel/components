@@ -12,11 +12,14 @@ use Hypervel\View\ComponentAttributeBag;
 use Hypervel\View\DynamicComponent;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 
 class ViewStaticStateTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testViewFlushStateClearsMacros(): void
     {
         View::macro('testingStaticStateProbe', static fn (): string => 'ok');
@@ -94,7 +97,7 @@ class ViewStaticStateTest extends TestCase
 
     public function testComponentFlushStateClearsAllStaticState(): void
     {
-        (new ReflectionProperty(Component::class, 'factory'))->setValue(null, m::mock(FactoryContract::class));
+        (new ReflectionProperty(Component::class, 'factory'))->setValue(null, Double::for(FactoryContract::class)->strict());
         (new ReflectionProperty(Component::class, 'componentsResolver'))->setValue(null, static fn (): null => null);
         (new ReflectionProperty(Component::class, 'bladeViewCache'))->setValue(null, ['cached']);
 

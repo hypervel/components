@@ -72,6 +72,8 @@ class SlackMessage
 
     /**
      * Indicate that the notification gives information about an operation.
+     *
+     * @return $this
      */
     public function info(): static
     {
@@ -82,6 +84,8 @@ class SlackMessage
 
     /**
      * Indicate that the notification gives information about a successful operation.
+     *
+     * @return $this
      */
     public function success(): static
     {
@@ -92,6 +96,8 @@ class SlackMessage
 
     /**
      * Indicate that the notification gives information about a warning.
+     *
+     * @return $this
      */
     public function warning(): static
     {
@@ -102,6 +108,8 @@ class SlackMessage
 
     /**
      * Indicate that the notification gives information about an error.
+     *
+     * @return $this
      */
     public function error(): static
     {
@@ -112,6 +120,8 @@ class SlackMessage
 
     /**
      * Set a custom username and optional emoji icon for the Slack message.
+     *
+     * @return $this
      */
     public function from(string $username, ?string $icon = null): static
     {
@@ -126,6 +136,8 @@ class SlackMessage
 
     /**
      * Set a custom image icon the message should use.
+     *
+     * @return $this
      */
     public function image(string $image): static
     {
@@ -136,6 +148,8 @@ class SlackMessage
 
     /**
      * Set the Slack channel the message should be sent to.
+     *
+     * @return $this
      */
     public function to(?string $channel): static
     {
@@ -146,6 +160,8 @@ class SlackMessage
 
     /**
      * Set the content of the Slack message.
+     *
+     * @return $this
      */
     public function content(string $content): static
     {
@@ -156,6 +172,8 @@ class SlackMessage
 
     /**
      * Define an attachment for the message.
+     *
+     * @return $this
      */
     public function attachment(Closure $callback): static
     {
@@ -185,6 +203,8 @@ class SlackMessage
 
     /**
      * Find and link channel names and usernames.
+     *
+     * @return $this
      */
     public function linkNames(): static
     {
@@ -195,6 +215,8 @@ class SlackMessage
 
     /**
      * Unfurl links to rich display.
+     *
+     * @return $this
      */
     public function unfurlLinks(bool $unfurlLinks): static
     {
@@ -205,6 +227,8 @@ class SlackMessage
 
     /**
      * Unfurl media to rich display.
+     *
+     * @return $this
      */
     public function unfurlMedia(bool $unfurlMedia): static
     {
@@ -215,6 +239,8 @@ class SlackMessage
 
     /**
      * Set additional request options for the Guzzle HTTP client.
+     *
+     * @return $this
      */
     public function http(array $options): static
     {

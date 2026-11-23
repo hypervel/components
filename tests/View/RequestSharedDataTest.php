@@ -15,7 +15,8 @@ use Hypervel\View\Factory;
 use Hypervel\View\Middleware\ShareErrorsFromSession;
 use Hypervel\View\RequestSharedData;
 use Hypervel\View\ViewFinderInterface;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -23,6 +24,8 @@ use function Hypervel\Coroutine\parallel;
 
 class RequestSharedDataTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRequestDataMergesBetweenGlobalAndLocalData(): void
     {
         $factory = $this->factory();
@@ -113,16 +116,16 @@ class RequestSharedDataTest extends TestCase
     private function factory(): Factory
     {
         return new Factory(
-            m::mock(EngineResolver::class),
-            m::mock(ViewFinderInterface::class),
-            m::mock(Dispatcher::class),
+            new EngineResolver,
+            Double::for(ViewFinderInterface::class)->strict(),
+            Double::for(Dispatcher::class)->strict(),
         );
     }
 
     private function requestWithErrors(ViewErrorBag $errors): Request
     {
-        $session = m::mock(Session::class);
-        $session->shouldReceive('get')->once()->with('errors')->andReturn($errors);
+        $session = Double::for(Session::class)->strict();
+        $session->expects('get')->with('errors')->returns($errors);
 
         $request = Request::create('/');
         $request->setHypervelSession($session);

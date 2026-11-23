@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Pusher\ApiErrorException;
 use Pusher\Pusher;
@@ -55,7 +56,7 @@ class PusherBroadcaster extends Broadcaster
     {
         $channelName = $request->input('channel_name');
 
-        if (empty($channelName)) {
+        if (! is_string($channelName) || empty($channelName)) {
             throw new AccessDeniedHttpException;
         }
 
@@ -133,12 +134,18 @@ class PusherBroadcaster extends Broadcaster
 
         $parameters = $socket !== null ? ['socket_id' => $socket] : [];
 
-        $channels = new Collection($this->formatChannels($channels));
+        [$encryptedChannels, $channels] = (new Collection($this->formatChannels($channels)))
+            ->partition(fn ($channel) => str_starts_with($channel, 'private-encrypted-'));
 
         try {
             $channels->chunk(100)->each(function ($channels) use ($event, $payload, $parameters) {
                 ConnectionResolver::releaseIdleConnections();
-                $this->pusher->trigger($channels->toArray(), $event, $payload, $parameters);
+                $this->pusher->trigger($channels->values()->all(), $event, $payload, $parameters);
+            });
+
+            $encryptedChannels->each(function ($channel) use ($event, $payload, $parameters) {
+                ConnectionResolver::releaseIdleConnections();
+                $this->pusher->trigger([$channel], $event, $payload, $parameters);
             });
         } catch (ApiErrorException $e) {
             throw new BroadcastException(
@@ -158,9 +165,10 @@ class PusherBroadcaster extends Broadcaster
     /**
      * Set the Pusher SDK instance.
      *
-     * Boot or tests only. Replaces the SDK client on this worker-cached broadcaster;
-     * per-request mutation races across coroutines.
+     * Replaces the SDK client on this worker-cached broadcaster; per-request
+     * mutation races across coroutines.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setPusher(Pusher $pusher): void
     {
         $this->pusher = $pusher;

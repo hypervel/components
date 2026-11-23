@@ -13,6 +13,8 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Password;
 use Hypervel\Testbench\Attributes\WithMigration;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Mockery as m;
 use Workbench\App\Models\User;
 use Workbench\Database\Factories\UserFactory;
@@ -21,6 +23,7 @@ use Workbench\Database\Factories\UserFactory;
 class NewPasswordControllerTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     public function testTheNewPasswordViewIsReturned(): void
     {
@@ -91,7 +94,7 @@ class NewPasswordControllerTest extends TestCase
     public function testPasswordCanBeResetWithCustomizedEmailAddressField(): void
     {
         $this->app->make('config')->set('fortify.email', 'emailAddress');
-        Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
+        Password::shouldReceive('broker')->andReturn($broker = Double::for(PasswordBroker::class)->strict());
 
         $user = User::forceCreate(UserFactory::new()->raw());
         $rememberToken = $user->remember_token;
@@ -101,7 +104,7 @@ class NewPasswordControllerTest extends TestCase
             ->once()
             ->with($user, m::type('array'));
 
-        $broker->shouldReceive('reset')->once()->andReturnUsing(function (array $input, callable $callback) use ($user): string {
+        $broker->expects('reset')->resolves(function (array $input, callable $callback) use ($user): string {
             $callback($user, 'password');
 
             return Password::PASSWORD_RESET;

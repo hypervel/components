@@ -28,12 +28,16 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Commands\FakeCommand;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SupervisorThatThrowsException;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Throwable;
 
 class SupervisorTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public string $phpBinary;
 
     public ?Supervisor $supervisor = null;
@@ -204,8 +208,8 @@ class SupervisorTest extends IntegrationTestCase
 
     public function testExceptionsAreCaughtAndHandledDuringLoop(): void
     {
-        $exceptions = m::mock(ExceptionHandler::class);
-        $exceptions->shouldReceive('report')->once();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
+        $exceptions->expects('report');
         $this->app->instance(ExceptionHandler::class, $exceptions);
 
         $this->supervisor = $supervisor = new SupervisorThatThrowsException($this->supervisorOptions());
@@ -482,8 +486,8 @@ class SupervisorTest extends IntegrationTestCase
         $this->supervisor = $supervisor = new Supervisor($options);
 
         // Mock the scaler...
-        $autoScaler = m::mock(AutoScaler::class);
-        $autoScaler->shouldReceive('scale')->once()->with($supervisor);
+        $autoScaler = Double::for(AutoScaler::class)->strict();
+        $autoScaler->expects('scale')->with(Argument::same($supervisor));
         $this->app->singleton(AutoScaler::class, fn () => $autoScaler);
 
         // Start the supervisor...

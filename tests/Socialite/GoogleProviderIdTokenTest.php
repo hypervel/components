@@ -17,16 +17,16 @@ use Hypervel\Socialite\Two\GoogleProvider;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\Socialite\Fixtures\CreatesJwksFixtures;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\StreamInterface;
 use ReflectionMethod;
 use UnexpectedValueException;
 
 class GoogleProviderIdTokenTest extends TestCase
 {
     use CreatesJwksFixtures;
+    use VerifiesDoubles;
 
     public function testItCanDetectJwtTokens(): void
     {
@@ -65,6 +65,9 @@ class GoogleProviderIdTokenTest extends TestCase
         $this->assertSame('123456789012345678901', $user->getId());
     }
 
+    /**
+     * Provide the documented Google token issuers.
+     */
     public static function validIssuerProvider(): array
     {
         return [
@@ -112,11 +115,8 @@ class GoogleProviderIdTokenTest extends TestCase
         $provider = $this->getProvider();
         $accessToken = 'ya29.a0AfH6SMCxyz123456789';
 
-        $httpClient = m::mock(Client::class);
+        $httpClient = Double::for(Client::class)->strict();
         $provider->setHttpClient($httpClient);
-
-        $response = m::mock(ResponseInterface::class);
-        $stream = m::mock(StreamInterface::class);
 
         $mockUserData = [
             'sub' => '123456789',
@@ -126,7 +126,7 @@ class GoogleProviderIdTokenTest extends TestCase
         ];
 
         $httpClient
-            ->shouldReceive('get')
+            ->expects('get')
             ->with('https://www.googleapis.com/oauth2/v3/userinfo', [
                 RequestOptions::QUERY => [
                     'prettyPrint' => 'false',
@@ -136,15 +136,7 @@ class GoogleProviderIdTokenTest extends TestCase
                     'Authorization' => 'Bearer ' . $accessToken,
                 ],
             ])
-            ->once()
-            ->andReturn($response);
-
-        $response->shouldReceive('getBody')->once()->andReturn($stream);
-
-        $stream
-            ->shouldReceive('__toString')
-            ->once()
-            ->andReturn(json_encode($mockUserData));
+            ->returns(new Response(body: json_encode($mockUserData)));
 
         $user = $provider->userFromToken($accessToken);
 
@@ -218,22 +210,25 @@ class GoogleProviderIdTokenTest extends TestCase
     protected function getProvider(): GoogleProvider
     {
         return new GoogleProvider(
-            m::mock(Request::class),
+            new Request,
             'test-client-id',
             'test-client-secret',
             'http://localhost/callback'
         );
     }
 
+    /**
+     * Expect key-set responses in order.
+     */
     private function expectJwksResponses(GoogleProvider $provider, array $keys): void
     {
-        $httpClient = m::mock(Client::class);
+        $httpClient = Double::for(Client::class)->strict();
         $provider->setHttpClient($httpClient);
 
         $httpClient->expects('get')
             ->with('https://www.googleapis.com/oauth2/v3/certs')
             ->times(count($keys))
-            ->andReturn(...array_map(
+            ->returns(...array_map(
                 fn (array $key): Response => new Response(
                     headers: ['Cache-Control' => 'max-age=3600'],
                     body: json_encode($this->jwks($key)),

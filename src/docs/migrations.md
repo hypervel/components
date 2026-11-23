@@ -66,7 +66,7 @@ To dump the schema without including rows from the migrations table, use the `--
 php artisan schema:dump --without-migration-data
 ```
 
-When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
+When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. If the connection defines a [`migrations_connection`](#setting-the-migration-connection), the schema is dumped from that connection and named after it, since that is the connection the file is loaded into. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
 
 If your application's tests use a different database connection than the one you typically use during local development, you should ensure you have dumped a schema file using that database connection so that your tests are able to build your database. You may wish to do this after dumping the database connection you typically use during local development:
 
@@ -89,6 +89,17 @@ When prohibited, `schema:dump` exits without dumping the schema or pruning migra
 
 > [!WARNING]
 > Migration squashing is only available for the MariaDB, MySQL, PostgreSQL, and SQLite databases and utilizes the database's command-line client.
+
+For MySQL 26 or later, use MySQL's own command-line tools for schema dumps. MariaDB's dump client currently sends unsupported statements to these servers.
+
+<a name="schema-dump-tls"></a>
+#### TLS Connections
+
+Schema dumping and loading use the TLS options from your database connection. For verified TLS, configure a trusted certificate authority using `Pdo\Mysql::ATTR_SSL_CA` or `Pdo\Mysql::ATTR_SSL_CAPATH`. Each omitted trust setting falls back to its corresponding PHP `openssl.cafile` or `openssl.capath` setting. When neither is configured, Hypervel uses PHP's system trust paths.
+
+The MySQL command-line client requires version 5.7.11 or later for TLS connections. If certificate verification is disabled, Hypervel still requires an encrypted connection.
+
+When using MariaDB command-line tools, TLS connections require certificate verification. Leave `Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT` unset or set it to `true`, and configure a trusted CA. Hypervel rejects TLS with verification disabled because the MariaDB client can otherwise fall back to an unencrypted connection.
 
 <a name="migration-structure"></a>
 ## Migration Structure
@@ -1876,6 +1887,7 @@ For convenience, each migration operation will dispatch an [event](/docs/{{versi
 | `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished.                                                              |
 | `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.                                                      |
 | `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished.                                                                 |
+| `Hypervel\Database\Events\MigrationFailed`     | A single migration has failed.                                                                   |
 | `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.                                                             |
 | `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations.                                                 |
 | `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has finished.                                                             |
@@ -1884,4 +1896,4 @@ For convenience, each migration operation will dispatch an [event](/docs/{{versi
 
 </div>
 
-The `MigrationStarted` and `MigrationEnded` events expose the migration filename through their `$name` property.
+The `MigrationStarted`, `MigrationEnded`, and `MigrationFailed` events expose the migration filename through their `$name` property. The `MigrationEnded` event also exposes how long the migration took to run, in milliseconds, through its `$duration` property. The `MigrationFailed` event exposes the exception through its `$exception` property.

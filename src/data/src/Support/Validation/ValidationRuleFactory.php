@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Validation;
 
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Data\Attributes\Validation\Accepted;
 use Hypervel\Data\Attributes\Validation\AcceptedIf;
 use Hypervel\Data\Attributes\Validation\ActiveUrl;
@@ -252,18 +253,18 @@ class ValidationRuleFactory
     ];
 
     /**
-     * Create the validation attribute for a Validator rule string.
+     * Create the validation attribute for a Validator rule.
      *
      * @throws CouldNotCreateValidationRule when no attribute has the rule's keyword
      */
-    public function create(string $rule): ValidationRule
+    public function create(string|ParameterizedRule $rule): ValidationRule
     {
         [$keyword, $parameters] = ValidationRuleParser::parse($rule);
 
         $ruleClass = $this->mapping()[Str::snake($keyword)] ?? null;
 
         if ($ruleClass === null) {
-            throw CouldNotCreateValidationRule::create($rule);
+            throw CouldNotCreateValidationRule::create(is_string($rule) ? $rule : $keyword);
         }
 
         return $ruleClass::create(...$parameters);

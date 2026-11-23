@@ -80,6 +80,40 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
         yield ['status', StringStatus::Draft, 'draft'];
     }
 
+    #[RequiresDatabase(['sqlite', 'mysql', 'mariadb', 'pgsql'])]
+    public function testUpdateJsonPathWithArray(): void
+    {
+        DB::table('example')->insert([
+            ['name' => 'Taylor Otwell', 'payload' => json_encode(['tags' => [], 'active' => true])],
+        ]);
+
+        DB::table('example')->update([
+            'payload->tags' => ['Hypervel', 'Founder'],
+        ]);
+
+        $this->assertSame(
+            ['tags' => ['Hypervel', 'Founder'], 'active' => true],
+            json_decode(DB::table('example')->value('payload'), true)
+        );
+    }
+
+    #[RequiresDatabase(['sqlite', 'mysql', 'mariadb', 'pgsql'])]
+    public function testUpdateJsonPathWithCollection(): void
+    {
+        DB::table('example')->insert([
+            ['name' => 'Taylor Otwell', 'payload' => json_encode(['tags' => [], 'active' => true])],
+        ]);
+
+        DB::table('example')->update([
+            'payload->tags' => collect(['Hypervel', 'Founder']),
+        ]);
+
+        $this->assertSame(
+            ['tags' => ['Hypervel', 'Founder'], 'active' => true],
+            json_decode(DB::table('example')->value('payload'), true)
+        );
+    }
+
     #[RequiresDatabase(['sqlite', 'mysql', 'mariadb'])]
     public function testSubqueryUpdate(): void
     {
@@ -120,5 +154,33 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
             'title' => 'Mr.',
             'credits' => null,
         ]);
+    }
+
+    public function testUpdateWithOrderAndLimit(): void
+    {
+        DB::table('example')->insert([
+            ['name' => 'A', 'credits' => 30],
+            ['name' => 'B', 'credits' => 10],
+            ['name' => 'C', 'credits' => 40],
+            ['name' => 'D', 'credits' => 20],
+        ]);
+
+        DB::table('example')->orderBy('credits')->limit(2)->update(['title' => 'Low']);
+
+        $this->assertSame(['B', 'D'], DB::table('example')->where('title', 'Low')->orderBy('name')->pluck('name')->all());
+    }
+
+    public function testDeleteWithOrderAndLimit(): void
+    {
+        DB::table('example')->insert([
+            ['name' => 'A', 'credits' => 30],
+            ['name' => 'B', 'credits' => 10],
+            ['name' => 'C', 'credits' => 40],
+            ['name' => 'D', 'credits' => 20],
+        ]);
+
+        DB::table('example')->orderBy('credits')->limit(2)->delete();
+
+        $this->assertSame(['A', 'C'], DB::table('example')->orderBy('name')->pluck('name')->all());
     }
 }

@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LocalFilesystemAdapter;
+use Hypervel\Support\Attributes\TestsOnly;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -14,24 +15,24 @@ use function Hypervel\Support\enum_value;
 /**
  * @method static \Hypervel\Filesystem\FilesystemManager addPoolableDriver(string $driver)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem build(array|string $config, string|null $name = null)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
- * @method static \Hypervel\Contracts\Filesystem\Cloud createGcsDriver(array $config)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem createLocalDriver(array $config, string $name = 'local')
- * @method static \Hypervel\Contracts\Filesystem\Filesystem createReadThroughDriver(array $config, string $name = 'read-through')
- * @method static \Hypervel\Contracts\Filesystem\Cloud createS3Driver(array $config)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter createFtpDriver(array $config)
+ * @method static \Hypervel\Filesystem\GoogleCloudStorageAdapter createGcsDriver(array $config)
+ * @method static \Hypervel\Filesystem\LocalFilesystemAdapter createLocalDriver(array $config, string $name = 'local')
+ * @method static \Hypervel\Filesystem\ReadThroughFilesystem createReadThroughDriver(array $config, string $name = 'read-through')
+ * @method static \Hypervel\Filesystem\AwsS3V3Adapter createS3Driver(array $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createScopedDriver(array $config, string|null $name = null)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem createSftpDriver(array $config)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter createSftpDriver(array $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem disk(UnitEnum|string|null $name = null)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem drive(UnitEnum|string|null $name = null)
  * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
  * @method static void flushState()
- * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
+ * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array<string|UnitEnum>|string|UnitEnum $disk)
  * @method static string getDefaultDriver()
  * @method static array getPoolableDrivers()
  * @method static \Closure|null getReleaseCallback(string $driver)
- * @method static void purge(string|null $name = null)
+ * @method static void purge(UnitEnum|string|null $name = null)
  * @method static \Hypervel\Filesystem\FilesystemManager removePoolableDriver(string $driver)
- * @method static \Hypervel\Filesystem\FilesystemManager set(string $name, mixed $disk)
+ * @method static \Hypervel\Filesystem\FilesystemManager set(UnitEnum|string $name, mixed $disk)
  * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static \Hypervel\Filesystem\FilesystemManager setPoolableDrivers(array $poolableDrivers)
  * @method static \Hypervel\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
@@ -110,9 +111,10 @@ class Storage extends Facade
     /**
      * Replace the given disk with a local testing disk.
      *
-     * Tests only. Swaps a cached filesystem disk on the shared filesystem
-     * manager for the worker lifetime.
+     * Swaps a cached filesystem disk on the shared filesystem manager for
+     * the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {
@@ -151,9 +153,10 @@ class Storage extends Facade
     /**
      * Replace the given disk with a persistent local testing disk.
      *
-     * Tests only. Swaps a cached filesystem disk on the shared filesystem
-     * manager for the worker lifetime.
+     * Swaps a cached filesystem disk on the shared filesystem manager for
+     * the worker lifetime.
      */
+    #[TestsOnly]
     public static function persistentFake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {

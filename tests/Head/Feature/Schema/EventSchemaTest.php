@@ -37,11 +37,11 @@ class EventSchemaTest extends TestCase
         $this->assertStringContainsString('"location":{"@type":"Place","name":"Music City Center","address":"201 Rep. John Lewis Way S, Nashville, TN"}', $html);
     }
 
-    public function testTreatsAStringLocationAsTheNameOfAPlace(): void
+    public function testAcceptsAVirtualLocationForOnlineEvents(): void
     {
-        $event = Schema::event()->location('Music City Center');
+        $event = Schema::event()->location(Schema::virtualLocation()->url('https://example.com/stream'));
 
-        $this->assertSame(['@type' => 'Place', 'name' => 'Music City Center'], $event->toArray()['location']);
+        $this->assertSame(['@type' => 'VirtualLocation', 'url' => 'https://example.com/stream'], $event->toArray()['location']);
     }
 
     public function testSetsEventStatusAndAttendanceModeFromSchemaOrgEnumValues(): void

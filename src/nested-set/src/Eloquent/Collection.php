@@ -40,7 +40,7 @@ class Collection extends BaseCollection
     protected function linkNodesFromGroups(array $groupedNodes, array $roots): static
     {
         foreach ($this->items as $node) {
-            $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound */
+            $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             if ($parentId === null) {
                 $node->setRelation('parent', null);
@@ -127,7 +127,7 @@ class Collection extends BaseCollection
         $rootNodeId = null;
 
         foreach ($this->items as $node) {
-            $lftName = $node->getLftName(); /* @phpstan-ignore method.notFound */
+            $lftName = $node->getLftName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             if (! array_key_exists($lftName, $node->getAttributes())) {
                 throw new LogicException(sprintf(
@@ -137,11 +137,11 @@ class Collection extends BaseCollection
                 ));
             }
 
-            $lft = $node->getLft(); /* @phpstan-ignore method.notFound */
+            $lft = $node->getLft(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             if ($lft !== null && $lft < $leastValue) {
                 $leastValue = $lft;
-                $rootNodeId = $node->getParentId(); /* @phpstan-ignore method.notFound */
+                $rootNodeId = $node->getParentId(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             }
         }
 
@@ -186,7 +186,7 @@ class Collection extends BaseCollection
                 ));
             }
 
-            $parentIdName = $node->getParentIdName(); /* @phpstan-ignore method.notFound */
+            $parentIdName = $node->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             if (! array_key_exists($parentIdName, $node->getAttributes())) {
                 throw new LogicException(sprintf(
@@ -196,7 +196,7 @@ class Collection extends BaseCollection
                 ));
             }
 
-            $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound */
+            $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             if ($parentId === null) {
                 $roots[] = $node;

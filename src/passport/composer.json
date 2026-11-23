@@ -30,6 +30,7 @@
         "defuse/php-encryption": "^2.4",
         "firebase/php-jwt": "^7.0",
         "guzzlehttp/psr7": "^3.1",
+        "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
@@ -40,6 +41,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/cookie": "^0.4",
         "hypervel/core": "^0.4",
+        "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/encryption": "^0.4",
         "hypervel/events": "^0.4",
@@ -51,6 +53,7 @@
         "hypervel/routing": "^0.4",
         "hypervel/session": "^0.4",
         "hypervel/support": "^0.4",
+        "hypervel/validation": "^0.4",
         "lcobucci/jwt": "^5.6",
         "league/oauth2-server": "^9.4",
         "nesbot/carbon": "^3.13.1",
@@ -58,7 +61,7 @@
         "psr/clock": "^1.0",
         "psr/http-message": "^2.0",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1",
+        "symfony/http-foundation": "^8.1.11",
         "symfony/psr-http-message-bridge": "^8.1"
     },
     "autoload": {

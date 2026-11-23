@@ -11,6 +11,7 @@ use Hypervel\Http\Request;
 use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -33,8 +34,12 @@ class GrpcRouter extends Router
     /**
      * Synchronize application route middleware before worker warmup.
      *
+     * On the shared gRPC router, the middleware aliases, groups and priority
+     * apply to every subsequent gRPC call in the worker.
+     *
      * @internal
      */
+    #[BootOnly(whenShared: true)]
     public function syncMiddlewareFrom(Router $router): void
     {
         foreach ($router->getMiddleware() as $name => $middleware) {
@@ -50,7 +55,11 @@ class GrpcRouter extends Router
 
     /**
      * Validate gRPC route actions before compiling and warming the collection.
+     *
+     * Replaces the route collection and registers protobuf descriptors
+     * process-wide; runtime use breaks concurrent gRPC calls.
      */
+    #[BootOnly]
     public function compileAndWarm(): void
     {
         foreach ($this->getRoutes()->getRoutes() as $route) {

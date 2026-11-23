@@ -6,8 +6,11 @@ namespace Hypervel\Tests\Routing\RouteControllerCachingTest;
 
 use Attribute;
 use Hypervel\Container\Attributes\Scoped;
+use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\ExecutionScopedAttribute;
+use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
@@ -18,6 +21,7 @@ use Hypervel\Routing\Controller;
 use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 
 class RouteControllerCachingTest extends RoutingTestCase
@@ -109,6 +113,67 @@ class RouteControllerCachingTest extends RoutingTestCase
         $second = $route->getController();
 
         $this->assertSame($first, $second);
+
+        $reflection = new ReflectionProperty($route, 'controller');
+        $this->assertNotNull($reflection->getValue($route));
+    }
+
+    #[DataProvider('freshControllerProvider')]
+    public function testFreshLifetimeControllerUsesContextNotRouteProperty(string $class): void
+    {
+        $router = $this->getRouter();
+        $router->get('foo', $class . '@index');
+
+        $request = Request::create('foo', 'GET');
+        $router->dispatch($request);
+
+        $route = $request->route();
+        $controller = $route->getController();
+
+        $this->assertInstanceOf($class, $controller);
+        // Middleware gathering and dispatch share one instance within the request.
+        $this->assertSame($controller, $route->getController());
+
+        $reflection = new ReflectionProperty($route, 'controller');
+        $this->assertNull($reflection->getValue($route));
+    }
+
+    public static function freshControllerProvider(): array
+    {
+        return [
+            'transient' => [TransientController::class],
+            'self-building' => [SelfBuildingController::class],
+        ];
+    }
+
+    public function testExplicitSingletonLifetimeWinsOverTransientController(): void
+    {
+        $container = new Container;
+        $container->singleton(TransientController::class);
+
+        $router = $this->getRouter($container);
+        $router->get('foo', TransientController::class . '@index');
+
+        $request = Request::create('foo', 'GET');
+        $router->dispatch($request);
+
+        $route = $request->route();
+        $route->getController();
+
+        $reflection = new ReflectionProperty($route, 'controller');
+        $this->assertNotNull($reflection->getValue($route));
+    }
+
+    public function testSingletonAttributeWinsOverTransientController(): void
+    {
+        $router = $this->getRouter();
+        $router->get('foo', SingletonAttributeTransientController::class . '@index');
+
+        $request = Request::create('foo', 'GET');
+        $router->dispatch($request);
+
+        $route = $request->route();
+        $route->getController();
 
         $reflection = new ReflectionProperty($route, 'controller');
         $this->assertNotNull($reflection->getValue($route));
@@ -275,5 +340,35 @@ class SingletonController extends Controller
     public function index(): string
     {
         return 'singleton';
+    }
+}
+
+class TransientController extends Controller implements Transient
+{
+    public function index(): string
+    {
+        return 'transient';
+    }
+}
+
+#[Singleton]
+class SingletonAttributeTransientController extends Controller implements Transient
+{
+    public function index(): string
+    {
+        return 'singleton-attribute';
+    }
+}
+
+class SelfBuildingController extends Controller implements SelfBuilding
+{
+    public static function newInstance(): static
+    {
+        return new static;
+    }
+
+    public function index(): string
+    {
+        return 'self-building';
     }
 }

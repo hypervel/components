@@ -17,14 +17,20 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Contracts\Limiters\RefreshableLease;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ConcurrencyLimiterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Repository $repository;
 
     protected function setUp(): void
@@ -74,6 +80,9 @@ class ConcurrencyLimiterTest extends TestCase
 
     public function testItReleasesLockIfTaskTookTooLong(): void
     {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+
         $store = [];
 
         $lock = new ConcurrencyLimiterMockThatDoesntRelease($this->repository->getStore(), 'key', 1, 1);
@@ -90,7 +99,7 @@ class ConcurrencyLimiterTest extends TestCase
             $this->assertInstanceOf(LimiterTimeoutException::class, $e);
         }
 
-        usleep(1_200_000);
+        Sleep::usleep(1_200_000);
 
         $lock->block(0, function () use (&$store) {
             $store[] = 3;
@@ -101,6 +110,9 @@ class ConcurrencyLimiterTest extends TestCase
 
     public function testItFailsImmediatelyOrRetriesForAWhileBasedOnAGivenTimeout(): void
     {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+
         $store = [];
 
         $lock = new ConcurrencyLimiterMockThatDoesntRelease($this->repository->getStore(), 'key', 1, 2);
@@ -126,6 +138,9 @@ class ConcurrencyLimiterTest extends TestCase
 
     public function testItFailsAfterRetryTimeout(): void
     {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+
         $store = [];
 
         $lock = new ConcurrencyLimiterMockThatDoesntRelease($this->repository->getStore(), 'key', 1, 10);
@@ -143,6 +158,43 @@ class ConcurrencyLimiterTest extends TestCase
         }
 
         $this->assertEquals([1], $store);
+    }
+
+    public function testRetryTimeoutRespectsFakedSleep(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+
+        $lock = new ConcurrencyLimiterMockThatDoesntRelease($this->repository->getStore(), 'key', 1, 10);
+
+        $lock->block(2, fn () => null);
+
+        try {
+            $lock->block(2, fn () => null, 500);
+            $this->fail('Expected LimiterTimeoutException.');
+        } catch (LimiterTimeoutException) {
+            // 2s timeout / 500ms faked sleeps advancing Carbon
+            Sleep::assertSleptTimes(4);
+        } finally {
+            Sleep::fake(false);
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function testBlockCanAcquireAtTheDeadlineWithAShorterFinalSleep(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $limiter = new ConcurrencyLimiter($this->repository->getStore(), 'key', 1, 2);
+        $limiter->block(0);
+
+        $this->assertTrue($limiter->block(2, sleep: 750));
+
+        Sleep::assertSequence([
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(500)->milliseconds(),
+        ]);
     }
 
     public function testItReleasesIfErrorIsThrown(): void
@@ -211,9 +263,16 @@ class ConcurrencyLimiterTest extends TestCase
         }
     }
 
-    public function testBlockReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testBlockReleaseCancellationSupersedesOrdinaryCallbackFailure(bool $wrapped): void
     {
         $releaseCancellation = new CanceledException('release canceled');
+
+        if ($wrapped) {
+            $releaseCancellation = new RuntimeException('Release cleanup failed.', previous: $releaseCancellation);
+        }
+
         $limiter = new ConcurrencyLimiter(
             $this->failingReleaseStore(releaseFailure: $releaseCancellation),
             'key',
@@ -224,7 +283,7 @@ class ConcurrencyLimiterTest extends TestCase
         try {
             $limiter->block(0, fn () => throw new RuntimeException('callback failure'));
             $this->fail('Expected the release cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
     }
@@ -480,9 +539,16 @@ class ConcurrencyLimiterTest extends TestCase
         }
     }
 
-    public function testFunnelReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testFunnelReleaseCancellationSupersedesOrdinaryCallbackFailure(bool $wrapped): void
     {
         $releaseCancellation = new CanceledException('release canceled');
+
+        if ($wrapped) {
+            $releaseCancellation = new RuntimeException('Release cleanup failed.', previous: $releaseCancellation);
+        }
+
         $repository = new Repository($this->failingReleaseStore(releaseFailure: $releaseCancellation));
 
         try {
@@ -491,7 +557,7 @@ class ConcurrencyLimiterTest extends TestCase
                 ->block(0)
                 ->then(fn () => throw new RuntimeException('callback failure'));
             $this->fail('Expected the release cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
     }
@@ -581,9 +647,9 @@ class ConcurrencyLimiterTest extends TestCase
         ?LimiterFailingReleaseLock &$lock = null,
         ?Throwable $releaseFailure = null,
     ): Store&LockProvider {
-        $store = m::mock(Store::class, LockProvider::class);
-        $store->shouldReceive('lock')
-            ->andReturnUsing(function (string $name, int $seconds, ?string $owner) use (&$lock, $releaseFailure): LockContract {
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $store->allows('lock')
+            ->resolves(function (string $name, int $seconds, ?string $owner) use (&$lock, $releaseFailure): LockContract {
                 return $lock = new LimiterFailingReleaseLock($name, $seconds, $owner, $releaseFailure);
             });
 

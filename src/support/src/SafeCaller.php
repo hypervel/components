@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 class SafeCaller
@@ -32,15 +32,19 @@ class SafeCaller
     {
         try {
             return $closure();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             if ($this->container->has(ExceptionHandlerContract::class)) {
                 try {
                     $this->container->make(ExceptionHandlerContract::class)->report($exception);
-                } catch (CanceledException $cancellation) {
-                    throw $cancellation;
                 } catch (Throwable $reportingFailure) {
+                    if (Coroutine::causedByCancellation($reportingFailure)) {
+                        throw $reportingFailure;
+                    }
+
                     try {
                         error_log((string) $exception . PHP_EOL . (string) $reportingFailure);
                     } catch (Throwable) {

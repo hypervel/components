@@ -13,7 +13,8 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use RuntimeException;
 use Webauthn\AttestationStatement\AttestationObject;
@@ -31,6 +32,7 @@ use Webauthn\TrustPath\EmptyTrustPath;
 
 class StorePasskeyTest extends TestCase
 {
+    use VerifiesDoubles;
     use WebAuthnFixtures;
 
     public function testItStoresAPasskeyForTheUser(): void
@@ -42,7 +44,7 @@ class StorePasskeyTest extends TestCase
             'email' => 'john@example.com',
         ]);
 
-        $attestationResponse = m::mock(AuthenticatorAttestationResponse::class);
+        $attestationResponse = Double::for(AuthenticatorAttestationResponse::class)->strict();
 
         $credential = PublicKeyCredential::create(
             type: 'public-key',
@@ -53,13 +55,8 @@ class StorePasskeyTest extends TestCase
         $options = $this->createRegistrationOptions($user);
         $source = $this->createCredentialSource($user->getPasskeyUserHandle());
 
-        $action = m::mock(StorePasskey::class)
-            ->makePartial()
-            ->shouldAllowMockingProtectedMethods()
-            ->shouldReceive('validate')
-            ->once()
-            ->andReturn($source)
-            ->getMock();
+        $action = Double::for(new StorePasskey)->passthru();
+        $action->expects('validate')->returns($source);
 
         $passkey = $action($user, 'My MacBook', $credential, $options);
 
@@ -92,7 +89,7 @@ class StorePasskeyTest extends TestCase
             'credential' => ['test' => 'data'],
         ]);
 
-        $attestationResponse = m::mock(AuthenticatorAttestationResponse::class);
+        $attestationResponse = Double::for(AuthenticatorAttestationResponse::class)->strict();
 
         $credential = PublicKeyCredential::create(
             type: 'public-key',
@@ -103,13 +100,8 @@ class StorePasskeyTest extends TestCase
         $options = $this->createRegistrationOptions($user);
         $source = $this->createCredentialSource($user->getPasskeyUserHandle(), $credentialId);
 
-        $action = m::mock(StorePasskey::class)
-            ->makePartial()
-            ->shouldAllowMockingProtectedMethods()
-            ->shouldReceive('validate')
-            ->once()
-            ->andReturn($source)
-            ->getMock();
+        $action = Double::for(new StorePasskey)->passthru();
+        $action->expects('validate')->returns($source);
 
         $this->expectException(InvalidPasskeyException::class);
         $this->expectExceptionMessageIs('Unable to register this passkey.');
@@ -211,7 +203,7 @@ class StorePasskeyTest extends TestCase
             'email' => 'john@example.com',
         ]);
 
-        $assertionResponse = m::mock(AuthenticatorAssertionResponse::class);
+        $assertionResponse = Double::for(AuthenticatorAssertionResponse::class)->strict();
 
         $credential = PublicKeyCredential::create(
             type: 'public-key',

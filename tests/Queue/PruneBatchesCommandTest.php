@@ -8,16 +8,21 @@ use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Queue\Console\PruneBatchesCommand;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class PruneBatchesCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAllowPruningAllUnfinishedBatches(): void
     {
-        $repo = m::spy(DatabaseBatchRepository::class);
+        $now = $this->freezeSecond();
+        $repo = Double::for(DatabaseBatchRepository::class)->strict();
         $repo->expects('prune');
+        $repo->expects('pruneUnfinished')->with($now);
 
         $this->app->instance(BatchRepository::class, $repo);
 
@@ -25,14 +30,14 @@ class PruneBatchesCommandTest extends TestCase
         $command->setHypervel($this->app);
 
         $command->run(new ArrayInput(['--unfinished' => 0]), new NullOutput);
-
-        $repo->shouldHaveReceived('pruneUnfinished')->once();
     }
 
     public function testAllowPruningAllCancelledBatches(): void
     {
-        $repo = m::spy(DatabaseBatchRepository::class);
+        $now = $this->freezeSecond();
+        $repo = Double::for(DatabaseBatchRepository::class)->strict();
         $repo->expects('prune');
+        $repo->expects('pruneCancelled')->with($now);
 
         $this->app->instance(BatchRepository::class, $repo);
 
@@ -40,7 +45,5 @@ class PruneBatchesCommandTest extends TestCase
         $command->setHypervel($this->app);
 
         $command->run(new ArrayInput(['--cancelled' => 0]), new NullOutput);
-
-        $repo->shouldHaveReceived('pruneCancelled')->once();
     }
 }

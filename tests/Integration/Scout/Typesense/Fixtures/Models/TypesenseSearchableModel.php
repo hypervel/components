@@ -46,7 +46,8 @@ class TypesenseSearchableModel extends Model
                 ['name' => 'id', 'type' => 'string', 'facet' => true],
                 ['name' => 'ranking', 'type' => 'int32', 'facet' => true],
                 ['name' => 'title', 'type' => 'string', 'facet' => true, 'sort' => true],
-                ['name' => 'body', 'type' => 'string', 'facet' => true],
+                // Indexes backticks, so the filter tests cover a field where Typesense keeps them in a quoted scalar value.
+                ['name' => 'body', 'type' => 'string', 'facet' => true, 'symbols_to_index' => ['`']],
             ],
         ];
     }

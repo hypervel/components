@@ -106,11 +106,18 @@ trait DatabaseTruncation
 
         $database = $this->app->make('db');
         $defaultConnection = $this->app->make('config')->string('database.default');
+        $resolver = $this->app->bound('db.resolver') ? $this->app->make('db.resolver') : null;
 
         foreach ($this->connectionsToTruncate() as $name) {
             $connectionName = $name ?? $defaultConnection;
 
             if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                // A lease loses setPdo() on release; restore the pool's shared database instead.
+                if ($resolver instanceof DatabaseConnectionResolver
+                    && $resolver->restoreInMemoryPdoIfPooled($name, RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                    continue;
+                }
+
                 // The PDO outlives its original application; the dispatcher must not.
                 $connection = $database->connection($name);
 
@@ -259,8 +266,10 @@ trait DatabaseTruncation
         }
 
         $schema = $connection->getSchemaBuilder();
+        $schemas = $schema->getCurrentSchemaListing();
 
-        return static::$allTables[$name] = Arr::from($schema->getTables($schema->getCurrentSchemaListing()));
+        // An empty PostgreSQL search path selects no schemas, but getTables([]) would select them all.
+        return static::$allTables[$name] = $schemas === [] ? [] : Arr::from($schema->getTables($schemas));
     }
 
     /**
@@ -268,7 +277,7 @@ trait DatabaseTruncation
      */
     protected function tableExistsIn(array $table, array $tables): bool
     {
-        return $table['schema']
+        return $table['schema'] !== null
             ? ! empty(array_intersect([$table['name'], $table['schema_qualified_name']], $tables))
             : in_array($table['name'], $tables);
     }

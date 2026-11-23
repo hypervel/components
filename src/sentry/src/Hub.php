@@ -7,6 +7,8 @@ namespace Hypervel\Sentry;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
 use Psr\Log\NullLogger;
 use Sentry\Attachment\Attachment;
 use Sentry\Breadcrumb;
@@ -26,7 +28,6 @@ use Sentry\Tracing\SamplingContext;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function sprintf;
@@ -64,10 +65,10 @@ class Hub implements HubInterface
     /**
      * Bind a new client to the hub.
      *
-     * Boot-only. Mutates the shared client on the singleton Hub; per-request use
-     * races across coroutines, and existing coroutine layer stacks may already
-     * hold the previous client.
+     * On the shared Hub, per-request use races across coroutines, and existing
+     * coroutine layer stacks may already hold the previous client.
      */
+    #[BootOnly(whenShared: true)]
     public function bindClient(ClientInterface $client): void
     {
         $this->client = $client;
@@ -197,10 +198,11 @@ class Hub implements HubInterface
 
         try {
             $breadcrumb = $beforeBreadcrumbCallback($breadcrumb);
-        } catch (CanceledException $exception) {
-            // Application callbacks may perform cancellable I/O.
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $options->getLoggerOrNullLogger()->error(sprintf('The "before_breadcrumb" callback failed with exception: "%s".', $exception->getMessage()));
 
             return false;
@@ -283,9 +285,11 @@ class Hub implements HubInterface
                 try {
                     $sampleRate = $tracesSampler($samplingContext);
                     $sampleSource = 'config:traces_sampler';
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $logger->error(sprintf('The "traces_sampler" callback failed with exception: "%s".', $exception->getMessage()));
                     $sampleRate = $options->getTracesSampleRate() ?? 0;
                     $sampleSource = 'config:traces_sampler_error_fallback';
@@ -379,9 +383,11 @@ class Hub implements HubInterface
             try {
                 $profilesSampleRate = $profilesSampler($samplingContext);
                 $profilesSampleSource = 'config:profiles_sampler';
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $logger->error(sprintf('The "profiles_sampler" callback failed with exception: "%s".', $exception->getMessage()));
                 $profilesSampleRate = $options->getProfilesSampleRate() ?? 0;
                 $profilesSampleSource = 'config:profiles_sampler_error_fallback';
@@ -452,6 +458,12 @@ class Hub implements HubInterface
 
     /**
      * Run the callback with a new scope that is removed afterwards.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template T
+     *
+     * @param callable(Scope): T $callback
+     * @return T
      */
     public function withScope(callable $callback): mixed
     {
@@ -501,6 +513,12 @@ class Hub implements HubInterface
 
     /**
      * Get the client's integration with the given class name.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template T of IntegrationInterface
+     *
+     * @param class-string<T> $className
+     * @return null|T
      */
     public function getIntegration(string $className): ?IntegrationInterface
     {

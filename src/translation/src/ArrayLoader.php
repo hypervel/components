@@ -46,6 +46,8 @@ class ArrayLoader implements Loader
 
     /**
      * Add messages to the loader.
+     *
+     * @return $this
      */
     public function addMessages(string $locale, string $group, array $messages, ?string $namespace = null): static
     {

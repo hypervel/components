@@ -6,9 +6,10 @@ namespace Hypervel\ObjectPool;
 
 use Hypervel\Contracts\ObjectPool\Factory as FactoryContract;
 use Hypervel\Contracts\ObjectPool\ObjectPool;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use JsonException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class PoolManager implements FactoryContract
@@ -152,33 +153,27 @@ class PoolManager implements FactoryContract
     /**
      * Remove and close every registered pool.
      *
-     * Boot or tests only. This clears worker-lifetime pools shared by every
-     * coroutine; use targeted removal for runtime resource recovery.
+     * This clears worker-lifetime pools shared by every coroutine; use
+     * targeted removal for runtime resource recovery.
      */
+    #[BootOrTestsOnly]
     public function purgeAll(): void
     {
         $pools = $this->pools;
         $this->pools = [];
         $this->definitions = [];
-        $firstException = null;
-        $firstCancellation = null;
+        $exception = null;
 
         foreach ($pools as $pool) {
             try {
                 $pool->close();
-            } catch (CanceledException $exception) {
-                $firstCancellation ??= $exception;
-            } catch (Throwable $exception) {
-                $firstException ??= $exception;
+            } catch (Throwable $throwable) {
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
-        if ($firstCancellation !== null) {
-            throw $firstCancellation;
-        }
-
-        if ($firstException !== null) {
-            throw $firstException;
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 

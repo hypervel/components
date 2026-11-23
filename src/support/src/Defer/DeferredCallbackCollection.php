@@ -89,6 +89,8 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
 
     /**
      * Remove any duplicate callbacks.
+     *
+     * @return $this
      */
     protected function forgetDuplicates(): static
     {

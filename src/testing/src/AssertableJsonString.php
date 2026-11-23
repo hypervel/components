@@ -62,7 +62,23 @@ class AssertableJsonString implements ArrayAccess, Countable
     }
 
     /**
+     * Return the decoded JSON with objects as stdClass instances.
+     *
+     * Unlike json(), this keeps empty and numeric-key JSON objects distinct from arrays.
+     *
+     * @throws JsonException
+     */
+    public function object(?string $key = null): mixed
+    {
+        $json = is_string($this->json) ? $this->json : Json::encode($this->json);
+
+        return data_get(Json::decode($json, false), $key);
+    }
+
+    /**
      * Assert that the response JSON has the expected count of items at the given key.
+     *
+     * @return $this
      */
     public function assertCount(int $count, ?string $key = null): static
     {
@@ -87,6 +103,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the response has the exact given JSON.
+     *
+     * @return $this
      */
     public function assertExact(array $data): static
     {
@@ -104,6 +122,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the response has the similar JSON as given.
+     *
+     * @return $this
      */
     public function assertSimilar(array $data): static
     {
@@ -119,6 +139,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the response contains the given JSON fragment.
+     *
+     * @return $this
      */
     public function assertFragment(array $data): static
     {
@@ -144,6 +166,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the response does not contain the given JSON fragment.
+     *
+     * @return $this
      */
     public function assertMissing(array $data, bool $exact = false): static
     {
@@ -173,6 +197,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the response does not contain the exact JSON fragment.
+     *
+     * @return $this
      */
     public function assertMissingExact(array $data): static
     {
@@ -199,6 +225,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the response does not contain the given path.
+     *
+     * @return $this
      */
     public function assertMissingPath(string $path): static
     {
@@ -248,6 +276,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the expected value and type exists at the given path in the response.
+     *
+     * @return $this
      */
     public function assertPath(string $path, mixed $expect): static
     {
@@ -262,6 +292,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the given path in the response contains all of the expected values without looking at the order.
+     *
+     * @return $this
      */
     public function assertPathCanonicalizing(string $path, array $expect): static
     {
@@ -314,6 +346,8 @@ class AssertableJsonString implements ArrayAccess, Countable
 
     /**
      * Assert that the response is a superset of the given JSON.
+     *
+     * @return $this
      */
     public function assertSubset(array $data, bool $strict = false): static
     {

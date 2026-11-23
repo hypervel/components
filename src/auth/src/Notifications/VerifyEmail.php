@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Lang;
@@ -85,11 +86,12 @@ class VerifyEmail extends Notification
     /**
      * Set a callback that should be used when creating the email verification URL.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every email-verification notification.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every email-verification notification.
      *
      * @param Closure(mixed): string $callback
      */
+    #[BootOnly]
     public static function createUrlUsing(Closure $callback): void
     {
         static::$createUrlCallback = $callback;
@@ -98,11 +100,12 @@ class VerifyEmail extends Notification
     /**
      * Set a callback that should be used when building the notification mail message.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every email-verification notification.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every email-verification notification.
      *
      * @param Closure(mixed, string): (Mailable|MailMessage) $callback
      */
+    #[BootOnly]
     public static function toMailUsing(Closure $callback): void
     {
         static::$toMailCallback = $callback;

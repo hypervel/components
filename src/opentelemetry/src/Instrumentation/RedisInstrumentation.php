@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\OpenTelemetry\Instrumentation;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
@@ -24,9 +25,7 @@ use OpenTelemetry\API\Trace\TracerProviderInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\DbIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -35,6 +34,10 @@ class RedisInstrumentation extends AbstractInstrumentation
     use LogsMessagesTrait;
 
     protected const string CONNECTION_ATTRIBUTE = 'hypervel.redis.connection';
+
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string DB_SYSTEM_NAME_REDIS = 'redis';
 
     protected const array DURATION_BOUNDARIES = [
         0.001,
@@ -79,7 +82,7 @@ class RedisInstrumentation extends AbstractInstrumentation
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.redis');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.redis', schemaUrl: $this->schemaUrl());
             $this->queryText = $this->options->enabled('query_text');
             /** @var null|int $queryTextMaxLength */
             $queryTextMaxLength = $this->options->get('query_text_max_length');
@@ -88,7 +91,7 @@ class RedisInstrumentation extends AbstractInstrumentation
 
         if ($this->metricEnabled(DbMetrics::DB_CLIENT_OPERATION_DURATION)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.redis')
+                ->getMeter('hypervel.redis', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     DbMetrics::DB_CLIENT_OPERATION_DURATION,
                     's',
@@ -161,6 +164,7 @@ class RedisInstrumentation extends AbstractInstrumentation
                 $elapsedMilliseconds * ClockInterface::NANOS_PER_MILLISECOND,
             );
         }
+
         $operation = strtoupper($command);
         $attributes = $this->attributes(
             $operation,
@@ -180,42 +184,43 @@ class RedisInstrumentation extends AbstractInstrumentation
                 ->setAttributes($attributes)
                 ->startSpan();
             $context = $span->storeInContext($parent);
+        }
 
-            if ($span->isRecording()) {
-                if ($this->queryText) {
-                    $queryText = $this->queryText(
-                        $command,
-                        $operation,
-                        $parameters,
-                        $connection,
-                    );
-
-                    if ($queryText !== null) {
-                        $span->setAttribute(DbAttributes::DB_QUERY_TEXT, $queryText);
-                    }
-                }
-
-                if ($exception !== null) {
+        try {
+            if ($span !== null && $exception !== null) {
+                if ($span->isRecording()) {
                     $span->recordException($exception);
                     $span->setStatus(StatusCode::STATUS_ERROR);
                 }
-            }
 
-            if ($exception !== null) {
                 $this->exceptionContexts->associate(
                     $exception,
                     $context,
                     $this->origins->resolve($context, $this->identity),
                 );
             }
-        }
 
-        $this->duration?->record(
-            $elapsedMilliseconds / ClockInterface::MILLIS_PER_SECOND,
-            $attributes,
-            $context,
-        );
-        $span?->end($finishedAt);
+            // Resolved last: an application resolver may be canceled and must not drop the outcome recorded above.
+            if ($this->queryText && $span?->isRecording()) {
+                $queryText = $this->queryText(
+                    $command,
+                    $operation,
+                    $parameters,
+                    $connection,
+                );
+
+                if ($queryText !== null) {
+                    $span->setAttribute(DbAttributes::DB_QUERY_TEXT, $queryText);
+                }
+            }
+        } finally {
+            $this->duration?->record(
+                $elapsedMilliseconds / ClockInterface::MILLIS_PER_SECOND,
+                $attributes,
+                $context,
+            );
+            $span?->end($finishedAt);
+        }
     }
 
     /**
@@ -226,7 +231,7 @@ class RedisInstrumentation extends AbstractInstrumentation
     protected function attributes(string $operation, string $connection, ?string $errorType): array
     {
         return array_filter([
-            DbAttributes::DB_SYSTEM_NAME => DbIncubatingAttributes::DB_SYSTEM_NAME_VALUE_REDIS,
+            DbAttributes::DB_SYSTEM_NAME => self::DB_SYSTEM_NAME_REDIS,
             DbAttributes::DB_OPERATION_NAME => $operation,
             self::CONNECTION_ATTRIBUTE => $connection,
             ErrorAttributes::ERROR_TYPE => $errorType,
@@ -257,9 +262,11 @@ class RedisInstrumentation extends AbstractInstrumentation
                         'The OpenTelemetry Redis query-text resolver must return a string or null.',
                     );
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 self::logError('OpenTelemetry Redis query-text resolution failed.', ['exception' => $exception]);
 
                 return null;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue\Outbox;
 
 use Closure;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
@@ -18,12 +18,14 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class DatabaseOutboxRepositoryTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -94,11 +96,12 @@ class DatabaseOutboxRepositoryTest extends TestCase
     public function testCustomNonPdoConnectionsUseTheConditionalClaimAndBindingFallback(): void
     {
         $database = DB::connection();
-        $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('table')->with('job_outbox')->andReturnUsing(fn (): Builder => $database->table('job_outbox'));
-        $connection->shouldReceive('transaction')->andReturnUsing(fn (Closure $callback): mixed => $database->transaction($callback));
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with('custom')->andReturn($connection);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('supportsSkipLocked')->returns(false);
+        $connection->allows('table')->with('job_outbox')->resolves(fn (): Builder => $database->table('job_outbox'));
+        $connection->allows('transaction')->resolves(fn (Closure $callback): mixed => $database->transaction($callback));
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('custom')->returns($connection);
         $repository = new DatabaseOutboxRepository($resolver, ['custom'], 'job_outbox', 300);
         $row = $this->row(Date::now()->getTimestamp());
         $repository->insert($connection, [$row]);

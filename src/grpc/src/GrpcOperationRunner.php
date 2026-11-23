@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Grpc;
 
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Contracts\GrpcOperationObserver;
+use Hypervel\Support\Attributes\BootOnly;
 use Throwable;
 
 class GrpcOperationRunner
@@ -16,9 +16,10 @@ class GrpcOperationRunner
     /**
      * Register a logical gRPC operation observer.
      *
-     * Boot-only. Observers persist on this singleton for the worker lifetime
-     * and apply to every subsequent gRPC operation.
+     * On the shared runner, observers persist for the worker lifetime and
+     * apply to every subsequent gRPC operation.
      */
+    #[BootOnly(whenShared: true)]
     public function observe(GrpcOperationObserver $observer): void
     {
         $this->observers[] = $observer;
@@ -44,10 +45,7 @@ class GrpcOperationRunner
                 $startedObservers[] = [$observer, $observer->starting($operation)];
             }
         } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
+            // Observers that started finish with the failure or cancellation.
             (new GrpcOperationHandle($operation, $startedObservers))->finish(
                 new GrpcOperationResult(null, $throwable, 0),
             );

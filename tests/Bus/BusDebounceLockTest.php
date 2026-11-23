@@ -11,13 +11,20 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Engine\Channel;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
 class BusDebounceLockTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCurrentOwnerMayBeRetrievedWithOneCacheRead(): void
     {
         $cache = new CacheRepository(new ConcurrentDebounceStore);
@@ -47,9 +54,9 @@ class BusDebounceLockTest extends TestCase
     public function testReleaseProbeFailureDoesNotRemoveEitherDebounceRecord(): void
     {
         $failure = new RuntimeException('Owner probe failed.');
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')->once()->with('debounce-key')->andThrow($failure);
-        $cache->shouldReceive('forget')->never();
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('get')->with('debounce-key')->throws($failure);
+        $cache->expects('forget')->never();
 
         try {
             DebounceLock::releaseOwned($cache, 'debounce-key', 'owner');
@@ -59,24 +66,43 @@ class BusDebounceLockTest extends TestCase
         }
     }
 
-    public function testAcquisitionFailureRemainsPrimaryWhenCleanupProbeFails(): void
+    #[TestWith([false], 'ordinary cleanup failure')]
+    #[TestWith([true], 'wrapped cleanup cancellation')]
+    public function testAcquisitionFailureRemainsPrimaryWhenCleanupProbeFails(bool $canceled): void
     {
         $job = new BusDebounceLockJob('entity-1');
         $key = DebounceLock::getKey($job);
         $failure = new RuntimeException('Maximum-wait read failed.');
-        $cleanupFailure = new RuntimeException('Cleanup owner probe failed.');
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('put')->once()->with($key, m::type('string'), 300)->andReturnTrue();
-        $cache->shouldReceive('get')->once()->with($key . ':first_dispatched_at')->andThrow($failure);
-        $cache->shouldReceive('get')->once()->with($key)->andThrow($cleanupFailure);
-        $cache->shouldReceive('forget')->never();
+        $cleanupFailure = new RuntimeException('Cleanup owner probe failed.', previous: $canceled ? new CanceledException : null);
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('put')->with($key, Argument::type('string'), 300)->returns(true);
+        $cache->expects('get')->with($key . ':first_dispatched_at')->throws($failure);
+        $cache->expects('get')->with($key)->throws($cleanupFailure);
+        $cache->expects('forget')->never();
 
         try {
             (new DebounceLock($cache))->acquire($job);
             $this->fail('Expected the maximum-wait read failure was not thrown.');
         } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
+            $this->assertSame($canceled ? $cleanupFailure : $failure, $exception);
         }
+    }
+
+    public function testReleasePreservesCancellationFromSecondCleanup(): void
+    {
+        $failure = new RuntimeException('Cache cleanup failed.', previous: new CanceledException);
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('forget')->with('key')->throws(new RuntimeException('First deletion failed.'));
+        $cache->expects('forget')->with('key:first_dispatched_at')->throws($failure);
+        $caught = null;
+
+        try {
+            DebounceLock::releaseOwned($cache, 'key');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
     }
 }
 

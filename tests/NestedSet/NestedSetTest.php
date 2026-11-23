@@ -17,19 +17,22 @@ use Hypervel\NestedSet\HasNode;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 use Stringable;
 
 class NestedSetTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testStructuralIdentityUsesTheNormalizedConnectionNameAndTableWithoutResolving(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary::write');
-        $resolver->shouldNotReceive('connection');
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('getDefaultConnection')->returns('primary::write');
+        $resolver->expects('connection')->never();
 
         Model::setConnectionResolver($resolver);
 
@@ -67,8 +70,8 @@ class NestedSetTest extends TestCase
 
     public function testStructuralIdentityFallsBackToTheResolversDefaultConnection(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary');
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('getDefaultConnection')->returns('primary');
 
         Model::setConnectionResolver($resolver);
 
@@ -82,8 +85,8 @@ class NestedSetTest extends TestCase
 
     public function testStructuralIdentityUsesAStableMarkerWithoutAnyConnectionName(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('getDefaultConnection')->andReturn(null);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('getDefaultConnection')->returns(null);
 
         Model::setConnectionResolver($resolver);
 
@@ -106,7 +109,7 @@ class NestedSetTest extends TestCase
     public function testNodeUsesNestedSetBuilderByDefault(): void
     {
         $builder = (new NestedSetTestNodeModel)
-            ->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
+            ->newEloquentBuilder(Double::for(BaseQueryBuilder::class)->strict());
 
         $this->assertInstanceOf(QueryBuilder::class, $builder);
     }
@@ -118,7 +121,7 @@ class NestedSetTest extends TestCase
     #[DataProvider('compatibleBuilderModels')]
     public function testNodeUsesCompatibleCustomBuilder(string $model, string $builder): void
     {
-        $instance = (new $model)->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
+        $instance = (new $model)->newEloquentBuilder(Double::for(BaseQueryBuilder::class)->strict());
 
         $this->assertSame($builder, $instance::class);
     }
@@ -150,7 +153,7 @@ class NestedSetTest extends TestCase
             QueryBuilder::class,
         ));
 
-        (new $model)->newEloquentBuilder(m::mock(BaseQueryBuilder::class));
+        (new $model)->newEloquentBuilder(Double::for(BaseQueryBuilder::class)->strict());
     }
 
     /**
@@ -187,12 +190,12 @@ class NestedSetTest extends TestCase
     public function testScopeValuesAreNormalizedForSqlAndBucketIdentity(): void
     {
         // Dates use the connection grammar's own format, which a custom grammar may change.
-        $grammar = m::mock(QueryGrammar::class);
-        $grammar->shouldReceive('getDateFormat')->andReturn('d/m/Y H:i:s');
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->andReturn($connection);
+        $grammar = Double::for(QueryGrammar::class)->strict();
+        $grammar->allows('getDateFormat')->returns('d/m/Y H:i:s');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getQueryGrammar')->returns($grammar);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->returns($connection);
         Model::setConnectionResolver($resolver);
 
         $model = new NestedSetTestScopeNodeModel;

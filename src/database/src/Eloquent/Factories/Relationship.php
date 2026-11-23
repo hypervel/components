@@ -56,13 +56,13 @@ class Relationship
 
     /**
      * Specify the model instances to always use when creating relationships.
-     *
-     * @return $this
      */
     public function recycle(Collection $recycle): static
     {
-        $this->factory = $this->factory->recycle($recycle);
+        $relationship = clone $this;
 
-        return $this;
+        $relationship->factory = $this->factory->recycle($recycle);
+
+        return $relationship;
     }
 }

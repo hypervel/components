@@ -10,6 +10,7 @@ use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -258,6 +259,18 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
         ];
     }
 
+    #[RequiresDatabase('mysql', '>=8.0.17')]
+    public function testWhereJsonOverlapsWithPath(): void
+    {
+        DB::table(self::TABLE)->insert([
+            [self::JSON_COL => '{"languages":["en","de"]}'],
+            [self::JSON_COL => '{"languages":["fr"]}'],
+        ]);
+
+        $this->assertSame(1, DB::table(self::TABLE)->whereJsonOverlaps(self::JSON_COL . '->languages', ['en', 'es'])->count());
+        $this->assertSame(1, DB::table(self::TABLE)->whereJsonDoesntOverlap(self::JSON_COL . '->languages', ['en', 'es'])->count());
+    }
+
     public function testLastInsertIdIsPreserved(): void
     {
         if (! Schema::hasTable('auto_id_table')) {
@@ -279,5 +292,26 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
         } finally {
             Schema::drop('auto_id_table');
         }
+    }
+
+    public function testLastCommitReadAfterWrite(): void
+    {
+        if (! DB::scalar('select @@log_bin') || DB::scalar('select @@global.gtid_mode') !== 'ON') {
+            $this->markTestSkipped('Commit IDs require log_bin = ON and gtid_mode = ON.');
+        }
+
+        $first = DB::getLastCommitId();
+        DB::table(self::TABLE)->insert([self::JSON_COL => '{"commit":"read-after-write"}']);
+        $second = DB::getLastCommitId();
+        $merged = DB::mergeCommitIds([$second, $first]);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($second, $merged);
+        $this->assertTrue(DB::hasCommitId($first));
+        $this->assertTrue(DB::hasCommitId($second));
+        $this->assertTrue(DB::hasCommitId($merged));
+        $this->assertFalse(DB::hasCommitId('ffffffff-ffff-ffff-ffff-ffffffffffff:9223372036854775806'));
+        $this->assertTrue(DB::hasCommitId($second, 1));
+        $this->assertFalse(DB::hasCommitId('ffffffff-ffff-ffff-ffff-ffffffffffff:9223372036854775806', 1));
     }
 }

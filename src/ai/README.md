@@ -27,6 +27,8 @@ Skill discovery is cached for the fixed paths in `ai.skills.cached_paths`. [Relo
 
 The conversation migrations use Hypervel's column types, indexes, and approval claim fields. Existing Laravel conversation data requires a [schema migration](https://hypervel.org/docs/ai-sdk#migrating-conversation-data) before use.
 
+Tool, sub-agent, and file storage tool failures include the exception message in the model's tool result only when `app.debug` is enabled. Otherwise the model receives a generic result such as `The tool call failed.`, because exception messages can carry query bindings, server paths, and other private details to the provider, the conversation, and the client. Exceptions recovered this way are reported in both modes. Return a string from the tool when the model should know why an expected failure occurred. See [validating tool arguments](https://hypervel.org/docs/ai-sdk#validating-tool-arguments).
+
 Remote downloads share the HTTP client's destination checks. The protected `UntrustedUrl::validate()`, `resolve()`, and `isBlocked()` helpers and hostname-blocklist constants are removed; `resolveUsing()` remains available. URLs containing embedded credentials are rejected. Downloads are limited to 32 MiB of decoded content by default, instead of Laravel's 100 MB; set `ai.remote_files.max_size` in kilobytes to change the limit, or to `null` to disable it. See [remote attachments](https://hypervel.org/docs/ai-sdk#remote-attachments).
 
 ## Known Issues

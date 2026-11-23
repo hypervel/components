@@ -23,7 +23,8 @@
         "source": "https://github.com/hypervel/components"
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "hypervel/attributes": "^0.4"
     },
     "autoload": {
         "psr-4": {

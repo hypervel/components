@@ -15,23 +15,20 @@ class ForeverTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:mykey', serialize('myvalue'))
-            ->andReturn($connection)
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($connection)
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 0]);
+        $connection->client()->expects('exec')
+            ->returns([true, 0]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -47,27 +44,23 @@ class ForeverTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // ZADD for each tag with score -1
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', -1, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns($connection->client());
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:posts:entries', -1.0, 'mykey')
+            ->returns($connection->client());
 
         // SET for cache value
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:mykey', serialize('myvalue'))
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -83,17 +76,15 @@ class ForeverTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // SET for cache value only
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:mykey', serialize('myvalue'))
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true]);
+        $connection->client()->expects('exec')
+            ->returns([true]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -107,21 +98,16 @@ class ForeverTest extends RedisCacheTestCase
 
     public function testForeverInClusterModeUsesSequentialCommands(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        // Should NOT use pipeline in cluster mode
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->shouldReceive('set')
-            ->once()
+        $client->expects('set')
             ->with('prefix:mykey', serialize('myvalue'))
-            ->andReturn(true)
+            ->returns(true)
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn(0)
+        $client->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns(0)
             ->ordered();
 
         $result = $store->allTagOps()->forever()->execute(
@@ -137,15 +123,14 @@ class ForeverTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
-        $connection->shouldReceive('set')->andReturn($connection);
+        $connection->client()->allows('zadd')->returns($connection->client());
+        $connection->client()->allows('set')->returns($connection->client());
 
         // SET returns false (failure)
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([false, 1]);
+        $connection->client()->expects('exec')
+            ->returns([false, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -160,10 +145,10 @@ class ForeverTest extends RedisCacheTestCase
     public function testForeverReturnsFalseWhenPipelineMembershipWriteFails(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('set')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, false]);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('set')->returns($connection->client());
+        $connection->client()->expects('zadd')->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, false]);
 
         $store = $this->createStore($connection);
 
@@ -176,18 +161,18 @@ class ForeverTest extends RedisCacheTestCase
 
     public function testForeverInClusterModeDoesNotPublishTagsWhenTheValueWriteFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->expects('set')->with('prefix:mykey', serialize('myvalue'))->andReturnFalse();
-        $connection->shouldNotReceive('zadd');
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('set')->with('prefix:mykey', serialize('myvalue'))->returns(false);
+        $client->expects('zadd')->never();
 
         $this->assertFalse($store->allTagOps()->forever()->execute('mykey', 'myvalue', ['_all:tag:users:entries']));
     }
 
     public function testForeverReturnsFalseWhenClusterMembershipWriteFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('set')->once()->andReturn(true);
-        $connection->shouldReceive('zadd')->once()->andReturn(false);
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('set')->returns(true);
+        $client->expects('zadd')->returns(false);
 
         $this->assertFalse($store->allTagOps()->forever()->execute(
             'mykey',
@@ -200,21 +185,18 @@ class ForeverTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('custom:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('custom:_all:tag:users:entries', -1.0, 'mykey')
+            ->returns($connection->client());
 
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('custom:mykey', serialize('myvalue'))
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1]);
 
         $store = $this->createStore($connection, 'custom:');
         $result = $store->allTagOps()->forever()->execute(
@@ -230,19 +212,17 @@ class ForeverTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->client()->allows('zadd')->returns($connection->client());
 
         // Numeric values are NOT serialized (optimization)
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:mykey', 42)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(

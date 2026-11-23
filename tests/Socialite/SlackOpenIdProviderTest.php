@@ -5,18 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\User as UserContract;
 use Hypervel\Socialite\Two\SlackOpenIdProvider;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\StreamInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SlackOpenIdProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResponse(): void
     {
         $user = $this->fromResponse([
@@ -73,30 +75,19 @@ class SlackOpenIdProviderTest extends TestCase
         ], $user->attributes);
     }
 
+    /**
+     * Resolve a user from the given profile response.
+     */
     protected function fromResponse(array $response): UserContract
     {
-        $request = m::mock(Request::class);
-        $request->allows('input')->with('code')->andReturns('fake-code');
-
-        $stream = m::mock(StreamInterface::class);
-        $stream->allows('__toString')->andReturns(json_encode(['access_token' => 'fake-token']));
-
-        $accessTokenResponse = m::mock(ResponseInterface::class);
-        $accessTokenResponse->allows('getBody')->andReturns($stream);
-
-        $basicProfileStream = m::mock(StreamInterface::class);
-        $basicProfileStream->allows('__toString')->andReturns(json_encode($response));
-
-        $basicProfileResponse = m::mock(ResponseInterface::class);
-        $basicProfileResponse->allows('getBody')->andReturns($basicProfileStream);
-
-        $guzzle = m::mock(Client::class);
-        $guzzle->expects('post')->andReturns($accessTokenResponse);
-        $guzzle->allows('get')->with('https://slack.com/api/openid.connect.userInfo', [
+        $request = Request::create('/callback', parameters: ['code' => 'fake-code']);
+        $guzzle = Double::for(Client::class)->strict();
+        $guzzle->expects('post')->returns(new Response(body: json_encode(['access_token' => 'fake-token'])));
+        $guzzle->expects('get')->with('https://slack.com/api/openid.connect.userInfo', [
             RequestOptions::HEADERS => [
                 'Authorization' => 'Bearer fake-token',
             ],
-        ])->andReturns($basicProfileResponse);
+        ])->returns(new Response(body: json_encode($response)));
 
         $provider = new SlackOpenIdProvider(
             $request,

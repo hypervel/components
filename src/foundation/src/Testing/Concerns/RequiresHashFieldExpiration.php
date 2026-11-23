@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Redis\RedisRequirements;
+use Hypervel\Support\Attributes\TestsOnly;
 
 /**
  * Skips tests when the environment doesn't support Redis hash field
@@ -76,8 +77,9 @@ trait RequiresHashFieldExpiration
     /**
      * Flush the memoized hash field expiration support check.
      *
-     * Tests only. Resets the capability result shared by tests in this class.
+     * Resets the capability result shared by tests in this class.
      */
+    #[TestsOnly]
     public static function flushHashFieldExpirationState(): void
     {
         self::$hashFieldExpirationSupported = null;

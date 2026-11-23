@@ -15,12 +15,15 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentCollectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Setup the database schema.
      */
@@ -356,11 +359,11 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testLoadMethodEagerLoadsGivenRelationships(): void
     {
-        $model = m::mock(Model::class);
-        $builder = m::mock(Builder::class);
-        $model->expects('newQueryWithoutRelationships')->andReturn($builder);
-        $builder->expects('with')->with(['bar', 'baz'])->andReturnSelf();
-        $builder->expects('eagerLoadRelations')->with([$model])->andReturn(['results']);
+        $model = Double::for(Model::class)->strict();
+        $builder = Double::for(Builder::class)->strict();
+        $model->expects('newQueryWithoutRelationships')->returns($builder);
+        $builder->expects('with')->with(['bar', 'baz'])->returns($builder);
+        $builder->expects('eagerLoadRelations')->with([$model])->returns(['results']);
         $c = new Collection([$model]);
         $c->load('bar', 'baz');
 
@@ -369,8 +372,8 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testLoadMissingWithoutRelationsDoesNotBuildAQuery(): void
     {
-        $model = m::mock(Model::class);
-        $model->shouldNotReceive('newQueryWithoutRelationships');
+        $model = Double::for(Model::class)->strict();
+        $model->expects('newQueryWithoutRelationships')->never();
         $collection = new Collection([$model]);
 
         $this->assertSame($collection, $collection->loadMissing([]));
@@ -421,6 +424,49 @@ class DatabaseEloquentCollectionTest extends TestCase
             [$emptyString],
             (new Collection([$emptyString]))->merge([new CollectionModel])->all()
         );
+    }
+
+    #[DataProvider('keylessDictionaryOperations')]
+    public function testCollectionDictionaryOperationsRejectModelsWithoutPrimaryKeys(string $method, bool $emptyReceiver): void
+    {
+        $model = (new CollectionModel)->setKeyName(null);
+        $collection = new Collection($emptyReceiver ? [] : [$model]);
+        $arguments = match ($method) {
+            'unique' => [],
+            'only', 'except' => [[1]],
+            default => [[$model]],
+        };
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('No primary key defined on model.');
+
+        $collection->{$method}(...$arguments);
+    }
+
+    /**
+     * Provide collection operations that build a primary-key dictionary.
+     */
+    public static function keylessDictionaryOperations(): array
+    {
+        return [
+            'merge' => ['merge', false],
+            'merge into empty collection' => ['merge', true],
+            'unique' => ['unique', false],
+            'only' => ['only', false],
+            'except' => ['except', false],
+            'diff' => ['diff', false],
+            'intersect' => ['intersect', false],
+        ];
+    }
+
+    public function testKeylessCollectionsCanBeConcatenatedAndDeduplicatedByAnExplicitColumn(): void
+    {
+        $one = (new CollectionModel)->setKeyName(null)->forceFill(['name' => 'Taylor']);
+        $two = (new CollectionModel)->setKeyName(null)->forceFill(['name' => 'Abigail']);
+        $collection = (new Collection([$one]))->concat([$two, $one]);
+
+        $this->assertSame([$one, $two, $one], $collection->all());
+        $this->assertSame([$one, $two], $collection->unique('name')->values()->all());
     }
 
     public function testMap(): void
@@ -959,17 +1005,17 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testCanConvertCollectionOfModelsToEloquentQueryBuilder(): void
     {
-        $one = m::mock(Model::class);
-        $one->shouldReceive('getKey')->andReturn(1);
+        $one = Double::for(Model::class)->strict();
+        $one->allows('getKey')->returns(1);
 
-        $two = m::mock(Model::class);
-        $two->shouldReceive('getKey')->andReturn(2);
+        $two = Double::for(Model::class)->strict();
+        $two->allows('getKey')->returns(2);
 
         $c = new Collection([$one, $two]);
 
-        $mocBuilder = m::mock(Builder::class);
-        $one->expects('newModelQuery')->andReturn($mocBuilder);
-        $mocBuilder->expects('whereKey')->with($c->modelKeys())->andReturn($mocBuilder);
+        $mocBuilder = Double::for(Builder::class)->strict();
+        $one->expects('newModelQuery')->returns($mocBuilder);
+        $mocBuilder->expects('whereKey')->with($c->modelKeys())->returns($mocBuilder);
         $this->assertInstanceOf(Builder::class, $c->toQuery());
     }
 
@@ -983,10 +1029,10 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testConvertingCollectionWithoutModelKeysToQueryThrowsException(): void
     {
-        $model = m::mock(CollectionModel::class)->makePartial();
-        $model->expects('getKey')->andReturn(null);
-        $model->expects('getKeyName')->andReturn('id');
-        $model->shouldNotReceive('newModelQuery');
+        $model = Double::for(new CollectionModel)->passthru();
+        $model->expects('getKey')->returns(null);
+        $model->expects('getKeyName')->returns('id');
+        $model->expects('newModelQuery')->never();
 
         $this->expectException(MissingAttributeException::class);
 

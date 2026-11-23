@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
+use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
@@ -14,6 +15,7 @@ use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\User;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserResource;
 use Override;
 use PDO;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class JsonApiRelationshipConnectionsTest extends TestCase
 {
@@ -59,7 +61,9 @@ class JsonApiRelationshipConnectionsTest extends TestCase
         }
     }
 
-    public function testNestedRelationshipBatchesPreserveEachModelsConnection(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNestedRelationshipBatchesPreserveEachModelsConnection(bool $customLoader): void
     {
         $first = (new Comment)->setConnection('first')->forceFill([
             'id' => 1, 'user_id' => 1, 'content' => 'First comment',
@@ -71,7 +75,22 @@ class JsonApiRelationshipConnectionsTest extends TestCase
             'id' => 99, 'name' => 'Parent', 'email' => 'parent@example.com',
         ])->setRelation('comments', $first->newCollection([$first, $second]));
 
-        (new UserResource($user))->resolve(JsonApiRequest::create('/?include=comments.commenter'));
+        $resource = $customLoader ? new class($user) extends UserResource {
+            /**
+             * Delegate custom loading to the connection-aware default implementation.
+             */
+            #[Override]
+            protected function loadMissingRequestedRelationships(
+                JsonApiRequest $request,
+                Collection $relatedModels,
+                ?string $resourceClass,
+                array $requestedRelationships
+            ): void {
+                parent::loadMissingRequestedRelationships($request, $relatedModels, $resourceClass, $requestedRelationships);
+            }
+        } : new UserResource($user);
+
+        $resource->resolve(JsonApiRequest::create('/?include=comments.commenter'));
 
         $this->assertSame('first', $first->getRelation('commenter')->name);
         $this->assertSame('second', $second->getRelation('commenter')->name);

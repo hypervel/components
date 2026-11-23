@@ -39,11 +39,15 @@ use Hypervel\Ai\Transcription;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class PendingProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure contract-only providers for failover.
      */
@@ -58,37 +62,37 @@ class PendingProviderTest extends TestCase
     #[DataProvider('generations')]
     public function testContractProviderFailoverRetainsTheOriginalNamedFallback(string $kind, string $contract, string $method, string $responseClass): void
     {
-        $response = m::mock($responseClass);
+        $response = Double::for($responseClass)->strict();
         $exception = RateLimitedException::forProvider('first');
         $providers = [];
 
         foreach (['first', 'second'] as $name) {
-            $provider = $name === 'first' ? m::mock($contract) : m::mock(BaseProvider::class, $contract);
-            $provider->shouldReceive('name')->andReturn($name);
-            $provider->shouldReceive('withHeaders')->once()->with(['X-Provider' => $name])->andReturnSelf();
+            $provider = $name === 'first' ? Double::for($contract)->strict() : Double::for(PendingTestProvider::class)->strict();
+            $provider->allows('name')->returns($name);
+            $provider->expects('withHeaders')->with(['X-Provider' => $name]);
 
             if ($kind === 'embeddings') {
-                $provider->shouldReceive('defaultEmbeddingsDimensions')->andReturn(1);
+                $provider->allows('defaultEmbeddingsDimensions')->returns(1);
             }
 
-            $expectation = $provider->shouldReceive($method)->once()->withArgs(
+            $expectation = $provider->expects($method)->with(Argument::all(
                 fn (mixed ...$arguments): bool => in_array(['account' => $name], $arguments, true)
-            );
+            ));
 
             if ($name === 'first') {
-                $expectation->andReturnUsing(function () use ($exception): never {
+                $expectation->resolves(function () use ($exception): never {
                     Ai::build(['name' => 'second', 'driver' => 'custom', 'key' => 'replacement']);
 
                     throw $exception;
                 });
             } else {
-                $expectation->andReturn($response);
+                $expectation->returns($response);
             }
 
             $providers[$name] = $provider;
         }
 
-        $replacement = m::mock(BaseProvider::class, $contract);
+        $replacement = Double::for(PendingTestProvider::class)->strict();
         Ai::extend('custom', fn (Application $app, array $config): Provider => $config['key'] === 'replacement'
             ? $replacement
             : $providers[$config['name']]);
@@ -113,18 +117,19 @@ class PendingProviderTest extends TestCase
         $this->assertCount(1, $events);
         $this->assertSame($providers['first'], $events[0]->provider);
         $this->assertSame($exception, $events[0]->exception);
+        $replacement->unused();
     }
 
     #[DataProvider('generations')]
     public function testConfiguredDefaultsAcceptEnumsAndProviderLists(string $kind, string $contract, string $method, string $responseClass): void
     {
-        $response = m::mock($responseClass);
-        $provider = m::mock($contract);
-        $provider->shouldReceive('withHeaders')->twice()->with([])->andReturnSelf();
-        $provider->shouldReceive($method)->twice()->andReturn($response);
+        $response = Double::for($responseClass)->strict();
+        $provider = Double::for($contract)->strict();
+        $provider->expects('withHeaders')->times(2)->with([]);
+        $provider->expects($method)->times(2)->returns($response);
 
         if ($kind === 'embeddings') {
-            $provider->shouldReceive('defaultEmbeddingsDimensions')->andReturn(1);
+            $provider->allows('defaultEmbeddingsDimensions')->returns(1);
         }
 
         Ai::extend('custom', fn (): Provider => $provider);
@@ -171,4 +176,8 @@ class PendingProviderTest extends TestCase
             'transcription' => Transcription::of(new Base64Audio(base64_encode('audio'), 'audio/wav')),
         };
     }
+}
+
+abstract class PendingTestProvider extends BaseProvider implements AudioProvider, ClassificationProvider, EmbeddingProvider, ImageProvider, RerankingProvider, TranscriptionProvider
+{
 }

@@ -10,34 +10,37 @@ use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Auth\Passwords\TokenRepositoryInterface;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class ClearResetsCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testClearsExpiredTokensThroughDefaultBroker(): void
     {
-        $command = $this->makeCommand($manager = m::mock(PasswordBrokerManager::class));
-        $broker = m::mock(PasswordBroker::class);
-        $repository = m::mock(TokenRepositoryInterface::class);
+        $command = $this->makeCommand($manager = Double::for(PasswordBrokerManager::class)->strict());
+        $broker = Double::for(PasswordBroker::class)->strict();
+        $repository = Double::for(TokenRepositoryInterface::class)->strict();
 
-        $manager->shouldReceive('broker')->once()->with(null)->andReturn($broker);
-        $broker->shouldReceive('getRepository')->once()->andReturn($repository);
-        $repository->shouldReceive('deleteExpired')->once();
+        $manager->expects('broker')->with(null)->returns($broker);
+        $broker->expects('getRepository')->returns($repository);
+        $repository->expects('deleteExpired');
 
         $this->assertSame(0, $this->runCommand($command));
     }
 
     public function testClearsExpiredTokensThroughNamedBroker(): void
     {
-        $command = $this->makeCommand($manager = m::mock(PasswordBrokerManager::class));
-        $broker = m::mock(PasswordBroker::class);
-        $repository = m::mock(TokenRepositoryInterface::class);
+        $command = $this->makeCommand($manager = Double::for(PasswordBrokerManager::class)->strict());
+        $broker = Double::for(PasswordBroker::class)->strict();
+        $repository = Double::for(TokenRepositoryInterface::class)->strict();
 
-        $manager->shouldReceive('broker')->once()->with('admins')->andReturn($broker);
-        $broker->shouldReceive('getRepository')->once()->andReturn($repository);
-        $repository->shouldReceive('deleteExpired')->once();
+        $manager->expects('broker')->with('admins')->returns($broker);
+        $broker->expects('getRepository')->returns($repository);
+        $repository->expects('deleteExpired');
 
         $this->assertSame(0, $this->runCommand($command, ['name' => 'admins']));
     }

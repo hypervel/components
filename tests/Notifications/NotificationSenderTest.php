@@ -9,10 +9,12 @@ use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\Queueable;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher as EventDispatcher;
+use Hypervel\Foundation\Application;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Events\NotificationDelivered;
@@ -23,6 +25,7 @@ use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
+use Hypervel\Notifications\NotificationServiceProvider;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue;
@@ -31,29 +34,35 @@ use Hypervel\Support\Testing\Fakes\BusFake;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\Notifications\Fixtures\ChannelSpy;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Mailer\Exception\HttpTransportException;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Throwable;
 
 class NotificationSenderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItCanSendNotificationsWithAStringVia(): void
     {
-        $notifiable = m::mock(Notifiable::class);
-        $manager = m::mock(ChannelManager::class);
+        $notifiable = new DummyNotifiable;
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('driver')
-            ->andReturnSelf();
-        $manager->expects('send');
-        $bus = m::mock(BusDispatcherContract::class);
-        $bus->shouldNotReceive('dispatch');
+            ->returns($driver = Double::for(ChannelSpy::class)->strict());
+        $driver->expects('send');
+        $bus = Double::for(BusDispatcherContract::class)->strict();
+        $bus->expects('dispatch')->never();
         $events = $this->mockEventDispatcher();
-        $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
-        $events->expects('dispatch')->with(m::type(NotificationDelivered::class));
-        $events->expects('dispatch')->with(m::type(NotificationSent::class));
+        $events->allows('until')->with(Argument::type(NotificationSending::class))->returns(true);
+        $events->expects('dispatch')->with(Argument::type(NotificationDelivered::class));
+        $events->expects('dispatch')->with(Argument::type(NotificationSent::class));
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -70,22 +79,22 @@ class NotificationSenderTest extends TestCase
                 $order[] = 'after-sending';
             }
         );
-        $manager = m::mock(ChannelManager::class);
-        $manager->expects('driver')->with('mail')->andReturn($driver = m::mock());
-        $driver->expects('send')->andReturnUsing(function () use (&$order, $response): object {
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->with('mail')->returns($driver = Double::for(ChannelSpy::class)->strict());
+        $driver->expects('send')->resolves(function () use (&$order, $response): object {
             $order[] = 'channel';
 
             return $response;
         });
         $events = $this->mockEventDispatcher();
-        $events->expects('until')->with(m::type(NotificationSending::class))->andReturnUsing(
+        $events->expects('until')->with(Argument::type(NotificationSending::class))->resolves(
             function () use (&$order): bool {
                 $order[] = 'sending';
 
                 return true;
             }
         );
-        $events->expects('dispatch')->twice()->andReturnUsing(
+        $events->expects('dispatch')->times(2)->resolves(
             function (object $event) use (&$order, $notifiable, $response): void {
                 $this->assertSame($notifiable, $event->notifiable);
                 $this->assertSame('mail', $event->channel);
@@ -104,7 +113,7 @@ class NotificationSenderTest extends TestCase
 
         (new NotificationSender(
             $manager,
-            m::mock(BusDispatcherContract::class),
+            Double::for(BusDispatcherContract::class)->strict(),
             $events,
         ))->sendNow($notifiable, $notification, ['mail']);
 
@@ -123,11 +132,11 @@ class NotificationSenderTest extends TestCase
                 return false;
             }
         };
-        $manager = m::mock(ChannelManager::class);
-        $manager->shouldNotReceive('driver');
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->never();
         $events = $this->mockEventDispatcher();
-        $events->shouldNotReceive('until');
-        $events->expects('dispatch')->with(m::on(
+        $events->expects('until')->never();
+        $events->expects('dispatch')->with(Argument::satisfies(
             fn (object $event): bool => $event instanceof NotificationSkipped
                 && $event->notifiable === $notifiable
                 && $event->channel === 'mail'
@@ -135,22 +144,22 @@ class NotificationSenderTest extends TestCase
 
         (new NotificationSender(
             $manager,
-            m::mock(BusDispatcherContract::class),
+            Double::for(BusDispatcherContract::class)->strict(),
             $events,
         ))->sendNow($notifiable, $notification, ['mail']);
     }
 
     public function testSendingVetoDispatchesSkippedWithoutResolvingTheChannel(): void
     {
-        $manager = m::mock(ChannelManager::class);
-        $manager->shouldNotReceive('driver');
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->never();
         $events = $this->mockEventDispatcher();
-        $events->expects('until')->with(m::type(NotificationSending::class))->andReturnFalse();
-        $events->expects('dispatch')->with(m::type(NotificationSkipped::class));
+        $events->expects('until')->with(Argument::type(NotificationSending::class))->returns(false);
+        $events->expects('dispatch')->with(Argument::type(NotificationSkipped::class));
 
         (new NotificationSender(
             $manager,
-            m::mock(BusDispatcherContract::class),
+            Double::for(BusDispatcherContract::class)->strict(),
             $events,
         ))->sendNow(new AnonymousNotifiable, new Notification, ['mail']);
     }
@@ -158,15 +167,15 @@ class NotificationSenderTest extends TestCase
     public function testThrowingSendingListenerDispatchesFailedAndRethrows(): void
     {
         $exception = new RuntimeException('sending listener failed');
-        $manager = m::mock(ChannelManager::class);
-        $manager->shouldNotReceive('driver');
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->never();
         $events = $this->mockEventDispatcher();
-        $events->expects('until')->with(m::type(NotificationSending::class))->andThrow($exception);
-        $events->expects('dispatch')->with(m::on(
+        $events->expects('until')->with(Argument::type(NotificationSending::class))->throws($exception);
+        $events->expects('dispatch')->with(Argument::satisfies(
             fn (object $event): bool => $event instanceof NotificationFailed
                 && $event->data['exception'] === $exception
         ));
-        $sender = new NotificationSender($manager, m::mock(BusDispatcherContract::class), $events);
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
 
         try {
             $sender->sendNow(new AnonymousNotifiable, new Notification, ['mail']);
@@ -176,18 +185,46 @@ class NotificationSenderTest extends TestCase
         }
     }
 
+    public function testThrowingFailureObserverDoesNotAllowRetryAfterCancellation(): void
+    {
+        $cancellation = new CanceledException('Delivery canceled.');
+        $observerFailure = new RuntimeException('Failure storage unavailable.');
+        $events = new EventDispatcher(Container::getInstance());
+        $events->listen(NotificationFailed::class, static fn () => throw $observerFailure);
+        $manager = Double::for(ChannelManager::class)->strict();
+        $driver = Double::for(ChannelSpy::class)->strict();
+        $manager->allows('driver')->returns($driver);
+        $attempts = 0;
+        $driver->allows('send')->resolves(static function () use ($cancellation, &$attempts): never {
+            ++$attempts;
+            throw $cancellation;
+        });
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
+        $caught = null;
+
+        try {
+            retry(2, fn () => $sender->sendNow(new AnonymousNotifiable, new Notification, ['mail']));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame(1, $attempts);
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+    }
+
     public function testThrowingDeliveredListenerIsNotRelabeledAsDeliveryFailure(): void
     {
         $exception = new RuntimeException('delivered listener failed');
-        $manager = m::mock(ChannelManager::class);
-        $manager->expects('driver')->andReturn($driver = m::mock());
-        $driver->expects('send')->andReturn('response');
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->returns($driver = Double::for(ChannelSpy::class)->strict());
+        $driver->expects('send')->returns('response');
         $events = $this->mockEventDispatcher();
-        $events->expects('until')->with(m::type(NotificationSending::class))->andReturnTrue();
-        $events->expects('dispatch')->with(m::type(NotificationDelivered::class))->andThrow($exception);
-        $events->shouldReceive('dispatch')->never()->with(m::type(NotificationFailed::class));
-        $events->shouldReceive('dispatch')->never()->with(m::type(NotificationSent::class));
-        $sender = new NotificationSender($manager, m::mock(BusDispatcherContract::class), $events);
+        $events->expects('until')->with(Argument::type(NotificationSending::class))->returns(true);
+        $events->expects('dispatch')->with(Argument::type(NotificationDelivered::class))->throws($exception);
+        $events->expects('dispatch')->never()->with(Argument::type(NotificationFailed::class));
+        $events->expects('dispatch')->never()->with(Argument::type(NotificationSent::class));
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
 
         try {
             $sender->sendNow(new AnonymousNotifiable, new Notification, ['mail']);
@@ -203,15 +240,15 @@ class NotificationSenderTest extends TestCase
         $notification = new DummyNotificationWithAfterSendingCallback(static function () use ($exception): never {
             throw $exception;
         });
-        $manager = m::mock(ChannelManager::class);
-        $manager->expects('driver')->andReturn($driver = m::mock());
-        $driver->expects('send')->andReturn('response');
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->returns($driver = Double::for(ChannelSpy::class)->strict());
+        $driver->expects('send')->returns('response');
         $events = $this->mockEventDispatcher();
-        $events->expects('until')->with(m::type(NotificationSending::class))->andReturnTrue();
-        $events->expects('dispatch')->with(m::type(NotificationDelivered::class));
-        $events->shouldReceive('dispatch')->never()->with(m::type(NotificationFailed::class));
-        $events->shouldReceive('dispatch')->never()->with(m::type(NotificationSent::class));
-        $sender = new NotificationSender($manager, m::mock(BusDispatcherContract::class), $events);
+        $events->expects('until')->with(Argument::type(NotificationSending::class))->returns(true);
+        $events->expects('dispatch')->with(Argument::type(NotificationDelivered::class));
+        $events->expects('dispatch')->never()->with(Argument::type(NotificationFailed::class));
+        $events->expects('dispatch')->never()->with(Argument::type(NotificationSent::class));
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
 
         try {
             $sender->sendNow(new AnonymousNotifiable, $notification, ['mail']);
@@ -226,7 +263,7 @@ class NotificationSenderTest extends TestCase
         $notifiable = new DummyNotifiable;
         $manager = $this->getManager();
         $bus = new BusFake(new BusDispatcher(new Container));
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -241,7 +278,7 @@ class NotificationSenderTest extends TestCase
         $manager = $this->getManager();
         $bus = new BusFake(new BusDispatcher(new Container));
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -259,10 +296,10 @@ class NotificationSenderTest extends TestCase
     public function testItCanSendNotificationsWithAnEmptyStringVia(): void
     {
         $notifiable = new AnonymousNotifiable;
-        $manager = m::mock(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $bus = new BusFake(new BusDispatcher(new Container));
-        $events = m::mock(Dispatcher::class);
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('dispatch')->never();
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -274,10 +311,10 @@ class NotificationSenderTest extends TestCase
     public function testItCannotSendNotificationsViaDatabaseForAnonymousNotifiables(): void
     {
         $notifiable = new AnonymousNotifiable;
-        $manager = m::mock(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $bus = new BusFake(new BusDispatcher(new Container));
-        $events = m::mock(Dispatcher::class);
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('dispatch')->never();
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -291,7 +328,7 @@ class NotificationSenderTest extends TestCase
         $notifiable = new DummyNotifiable;
         $manager = $this->getManager();
         $bus = new BusFake(new BusDispatcher(new Container));
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -308,7 +345,7 @@ class NotificationSenderTest extends TestCase
         $notifiable = new DummyNotifiable;
         $manager = $this->getManager();
         $bus = new BusFake(new BusDispatcher(new Container));
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -332,7 +369,7 @@ class NotificationSenderTest extends TestCase
         $manager = $this->getManager();
         $bus = new BusFake(new BusDispatcher(new Container));
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -353,7 +390,7 @@ class NotificationSenderTest extends TestCase
         $manager = $this->getManager();
         $bus = new BusFake(new BusDispatcher(new Container));
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -377,7 +414,7 @@ class NotificationSenderTest extends TestCase
 
         $bus = new BusFake(new BusDispatcher(new Container));
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -409,19 +446,19 @@ class NotificationSenderTest extends TestCase
             }
         };
         $notification->onConnection($connection);
-        $bus = m::mock(BusDispatcherContract::class);
-        $bus->expects('dispatch')->with(m::on(
+        $bus = Double::for(BusDispatcherContract::class)->strict();
+        $bus->expects('dispatch')->with(Argument::satisfies(
             fn (SendQueuedNotifications $job): bool => $job->channels === ['mail']
                 && $job->queue === 'admin_notifications'
                 && $job->connection === $expectedConnection
         ));
-        $bus->expects('dispatch')->with(m::on(
+        $bus->expects('dispatch')->with(Argument::satisfies(
             fn (SendQueuedNotifications $job): bool => $job->channels === ['database']
                 && $job->queue === 'dummy'
                 && $job->connection === 'database-connection'
         ));
 
-        (new NotificationSender(new ChannelManager($container), $bus, m::mock(Dispatcher::class)))
+        (new NotificationSender(new ChannelManager($container), $bus, Double::for(Dispatcher::class)->strict()))
             ->send(new AnonymousNotifiable, $notification);
     }
 
@@ -439,19 +476,19 @@ class NotificationSenderTest extends TestCase
             }
         };
 
-        $notifiable = m::mock(Notifiable::class);
-        $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('getContainer')->andReturn(app());
-        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
-        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
+        $notifiable = new DummyNotifiable;
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->allows('getContainer')->returns(app());
+        $manager->allows('resolveQueueFromQueueRoute')->returns(null);
+        $manager->allows('resolveConnectionFromQueueRoute')->returns(null);
 
-        $bus = m::mock(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')
-            ->withArgs(function (SendQueuedNotifications $job): bool {
+            ->with(Argument::satisfies(function (SendQueuedNotifications $job): bool {
                 return $job->delay === 30;
-            });
+            }));
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -480,19 +517,19 @@ class NotificationSenderTest extends TestCase
             }
         };
 
-        $notifiable = m::mock(Notifiable::class);
-        $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('getContainer')->andReturn(app());
-        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
-        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
+        $notifiable = new DummyNotifiable;
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->allows('getContainer')->returns(app());
+        $manager->allows('resolveQueueFromQueueRoute')->returns(null);
+        $manager->allows('resolveConnectionFromQueueRoute')->returns(null);
 
-        $bus = m::mock(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')
-            ->withArgs(function (SendQueuedNotifications $job): bool {
+            ->with(Argument::satisfies(function (SendQueuedNotifications $job): bool {
                 return $job->delay === 60;
-            });
+            }));
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -501,19 +538,19 @@ class NotificationSenderTest extends TestCase
 
     public function testItCanSendQueuedNotificationsWithDelayProperty(): void
     {
-        $notifiable = m::mock(Notifiable::class);
-        $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('getContainer')->andReturn(app());
-        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
-        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
+        $notifiable = new DummyNotifiable;
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->allows('getContainer')->returns(app());
+        $manager->allows('resolveQueueFromQueueRoute')->returns(null);
+        $manager->allows('resolveConnectionFromQueueRoute')->returns(null);
 
-        $bus = m::mock(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')
-            ->withArgs(function (SendQueuedNotifications $job): bool {
+            ->with(Argument::satisfies(function (SendQueuedNotifications $job): bool {
                 return $job->delay === 45;
-            });
+            }));
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -525,12 +562,12 @@ class NotificationSenderTest extends TestCase
         $notifiable = new AnonymousNotifiable;
         $container = new Container;
         $container->instance('config', new Config(['app' => ['name' => 'Name', 'logo' => 'Logo']]));
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
-        $response = m::mock(ResponseInterface::class);
+        $response = Double::for(ResponseInterface::class)->strict();
         $driver->exception = $exception = new HttpTransportException('Transport error', $response);
-        $manager->expects('driver')->andReturn($driver);
-        $bus = m::mock(BusDispatcherContract::class);
+        $manager->expects('driver')->returns($driver);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
 
         $events = new EventDispatcher;
         $failed = null;
@@ -551,15 +588,71 @@ class NotificationSenderTest extends TestCase
         $this->assertSame(TransportException::class, $failed->data['exception']::class);
     }
 
+    public function testNotificationFailedIsDispatchedAfterAChannelDispatchedItWithoutThrowing(): void
+    {
+        $notifiable = new AnonymousNotifiable;
+        $container = new Application;
+        $container->instance('config', new Config(['app' => ['name' => 'Name', 'logo' => 'Logo']]));
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
+        $bus = new BusFake(new BusDispatcher(new Container));
+        $events = new EventDispatcher;
+        $container->instance('events', $events);
+        (new NotificationServiceProvider($container))->boot();
+
+        $failed = [];
+        $events->listen(NotificationFailed::class, function (NotificationFailed $event) use (&$failed): void {
+            $failed[] = $event->channel;
+        });
+
+        $pushChannel = new class($events) {
+            /**
+             * Create a channel that reports failures without throwing.
+             */
+            public function __construct(protected Dispatcher $events)
+            {
+            }
+
+            /**
+             * Send the notification.
+             */
+            public function send(mixed $notifiable, Notification $notification): void
+            {
+                $this->events->dispatch(new NotificationFailed($notifiable, $notification, 'push'));
+            }
+        };
+
+        $smsChannel = new ChannelSpy;
+        $smsChannel->exception = new RuntimeException('SMS gateway down');
+
+        $manager->expects('driver')->with('push')->returns($pushChannel);
+        $manager->expects('driver')->with('sms')->returns($smsChannel);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+        $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['push']);
+
+        // Check cleanup before another attempt can overwrite a leaked failure marker.
+        $this->assertNull(CoroutineContext::get(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY));
+        $caught = null;
+
+        try {
+            $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['sms']);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($smsChannel->exception, $caught);
+        $this->assertSame(['push', 'sms'], $failed);
+    }
+
     public function testItPreservesNotificationStateMutatedInViaMethod(): void
     {
         $notifiable = new AnonymousNotifiable;
         $container = new Container;
         $container->instance('config', new Config(['app' => ['name' => 'Name', 'logo' => 'Logo']]));
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
-        $manager->expects('driver')->andReturn($driver);
-        $bus = m::mock(BusDispatcherContract::class);
+        $manager->expects('driver')->returns($driver);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
 
         $events = new EventFake(new EventDispatcher);
 
@@ -592,7 +685,7 @@ class NotificationSenderTest extends TestCase
         $notifiable = new DummyNotifiable;
         $manager = $this->getManager();
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $bus = new BusFake(new BusDispatcher(new Container));
 
@@ -621,7 +714,7 @@ class NotificationSenderTest extends TestCase
         $notifiable = new DummyNotifiable;
         $manager = $this->getManager();
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $bus = new BusFake(new BusDispatcher(new Container));
 
@@ -658,7 +751,7 @@ class NotificationSenderTest extends TestCase
         $notifiable = new DummyNotifiable;
         $manager = $this->getManager();
 
-        $events = m::mock(Dispatcher::class);
+        $events = new EventDispatcher;
 
         $bus = new BusFake(new BusDispatcher(new Container));
 
@@ -672,19 +765,19 @@ class NotificationSenderTest extends TestCase
 
     public function testNotificationEventsAreSkippedWhenNoListenersAreRegistered(): void
     {
-        $notifiable = m::mock(Notifiable::class);
-        $manager = m::mock(ChannelManager::class);
+        $notifiable = new DummyNotifiable;
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('driver')
-            ->andReturnSelf();
-        $manager->expects('send');
-        $bus = m::mock(BusDispatcherContract::class);
-        $bus->shouldNotReceive('dispatch');
-        $events = $this->mockEventDispatcher();
-        $events->shouldReceive('hasListeners')->with(NotificationSending::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->with(NotificationDelivered::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->with(NotificationSent::class)->andReturn(false);
-        $events->shouldNotReceive('until');
-        $events->shouldNotReceive('dispatch');
+            ->returns($driver = Double::for(ChannelSpy::class)->strict());
+        $driver->expects('send');
+        $bus = Double::for(BusDispatcherContract::class)->strict();
+        $bus->expects('dispatch')->never();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(NotificationSending::class)->returns(false);
+        $events->expects('hasListeners')->with(NotificationDelivered::class)->returns(false);
+        $events->expects('hasListeners')->with(NotificationSent::class)->returns(false);
+        $events->expects('until')->never();
+        $events->expects('dispatch')->never();
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -694,18 +787,18 @@ class NotificationSenderTest extends TestCase
     public function testNotificationFailedIsSkippedWithoutListeners(): void
     {
         $notifiable = new AnonymousNotifiable;
-        $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('driver')->andReturn($driver = m::mock());
-        $response = m::mock(ResponseInterface::class);
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->allows('driver')->returns($driver = Double::for(ChannelSpy::class)->strict());
+        $response = Double::for(ResponseInterface::class)->strict();
         $exception = new HttpTransportException('Transport error', $response);
-        $driver->expects('send')->andThrow($exception);
-        $bus = m::mock(BusDispatcherContract::class);
+        $driver->expects('send')->throws($exception);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
 
-        $events = $this->mockEventDispatcher();
-        $events->shouldReceive('hasListeners')->with(NotificationSending::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->with(NotificationFailed::class)->andReturn(false);
-        $events->shouldNotReceive('until');
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(NotificationSending::class)->returns(false);
+        $events->expects('hasListeners')->with(NotificationFailed::class)->returns(false);
+        $events->expects('until')->never();
+        $events->expects('dispatch')->never();
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -748,8 +841,8 @@ class NotificationSenderTest extends TestCase
      */
     private function mockEventDispatcher(): Dispatcher
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->byDefault()->andReturn(true);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
 
         return $events;
     }

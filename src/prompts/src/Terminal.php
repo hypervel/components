@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts;
 
-use ReflectionClass;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
+use ReflectionProperty;
 use RuntimeException;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Output\StreamOutput;
 use Symfony\Component\Console\Terminal as SymfonyTerminal;
 
 class Terminal
@@ -38,6 +42,11 @@ class Terminal
      * The Symfony Terminal instance.
      */
     protected SymfonyTerminal $terminal;
+
+    /**
+     * Whether the terminal dimensions have been read.
+     */
+    protected bool $dimensionsRead = false;
 
     /**
      * Create a new Terminal instance.
@@ -92,6 +101,10 @@ class Terminal
      */
     public function cols(): int
     {
+        if (! $this->dimensionsRead) {
+            $this->initDimensions();
+        }
+
         return $this->terminal->getWidth();
     }
 
@@ -100,6 +113,10 @@ class Terminal
      */
     public function lines(): int
     {
+        if (! $this->dimensionsRead) {
+            $this->initDimensions();
+        }
+
         return $this->terminal->getHeight();
     }
 
@@ -108,9 +125,41 @@ class Terminal
      */
     public function initDimensions(): void
     {
-        (new ReflectionClass($this->terminal))
-            ->getMethod('initDimensions')
-            ->invoke($this->terminal);
+        $this->dimensionsRead = true;
+
+        // Symfony uses explicit dimensions directly, so querying the terminal would only start a process.
+        if (getenv('COLUMNS') !== false && getenv('LINES') !== false) {
+            return;
+        }
+
+        // Unlike Laravel, a terminal showing output is queried first: Symfony's query reads STDIN, so piped input hid the size.
+        $tty = match (true) {
+            stream_isatty(STDOUT) => STDOUT,
+            stream_isatty(STDERR) => STDERR,
+            stream_isatty(STDIN) => STDIN,
+            default => null,
+        };
+
+        $size = [];
+
+        if ($tty !== null) {
+            try {
+                preg_match('/^(?<height>\d+) (?<width>\d+)$/', trim($this->execWithInput('stty size', $tty)), $size);
+            } catch (RuntimeException) {
+                // The configured or fallback dimensions below still apply.
+            }
+        }
+
+        // Symfony does not cache a failed query, so its getters would otherwise query again on every call.
+        foreach (['width' => 80, 'height' => 50] as $name => $fallback) {
+            $property = new ReflectionProperty(SymfonyTerminal::class, $name);
+
+            if (isset($size[$name])) {
+                $property->setValue(null, (int) $size[$name]);
+            } elseif ($property->getValue() === null) {
+                $property->setValue(null, $fallback);
+            }
+        }
     }
 
     /**
@@ -136,6 +185,11 @@ class Terminal
      */
     protected function execWithInput(string $command, $input = null): string
     {
+        // Calling a disabled proc_open throws an Error, which the size query's fallback would not catch.
+        if (! function_exists('proc_open')) {
+            throw new RuntimeException('Terminal commands require proc_open, which is disabled.');
+        }
+
         $descriptors = [
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
@@ -162,6 +216,20 @@ class Terminal
         }
 
         return $stdout;
+    }
+
+    /**
+     * Determine if the output is written to a terminal.
+     */
+    public function isOutputTty(?OutputInterface $output = null): bool
+    {
+        // Unlike Laravel, Artisan's output style and buffered outputs are checked at their real destination rather than at STDOUT.
+        return match (true) {
+            $output instanceof BufferedOutput, $output instanceof BufferedConsoleOutput => false,
+            $output instanceof StreamOutput => stream_isatty($output->getStream()),
+            $output !== null && method_exists($output, 'getOutput') => $this->isOutputTty($output->getOutput()),
+            default => stream_isatty(STDOUT),
+        };
     }
 
     /**

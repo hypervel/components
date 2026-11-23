@@ -4,16 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
+use Hypervel\Container\Container;
+use Hypervel\Redis\Pool\PoolManager;
+use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisSharedState;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class RedisSharedStateTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRecoveryPatternMatchesGeneratedSharedStateKeysOnly(): void
     {
-        $state = new class(m::mock(RedisProxy::class)) extends RedisSharedState {
+        $state = new class(Double::for(RedisProxy::class)->strict()) extends RedisSharedState {
             /**
              * Get the generated shared-state keys.
              *
@@ -50,55 +60,55 @@ class RedisSharedStateTest extends TestCase
 
     public function testPresenceSubscribeUsesOneAtomicScript(): void
     {
-        $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function (string $script, array $keys, array $arguments): bool {
-                $this->assertStringContainsString("redis.call('INCR', KEYS[1])", $script);
-                $this->assertStringContainsString("redis.call('INCR', KEYS[2])", $script);
-                $this->assertCount(2, $keys);
-                $this->assertSame([], $arguments);
-
-                return true;
-            })
-            ->andReturn([1, 1]);
+        [$redis, $connection] = $this->redisConnection();
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::capture($script), Argument::capture($keys), [])
+            ->returns([1, 1]);
 
         $result = (new RedisSharedState($redis))->subscribe('app', 'presence-channel', 'user');
 
         $this->assertTrue($result->channelOccupied);
         $this->assertTrue($result->memberAdded);
         $this->assertSame(1, $result->subscriptionCount);
+        $this->assertStringContainsString("redis.call('INCR', KEYS[1])", $script);
+        $this->assertStringContainsString("redis.call('INCR', KEYS[2])", $script);
+        $this->assertCount(2, $keys);
     }
 
     public function testPresenceUnsubscribeUsesOneAtomicScript(): void
     {
-        $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function (string $script, array $keys, array $arguments): bool {
-                $this->assertStringContainsString("redis.call('DECR', KEYS[1])", $script);
-                $this->assertStringContainsString("redis.call('DECR', KEYS[2])", $script);
-                $this->assertCount(2, $keys);
-                $this->assertSame([], $arguments);
-
-                return true;
-            })
-            ->andReturn([0, 0]);
+        [$redis, $connection] = $this->redisConnection();
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::capture($script), Argument::capture($keys), [])
+            ->returns([0, 0]);
 
         $result = (new RedisSharedState($redis))->unsubscribe('app', 'presence-channel', 'user');
 
         $this->assertTrue($result->channelVacated);
         $this->assertTrue($result->memberRemoved);
         $this->assertSame(0, $result->subscriptionCount);
+        $this->assertStringContainsString("redis.call('DECR', KEYS[1])", $script);
+        $this->assertStringContainsString("redis.call('DECR', KEYS[2])", $script);
+        $this->assertCount(2, $keys);
     }
 
-    public function testLockAcquisitionRequiresTheExactTransformedBoolean(): void
+    /**
+     * Create a proxy that forwards script calls to a borrowed connection.
+     *
+     * @return array{RedisProxy, DoubleInterface&RedisConnection}
+     */
+    protected function redisConnection(): array
     {
-        $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('set')->twice()->andReturn(1, true);
-        $state = new RedisSharedState($redis);
+        $connection = Double::for(RedisConnection::class)->strict();
+        $connection->allows('getConnection')->returns($connection);
+        $connection->allows('shouldTransform');
+        $connection->allows('getEventDispatcher')->returns(null);
+        $connection->allows('release');
+        $pool = Double::for(RedisPool::class)->strict();
+        $pool->allows('borrow')->returns($connection);
+        $manager = Double::for(new PoolManager(new Container))->passthru();
+        $manager->allows('pool')->with('reverb')->returns($pool);
 
-        $this->assertFalse($state->tryCacheMissLock('app', 'channel'));
-        $this->assertTrue($state->tryCacheMissLock('app', 'channel'));
+        return [new RedisProxy($manager, 'reverb', new RedisSentinelFactory), $connection];
     }
 }

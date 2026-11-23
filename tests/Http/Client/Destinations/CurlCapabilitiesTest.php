@@ -12,9 +12,9 @@ class CurlCapabilitiesTest extends TestCase
 {
     public function testAcceptsTheInstalledCurlTransport(): void
     {
-        CurlCapabilities::ensurePinningSupported();
+        $this->expectNotToPerformAssertions();
 
-        $this->addToAssertionCount(1);
+        CurlCapabilities::ensurePinningSupported();
     }
 
     public function testRejectsAnUnusableCurlVersionResult(): void
@@ -31,14 +31,14 @@ class CurlCapabilitiesTest extends TestCase
 
     public function testAcceptsTheNonPermanentResolveFloor(): void
     {
+        $this->expectNotToPerformAssertions();
+
         FakeCurlCapabilities::useVersionInfo([
             'version' => '7.75.0',
             'features' => CURL_VERSION_SSL,
         ]);
 
         CurlCapabilities::ensurePinningSupported();
-
-        $this->addToAssertionCount(1);
     }
 
     public function testRejectsCurlBeforeTheNonPermanentResolveFloor(): void
@@ -73,12 +73,12 @@ class CurlCapabilitiesTest extends TestCase
 
     public function testCachesASuccessfulPinningCheck(): void
     {
+        $this->expectNotToPerformAssertions();
+
         CurlCapabilities::ensurePinningSupported();
         FakeCurlCapabilities::useVersionInfo(false);
 
         CurlCapabilities::ensurePinningSupported();
-
-        $this->addToAssertionCount(1);
     }
 
     public function testRejectsAnHttpsProxyBeforeTheSupportedFloor(): void

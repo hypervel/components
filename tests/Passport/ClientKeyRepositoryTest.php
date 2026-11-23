@@ -50,6 +50,7 @@ class ClientKeyRepositoryTest extends TestCase
 
     public function testWarmKeysAvoidRequestsAndUnknownKeyRefreshesAreBounded(): void
     {
+        config(['passport.cache' => ['store' => 'client-keys']]);
         $key = $this->key();
         Http::fake(['https://keys.example/jwks' => Http::sequence()
             ->push(['keys' => [[...$key, 'kid' => 'first']]])

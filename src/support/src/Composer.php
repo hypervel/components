@@ -6,7 +6,10 @@ namespace Hypervel\Support;
 
 use Closure;
 use Composer\Autoload\ClassLoader;
+use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\TestsOnly;
+use Hypervel\Support\Traits\GuardsProcessOutput;
 use JsonException;
 use RuntimeException;
 use Stringable;
@@ -15,6 +18,8 @@ use Symfony\Component\Process\Process;
 
 class Composer
 {
+    use GuardsProcessOutput;
+
     /**
      * The filesystem instance.
      */
@@ -73,13 +78,15 @@ class Composer
                 $command->push('--dev');
             })->all();
 
-        return $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1'])
-            ->run(
-                $output instanceof OutputInterface
-                    ? function ($type, $line) use ($output) {
-                        $output->write('    ' . $line);
-                    } : $output
-            ) === 0;
+        $process = $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1']);
+
+        return $process->run($this->guardProcessOutput(
+            $process,
+            $output instanceof OutputInterface
+                ? function ($type, $line) use ($output) {
+                    $output->write('    ' . $line);
+                } : $output
+        )) === 0;
     }
 
     /**
@@ -98,13 +105,15 @@ class Composer
                 $command->push('--dev');
             })->all();
 
-        return $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1'])
-            ->run(
-                $output instanceof OutputInterface
-                    ? function ($type, $line) use ($output) {
-                        $output->write('    ' . $line);
-                    } : $output
-            ) === 0;
+        $process = $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1']);
+
+        return $process->run($this->guardProcessOutput(
+            $process,
+            $output instanceof OutputInterface
+                ? function ($type, $line) use ($output) {
+                    $output->write('    ' . $line);
+                } : $output
+        )) === 0;
     }
 
     /**
@@ -226,6 +235,8 @@ class Composer
 
     /**
      * Set the working path used by the class.
+     *
+     * @return $this
      */
     public function setWorkingPath(string $path): static
     {
@@ -268,9 +279,10 @@ class Composer
     /**
      * Set the Composer autoloader instance.
      *
-     * Tests only. Swaps the cached Composer loader for the worker lifetime and
-     * affects every subsequent class-map registration.
+     * Swaps the cached Composer loader for the worker lifetime and affects
+     * every subsequent class-map registration.
      */
+    #[TestsOnly]
     public static function setLoader(ClassLoader $classLoader): ClassLoader
     {
         return static::$classLoader = $classLoader;
@@ -278,16 +290,93 @@ class Composer
 
     /**
      * Find the application Composer autoloader registered with a vendor directory.
+     *
+     * A tool shipped as a PHAR, such as PHPStan, registers its own autoloader first, so a
+     * loader outside a PHAR is preferred.
      */
     protected static function findLoader(): ClassLoader
     {
         $loaders = ClassLoader::getRegisteredLoaders();
+
+        foreach ($loaders as $vendorDirectory => $loader) {
+            if (! str_starts_with($vendorDirectory, 'phar://')) {
+                return $loader;
+            }
+        }
 
         if ($loaders !== []) {
             return reset($loaders);
         }
 
         throw new RuntimeException('Composer loader not found.');
+    }
+
+    /**
+     * Get the root package of the application's Composer installation.
+     *
+     * A tool shipped as a PHAR, such as PHPStan, registers its own installation first, so
+     * InstalledVersions::getRootPackage() returns the tool's. The first installation outside
+     * a PHAR is preferred.
+     *
+     * @return array{name: string, pretty_version: string, version: string, reference: null|string, type: string, install_path: string, aliases: string[], dev: bool}
+     */
+    public static function rootPackage(): array
+    {
+        foreach (InstalledVersions::getAllRawData() as $installed) {
+            if (! str_starts_with($installed['root']['install_path'], 'phar://')) {
+                return $installed['root'];
+            }
+        }
+
+        return InstalledVersions::getRootPackage();
+    }
+
+    /**
+     * Get the vendor directory of the Composer install rooted at the given path.
+     *
+     * The loaded install records its own root, so a vendor directory chosen through
+     * project or global configuration, or while installing, needs no Composer
+     * configuration parsing. A relative COMPOSER_VENDOR_DIR is relative to the root.
+     */
+    public static function vendorPath(string $rootPath): string
+    {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Composer sets this in the process environment)
+        $vendorPath = Env::get('COMPOSER_VENDOR_DIR');
+
+        if (is_string($vendorPath) && $vendorPath !== '') {
+            return str_starts_with($vendorPath, '/') ? $vendorPath : $rootPath . '/' . $vendorPath;
+        }
+
+        $root = realpath($rootPath);
+
+        if ($root !== false) {
+            $loaders = ClassLoader::getRegisteredLoaders();
+
+            // The default layout needs no installed.php read, which is large and runs
+            // whenever an application builds its package manifest.
+            $defaultVendorDirectory = realpath($rootPath . '/vendor');
+
+            if ($defaultVendorDirectory !== false && isset($loaders[$defaultVendorDirectory])) {
+                return $rootPath . '/vendor';
+            }
+
+            foreach (array_keys($loaders) as $vendorDirectory) {
+                $installedPath = $vendorDirectory . '/composer/installed.php';
+
+                if (! is_file($installedPath)) {
+                    continue;
+                }
+
+                /** @var array{root: array{install_path: string}} $installed */
+                $installed = require $installedPath;
+
+                if (realpath($installed['root']['install_path']) === $root) {
+                    return $vendorDirectory;
+                }
+            }
+        }
+
+        return $rootPath . '/vendor';
     }
 
     /**

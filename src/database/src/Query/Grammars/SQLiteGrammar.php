@@ -162,13 +162,19 @@ class SQLiteGrammar extends Grammar
             return '';
         }
 
-        $index = $indexHint->index;
+        $indexes = array_map('trim', explode(',', $indexHint->index));
 
-        if (! preg_match('/^[a-zA-Z0-9_$]+$/', $index)) {
-            throw new InvalidArgumentException('Index name contains invalid characters.');
+        foreach ($indexes as $index) {
+            if (! preg_match('/^[a-zA-Z0-9_$]+$/', $index)) {
+                throw new InvalidArgumentException('Index name contains invalid characters.');
+            }
         }
 
-        return "indexed by {$index}";
+        if (count($indexes) > 1 || strtolower($indexes[0]) === 'primary') {
+            return '';
+        }
+
+        return "indexed by {$indexes[0]}";
     }
 
     /**
@@ -224,15 +230,22 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile an update statement without joins into SQL.
-     *
-     * A forced index applies to the updated table, as SQLite's "indexed by"
-     * clause allows.
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
     {
+        return parent::compileUpdateWithoutJoins($query, $this->compileTableWithIndexHint($query, $table), $columns, $where);
+    }
+
+    /**
+     * Compile a plain write target with its requested forced index.
+     */
+    protected function compileTableWithIndexHint(Builder $query, string $table): string
+    {
+        // Unlike Laravel, plain writes honor forced indexes. Joined and
+        // limited writes already apply their hint in the selection subquery.
         $hint = $query->indexHint === null ? '' : $this->compileIndexHint($query, $query->indexHint);
 
-        return parent::compileUpdateWithoutJoins($query, $hint === '' ? $table : "{$table} {$hint}", $columns, $where);
+        return $hint === '' ? $table : "{$table} {$hint}";
     }
 
     /**
@@ -334,7 +347,8 @@ class SQLiteGrammar extends Grammar
 
         $columns = $this->compileUpdateColumns($query, $values);
 
-        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'rowid')));
+        // Selecting row identifiers must not replace a reusable builder's columns or select bindings.
+        $selectSql = $this->compileSelectQuery((clone $query)->select($this->qualifyRowIdentifier($query, 'rowid')));
 
         return "update {$table} set {$columns} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -365,13 +379,22 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
+     * Compile a plain delete with its requested forced index.
+     */
+    protected function compileDeleteWithoutJoins(Builder $query, string $table, string $where): string
+    {
+        return parent::compileDeleteWithoutJoins($query, $this->compileTableWithIndexHint($query, $table), $where);
+    }
+
+    /**
      * Compile a delete statement with joins or limit into SQL.
      */
     protected function compileDeleteWithJoinsOrLimit(Builder $query): string
     {
         $table = $this->wrapTable($query->from);
 
-        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'rowid')));
+        // Selecting row identifiers must not replace a reusable builder's columns or select bindings.
+        $selectSql = $this->compileSelectQuery((clone $query)->select($this->qualifyRowIdentifier($query, 'rowid')));
 
         return "delete from {$table} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -383,7 +406,7 @@ class SQLiteGrammar extends Grammar
     {
         [$schema, $table] = $query->getConnection()->getSchemaBuilder()->parseSchemaAndTable($query->from);
 
-        $schema = $schema ? $this->wrapValue($schema) . '.' : '';
+        $schema = $schema !== null ? $this->wrapValue($schema) . '.' : '';
 
         return [
             'delete from ' . $schema . 'sqlite_sequence where name = ?' => [$query->getConnection()->getTablePrefix() . $table],

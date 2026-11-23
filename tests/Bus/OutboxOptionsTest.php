@@ -13,10 +13,14 @@ use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class OutboxOptionsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUnusedOutboxPropertiesAreNotSerialized(): void
     {
         foreach ([new OutboxQueueableJob, new OutboxBatchableJob, new OutboxCombinedJob] as $job) {
@@ -43,9 +47,9 @@ class OutboxOptionsTest extends TestCase
     public function testPendingDispatchForwardsOutboxOptions(): void
     {
         $job = new OutboxQueueableJob;
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
-        $dispatcher->expects('dispatch')->with($job)->andReturnNull();
+        $dispatcher->expects('dispatch')->with(Argument::same($job))->returns(null);
 
         $pending = new PendingDispatch($job);
         $this->assertSame($pending, $pending->onOutboxDatabase('billing'));

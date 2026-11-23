@@ -10,6 +10,8 @@ use GuzzleHttp\Promise\TaskQueue;
 use GuzzleHttp\Promise\TaskQueueInterface;
 use GuzzleHttp\Promise\Utils;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 
 /**
  * Drain each coroutine's callbacks independently and cancel unfinished work at exit,
@@ -27,8 +29,9 @@ class CoroutineTaskQueue implements ScopedTaskQueueInterface
     /**
      * Install the routing queue once without replacing an existing installation.
      *
-     * Boot or tests only. Guzzle's queue is process-global; install before scheduling work.
+     * Guzzle's queue is process-global; install before scheduling work.
      */
+    #[BootOrTestsOnly]
     public static function install(): void
     {
         $queue = Utils::queue();
@@ -73,8 +76,9 @@ class CoroutineTaskQueue implements ScopedTaskQueueInterface
     /**
      * Discard outside-coroutine test tasks without retaining a shutdown callback.
      *
-     * Tests only. The PHPUnit extension seeds a shutdown-disabled delegate before installation.
+     * The PHPUnit extension seeds a shutdown-disabled delegate before installation.
      */
+    #[TestsOnly(whenShared: true)]
     public function resetOutside(): void
     {
         $this->outside = new TaskQueue(false);

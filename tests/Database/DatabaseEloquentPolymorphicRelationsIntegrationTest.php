@@ -94,16 +94,23 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
     public function testEagerLoading(): void
     {
         $post = Post::create();
+        $secondPost = Post::create();
+        $image = Image::create();
         $tag = Tag::create();
+        $secondTag = Tag::create();
         $post->tags()->attach($tag->id);
+        $secondPost->tags()->attach($secondTag->id);
+        $image->tags()->attach($secondTag->id);
 
-        $post = Post::with('tags')->whereId(1)->first();
+        [$post, $secondPost] = Post::with('tags')->orderBy('id')->get();
         $tag = Tag::with('posts')->whereId(1)->first();
 
         $this->assertTrue($post->relationLoaded('tags'));
         $this->assertTrue($tag->relationLoaded('posts'));
         $this->assertEquals($tag->id, $post->tags->first()->id);
         $this->assertEquals($post->id, $tag->posts->first()->id);
+        $this->assertSame([$tag->id], $post->tags->modelKeys());
+        $this->assertSame([$secondTag->id], $secondPost->tags->modelKeys());
     }
 
     public function testChunkById(): void

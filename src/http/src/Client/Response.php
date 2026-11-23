@@ -8,9 +8,9 @@ use ArrayAccess;
 use Closure;
 use Generator;
 use GuzzleHttp\Cookie\CookieJar;
-use GuzzleHttp\Psr7\StreamWrapper;
 use GuzzleHttp\TransferStats;
 use Hypervel\Http\Client\Concerns\DeterminesStatusCode;
+use Hypervel\Http\StreamWrapper;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Json;
@@ -71,8 +71,8 @@ class Response implements ArrayAccess, Stringable
     /**
      * The flags passed to `json_decode` by default.
      *
-     * Boot-only. Changing this value during request handling affects JSON decoding in every concurrent
-     * and subsequent request on that worker.
+     * Setting this during request handling affects JSON decoding in every concurrent and subsequent
+     * request on that worker.
      *
      * @var int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR>
      */
@@ -174,6 +174,8 @@ class Response implements ArrayAccess, Stringable
      * The callback will be invoked with the following parameters:
      * - string $body: The raw response body.
      * - bool   $asObject: Whether JSON objects should be decoded as objects.
+     *
+     * @return $this
      */
     public function decodeUsing(?Closure $callback): static
     {
@@ -313,6 +315,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Execute the given callback if there was a server or client error.
+     *
+     * @return $this
      */
     public function onError(callable $callback): static
     {
@@ -341,6 +345,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Close the stream and any underlying resources.
+     *
+     * @return $this
      */
     public function close(): static
     {
@@ -381,6 +387,7 @@ class Response implements ArrayAccess, Stringable
      * Throw an exception if a server or client error occurred.
      *
      * @param null|(callable(Response, RequestException): mixed) $callback
+     * @return $this
      *
      * @throws RequestException
      */
@@ -401,6 +408,7 @@ class Response implements ArrayAccess, Stringable
      * Throw an exception if a server or client error occurred and the given condition evaluates to true.
      *
      * @param null|(callable(Response, RequestException): mixed) $callback
+     * @return $this
      *
      * @throws RequestException
      */
@@ -413,6 +421,7 @@ class Response implements ArrayAccess, Stringable
      * Throw an exception if a server or client error occurred and the given condition evaluates to false.
      *
      * @param null|(callable(Response, RequestException): mixed) $callback
+     * @return $this
      *
      * @throws RequestException
      */
@@ -423,6 +432,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Throw an exception if the response status code matches the given code.
+     *
+     * @return $this
      *
      * @throws RequestException
      */
@@ -439,6 +450,8 @@ class Response implements ArrayAccess, Stringable
     /**
      * Throw an exception unless the response status code matches the given code.
      *
+     * @return $this
+     *
      * @throws RequestException
      */
     public function throwUnlessStatus(int|callable $statusCode): static
@@ -453,6 +466,8 @@ class Response implements ArrayAccess, Stringable
     /**
      * Throw an exception if the response status code is a 4xx level code.
      *
+     * @return $this
+     *
      * @throws RequestException
      */
     public function throwIfClientError(): static
@@ -463,6 +478,8 @@ class Response implements ArrayAccess, Stringable
     /**
      * Throw an exception if the response status code is a 5xx level code.
      *
+     * @return $this
+     *
      * @throws RequestException
      */
     public function throwIfServerError(): static
@@ -472,6 +489,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Indicate that request exceptions should be truncated to the given length.
+     *
+     * @return $this
      */
     public function truncateExceptionsAt(int $length): static
     {
@@ -482,6 +501,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Indicate that request exceptions should not be truncated.
+     *
+     * @return $this
      */
     public function dontTruncateExceptions(): static
     {
@@ -526,6 +547,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Dump the headers from the response.
+     *
+     * @return $this
      */
     public function dumpHeaders(): static
     {

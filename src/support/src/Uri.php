@@ -12,6 +12,7 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\Macroable;
@@ -150,6 +151,18 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
     public function port(): ?int
     {
         return $this->uri->getPort();
+    }
+
+    /**
+     * Get the URI's origin.
+     *
+     * Opaque origins, such as those of relative or "mailto:" URIs, are returned as null.
+     */
+    public function origin(): ?string
+    {
+        $uri = $this->uri instanceof LeagueUri ? $this->uri : LeagueUri::new($this->value());
+
+        return $uri->getOrigin();
     }
 
     /**
@@ -412,6 +425,8 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
 
     /**
      * Dump the string representation of the URI.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {
@@ -423,9 +438,10 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
     /**
      * Set the URL generator resolver.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and is used by every subsequent URI route/action helper.
+     * The resolver persists in a static property for the worker lifetime
+     * and is used by every subsequent URI route/action helper.
      */
+    #[BootOnly]
     public static function setUrlGeneratorResolver(Closure $urlGeneratorResolver): void
     {
         static::$urlGeneratorResolver = $urlGeneratorResolver;

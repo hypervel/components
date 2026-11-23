@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher\Managers;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
@@ -130,7 +131,7 @@ class ArrayChannelManager implements ChannelManagerInterface
             try {
                 $channel->unsubscribe($connection);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

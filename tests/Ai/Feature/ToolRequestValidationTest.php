@@ -16,10 +16,13 @@ use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\Ai\TestCase;
 use Hypervel\Validation\ValidationException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ToolRequestValidationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testToolRequestArgumentsCanBeValidated(): void
     {
         $validated = (new Request(['city' => 'Lisbon', 'extra' => 'ignored']))->validate([
@@ -91,8 +94,8 @@ class ToolRequestValidationTest extends TestCase
 
         $context = new RunContext(
             'inv_1',
-            m::mock(Agent::class),
-            m::mock(TextProvider::class),
+            Double::for(Agent::class)->strict(),
+            Double::for(TextProvider::class)->strict(),
             'stub-model',
             $events,
         );

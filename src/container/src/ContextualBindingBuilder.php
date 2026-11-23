@@ -25,6 +25,8 @@ class ContextualBindingBuilder implements ContextualBindingBuilderContract
 
     /**
      * Define the abstract target that depends on the context.
+     *
+     * @return $this
      */
     public function needs(string $abstract): static
     {
@@ -35,6 +37,8 @@ class ContextualBindingBuilder implements ContextualBindingBuilderContract
 
     /**
      * Define the implementation for the contextual binding.
+     *
+     * @return $this
      */
     public function give(mixed $implementation): static
     {
@@ -47,6 +51,8 @@ class ContextualBindingBuilder implements ContextualBindingBuilderContract
 
     /**
      * Define tagged services to be used as the implementation for the contextual binding.
+     *
+     * @return $this
      */
     public function giveTagged(string $tag): static
     {
@@ -59,6 +65,8 @@ class ContextualBindingBuilder implements ContextualBindingBuilderContract
 
     /**
      * Specify the configuration item to bind as a primitive.
+     *
+     * @return $this
      */
     public function giveConfig(string $key, mixed $default = null): static
     {

@@ -132,13 +132,17 @@ class RpcExceptionTest extends TestCase
 
     public function testRejectsInvalidRetryDelay(): void
     {
-        foreach ([-0.1, INF, NAN, (float) PHP_INT_MAX] as $seconds) {
+        foreach ([-0.1, INF, NAN] as $seconds) {
             try {
                 (new RpcException(StatusCode::Unavailable))->withRetryAfter($seconds);
                 $this->fail('Expected the retry delay to be rejected.');
-            } catch (InvalidArgumentException) {
-                $this->addToAssertionCount(1);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('The retry delay must be a non-negative finite number of seconds.', $exception->getMessage());
             }
         }
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('The retry delay exceeds the supported millisecond range.');
+        (new RpcException(StatusCode::Unavailable))->withRetryAfter((float) PHP_INT_MAX);
     }
 }

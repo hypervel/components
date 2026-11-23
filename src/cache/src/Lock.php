@@ -6,13 +6,13 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class Lock implements LockContract
@@ -95,19 +95,18 @@ abstract class Lock implements LockContract
      */
     public function block(int $seconds, ?callable $callback = null): mixed
     {
-        $starting = ((int) CarbonImmutable::now()->format('Uu')) / 1000;
-
-        $milliseconds = $seconds * 1000;
+        $deadline = (int) CarbonImmutable::now()->format('Uu') + $seconds * 1_000_000;
 
         while (! $this->acquire()) {
-            $now = ((int) CarbonImmutable::now()->format('Uu')) / 1000;
+            $remaining = $deadline - (int) CarbonImmutable::now()->format('Uu');
 
-            if (($now + $this->sleepMilliseconds - $milliseconds) >= $starting) {
+            if ($remaining <= 0) {
                 throw new LockTimeoutException;
             }
 
             ConnectionResolver::releaseIdleConnections();
-            Sleep::usleep($this->sleepMilliseconds * 1000);
+            // Allow a final attempt without sleeping beyond the remaining wait.
+            Sleep::usleep(min($this->sleepMilliseconds * 1000, $remaining));
         }
 
         if (is_callable($callback)) {
@@ -132,12 +131,8 @@ abstract class Lock implements LockContract
     {
         try {
             $this->release();
-        } catch (CanceledException $cleanupCancellation) {
-            if (! $failure instanceof CanceledException) {
-                throw $cleanupCancellation;
-            }
-        } catch (Throwable) {
-            // Preserve the callback failure as primary.
+        } catch (Throwable $cleanupFailure) {
+            throw Coroutine::preferCancellation($failure, $cleanupFailure);
         }
 
         throw $failure;
@@ -197,6 +192,8 @@ abstract class Lock implements LockContract
 
     /**
      * Specify the number of milliseconds to sleep in between blocked lock acquisition attempts.
+     *
+     * @return $this
      */
     public function betweenBlockedAttemptsSleepFor(int $milliseconds): static
     {

@@ -12,13 +12,17 @@ use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Engine\Channel;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use stdClass;
 
 class SignalRegistryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[RunInSeparateProcess]
     public function testRegister(): void
     {
@@ -134,8 +138,8 @@ class SignalRegistryTest extends TestCase
         $handled = new Channel(1);
         $trace = [];
         $exception = new RuntimeException('Signal callback failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->twice()->with($exception);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->times(2)->with(Argument::same($exception));
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         try {
@@ -171,9 +175,8 @@ class SignalRegistryTest extends TestCase
 
     public function testRegisterSingleSignalPushesHandler(): void
     {
-        $registry = m::mock(SignalRegistry::class)->makePartial();
-        $registry->shouldAllowMockingProtectedMethods();
-        $registry->shouldReceive('waitSignal')->with(SIGTERM)->once();
+        $registry = Double::for(new SignalRegistry)->passthru();
+        $registry->expects('waitSignal')->with(SIGTERM);
 
         $callback = fn (int $signo) => null;
         $registry->register($this, SIGTERM, $callback);
@@ -186,10 +189,9 @@ class SignalRegistryTest extends TestCase
 
     public function testRegisterMultipleSignalsRegistersEach(): void
     {
-        $registry = m::mock(SignalRegistry::class)->makePartial();
-        $registry->shouldAllowMockingProtectedMethods();
-        $registry->shouldReceive('waitSignal')->with(SIGTERM)->once();
-        $registry->shouldReceive('waitSignal')->with(SIGINT)->once();
+        $registry = Double::for(new SignalRegistry)->passthru();
+        $registry->expects('waitSignal')->with(SIGTERM);
+        $registry->expects('waitSignal')->with(SIGINT);
 
         $callback = fn (int $signo) => null;
         $registry->register($this, [SIGTERM, SIGINT], $callback);
@@ -203,9 +205,8 @@ class SignalRegistryTest extends TestCase
 
     public function testRegisterMultipleHandlersForSameSignal(): void
     {
-        $registry = m::mock(SignalRegistry::class)->makePartial();
-        $registry->shouldAllowMockingProtectedMethods();
-        $registry->shouldReceive('waitSignal')->with(SIGTERM)->twice();
+        $registry = Double::for(new SignalRegistry)->passthru();
+        $registry->expects('waitSignal')->with(SIGTERM)->times(2);
 
         $callbackA = fn (int $signo) => null;
         $callbackB = fn (int $signo) => null;
@@ -221,9 +222,8 @@ class SignalRegistryTest extends TestCase
 
     public function testUnregisterSingleSignal(): void
     {
-        $registry = m::mock(SignalRegistry::class)->makePartial();
-        $registry->shouldAllowMockingProtectedMethods();
-        $registry->shouldReceive('waitSignal');
+        $registry = Double::for(new SignalRegistry)->passthru();
+        $registry->allows('waitSignal');
 
         $registry->register($this, SIGTERM, fn (int $signo) => null);
         $registry->register($this, SIGINT, fn (int $signo) => null);
@@ -237,9 +237,8 @@ class SignalRegistryTest extends TestCase
 
     public function testUnregisterMultipleSignals(): void
     {
-        $registry = m::mock(SignalRegistry::class)->makePartial();
-        $registry->shouldAllowMockingProtectedMethods();
-        $registry->shouldReceive('waitSignal');
+        $registry = Double::for(new SignalRegistry)->passthru();
+        $registry->allows('waitSignal');
 
         $registry->register($this, SIGTERM, fn (int $signo) => null);
         $registry->register($this, SIGINT, fn (int $signo) => null);
@@ -252,9 +251,8 @@ class SignalRegistryTest extends TestCase
 
     public function testUnregisterAllSignals(): void
     {
-        $registry = m::mock(SignalRegistry::class)->makePartial();
-        $registry->shouldAllowMockingProtectedMethods();
-        $registry->shouldReceive('waitSignal');
+        $registry = Double::for(new SignalRegistry)->passthru();
+        $registry->allows('waitSignal');
 
         $registry->register($this, SIGTERM, fn (int $signo) => null);
         $registry->register($this, SIGINT, fn (int $signo) => null);

@@ -22,10 +22,10 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -33,7 +33,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 use Throwable;
 
-class DoctorCommandTest extends TestCase
+class DoctorCommandTest extends RedisCacheTestCase
 {
     private const int CLEANUP_TEST_TAG_COUNT = 25;
 
@@ -84,8 +84,8 @@ class DoctorCommandTest extends TestCase
     #[DataProvider('serverRequirements')]
     public function testRedisVersionCheckUsesFeatureRequirement(string $taggingMode, array $info, bool $supported): void
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->allows('info')->with('server')->andReturn($info);
+        $connection = $this->mockConnection()->shouldTransform(false);
+        $connection->client()->allows('info')->with('server')->returns($info);
 
         $check = new RedisVersionCheck($connection, $taggingMode);
 
@@ -115,10 +115,10 @@ class DoctorCommandTest extends TestCase
 
     public function testHashFieldExpirationCheckSkipsAllMode(): void
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldNotReceive('hsetex');
-        $connection->shouldNotReceive('hexpire');
-        $connection->shouldNotReceive('del');
+        $connection = $this->mockConnection()->shouldTransform(false);
+        $connection->client()->expects('hsetex')->never();
+        $connection->client()->expects('hexpire')->never();
+        $connection->client()->expects('del')->never();
 
         $check = new HashFieldExpirationCheck($connection, 'all');
         $result = $check->run();
@@ -135,19 +135,16 @@ class DoctorCommandTest extends TestCase
 
     public function testHashFieldExpirationCheckProbesHsetexAndHexpireInAnyMode(): void
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('hsetex')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'), ['field' => '1'], ['EX' => 60])
-            ->andReturn(true);
-        $connection->shouldReceive('hexpire')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'), 60, ['field'])
-            ->andReturn([1]);
-        $connection->shouldReceive('del')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'))
-            ->andReturn(1);
+        $connection = $this->mockConnection()->shouldTransform(false);
+        $connection->client()->expects('hsetex')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'), ['field' => '1'], ['EX' => 60])
+            ->returns(1);
+        $connection->client()->expects('hexpire')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'), 60, ['field'])
+            ->returns([1]);
+        $connection->client()->expects('del')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'))
+            ->returns(1);
 
         $check = new HashFieldExpirationCheck($connection, 'any');
         $result = $check->run();
@@ -164,16 +161,14 @@ class DoctorCommandTest extends TestCase
 
     public function testHashFieldExpirationCheckReportsFixInstructionsWhenProbeFails(): void
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('hsetex')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'), ['field' => '1'], ['EX' => 60])
-            ->andThrow(new RuntimeException('unsupported command'));
-        $connection->shouldReceive('hexpire')->never();
-        $connection->shouldReceive('del')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'))
-            ->andReturn(0);
+        $connection = $this->mockConnection()->shouldTransform(false);
+        $connection->client()->expects('hsetex')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'), ['field' => '1'], ['EX' => 60])
+            ->throws(new RuntimeException('unsupported command'));
+        $connection->client()->expects('hexpire')->never();
+        $connection->client()->expects('del')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'))
+            ->returns(0);
 
         $check = new HashFieldExpirationCheck($connection, 'any');
         $result = $check->run();
@@ -193,19 +188,16 @@ class DoctorCommandTest extends TestCase
 
     public function testHashFieldExpirationCheckReportsFailureWhenProbeReturnsFalse(): void
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('hsetex')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'), ['field' => '1'], ['EX' => 60])
-            ->andReturn(false);
-        $connection->shouldReceive('hexpire')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'), 60, ['field'])
-            ->andReturn(false);
-        $connection->shouldReceive('del')
-            ->once()
-            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'))
-            ->andReturn(0);
+        $connection = $this->mockConnection()->shouldTransform(false);
+        $connection->client()->expects('hsetex')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'), ['field' => '1'], ['EX' => 60])
+            ->returns(false);
+        $connection->client()->expects('hexpire')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'), 60, ['field'])
+            ->returns(false);
+        $connection->client()->expects('del')
+            ->with(Argument::matches('/^erc:doctor:hash-field-expiration-test:/'))
+            ->returns(0);
 
         $check = new HashFieldExpirationCheck($connection, 'any');
         $result = $check->run();
@@ -336,26 +328,25 @@ class DoctorCommandTest extends TestCase
     {
         config()->set('cache.default', 'redis');
         $displayException = new Error('system information failed');
-        $connection = m::mock(RedisConnection::class);
-        $storeContext = m::mock(StoreContext::class);
-        $storeContext->shouldReceive('withConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $connection = $this->mockConnection()->shouldTransform(false);
+        $storeContext = Double::for(StoreContext::class)->strict();
+        $storeContext->expects('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('getContext')->once()->andReturn($storeContext);
-        $store->shouldReceive('getTagMode')->once()->andReturn(TagMode::Any);
-        $store->shouldReceive('getPrefix')->once()->andReturn('cache:');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('getContext')->returns($storeContext);
+        $store->expects('getTagMode')->returns(TagMode::Any);
+        $store->expects('getPrefix')->returns('cache:');
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->expects('getStore')->returns($store);
 
         $storeCalls = 0;
-        $cacheManager = m::mock(CacheContract::class);
-        $cacheManager->shouldReceive('store')
-            ->twice()
+        $cacheManager = Double::for(CacheContract::class)->strict();
+        $cacheManager->expects('store')
+            ->times(2)
             ->with('redis')
-            ->andReturnUsing(function () use (&$storeCalls, $displayException, $repository): Repository {
+            ->resolves(function () use (&$storeCalls, $displayException, $repository): Repository {
                 ++$storeCalls;
 
                 if ($storeCalls === 1) {
@@ -382,16 +373,16 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorFailsForNonRedisStore(): void
     {
-        $nonRedisStore = m::mock(Store::class);
+        $nonRedisStore = Double::for(Store::class)->strict();
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')
-            ->andReturn($nonRedisStore);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->allows('getStore')
+            ->returns($nonRedisStore);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->allows('store')
             ->with('file')
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -405,43 +396,43 @@ class DoctorCommandTest extends TestCase
     public function testDoctorDetectsRedisStoreFromConfig(): void
     {
         // Set up config with a redis store
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('array')
+        $config = Double::for(ConfigRepository::class)->strict();
+        $config->allows('array')
             ->with('cache.stores')
-            ->andReturn([
+            ->returns([
                 'file' => ['driver' => 'file'],
                 'redis' => ['driver' => 'redis', 'connection' => 'default'],
             ]);
-        $config->shouldReceive('string')
+        $config->allows('string')
             ->with('cache.default')
-            ->andReturn('file');
-        $config->shouldReceive('get')
+            ->returns('file');
+        $config->allows('get')
             ->with('cache.stores.redis.connection', 'default')
-            ->andReturn('default');
+            ->returns('default');
 
         $this->app->instance('config', $config);
 
         // Mock Redis store
-        $context = m::mock(StoreContext::class);
-        $context->shouldReceive('withConnection')
-            ->andReturnUsing(function (callable $callback): mixed {
-                $connection = m::mock(PhpRedisConnection::class);
-                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
+        $context = Double::for(StoreContext::class)->strict();
+        $context->allows('withConnection')
+            ->resolves(function (callable $callback): mixed {
+                $connection = $this->mockConnection()->shouldTransform(false);
+                $connection->client()->allows('info')->with('server')->returns(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('getTagMode')->andReturn(TagMode::Any);
-        $store->shouldReceive('getContext')->andReturn($context);
-        $store->shouldReceive('getPrefix')->andReturn('cache:');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->allows('getTagMode')->returns(TagMode::Any);
+        $store->allows('getContext')->returns($context);
+        $store->allows('getPrefix')->returns('cache:');
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->allows('getStore')->returns($store);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->allows('store')
             ->with('redis')
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -468,37 +459,37 @@ class DoctorCommandTest extends TestCase
             return;
         }
 
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
+        $config = Double::for(ConfigRepository::class)->strict();
+        $config->allows('string')
             ->with('cache.default')
-            ->andReturn('file');
-        $config->shouldReceive('get')
+            ->returns('file');
+        $config->allows('get')
             ->with('cache.stores.0.connection', 'default')
-            ->andReturn('custom');
+            ->returns('custom');
 
         $this->app->instance('config', $config);
 
         // Mock Redis store
-        $context = m::mock(StoreContext::class);
-        $context->shouldReceive('withConnection')
-            ->andReturnUsing(function (callable $callback): mixed {
-                $connection = m::mock(PhpRedisConnection::class);
-                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
+        $context = Double::for(StoreContext::class)->strict();
+        $context->allows('withConnection')
+            ->resolves(function (callable $callback): mixed {
+                $connection = $this->mockConnection()->shouldTransform(false);
+                $connection->client()->allows('info')->with('server')->returns(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('getTagMode')->andReturn(TagMode::All);
-        $store->shouldReceive('getContext')->andReturn($context);
-        $store->shouldReceive('getPrefix')->andReturn('cache:');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->allows('getTagMode')->returns(TagMode::All);
+        $store->allows('getContext')->returns($context);
+        $store->allows('getPrefix')->returns('cache:');
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->allows('getStore')->returns($store);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->allows('store')
             ->with('0')
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -527,10 +518,10 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorRunsChecksWhileRedisConnectionIsBorrowed(): void
     {
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
+        $config = Double::for(ConfigRepository::class)->strict();
+        $config->allows('string')
             ->with('cache.default')
-            ->andReturn('redis');
+            ->returns('redis');
 
         $this->app->instance('config', $config);
 
@@ -539,16 +530,15 @@ class DoctorCommandTest extends TestCase
             $this->assertTrue($borrowedConnection);
         };
 
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('info')
-            ->once()
+        $connection = $this->mockConnection()->shouldTransform(false);
+        $connection->client()->expects('info')
             ->with('server')
-            ->andReturn(['redis_version' => '7.0.0']);
+            ->returns(['redis_version' => '7.0.0']);
 
-        $context = m::mock(StoreContext::class);
-        $context->shouldReceive('withConnection')
-            ->twice()
-            ->andReturnUsing(function (callable $callback) use (&$borrowedConnection, $connection): mixed {
+        $context = Double::for(StoreContext::class)->strict();
+        $context->expects('withConnection')
+            ->times(2)
+            ->resolves(function (callable $callback) use (&$borrowedConnection, $connection): mixed {
                 $borrowedConnection = true;
 
                 try {
@@ -558,18 +548,18 @@ class DoctorCommandTest extends TestCase
                 }
             });
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('getTagMode')->andReturn(TagMode::Any);
-        $store->shouldReceive('getContext')->andReturn($context);
-        $store->shouldReceive('getPrefix')->andReturn('cache:');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->allows('getTagMode')->returns(TagMode::Any);
+        $store->allows('getContext')->returns($context);
+        $store->allows('getPrefix')->returns('cache:');
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->allows('getStore')->returns($store);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->allows('store')
             ->with('redis')
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -614,37 +604,37 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysTagMode(): void
     {
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
+        $config = Double::for(ConfigRepository::class)->strict();
+        $config->allows('string')
             ->with('cache.default')
-            ->andReturn('redis');
-        $config->shouldReceive('get')
+            ->returns('redis');
+        $config->allows('get')
             ->with('cache.stores.redis.connection', 'default')
-            ->andReturn('default');
+            ->returns('default');
 
         $this->app->instance('config', $config);
 
         // Mock Redis store with 'all' mode
-        $context = m::mock(StoreContext::class);
-        $context->shouldReceive('withConnection')
-            ->andReturnUsing(function (callable $callback): mixed {
-                $connection = m::mock(PhpRedisConnection::class);
-                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
+        $context = Double::for(StoreContext::class)->strict();
+        $context->allows('withConnection')
+            ->resolves(function (callable $callback): mixed {
+                $connection = $this->mockConnection()->shouldTransform(false);
+                $connection->client()->allows('info')->with('server')->returns(['redis_version' => '7.0.0']);
                 return $callback($connection);
             });
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('getTagMode')->andReturn(TagMode::All);
-        $store->shouldReceive('getContext')->andReturn($context);
-        $store->shouldReceive('getPrefix')->andReturn('cache:');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->allows('getTagMode')->returns(TagMode::All);
+        $store->allows('getContext')->returns($context);
+        $store->allows('getPrefix')->returns('cache:');
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->allows('getStore')->returns($store);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->allows('store')
             ->with('redis')
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -675,16 +665,16 @@ class DoctorCommandTest extends TestCase
     public function testDoctorFailsWhenNoRedisStoreDetected(): void
     {
         // Set up config with NO redis stores
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('array')
+        $config = Double::for(ConfigRepository::class)->strict();
+        $config->allows('array')
             ->with('cache.stores')
-            ->andReturn([
+            ->returns([
                 'file' => ['driver' => 'file'],
                 'array' => ['driver' => 'array'],
             ]);
-        $config->shouldReceive('string')
+        $config->allows('string')
             ->with('cache.default')
-            ->andReturn('file');
+            ->returns('file');
 
         $this->app->instance('config', $config);
 
@@ -700,41 +690,41 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysSystemInformation(): void
     {
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('array')
+        $config = Double::for(ConfigRepository::class)->strict();
+        $config->allows('array')
             ->with('cache.stores')
-            ->andReturn([
+            ->returns([
                 'redis' => ['driver' => 'redis', 'connection' => 'default'],
             ]);
-        $config->shouldReceive('string')
+        $config->allows('string')
             ->with('cache.default')
-            ->andReturn('redis');
-        $config->shouldReceive('get')
+            ->returns('redis');
+        $config->allows('get')
             ->with('cache.stores.redis.connection', 'default')
-            ->andReturn('default');
+            ->returns('default');
 
         $this->app->instance('config', $config);
 
-        $context = m::mock(StoreContext::class);
-        $context->shouldReceive('withConnection')
-            ->andReturnUsing(function (callable $callback): mixed {
-                $connection = m::mock(PhpRedisConnection::class);
-                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.2.4']);
+        $context = Double::for(StoreContext::class)->strict();
+        $context->allows('withConnection')
+            ->resolves(function (callable $callback): mixed {
+                $connection = $this->mockConnection()->shouldTransform(false);
+                $connection->client()->allows('info')->with('server')->returns(['redis_version' => '7.2.4']);
                 return $callback($connection);
             });
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('getTagMode')->andReturn(TagMode::Any);
-        $store->shouldReceive('getContext')->andReturn($context);
-        $store->shouldReceive('getPrefix')->andReturn('cache:');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->allows('getTagMode')->returns(TagMode::Any);
+        $store->allows('getContext')->returns($context);
+        $store->allows('getPrefix')->returns('cache:');
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->allows('getStore')->returns($store);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->allows('store')
             ->with('redis')
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -763,11 +753,11 @@ class DoctorCommandTest extends TestCase
         ?Throwable $registryException = null,
         int $cleanupInvocations = 1,
     ): DoctorContext {
-        $taggedCache = m::mock(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
         $tagFlushCalls = 0;
-        $taggedCache->shouldReceive('flush')
+        $taggedCache->expects('flush')
             ->times(self::CLEANUP_TEST_TAG_COUNT * $cleanupInvocations)
-            ->andReturnUsing(function () use (&$tagFlushCalls, $failingTagFlush, $tagException): bool {
+            ->resolves(function () use (&$tagFlushCalls, $failingTagFlush, $tagException): bool {
                 ++$tagFlushCalls;
 
                 if ($tagException !== null && $tagFlushCalls === $failingTagFlush) {
@@ -777,16 +767,16 @@ class DoctorCommandTest extends TestCase
                 return true;
             });
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('tags')
+        $repository = Double::for(Repository::class)->strict();
+        $repository->expects('tags')
             ->times(self::CLEANUP_TEST_TAG_COUNT * $cleanupInvocations)
-            ->andReturn($taggedCache);
+            ->returns($taggedCache);
 
-        $connection = m::mock(RedisConnection::class);
+        $connection = $this->mockConnection()->shouldTransform(false);
         $patternCalls = 0;
-        $connection->shouldReceive('flushByPattern')
+        $connection->expects('flushByPattern')
             ->times(self::CLEANUP_PATTERN_COUNT * $cleanupInvocations)
-            ->andReturnUsing(function (string $pattern) use (&$patternCalls, $patternExceptions): int {
+            ->resolves(function (string $pattern) use (&$patternCalls, $patternExceptions): int {
                 ++$patternCalls;
 
                 if (isset($patternExceptions[$patternCalls])) {
@@ -797,24 +787,24 @@ class DoctorCommandTest extends TestCase
             });
 
         if ($registryException === null) {
-            $connection->shouldReceive('zRange')->times($cleanupInvocations)->andReturn([]);
-            $connection->shouldReceive('zCard')->times($cleanupInvocations)->andReturn(0);
-            $connection->shouldReceive('del')->times($cleanupInvocations)->andReturn(1);
+            $connection->client()->expects('zRange')->times($cleanupInvocations)->returns([]);
+            $connection->client()->expects('zCard')->times($cleanupInvocations)->returns(0);
+            $connection->client()->expects('del')->times($cleanupInvocations)->returns(1);
         } else {
-            $connection->shouldReceive('zRange')->once()->andThrow($registryException);
-            $connection->shouldNotReceive('zCard');
-            $connection->shouldNotReceive('del');
+            $connection->client()->expects('zRange')->throws($registryException);
+            $connection->client()->expects('zCard')->never();
+            $connection->client()->expects('del')->never();
         }
 
-        $storeContext = m::mock(StoreContext::class);
-        $storeContext->shouldReceive('registryKey')->andReturn('cache:_any:tag_registry');
-        $storeContext->shouldReceive('withConnection')
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $storeContext = Double::for(StoreContext::class)->strict();
+        $storeContext->allows('registryKey')->returns('cache:_any:tag_registry');
+        $storeContext->allows('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('getContext')->andReturn($storeContext);
-        $store->shouldReceive('getTagMode')->andReturn(TagMode::Any);
-        $store->shouldReceive('getPrefix')->andReturn('cache:');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->allows('getContext')->returns($storeContext);
+        $store->allows('getTagMode')->returns(TagMode::Any);
+        $store->allows('getPrefix')->returns('cache:');
 
         return new DoctorContext(
             cache: $repository,
@@ -830,10 +820,10 @@ class DoctorCommandTest extends TestCase
      */
     private function bindDoctorContext(DoctorContext $context): void
     {
-        $context->cache->shouldReceive('getStore')->once()->andReturn($context->store);
+        $context->cache->expects('getStore')->returns($context->store);
 
-        $cacheManager = m::mock(CacheContract::class);
-        $cacheManager->shouldReceive('store')->once()->with('redis')->andReturn($context->cache);
+        $cacheManager = Double::for(CacheContract::class)->strict();
+        $cacheManager->expects('store')->with('redis')->returns($context->cache);
         $this->app->instance(CacheContract::class, $cacheManager);
     }
 }

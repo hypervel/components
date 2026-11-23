@@ -18,8 +18,10 @@ use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
 use Hypervel\Sentry\Tracing\EventHandler;
 use Hypervel\Tests\Sentry\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Sentry\SentrySdk;
@@ -28,9 +30,12 @@ use Sentry\Tracing\SpanStatus;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class EventHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
     ];
@@ -137,31 +142,39 @@ class EventHandlerTest extends TestCase
     public function testThrowableFromInstrumentationDoesNotReachApplicationCode(): void
     {
         $this->startTransaction();
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('throwing');
-        $connection->shouldReceive('getDatabaseName')->once()->andThrow(new Error('broken instrumentation'));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getName')->returns('throwing');
+        $connection->expects('getDatabaseName')->throws(new Error('broken instrumentation'));
         $handler = new EventHandler(config()->array('sentry.tracing'));
 
         $handler->queryExecuted(new QueryExecuted('select 1', [], 1.0, $connection));
-
-        $this->addToAssertionCount(1);
     }
 
-    public function testCancellationFromInstrumentationReachesApplicationCode(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancellationFromInstrumentationReachesApplicationCode(bool $wrapped): void
     {
         $this->startTransaction();
         $cancellation = new CanceledException('Request canceled');
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('canceled');
-        $connection->shouldReceive('getDatabaseName')->once()->andThrow($cancellation);
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Instrumentation cleanup failed.', previous: $cancellation);
+        }
+
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getName')->returns('canceled');
+        $connection->expects('getDatabaseName')->throws($cancellation);
         $handler = new EventHandler(config()->array('sentry.tracing'));
+
+        $caught = null;
 
         try {
             $handler->queryExecuted(new QueryExecuted('select 1', [], 1.0, $connection));
-            $this->fail('The tracing event handler swallowed coroutine cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($cancellation, $caught);
     }
 
     public function testCoroutineExitFinishesOnlyAbandonedResponseAndTransactionSpans(): void

@@ -7,9 +7,15 @@ namespace Hypervel\Tests\Data\Support\Validation\FieldReferenceMappingTest;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
+use Hypervel\Data\Attributes\Validation\AcceptedIf;
 use Hypervel\Data\Attributes\Validation\After;
+use Hypervel\Data\Attributes\Validation\Confirmed;
+use Hypervel\Data\Attributes\Validation\DateEquals;
+use Hypervel\Data\Attributes\Validation\DeclinedIf;
 use Hypervel\Data\Attributes\Validation\Different;
 use Hypervel\Data\Attributes\Validation\ExcludeIf;
+use Hypervel\Data\Attributes\Validation\ExcludeUnless;
+use Hypervel\Data\Attributes\Validation\ExcludeWithout;
 use Hypervel\Data\Attributes\Validation\GreaterThan;
 use Hypervel\Data\Attributes\Validation\InArray;
 use Hypervel\Data\Attributes\Validation\MissingIf;
@@ -37,6 +43,8 @@ use Hypervel\Data\Support\Validation\ValidationRule;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Validation\Rules\AcceptedIf as AcceptedIfRule;
+use Hypervel\Validation\Rules\RequiredWith as RequiredWithRule;
 use Hypervel\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -73,6 +81,7 @@ class FieldReferenceMappingTest extends TestCase
         yield 'property mapper' => [PropertyMappedData::class];
         yield 'class mapper' => [ClassMappedData::class];
         yield 'Rule string attribute' => [RuleMappedData::class];
+        yield 'Rule builder attribute' => [BuilderMappedData::class];
         yield 'attribute returned by rules' => [ClassRulesMappedData::class];
         yield 'preserved input' => [PreservedMappedData::class];
         yield 'explicit input name' => [InputNamedData::class];
@@ -108,6 +117,16 @@ class FieldReferenceMappingTest extends TestCase
         $this->assertSame(['required_with:lastName'], $rules['title']);
     }
 
+    public function testMappedConditionalBuilderChecksAllComparisonValues(): void
+    {
+        try {
+            ConditionalBuilderMappedData::validate(['account_type' => 'business', 'terms' => false]);
+            $this->fail('Expected the mapped conditional rule to require accepted terms.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('terms', $exception->errors());
+        }
+    }
+
     #[DataProvider('referenceRules')]
     public function testRuleHooksResolveFieldParametersWithoutChangingOtherParameters(ValidationRule $rule, string $expected): void
     {
@@ -129,6 +148,8 @@ class FieldReferenceMappingTest extends TestCase
      */
     public static function referenceRules(): iterable
     {
+        yield 'accepted if multiple values' => [new AcceptedIf('lastName', 'x', 'y'), 'accepted_if:last_name,x,y'];
+        yield 'declined if multiple values' => [new DeclinedIf('lastName', 'x', 'y'), 'declined_if:last_name,x,y'];
         yield 'required if' => [new RequiredIf('lastName', 'lastName'), 'required_if:last_name,lastName'];
         yield 'required with' => [new RequiredWith('lastName'), 'required_with:last_name'];
         yield 'required with all' => [new RequiredWithAll('lastName', 'confirmation'), 'required_with_all:last_name,confirmation'];
@@ -139,11 +160,16 @@ class FieldReferenceMappingTest extends TestCase
         yield 'greater than' => [new GreaterThan('lastName'), 'gt:last_name'];
         yield 'in array' => [new InArray('lastName.*'), 'in_array:last_name.*'];
         yield 'exclude if' => [new ExcludeIf('lastName', 'x'), 'exclude_if:last_name,x'];
+        yield 'exclude if multiple values' => [new ExcludeIf('lastName', 'x', 'y'), 'exclude_if:last_name,x,y'];
+        yield 'exclude unless multiple values' => [new ExcludeUnless('lastName', 'x', 'y'), 'exclude_unless:last_name,x,y'];
+        yield 'exclude without multiple fields' => [new ExcludeWithout('lastName', 'confirmation'), 'exclude_without:last_name,confirmation'];
+        yield 'custom confirmation' => [new Confirmed('lastName'), 'confirmed:last_name'];
         yield 'prohibited if' => [new ProhibitedIf('lastName', 'x'), 'prohibited_if:last_name,x'];
         yield 'prohibits' => [new Prohibits('lastName', 'confirmation'), 'prohibits:last_name,confirmation'];
         yield 'present with' => [new PresentWith('lastName'), 'present_with:last_name'];
         yield 'missing if' => [new MissingIf('lastName', 'x'), 'missing_if:last_name,x'];
         yield 'date reference' => [new After(new FieldReference('lastName')), 'after:last_name'];
+        yield 'date equals reference' => [new DateEquals(new FieldReference('lastName')), 'date_equals:last_name'];
     }
 
     #[DataProvider('nestedPayloads')]
@@ -269,6 +295,24 @@ class RuleMappedData extends Data
 
     #[Rule('required_with:lastName')]
     public ?string $title;
+}
+
+class BuilderMappedData extends Data
+{
+    #[MapInputName('last_name')]
+    public ?string $lastName;
+
+    #[Rule(new RequiredWithRule('lastName'))]
+    public ?string $title;
+}
+
+class ConditionalBuilderMappedData extends Data
+{
+    #[MapInputName('account_type')]
+    public string $accountType;
+
+    #[Rule(new AcceptedIfRule('accountType', ['personal', 'business']))]
+    public bool $terms;
 }
 
 class ClassRulesMappedData extends Data

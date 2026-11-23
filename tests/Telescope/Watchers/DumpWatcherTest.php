@@ -11,10 +11,13 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
+use Throwable;
 
 #[WithConfig('telescope.watchers', [
     DumpWatcher::class => true,
@@ -61,8 +64,8 @@ class DumpWatcherTest extends FeatureTestCase
     public function testDumpDelegatesWithoutResolvingCacheWhenTelescopeIsNotRecording(): void
     {
         Telescope::stopRecording();
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldNotReceive('store');
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->never();
         $delegated = [];
         $this->installWatcher(
             $cache,
@@ -77,17 +80,18 @@ class DumpWatcherTest extends FeatureTestCase
         $this->assertSame([], Telescope::getEntriesQueue());
     }
 
-    public function testCacheFailureDelegatesTheDump(): void
+    #[TestWith([false], 'ordinary cache failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCacheFailureDelegatesTheDumpUnlessCanceled(bool $canceled): void
     {
-        $cache = m::mock(CacheFactory::class);
-        $repository = m::mock(CacheRepository::class);
-        $cache->shouldReceive('store')
-            ->once()
-            ->andReturn($repository);
-        $repository->shouldReceive('get')
-            ->once()
+        $failure = new RuntimeException('Cache unavailable.', previous: $canceled ? new CanceledException : null);
+        $cache = Double::for(CacheFactory::class)->strict();
+        $repository = Double::for(CacheRepository::class)->strict();
+        $cache->expects('store')
+            ->returns($repository);
+        $repository->expects('get')
             ->with('telescope:dump-watcher')
-            ->andThrow(new RuntimeException('Cache unavailable.'));
+            ->throws($failure);
         $delegated = [];
         $this->installWatcher(
             $cache,
@@ -96,16 +100,23 @@ class DumpWatcherTest extends FeatureTestCase
             },
         );
 
-        VarDumper::dump('cache-failure', 'failure-label');
+        $caught = null;
 
-        $this->assertSame([['cache-failure', 'failure-label']], $delegated);
+        try {
+            VarDumper::dump('cache-failure', 'failure-label');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($canceled ? $failure : null, $caught);
+        $this->assertSame($canceled ? [] : [['cache-failure', 'failure-label']], $delegated);
         $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
     public function testAlwaysOptionRecordsWithoutResolvingCache(): void
     {
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldNotReceive('store');
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->never();
         $delegated = [];
         $this->installWatcher(
             $cache,

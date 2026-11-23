@@ -13,7 +13,7 @@ class Member extends Authenticatable
 
     protected ?string $table = 'workbench_members';
 
-    protected string $primaryKey = 'member_id';
+    protected ?string $primaryKey = 'member_id';
 
     protected string $rememberTokenName = 'member_remember_token';
 

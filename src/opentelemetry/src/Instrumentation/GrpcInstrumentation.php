@@ -29,8 +29,8 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter;
 use OpenTelemetry\Context\Propagation\TextMapPropagatorInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
+use OpenTelemetry\SemConv\Attributes\RpcAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperationObserver
@@ -38,14 +38,6 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
     protected const string CLIENT_DURATION_METRIC = 'rpc.client.call.duration';
 
     protected const string SERVER_DURATION_METRIC = 'rpc.server.call.duration';
-
-    protected const string RPC_SYSTEM_ATTRIBUTE = 'rpc.system.name';
-
-    protected const string RPC_METHOD_ATTRIBUTE = 'rpc.method';
-
-    protected const string RPC_STATUS_ATTRIBUTE = 'rpc.response.status_code';
-
-    protected const string RPC_SYSTEM_GRPC = 'grpc';
 
     protected const string RPC_METHOD_OTHER = '_OTHER';
 
@@ -99,12 +91,12 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.grpc');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.grpc', schemaUrl: $this->schemaUrl());
         }
 
         if ($this->metricEnabled(self::CLIENT_DURATION_METRIC)) {
             $this->clientDuration = $this->meterProvider
-                ->getMeter('hypervel.grpc')
+                ->getMeter('hypervel.grpc', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     self::CLIENT_DURATION_METRIC,
                     's',
@@ -115,7 +107,7 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
 
         if ($this->metricEnabled(self::SERVER_DURATION_METRIC)) {
             $this->serverDuration = $this->meterProvider
-                ->getMeter('hypervel.grpc')
+                ->getMeter('hypervel.grpc', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     self::SERVER_DURATION_METRIC,
                     's',
@@ -154,7 +146,7 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
         mixed $token,
         GrpcOperationResult $result,
     ): void {
-        if ($token === null || $result->exception instanceof CanceledException) {
+        if ($token === null) {
             return;
         }
 
@@ -176,7 +168,7 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
 
         if ($this->tracer !== null) {
             $span = $this->tracer
-                ->spanBuilder($attributes[self::RPC_METHOD_ATTRIBUTE])
+                ->spanBuilder($attributes[RpcAttributes::RPC_METHOD])
                 ->setSpanKind(SpanKind::KIND_CLIENT)
                 ->setParent($parent)
                 ->setStartTimestamp($startedAt)
@@ -202,8 +194,6 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
             $metadata = $operation->metadata();
             $this->propagator->inject($metadata, $this->metadataSetter, $context);
             $operation->withMetadata($metadata);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
             $this->complete(
                 $operation,
@@ -240,9 +230,9 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
             : [];
 
         if ($this->tracer !== null) {
-            $spanName = $sharedAttributes[self::RPC_METHOD_ATTRIBUTE];
+            $spanName = $sharedAttributes[RpcAttributes::RPC_METHOD];
             $span = $this->tracer
-                ->spanBuilder($spanName === self::RPC_METHOD_OTHER ? self::RPC_SYSTEM_GRPC : $spanName)
+                ->spanBuilder($spanName === self::RPC_METHOD_OTHER ? RpcAttributes::RPC_SYSTEM_NAME_VALUE_GRPC : $spanName)
                 ->setSpanKind(SpanKind::KIND_SERVER)
                 ->setParent($parent)
                 ->setStartTimestamp($startedAt)
@@ -286,14 +276,16 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
         $statusName = null;
         $errorType = null;
         $metricAttributes = $state->metricAttributes;
+        // A directly canceled call did not fail; any real final status still applies.
+        $exception = $this->isDirectCancellation($result->exception) ? null : $result->exception;
 
         if ($spanRecording || $duration !== null) {
             $status = $result->status?->code();
             $statusName = $status === null ? null : $this->statusName($status);
-            $errorType = $this->errorType($operation, $status, $statusName, $result->exception);
+            $errorType = $this->errorType($operation, $status, $statusName, $exception);
 
             if ($statusName !== null) {
-                $metricAttributes[self::RPC_STATUS_ATTRIBUTE] = $statusName;
+                $metricAttributes[RpcAttributes::RPC_STATUS_CODE] = $statusName;
             }
 
             if ($errorType !== null) {
@@ -304,15 +296,15 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
         try {
             if ($spanRecording) {
                 if ($statusName !== null) {
-                    $state->span->setAttribute(self::RPC_STATUS_ATTRIBUTE, $statusName);
+                    $state->span->setAttribute(RpcAttributes::RPC_STATUS_CODE, $statusName);
                 }
 
                 if ($operation instanceof ClientGrpcOperation) {
                     $state->span->setAttribute(self::ATTEMPT_COUNT_ATTRIBUTE, $result->attemptCount);
                 }
 
-                if ($result->exception !== null) {
-                    $state->span->recordException($result->exception);
+                if ($exception !== null) {
+                    $state->span->recordException($exception);
                 }
 
                 if ($errorType !== null) {
@@ -321,9 +313,9 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
                 }
             }
 
-            if ($operation instanceof ClientGrpcOperation && $result->exception !== null && $state->span !== null) {
+            if ($operation instanceof ClientGrpcOperation && $exception !== null && $state->span !== null) {
                 $this->exceptionContexts->associate(
-                    $result->exception,
+                    $exception,
                     $state->context,
                     $this->origins->resolve($state->context, $this->identity),
                 );
@@ -349,8 +341,8 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
     protected function sharedAttributes(GrpcOperation $operation): array
     {
         return [
-            self::RPC_SYSTEM_ATTRIBUTE => self::RPC_SYSTEM_GRPC,
-            self::RPC_METHOD_ATTRIBUTE => $this->method($operation),
+            RpcAttributes::RPC_SYSTEM_NAME => RpcAttributes::RPC_SYSTEM_NAME_VALUE_GRPC,
+            RpcAttributes::RPC_METHOD => $this->method($operation),
         ];
     }
 

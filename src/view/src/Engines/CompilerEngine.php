@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Engines;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
@@ -12,7 +13,6 @@ use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Stringable;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -24,7 +24,7 @@ class CompilerEngine extends PhpEngine
     public const string COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
 
     /**
-     * The view paths that were compiled or are not expired, keyed by the path.
+     * The compiled view paths verified as not expired.
      *
      * @var array<string, true>
      */
@@ -50,14 +50,17 @@ class CompilerEngine extends PhpEngine
         $this->pushCompiledPath($path);
 
         try {
+            $compiled = $this->compiler->getCompiledPath($path);
+
             // If this given view has expired, which means it has simply been edited since
             // it was last compiled, we will re-compile the views so we can evaluate a
             // fresh copy of the view. We'll pass the compiler the path of the view.
-            if (! isset(static::$compiledOrNotExpired[$path])) {
+            // One source can have separate compiled files for different echo formats.
+            if (! isset(static::$compiledOrNotExpired[$compiled])) {
                 if ($this->compiler->isExpired($path)) {
                     $this->compiler->compile($path);
                 } else {
-                    static::$compiledOrNotExpired[$path] = true;
+                    static::$compiledOrNotExpired[$compiled] = true;
                 }
             }
 
@@ -65,19 +68,19 @@ class CompilerEngine extends PhpEngine
             // typical PHP just like any other templates. We also keep a stack of views
             // which have been rendered for right exception messages to be generated.
             try {
-                return $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
+                return $this->evaluatePath($compiled, $data);
             } catch (ViewException $e) {
                 if ((new Stringable($e->getMessage()))->doesntContain(['No such file or directory', 'File does not exist at path'])) {
                     throw $e;
                 }
 
-                if (! isset(static::$compiledOrNotExpired[$path])) {
+                if (! isset(static::$compiledOrNotExpired[$compiled])) {
                     throw $e;
                 }
 
                 $this->compiler->compile($path);
 
-                return $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
+                return $this->evaluatePath($compiled, $data);
             }
         } finally {
             $this->popCompiledPath();
@@ -111,7 +114,7 @@ class CompilerEngine extends PhpEngine
      */
     protected function handleViewException(Throwable $e, int $obLevel): void
     {
-        if ($e instanceof CanceledException
+        if (Coroutine::causedByCancellation($e)
             || $e instanceof HttpException
             || $e instanceof HttpResponseException
             || $e instanceof RecordNotFoundException
@@ -144,11 +147,11 @@ class CompilerEngine extends PhpEngine
     }
 
     /**
-     * Clear the cache of views that were compiled or not expired.
+     * Clear the cache of compiled view paths verified as not expired.
      *
-     * Boot or tests only when called directly. Clears the worker-wide compile-check
-     * cache shared by every coroutine; concurrent compilations may re-check disk
-     * redundantly. The view:clear command owns runtime invalidation.
+     * Clears the worker-wide compile-check cache shared by every coroutine;
+     * concurrent compilations may re-check disk redundantly. The view:clear
+     * command owns runtime invalidation.
      */
     public static function forgetCompiledOrNotExpired(): void
     {

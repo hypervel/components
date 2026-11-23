@@ -20,6 +20,9 @@ use Hypervel\Database\ConnectionResolver;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
@@ -371,6 +374,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the local driver.
+     *
+     * @return LocalFilesystemAdapter
      */
     public function createLocalDriver(array $config, string $name = 'local'): Filesystem
     {
@@ -405,6 +410,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the ftp driver.
+     *
+     * @return FilesystemAdapter
      */
     public function createFtpDriver(array $config): Filesystem
     {
@@ -412,17 +419,22 @@ class FilesystemManager implements FactoryContract
             $config['root'] = '';
         }
 
-        $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config)); // @phpstan-ignore class.notFound, class.notFound
+        $adapter = new FtpAdapter(
+            FtpConnectionOptions::fromArray($config),
+            detectMimeTypeUsingPath: (bool) ($config['detect_mime_type_using_path'] ?? false),
+        );
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
     }
 
     /**
      * Create an instance of the sftp driver.
+     *
+     * @return FilesystemAdapter
      */
     public function createSftpDriver(array $config): Filesystem
     {
-        $provider = SftpConnectionProvider::fromArray($config); // @phpstan-ignore class.notFound
+        $provider = SftpConnectionProvider::fromArray($config);
 
         $root = $config['root'] ?? '';
 
@@ -430,13 +442,20 @@ class FilesystemManager implements FactoryContract
             $config['permissions'] ?? []
         );
 
-        $adapter = new SftpAdapter($provider, $root, $visibility); // @phpstan-ignore class.notFound
+        $adapter = new SftpAdapter(
+            $provider,
+            $root,
+            $visibility,
+            detectMimeTypeUsingPath: (bool) ($config['detect_mime_type_using_path'] ?? false),
+        );
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
     }
 
     /**
      * Create an instance of the Amazon S3 driver.
+     *
+     * @return AwsS3V3Adapter
      */
     public function createS3Driver(array $config): Cloud
     {
@@ -448,6 +467,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the read-through driver.
+     *
+     * @return ReadThroughFilesystem
      */
     public function createReadThroughDriver(array $config, string $name = 'read-through'): Filesystem
     {
@@ -661,6 +682,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the Google Cloud Storage driver.
+     *
+     * @return GoogleCloudStorageAdapter
      */
     public function createGcsDriver(array $config): Cloud
     {
@@ -966,14 +989,17 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the given disk instance.
      *
-     * Boot or tests only. Mutates the singleton's disk cache; concurrent
-     * coroutines may already hold a reference to the prior disk and next
-     * resolution will return the replacement. Any shared pool remains
-     * available until its idle TTL expires or purge() invalidates it.
+     * Mutates the singleton's disk cache; concurrent coroutines may
+     * already hold a reference to the prior disk and next resolution
+     * will return the replacement. Any shared pool remains available
+     * until its idle TTL expires or purge() invalidates it.
+     *
+     * @return $this
      */
-    public function set(string $name, mixed $disk): static
+    #[BootOrTestsOnly(whenShared: true)]
+    public function set(UnitEnum|string $name, mixed $disk): static
     {
-        $this->disks[$name] = $disk;
+        $this->disks[enum_value($name)] = $disk;
 
         return $this;
     }
@@ -1011,15 +1037,19 @@ class FilesystemManager implements FactoryContract
     /**
      * Unset the given disk instances.
      *
-     * Boot or tests only. Mutates the singleton's disk cache; concurrent
-     * coroutines may already hold a reference to the disk and next resolution
-     * will rebuild a wrapper. Shared pools remain available until their idle
-     * TTL expires or purge() deliberately invalidates them.
+     * Mutates the singleton's disk cache; concurrent coroutines may already
+     * hold a reference to the disk and next resolution will rebuild a
+     * wrapper. Shared pools remain available until their idle TTL expires or
+     * purge() deliberately invalidates them.
+     *
+     * @param array<string|UnitEnum>|string|UnitEnum $disk
+     * @return $this
      */
-    public function forgetDisk(array|string $disk): static
+    #[BootOrTestsOnly(whenShared: true)]
+    public function forgetDisk(UnitEnum|array|string $disk): static
     {
-        foreach ((array) $disk as $diskName) {
-            unset($this->disks[$diskName]);
+        foreach (Arr::wrap($disk) as $diskName) {
+            unset($this->disks[enum_value($diskName)]);
         }
 
         return $this;
@@ -1028,13 +1058,13 @@ class FilesystemManager implements FactoryContract
     /**
      * Disconnect the given disk, remove it from local cache, and close its pool.
      *
-     * Boot or tests only, plus operational recovery of broken pooled resources.
-     * Closing deliberately invalidates a shared pool; other converged disks
-     * acquire a fresh pool on their next operation.
+     * Use this to recover broken pooled resources. Closing deliberately
+     * invalidates a shared pool; other converged disks acquire a fresh pool on
+     * their next operation.
      */
-    public function purge(?string $name = null): void
+    public function purge(UnitEnum|string|null $name = null): void
     {
-        $name ??= $this->getDefaultDriver();
+        $name = (string) (enum_value($name) ?? $this->getDefaultDriver());
 
         $disk = $this->disks[$name] ?? null;
         unset($this->disks[$name]);
@@ -1058,12 +1088,13 @@ class FilesystemManager implements FactoryContract
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * (and the poolable list if $poolable is true) for the worker lifetime and
-     * applies to every subsequent disk resolution.
+     * The callback persists in the singleton's customCreators array (and the
+     * poolable list if $poolable is true) for the worker lifetime and applies
+     * to every subsequent disk resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
         if ($poolable) {
@@ -1085,9 +1116,12 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent filesystem operation.
+     * Swaps the singleton's container reference; per-request use races across
+     * coroutines and breaks every concurrent filesystem operation.
+     *
+     * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Container $app): static
     {
         $this->app = $app;

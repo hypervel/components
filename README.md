@@ -57,6 +57,7 @@ Hypervel will continue to track and port Laravel features where they fit, while 
 
 - [Native WebSocket support](https://github.com/hypervel/components/blob/0.4/src/docs/websockets.md), integrated with Hypervel's routing, middleware, dependency injection, and events.
 - [Reverb powered by Swoole's built-in WebSocket server](https://github.com/hypervel/components/blob/0.4/src/docs/reverb.md), running alongside your application with no separate deployment and scaling across multiple workers.
+- A [transactional queue outbox](https://github.com/hypervel/components/blob/0.4/src/docs/queue-outbox.md) that stores jobs in the same transaction as your database changes, so they survive an application crash or queue outage after commit.
 - [gRPC client and server support](https://github.com/hypervel/components/blob/0.4/src/docs/grpc.md).
 - [OpenTelemetry integration](https://github.com/hypervel/components/blob/0.4/src/docs/opentelemetry.md) for metrics, traces, and logs.
 - [API integrations and SDKs](https://github.com/hypervel/components/blob/0.4/src/docs/saloon.md), built on Hypervel's HTTP client with coroutine concurrency, caching, rate limiting, and Telescope support.
@@ -67,6 +68,7 @@ Hypervel will continue to track and port Laravel features where they fit, while 
 - A dedicated [rate limiter](https://github.com/hypervel/components/blob/0.4/src/docs/rate-limiting.md).
 - [Layered cache stores](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#building-cache-stacks).
 - [Dual-mode Redis cache tags](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#redis-tag-modes).
+- [Redis-backed job batch results](https://github.com/hypervel/components/blob/0.4/src/docs/queues.md#storing-batch-results-in-redis) for processing large batches without updating a shared database row for every job completion.
 - Persistent [database](https://github.com/hypervel/components/blob/0.4/src/docs/database.md#connection-pooling) and [Redis](https://github.com/hypervel/components/blob/0.4/src/docs/redis.md#connection-pooling) connection pools.
 - [Object pooling](https://github.com/hypervel/components/blob/0.4/src/docs/pools.md#object-pools) for reusable SDK clients and other expensive objects.
 - [Aspect-oriented programming (AOP)](https://github.com/hypervel/components/blob/0.4/src/docs/aop.md) for intercepting method calls without modifying the target classes.

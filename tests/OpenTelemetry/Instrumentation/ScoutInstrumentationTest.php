@@ -13,7 +13,8 @@ use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -45,6 +46,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ScoutInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private EngineOperationRunner $operations;
@@ -219,34 +222,27 @@ class ScoutInstrumentationTest extends TestCase
         );
     }
 
-    public function testCancellationProducesNoFalseCompletionTelemetry(): void
+    public function testCancellationEndsTheSpanWithoutAnError(): void
     {
         $this->registerInstrumentation();
         $cancellation = new CanceledException;
-        $caught = null;
-        $debugScopesDisabled = $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] ?? null;
-        $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = 'true';
 
         try {
-            // Terminal cancellation deliberately abandons the activated scope under test.
-            $this->operations->run($this->operation('search'), function () use ($cancellation): never {
+            $this->operations->run($this->operation('search'), static function () use ($cancellation): never {
                 throw $cancellation;
             });
-        } catch (Throwable $throwable) {
-            $caught = $throwable;
-        } finally {
-            if ($debugScopesDisabled === null) {
-                unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
-            } else {
-                $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = $debugScopesDisabled;
-            }
+            $this->fail('Cancellation was not rethrown.');
+        } catch (CanceledException $caught) {
+            $this->assertSame($cancellation, $caught);
         }
 
-        $this->assertSame($cancellation, $caught);
-        $this->assertTrue(Span::getCurrent()->getContext()->isValid());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $this->assertFalse(Span::getCurrent()->getContext()->isValid());
+        $span = $this->exportedSpan('search users');
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertNull($span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame([], $span->getEvents());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric()->data->dataPoints);
+        $this->assertNull($this->histogramPoint()->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
     public function testNestedOperationsUseTheActiveScoutSpanAsParent(): void
@@ -355,8 +351,8 @@ class ScoutInstrumentationTest extends TestCase
      */
     private function instrumentation(): ScoutInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new ScoutInstrumentation(
             $this->operations,

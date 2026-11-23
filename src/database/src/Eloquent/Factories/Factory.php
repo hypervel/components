@@ -11,6 +11,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
@@ -256,13 +257,17 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        return new EloquentCollection(
-            (new Collection($records))->map(function ($record) {
-                /** @var TModel $model */
-                $model = $this->state($record)->create();
+        $models = (new Collection($records))->map(function ($record) {
+            /** @var TModel $model */
+            $model = $this->state($record)->create();
 
-                return $model;
-            })
+            return $model;
+        });
+
+        // Unlike Laravel, use the model's own collection rather than a plain Eloquent collection, as make() does
+        // for a count. Like make(), build it without automatic eager loading.
+        return Model::withoutAutomaticallyEagerLoadingRelationships(
+            fn () => $this->newModel()->newCollection($models->all()),
         );
     }
 
@@ -359,7 +364,7 @@ abstract class Factory
     {
         Model::unguarded(function () use ($model) {
             $this->has->each(function ($has) use ($model) {
-                $has->recycle($this->recycle)->createFor($model);
+                $has->createFor($model);
             });
         });
     }
@@ -383,13 +388,8 @@ abstract class Factory
      */
     public function make(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
-        $autoEagerLoadingEnabled = Model::isAutomaticallyEagerLoadingRelationships();
-
-        if ($autoEagerLoadingEnabled) {
-            Model::automaticallyEagerLoadRelationships(false);
-        }
-
-        try {
+        // Unlike Laravel, which toggles the worker-wide setting, suppress it only for this coroutine.
+        return Model::withoutAutomaticallyEagerLoadingRelationships(function () use ($attributes, $parent) {
             if (! empty($attributes)) {
                 return $this->state($attributes)->make([], $parent);
             }
@@ -411,9 +411,7 @@ abstract class Factory
             $this->callAfterMaking($instances);
 
             return $instances;
-        } finally {
-            Model::automaticallyEagerLoadRelationships($autoEagerLoadingEnabled);
-        }
+        });
     }
 
     /**
@@ -432,13 +430,17 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        return new EloquentCollection(
-            (new Collection($records))->map(function ($record) {
-                /** @var TModel $model */
-                $model = $this->state($record)->make();
+        $models = (new Collection($records))->map(function ($record) {
+            /** @var TModel $model */
+            $model = $this->state($record)->make();
 
-                return $model;
-            })
+            return $model;
+        });
+
+        // Unlike Laravel, use the model's own collection rather than a plain Eloquent collection, as make() does
+        // for a count. Like make(), build it without automatic eager loading.
+        return Model::withoutAutomaticallyEagerLoadingRelationships(
+            fn () => $this->newModel()->newCollection($models->all()),
         );
     }
 
@@ -536,7 +538,7 @@ abstract class Factory
     protected function parentResolvers(): array
     {
         return $this->for
-            ->map(fn (BelongsToRelationship $for) => $for->recycle($this->recycle)->attributesFor($this->newModel()))
+            ->map(fn (BelongsToRelationship $for) => $for->attributesFor($this->newModel()))
             ->collapse()
             ->all();
     }
@@ -598,7 +600,7 @@ abstract class Factory
     public function prependState(callable|array $state): static
     {
         return $this->newInstance([
-            'states' => $this->states->prepend(
+            'states' => (new Collection($this->states))->prepend(
                 is_callable($state) ? $state : fn () => $state,
             ),
         ]);
@@ -641,11 +643,17 @@ abstract class Factory
      */
     public function has(self $factory, ?string $relationship = null): static
     {
+        $definition = new Relationship(
+            $factory,
+            $relationship ?? $this->guessRelationship($factory->modelName())
+        );
+
+        if ($this->recycle->isNotEmpty()) {
+            $definition = $definition->recycle($this->recycle);
+        }
+
         return $this->newInstance([
-            'has' => $this->has->concat([new Relationship(
-                $factory,
-                $relationship ?? $this->guessRelationship($factory->modelName())
-            )]),
+            'has' => $this->has->concat([$definition]),
         ]);
     }
 
@@ -674,17 +682,21 @@ abstract class Factory
             $pivot = new Sequence(...$pivot);
         }
 
-        return $this->newInstance([
-            'has' => $this->has->concat([new BelongsToManyRelationship(
-                $factory,
-                $pivot,
-                $relationship ?? StrCache::camel(StrCache::plural(class_basename(
-                    $factory instanceof Factory
-                        ? $factory->modelName()
-                        : Collection::wrap($factory)->first()
-                )))
-            )]),
-        ]);
+        $definition = new BelongsToManyRelationship(
+            $factory,
+            $pivot,
+            $relationship ?? StrCache::camel(StrCache::plural(class_basename(
+                $factory instanceof Factory
+                    ? $factory->modelName()
+                    : Collection::wrap($factory)->first()
+            )))
+        );
+
+        if ($this->recycle->isNotEmpty()) {
+            $definition = $definition->recycle($this->recycle);
+        }
+
+        return $this->newInstance(['has' => $this->has->concat([$definition])]);
     }
 
     /**
@@ -692,12 +704,18 @@ abstract class Factory
      */
     public function for(self|Model $factory, ?string $relationship = null): static
     {
-        return $this->newInstance(['for' => $this->for->concat([new BelongsToRelationship(
+        $definition = new BelongsToRelationship(
             $factory,
             $relationship ?? StrCache::camel(class_basename(
                 $factory instanceof Factory ? $factory->modelName() : $factory
             ))
-        )])]);
+        );
+
+        if ($this->recycle->isNotEmpty()) {
+            $definition = $definition->recycle($this->recycle);
+        }
+
+        return $this->newInstance(['for' => $this->for->concat([$definition])]);
     }
 
     /**
@@ -705,14 +723,21 @@ abstract class Factory
      */
     public function recycle(Model|Collection|array $model): static
     {
+        $models = Collection::wrap($model instanceof Model ? func_get_args() : $model)->flatten();
+
+        if ($models->isEmpty()) {
+            return $this->newInstance();
+        }
+
         // Group provided models by the type and merge them into existing recycle collection
+        $recycle = $this->recycle->flatten()->merge($models)->groupBy(fn ($model) => get_class($model));
+
+        // Recycle relationship copies when configured, not per model: counted groups
+        // share one parent without leaking it or repeatedly merging the same candidates.
         return $this->newInstance([
-            'recycle' => $this->recycle
-                ->flatten()
-                ->merge(
-                    Collection::wrap($model instanceof Model ? func_get_args() : $model)
-                        ->flatten()
-                )->groupBy(fn ($model) => get_class($model)),
+            'recycle' => $recycle,
+            'for' => $this->for->map(fn (BelongsToRelationship $relationship): BelongsToRelationship => $relationship->recycle($models)),
+            'has' => $this->has->map(fn (BelongsToManyRelationship|Relationship $relationship): BelongsToManyRelationship|Relationship => $relationship->recycle($models)),
         ]);
     }
 
@@ -916,11 +941,12 @@ abstract class Factory
     /**
      * Specify the callback that should be invoked to guess model names based on factory names.
      *
-     * Boot or tests only. The callback persists in a static property for the
-     * worker lifetime and runs on every model-name guess across all coroutines.
+     * The callback persists in a static property for the worker lifetime and
+     * runs on every model-name guess across all coroutines.
      *
      * @param callable(self): class-string<TModel> $callback
      */
+    #[BootOrTestsOnly]
     public static function guessModelNamesUsing(callable $callback): void
     {
         static::$modelNameResolvers[static::class] = $callback;
@@ -929,9 +955,10 @@ abstract class Factory
     /**
      * Specify the default namespace that contains the application's model factories.
      *
-     * Boot or tests only. The namespace persists in a static property for the
-     * worker lifetime and applies to every subsequent factory-name lookup.
+     * The namespace persists in a static property for the worker lifetime and
+     * applies to every subsequent factory-name lookup.
      */
+    #[BootOrTestsOnly]
     public static function useNamespace(string $namespace): void
     {
         static::$namespace = $namespace;
@@ -955,12 +982,12 @@ abstract class Factory
     /**
      * Specify the callback that should be invoked to guess factory names based on dynamic relationship names.
      *
-     * Boot or tests only. The callback persists in a static property for the
-     * worker lifetime and runs on every factory-name guess across all
-     * coroutines.
+     * The callback persists in a static property for the worker lifetime and
+     * runs on every factory-name guess across all coroutines.
      *
      * @param callable(class-string<Model>): class-string<Factory> $callback
      */
+    #[BootOrTestsOnly]
     public static function guessFactoryNamesUsing(callable $callback): void
     {
         static::$factoryNameResolver = $callback;
@@ -969,9 +996,10 @@ abstract class Factory
     /**
      * Specify that relationships should create parent relationships by default.
      *
-     * Boot or tests only. The flag persists in a static property for the worker
-     * lifetime and applies to every factory build across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every factory build across all coroutines.
      */
+    #[BootOrTestsOnly]
     public static function expandRelationshipsByDefault(): void
     {
         static::$expandRelationshipsByDefault = true;
@@ -980,9 +1008,10 @@ abstract class Factory
     /**
      * Specify that relationships should not create parent relationships by default.
      *
-     * Boot or tests only. The flag persists in a static property for the worker
-     * lifetime and applies to every factory build across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every factory build across all coroutines.
      */
+    #[BootOrTestsOnly]
     public static function dontExpandRelationshipsByDefault(): void
     {
         static::$expandRelationshipsByDefault = false;

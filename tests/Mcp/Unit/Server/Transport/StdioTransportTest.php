@@ -71,11 +71,6 @@ class StdioTransportTest extends TestCase
 
     public function testHandlesRunMethodWithHandler(): void
     {
-        // @TODO: Remove this skip once Swoole hooks standard streams inherited as sockets at process startup.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole leaves socket-backed standard input outside its coroutine hooks.');
-        }
-
         // Swoole's hooked proc_open gives the child socket-backed standard input.
         $input = new InputStream;
         $input->write('Test ');

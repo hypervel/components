@@ -22,7 +22,9 @@ use Hypervel\Foundation\Console\Kernel;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
@@ -38,6 +40,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class KernelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function useTokyoApplicationTimezone(ApplicationContract $app): void
     {
         $app->make('config')->set('app.timezone', 'Asia/Tokyo');
@@ -45,9 +49,9 @@ class KernelTest extends TestCase
 
     public function testHandleCatchesExceptionsAndReturnsOne(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once();
-        $handler->shouldReceive('renderForConsole')->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report');
+        $handler->expects('renderForConsole');
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new class($this->app, $this->app->make('events')) extends Kernel {
@@ -73,9 +77,9 @@ class KernelTest extends TestCase
         $original = new RuntimeException('Bootstrap failed');
         $reportingFailure = new RuntimeException('Reporting failed');
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($original, [])->andThrow($reportingFailure);
-        $handler->shouldNotReceive('renderForConsole');
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($original), [])->throws($reportingFailure);
+        $handler->expects('renderForConsole')->never();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new class($this->app, $this->app->make('events'), $original) extends Kernel {
@@ -107,8 +111,9 @@ class KernelTest extends TestCase
     public function testHandlePreservesCancellationWithoutReportingOrRenderingIt(): void
     {
         $cancellation = new CanceledException('canceled');
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldNotReceive('report', 'renderForConsole');
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->never();
+        $handler->expects('renderForConsole')->never();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new class($this->app, $this->app->make('events'), $cancellation) extends Kernel {
@@ -143,15 +148,12 @@ class KernelTest extends TestCase
         $kernel = $this->app->make(KernelContract::class);
 
         // Replace the app with a spy that captures what bootstrappers are used.
-        $app = m::mock($this->app)->makePartial();
-        $app->shouldReceive('bootstrapWith')->once()->with(m::on(function (array $bootstrappers) use (&$bootstrappedWith) {
-            $bootstrappedWith = $bootstrappers;
-            return true;
-        }));
+        $app = Double::for($this->app, override: true)->passthru();
+        $app->expects('bootstrapWith')->with(Argument::capture($bootstrappedWith));
 
         // Use reflection to replace the app on the kernel.
         $reflection = new ReflectionProperty($kernel, 'app');
-        $reflection->setValue($kernel, $app);
+        $reflection->setValue($kernel, $app->instance());
 
         $kernel->bootstrapWithoutBootingProviders();
 
@@ -258,6 +260,7 @@ PHP);
             $this->assertContains('App\Console\Commands\Discovery\ExampleCommand', $commands);
             $this->assertContains('App\Console\Commands\Discovery\ExampleCommandTest', $commands);
             $this->assertNotContains('App\Console\Commands\Discovery\ExampleCommandUnitTest', $commands);
+            $this->assertFalse((new Kernel($this->app, $this->app->make('events')))->getArtisan()->has('example'));
         } finally {
             $loader->unregister();
             $files->deleteDirectory($directory);
@@ -346,6 +349,8 @@ PHP);
     {
         $kernel = $this->app->make(KernelContract::class);
         $first = $kernel->getArtisan();
+        $kernel->command('kernel-test-late-command', fn (): int => 0);
+        $this->assertTrue($first->has('kernel-test-late-command'));
 
         $kernel->setArtisan(null);
 
@@ -355,14 +360,15 @@ PHP);
 
         $this->assertNotSame($first, $fresh);
         $this->assertSame($fresh, $this->app->make(ConsoleApplicationContract::class));
+        $this->assertTrue($fresh->has('kernel-test-late-command'));
     }
 
     public function testReportExceptionDelegatesToExceptionHandler(): void
     {
         $exception = new RuntimeException('Test exception');
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($exception, []);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception), []);
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
@@ -376,8 +382,8 @@ PHP);
         $exception = new RuntimeException('Test exception');
         $output = new BufferedOutput;
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('renderForConsole')->once()->with($output, $exception);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('renderForConsole')->with(Argument::same($output), Argument::same($exception));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
@@ -393,8 +399,8 @@ PHP);
         $errorOutput = new BufferedOutput;
         $output->setErrorOutput($errorOutput);
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('renderForConsole')->once()->with($errorOutput, $exception);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('renderForConsole')->with(Argument::same($errorOutput), Argument::same($exception));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
@@ -407,13 +413,13 @@ PHP);
     {
         $reportedException = null;
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->andReturnUsing(function (RuntimeException $exception) use (&$reportedException): void {
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->resolves(function (RuntimeException $exception) use (&$reportedException): void {
             $reportedException = $exception;
         });
-        $handler->shouldReceive('renderForConsole')->once()->with(
-            m::on(fn (OutputInterface $output): bool => ! $output instanceof ConsoleOutputInterface),
-            m::on(function (RuntimeException $exception) use (&$reportedException): bool {
+        $handler->expects('renderForConsole')->with(
+            Argument::satisfies(fn (OutputInterface $output): bool => ! $output instanceof ConsoleOutputInterface),
+            Argument::satisfies(function (RuntimeException $exception) use (&$reportedException): bool {
                 return $exception === $reportedException && $exception->getMessage() === 'Bootstrap failed';
             }),
         );
@@ -531,6 +537,15 @@ PHP);
 
         $this->assertSame($first, $second);
         $this->assertSame(1, KernelTestLazyCommand::$constructionAttempts);
+    }
+
+    public function testClosureCommandsAreOnlyRegisteredWithTheKernelThatDefinedThem(): void
+    {
+        $kernel = $this->makeKernel();
+        $kernel->command('kernel-test-closure-command', fn (): int => 0);
+
+        $this->assertTrue($kernel->getArtisan()->has('kernel-test-closure-command'));
+        $this->assertFalse($this->makeKernel()->getArtisan()->has('kernel-test-closure-command'));
     }
 
     /**

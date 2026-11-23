@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 
-class AnyOf implements Rule, ValidatorAwareRule
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
+class AnyOf implements Rule, ValidatorAwareRule, Transient
 {
     /**
      * The rules to match against.
@@ -36,11 +38,14 @@ class AnyOf implements Rule, ValidatorAwareRule
     public function passes(string $attribute, mixed $value): bool
     {
         foreach ($this->rules as $rule) {
+            $keyed = Arr::isAssoc(Arr::wrap($rule));
+
+            // Keyed rules read the value's own fields, including list items matched by wildcards.
             $validator = Validator::make(
-                Arr::isAssoc(Arr::wrap($value)) ? $value : [$value],
-                Arr::isAssoc(Arr::wrap($rule)) ? $rule : [$rule],
-                $this->validator->customMessages, // @phpstan-ignore property.notFound
-                $this->validator->customAttributes // @phpstan-ignore property.notFound
+                $keyed && is_array($value) ? $value : [$value],
+                $keyed ? $rule : [$rule],
+                $this->validator->customMessages, // @phpstan-ignore property.notFound (public property of the framework Validator)
+                $this->validator->customAttributes // @phpstan-ignore property.notFound (public property of the framework Validator)
             );
 
             if ($validator->passes()) {
@@ -65,6 +70,8 @@ class AnyOf implements Rule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(ValidatorContract $validator): static
     {

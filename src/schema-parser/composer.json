@@ -1,0 +1,44 @@
+{
+    "name": "hypervel/schema-parser",
+    "type": "library",
+    "description": "Read MySQL, MariaDB, PostgreSQL and SQLite schema dumps as typed schema objects.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "sql",
+        "schema",
+        "parser",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\SchemaParser\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "ext-mbstring": "*"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

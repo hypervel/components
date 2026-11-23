@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Jwt;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Request;
@@ -27,12 +28,15 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 
 class JwtServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
@@ -108,11 +112,11 @@ class JwtServiceProviderTest extends TestCase
             'driver' => 'jwt-test-provider',
         ]);
 
-        $this->app->instance('jwt', m::mock(ManagerContract::class));
+        $this->app->instance('jwt', Double::for(ManagerContract::class)->strict());
 
         /** @var AuthManager $authManager */
         $authManager = $this->app->make(AuthManager::class);
-        $authManager->provider('jwt-test-provider', fn () => m::mock(UserProvider::class));
+        $authManager->provider('jwt-test-provider', fn () => Double::for(UserProvider::class)->strict());
 
         /** @var JwtGuard $guard */
         $guard = $authManager->guard('jwt');
@@ -134,11 +138,11 @@ class JwtServiceProviderTest extends TestCase
             'driver' => 'jwt-test-provider',
         ]);
 
-        $this->app->instance('jwt', m::mock(ManagerContract::class));
+        $this->app->instance('jwt', Double::for(ManagerContract::class)->strict());
 
         /** @var AuthManager $authManager */
         $authManager = $this->app->make(AuthManager::class);
-        $authManager->provider('jwt-test-provider', fn () => m::mock(UserProvider::class));
+        $authManager->provider('jwt-test-provider', fn () => Double::for(UserProvider::class)->strict());
 
         /** @var JwtGuard $guard */
         $guard = $authManager->guard('jwt');
@@ -170,10 +174,10 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.blacklist_enabled', true);
         $config->set('jwt.blacklist_store', $store);
 
-        $repository = m::mock(CacheRepository::class);
-        $repository->shouldReceive('getStore')->once()->andReturn(m::mock(Store::class));
-        $cache = m::mock();
-        $cache->shouldReceive('store')->once()->with($store)->andReturn($repository);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $repository->expects('getStore')->returns(Double::for(Store::class)->strict());
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->with($store)->returns($repository);
 
         $this->app->instance('cache', $cache);
         $this->app->forgetInstance(BlacklistContract::class);
@@ -207,8 +211,8 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.blacklist_grace_period', 0);
         $config->set('jwt.refresh_ttl', 20160);
 
-        $cache = m::mock();
-        $cache->shouldReceive('store')->never();
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->never();
 
         $this->app->instance('cache', $cache);
         $this->app->forgetInstance(BlacklistContract::class);

@@ -10,6 +10,7 @@ use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
 use Hypervel\Engine\Exceptions\RuntimeException;
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Coroutine as SwooleCo;
 
 class Coroutine implements CoroutineInterface
@@ -35,6 +36,7 @@ class Coroutine implements CoroutineInterface
     public static function create(callable $callable, mixed ...$data): static
     {
         $coroutine = new static($callable);
+        // @phpstan-ignore hypervel.rawCoroutine (the engine primitive: its callers contain the callback)
         $coroutine->execute(...$data);
         return $coroutine;
     }
@@ -46,6 +48,7 @@ class Coroutine implements CoroutineInterface
     {
         // Swoole warns when its coroutine limit is exceeded; expose that native
         // failure through the typed framework exception instead of two signals.
+        // @phpstan-ignore hypervel.rawCoroutine (the engine primitive: its callers contain the callback)
         $id = @SwooleCo::create($this->callable, ...$data);
 
         if ($id === false) {
@@ -98,9 +101,10 @@ class Coroutine implements CoroutineInterface
     /**
      * Set the coroutine configuration.
      *
-     * Boot-only. Mutates Swoole's process-global coroutine configuration; calling
-     * this per-request changes settings for every concurrent coroutine in the worker.
+     * Mutates Swoole's process-global coroutine configuration; calling this
+     * per-request changes settings for every concurrent coroutine in the worker.
      */
+    #[BootOnly]
     public static function set(array $config): void
     {
         SwooleCo::set($config);
@@ -163,7 +167,6 @@ class Coroutine implements CoroutineInterface
             return false;
         }
 
-        /* @phpstan-ignore staticMethod.notFound (@TODO: Remove once PHPStan's bundled JetBrains Swoole stub includes Swoole 6.2's isCanceled() method.) */
         return SwooleCo::isCanceled();
     }
 

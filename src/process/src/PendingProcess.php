@@ -8,16 +8,17 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
-use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\GuardsProcessOutput;
+use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use RuntimeException;
 use Stringable;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -27,6 +28,7 @@ class PendingProcess
 {
     use Conditionable;
     use GuardsProcessOutput;
+    use Macroable;
 
     /**
      * The process factory instance.
@@ -48,12 +50,12 @@ class PendingProcess
     /**
      * The maximum number of seconds the process may run.
      */
-    public ?int $timeout = 60;
+    public int|float|null $timeout = 60;
 
     /**
      * The maximum number of seconds the process may go without returning output.
      */
-    public ?int $idleTimeout = null;
+    public int|float|null $idleTimeout = null;
 
     /**
      * The additional environment variables for the process.
@@ -103,6 +105,8 @@ class PendingProcess
 
     /**
      * Specify the command that will invoke the process.
+     *
+     * @return $this
      */
     public function command(array|string $command): static
     {
@@ -113,6 +117,8 @@ class PendingProcess
 
     /**
      * Specify the working directory of the process.
+     *
+     * @return $this
      */
     public function path(string $path): static
     {
@@ -123,26 +129,32 @@ class PendingProcess
 
     /**
      * Specify the maximum number of seconds the process may run.
+     *
+     * @return $this
      */
     public function timeout(CarbonInterval|int $timeout): static
     {
-        $this->timeout = $timeout instanceof CarbonInterval ? (int) $timeout->totalSeconds : $timeout;
+        $this->timeout = $timeout instanceof CarbonInterval ? $timeout->totalSeconds : $timeout;
 
         return $this;
     }
 
     /**
      * Specify the maximum number of seconds a process may go without returning output.
+     *
+     * @return $this
      */
     public function idleTimeout(CarbonInterval|int $timeout): static
     {
-        $this->idleTimeout = $timeout instanceof CarbonInterval ? (int) $timeout->totalSeconds : $timeout;
+        $this->idleTimeout = $timeout instanceof CarbonInterval ? $timeout->totalSeconds : $timeout;
 
         return $this;
     }
 
     /**
      * Indicate that the process may run forever without timing out.
+     *
+     * @return $this
      */
     public function forever(): static
     {
@@ -155,6 +167,7 @@ class PendingProcess
      * Set the additional environment variables for the process.
      *
      * @param array<string, false|string|Stringable> $environment
+     * @return $this
      */
     public function env(array $environment): static
     {
@@ -167,6 +180,7 @@ class PendingProcess
      * Set the standard input that should be provided when invoking the process.
      *
      * @param null|bool|float|int|resource|string|Traversable $input
+     * @return $this
      */
     public function input(mixed $input): static
     {
@@ -177,6 +191,8 @@ class PendingProcess
 
     /**
      * Disable output for the process.
+     *
+     * @return $this
      */
     public function quietly(): static
     {
@@ -187,6 +203,8 @@ class PendingProcess
 
     /**
      * Enable TTY mode for the process.
+     *
+     * @return $this
      */
     public function tty(bool $tty = true): static
     {
@@ -199,6 +217,7 @@ class PendingProcess
      * Set the "proc_open" options that should be used when invoking the process.
      *
      * @param array<string, mixed> $options
+     * @return $this
      */
     public function options(array $options): static
     {
@@ -230,7 +249,7 @@ class PendingProcess
 
             ConnectionResolver::releaseIdleConnections();
 
-            return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
+            return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output)));
         } catch (SymfonyTimeoutException $e) {
             throw ProcessTimedOutException::make($e, new ProcessResult($process));
         } catch (Throwable $exception) {
@@ -241,7 +260,8 @@ class PendingProcess
     /**
      * Start the process in the background.
      *
-     * The caller must wait for or stop the process before its owning coroutine exits.
+     * Start the process in the coroutine that will wait for it. It is stopped when that
+     * coroutine exits, unless the create_new_console option explicitly detaches it.
      *
      * @throws RuntimeException
      */
@@ -261,7 +281,13 @@ class PendingProcess
         }
 
         try {
-            return new InvokedProcess(tap($process)->start($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
+            $process->start($this->guardProcessOutput($process, $output));
+
+            if (Coroutine::inCoroutine() && ! ($this->options['create_new_console'] ?? false)) {
+                ProcessState::current()->processes[$process] = true;
+            }
+
+            return new InvokedProcess($process);
         } catch (Throwable $exception) {
             $this->stopAfterFailure($process, $exception);
         }
@@ -275,9 +301,7 @@ class PendingProcess
         try {
             (new InvokedProcess($process))->stop(0);
         } catch (Throwable $cleanupException) {
-            if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                throw $cleanupException;
-            }
+            throw Coroutine::preferCancellation($exception, $cleanupException);
         }
 
         throw $exception;
@@ -332,6 +356,7 @@ class PendingProcess
      * Specify the fake process result handlers for the pending process.
      *
      * @param array<string, callable> $fakeHandlers
+     * @return $this
      */
     public function withFakeHandlers(array $fakeHandlers): static
     {
@@ -381,10 +406,15 @@ class PendingProcess
      * Resolve the given fake handler for an asynchronous process.
      *
      * @throws LogicException
+     * @throws Throwable
      */
     protected function resolveAsynchronousFake(string $command, ?callable $output, Closure $fake): InvokedProcessContract
     {
         $result = $fake($this);
+
+        if (is_int($result)) {
+            $result = new FakeProcessResult(exitCode: $result);
+        }
 
         if (is_string($result) || is_array($result)) {
             $result = new FakeProcessResult(output: $result);
@@ -416,7 +446,18 @@ class PendingProcess
         if ($result instanceof FakeProcessSequence) {
             return $this->resolveAsynchronousFake($command, $output, fn () => $result());
         }
+        if ($result instanceof Throwable) {
+            throw $result;
+        }
 
         throw new LogicException('Unsupported asynchronous process fake result provided.');
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

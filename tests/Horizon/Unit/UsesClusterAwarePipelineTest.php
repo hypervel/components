@@ -7,16 +7,16 @@ namespace Hypervel\Tests\Horizon\Unit;
 use Hypervel\Horizon\Repositories\UsesClusterAwarePipeline;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class UsesClusterAwarePipelineTest extends UnitTestCase
 {
     public function testStandaloneConnectionUsesPipeline(): void
     {
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
-        $connection->shouldReceive('pipeline')->once()->andReturn(['pipeline']);
-        $connection->shouldNotReceive('transaction');
+        $connection = Double::for(RedisProxy::class)->strict();
+        $connection->expects('isCluster')->returns(false);
+        $connection->expects('pipeline')->returns(['pipeline']);
+        $connection->expects('transaction')->never();
 
         $this->assertSame(
             ['pipeline'],
@@ -27,10 +27,10 @@ class UsesClusterAwarePipelineTest extends UnitTestCase
 
     public function testClusterConnectionUsesTransaction(): void
     {
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
-        $connection->shouldReceive('transaction')->once()->andReturn(['transaction']);
-        $connection->shouldNotReceive('pipeline');
+        $connection = Double::for(RedisProxy::class)->strict();
+        $connection->expects('isCluster')->returns(true);
+        $connection->expects('transaction')->returns(['transaction']);
+        $connection->expects('pipeline')->never();
 
         $this->assertSame(
             ['transaction'],

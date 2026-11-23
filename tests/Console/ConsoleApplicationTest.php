@@ -14,7 +14,9 @@ use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Fixtures\FakeCommandWithArrayInputPrompting;
 use Hypervel\Tests\Console\Fixtures\FakeCommandWithInputPrompting;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionProperty;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -27,6 +29,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ConsoleApplicationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Create a console application for command resolution.
      */
@@ -227,8 +231,8 @@ class ConsoleApplicationTest extends TestCase
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
-        $command = m::mock(Command::class);
-        $command->shouldReceive('setHypervel')->once()->with(m::type(Application::class));
+        $command = Double::for(Command::class)->strict();
+        $command->expects('setHypervel')->with(Argument::type(Application::class));
         $artisan->expects($this->once())->method('addToParent')->with($command)->willReturn($command);
 
         $result = $artisan->add($command);
@@ -575,12 +579,13 @@ class ConsoleApplicationTest extends TestCase
      */
     private function getMockConsole(array $methods): ConsoleApplication
     {
-        $app = m::mock(Application::class, ['version' => '1.0']);
+        $app = Double::for(Application::class, override: true)->strict();
+        $app->allows('version')->returns('1.0');
         $events = new EventsDispatcher;
 
         return $this->getMockBuilder(ConsoleApplication::class)
             ->onlyMethods($methods)
-            ->setConstructorArgs([$app, $events, '1.0'])
+            ->setConstructorArgs([$app->instance(), $events, '1.0'])
             ->getMock();
     }
 }

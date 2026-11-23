@@ -50,6 +50,8 @@ interface Guard
 
     /**
      * Set the current user.
+     *
+     * @return $this
      */
     public function setUser(Authenticatable $user): static;
 }

@@ -10,6 +10,8 @@ trait InteractsWithAuthentication
 {
     /**
      * Set the currently logged in user for the application.
+     *
+     * @return $this
      */
     public function actingAs(UserContract $user, ?string $guard = null): static
     {
@@ -18,6 +20,8 @@ trait InteractsWithAuthentication
 
     /**
      * Clear the currently logged in user for the application.
+     *
+     * @return $this
      */
     public function actingAsGuest(?string $guard = null): static
     {
@@ -32,6 +36,8 @@ trait InteractsWithAuthentication
 
     /**
      * Set the currently logged in user for the application.
+     *
+     * @return $this
      */
     public function be(UserContract $user, ?string $guard = null): static
     {
@@ -50,6 +56,8 @@ trait InteractsWithAuthentication
 
     /**
      * Assert that the user is authenticated.
+     *
+     * @return $this
      */
     public function assertAuthenticated(?string $guard = null): static
     {
@@ -60,6 +68,8 @@ trait InteractsWithAuthentication
 
     /**
      * Assert that the user is not authenticated.
+     *
+     * @return $this
      */
     public function assertGuest(?string $guard = null): static
     {
@@ -78,6 +88,8 @@ trait InteractsWithAuthentication
 
     /**
      * Assert that the user is authenticated as the given user.
+     *
+     * @return $this
      */
     public function assertAuthenticatedAs(UserContract $user, ?string $guard = null): static
     {
@@ -102,6 +114,8 @@ trait InteractsWithAuthentication
 
     /**
      * Assert that the given credentials are valid.
+     *
+     * @return $this
      */
     public function assertCredentials(array $credentials, ?string $guard = null): static
     {
@@ -115,6 +129,8 @@ trait InteractsWithAuthentication
 
     /**
      * Assert that the given credentials are invalid.
+     *
+     * @return $this
      */
     public function assertInvalidCredentials(array $credentials, ?string $guard = null): static
     {

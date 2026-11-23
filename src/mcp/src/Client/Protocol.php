@@ -194,9 +194,13 @@ class Protocol
                 $this->connection = $this->initialize($remembered);
 
                 return;
-            } catch (OAuthException|CanceledException $oAuthException) {
+            } catch (OAuthException $oAuthException) {
                 throw $oAuthException;
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $this->connection = null;
 
                 $this->transport->connect();
@@ -231,9 +235,13 @@ class Protocol
             $this->transport->connect();
 
             return $this->initialize(ProtocolVersion::V2025_11_25);
-        } catch (OAuthException|CanceledException $oAuthException) {
+        } catch (OAuthException $oAuthException) {
             throw $oAuthException;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             throw $rejection instanceof ClientException
                 ? new ClientException(sprintf(
                     '%s The legacy handshake also failed: %s',
@@ -658,10 +666,7 @@ class Protocol
         try {
             $cleanup();
         } catch (Throwable $exception) {
-            if ($primary === null
-                || ($exception instanceof CanceledException && ! $primary instanceof CanceledException)) {
-                throw $exception;
-            }
+            throw Coroutine::preferCancellation($primary, $exception);
         }
     }
 

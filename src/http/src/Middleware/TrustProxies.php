@@ -6,6 +6,7 @@ namespace Hypervel\Http\Middleware;
 
 use Closure;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -147,9 +148,10 @@ class TrustProxies
     /**
      * Specify the IP addresses of proxies that should always be trusted.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function at(array|string $proxies): void
     {
         static::$alwaysTrustProxies = $proxies;
@@ -158,9 +160,10 @@ class TrustProxies
     /**
      * Specify the proxy headers that should always be trusted.
      *
-     * Boot-only. The header set persists in a static property for the worker
-     * lifetime and applies to every subsequent request.
+     * The header set persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
+    #[BootOnly]
     public static function withHeaders(int $headers): void
     {
         static::$alwaysTrustHeaders = $headers;

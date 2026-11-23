@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation\Process;
 
 use Closure;
+use Hypervel\Concurrency\SerializedClosureResult;
 use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Container\Container;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Testbench\Bootstrapper;
+use Hypervel\Testbench\Foundation\Env;
+use Hypervel\Testbench\Foundation\PackageManifest;
 use Laravel\SerializableClosure\SerializableClosure;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
@@ -66,11 +70,21 @@ final class RemoteCommand
                 ? '(true)'
                 : false;
 
+        // A child sharing this runtime follows this process's root discovery decision,
+        // so its own CLI identity cannot change the package manifest both processes read.
+        // Without an application yet, the decision comes from this process's context.
+        $env['TESTBENCH_DISCOVERS_ROOT_PACKAGE'] = $env['TESTBENCH_RUNTIME_COPY'] === '(true)'
+            ? Env::encode(Container::getInstance()->bound(PackageManifest::class)
+                ? Container::getInstance()->make(PackageManifest::class)->discoversRootPackage()
+                : PackageManifest::discoversRootPackageAt($env['TESTBENCH_BASE_PATH']))
+            : false;
+
         if (! array_key_exists('APP_ENV', $env)) {
             unset($definedEnvironmentVariables['APP_ENV']);
         }
 
         if ($command instanceof Closure) {
+            $env[SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE] = bin2hex(random_bytes(32));
             $env['HYPERVEL_INVOKABLE_CLOSURE'] = base64_encode(
                 serialize(new SerializableClosure($command))
             );

@@ -14,7 +14,8 @@ use Hypervel\Cache\Events\KeyForgetFailed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\RetrievingKey;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\Unsupported;
 use Throwable;
 use UnitEnum;
 
@@ -35,6 +36,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::get() with the full key.')]
     public function get(array|UnitEnum|string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
@@ -48,6 +50,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::get() with the full key.')]
     public function getRaw(UnitEnum|string $key): mixed
     {
         throw new BadMethodCallException(
@@ -61,6 +64,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::get() with the full key.')]
     public function getAuthoritativeRaw(UnitEnum|string $key): mixed
     {
         throw new BadMethodCallException(
@@ -74,6 +78,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::many() with the full keys.')]
     public function many(array $keys): array
     {
         throw new BadMethodCallException(
@@ -87,6 +92,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::many() with the full keys.')]
     public function manyRaw(array $keys): array
     {
         throw new BadMethodCallException(
@@ -100,6 +106,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::has() with the full key.')]
     public function has(array|UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
@@ -113,6 +120,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::pull() with the full key.')]
     public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
@@ -126,6 +134,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Use Cache::forget() with the full key, or flush() to remove all tagged items.')]
     public function forget(array|UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
@@ -139,6 +148,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported('Put the item again through tags() to change its TTL.')]
     public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool
     {
         throw new BadMethodCallException(
@@ -160,10 +170,8 @@ abstract class AnyModeTaggedCache extends TaggedCache
 
         try {
             $value = $this->handleIncompleteClass($key, $this->store->get($key));
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyRetrievalFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyRetrievalFailed::class)) {
                 $this->event(new KeyRetrievalFailed($this->getName(), $key, $exception));
             }
 
@@ -202,10 +210,8 @@ abstract class AnyModeTaggedCache extends TaggedCache
 
         try {
             $result = $this->store->forget($key);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyForgetFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyForgetFailed::class)) {
                 $this->event(new KeyForgetFailed($this->getName(), $key, exception: $exception));
             }
 

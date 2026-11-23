@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 trait Prohibitable
 {
     /**
@@ -14,9 +16,10 @@ trait Prohibitable
     /**
      * Indicate whether the command should be prohibited from running.
      *
-     * Boot-only. The prohibition flag persists in a static property for the
-     * worker lifetime and affects every subsequent execution of this command.
+     * The prohibition flag persists in a static property for the worker
+     * lifetime and affects every subsequent execution of this command.
      */
+    #[BootOnly]
     public static function prohibit(bool $prohibit = true): void
     {
         static::$prohibitedFromRunning = $prohibit;

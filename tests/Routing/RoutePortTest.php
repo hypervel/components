@@ -393,10 +393,10 @@ class RoutePortTest extends RoutingTestCase
         $compiledCollection->setRouter($router);
         $compiledCollection->setContainer($container);
 
-        // Same port — no exception
-        $compiledCollection->add((new Route('GET', 'foo', ['uses' => fn () => 'other', 'as' => 'foo2']))->port(8080));
+        $route = (new Route('GET', 'foo', ['uses' => fn () => 'other', 'as' => 'foo2']))->port(8080);
+        $compiledCollection->add($route);
 
-        $this->assertTrue(true);
+        $this->assertSame($route, $compiledCollection->getByName('foo2'));
     }
 
     /**

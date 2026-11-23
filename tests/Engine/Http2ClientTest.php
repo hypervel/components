@@ -202,6 +202,91 @@ class Http2ClientTest extends TestCase
         $client->write(1, 'frame');
     }
 
+    public function testFailedSendDisconnectsTheClient(): void
+    {
+        // Nothing accepts or reads the connection, so the request body fills both socket buffers.
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->setOption(SOL_SOCKET, SO_RCVBUF, 64 * 1024));
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $client = new Client('127.0.0.1', $server->getsockname()['port'], settings: ['socket_buffer_size' => 64 * 1024]);
+
+        try {
+            try {
+                $client->send(new Request(method: 'POST', body: str_repeat('a', 1024 * 1024)), 0.1);
+                $this->fail('Expected the stalled send to time out.');
+            } catch (HttpClientException $exception) {
+                $this->assertSame(SOCKET_ETIMEDOUT, $exception->getCode());
+            }
+
+            $this->assertFalse($client->isConnected());
+        } finally {
+            $client->close();
+            $server->close();
+        }
+    }
+
+    public function testReceiveAcknowledgesServerPingsWithTheirPayload(): void
+    {
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $client = new Client('127.0.0.1', $server->getsockname()['port']);
+        $connection = $server->accept(1);
+        $this->assertInstanceOf(Socket::class, $connection);
+
+        try {
+            // An empty SETTINGS frame, then a PING carrying "ABCDEFGH".
+            $connection->sendAll("\0\0\0\x04\0\0\0\0\0\0\0\x08\x06\0\0\0\0\0ABCDEFGH");
+
+            $this->assertNull($client->recv(0.1));
+            $client->close();
+            $this->assertStringContainsString("\0\0\x08\x06\x01\0\0\0\0ABCDEFGH", $connection->recvAll(65535, 1));
+        } finally {
+            $client->close();
+            $connection->close();
+            $server->close();
+        }
+    }
+
+    public function testReceiveParsesHeaderBlocksSplitAcrossContinuationFrames(): void
+    {
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6399 is released.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC2', '<=')) {
+            $this->markTestSkipped("Swoole's HTTP/2 client ignores CONTINUATION frames, so a split header block fails to parse.");
+        }
+
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $client = new Client('127.0.0.1', $server->getsockname()['port']);
+        $connection = $server->accept(1);
+        $this->assertInstanceOf(Socket::class, $connection);
+
+        try {
+            $streamId = $client->send(new Request);
+
+            // Servers split header blocks larger than the client's 16 KB max frame size into CONTINUATION frames.
+            // An empty SETTINGS frame, then ":status: 200" and "x-a: b" split mid-field across HEADERS and CONTINUATION.
+            $connection->sendAll(
+                "\0\0\0\x04\0\0\0\0\0"
+                . "\0\0\x04\x01\x01\0\0\0\x01\x88\0\x03x"
+                . "\0\0\x04\x09\x04\0\0\0\x01-a\x01b"
+            );
+
+            $response = $client->recv(1);
+        } finally {
+            $client->close();
+            $connection->close();
+            $server->close();
+        }
+
+        $this->assertNotNull($response);
+        $this->assertSame($streamId, $response->getStreamId());
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(['x-a' => 'b'], $response->getHeaders());
+    }
+
     public function testExposesNormalizedStreamExistence(): void
     {
         $native = new Http2ClientTestNativeClient;

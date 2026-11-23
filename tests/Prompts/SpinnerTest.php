@@ -6,11 +6,17 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Spinner;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Swoole\Event;
+use Throwable;
 
 use function Hypervel\Prompts\spin;
 
@@ -44,6 +50,38 @@ class SpinnerTest extends TestCase
         $this->assertStringNotContainsString("\e", $output->content());
     }
 
+    public function testRendersStaticallyWhenOutputIsNotATerminalEvenIfItIsDecorated(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+
+        $output = new BufferedConsoleOutput(decorated: true);
+        Prompt::setOutput($output);
+
+        $spinner = new Spinner('Running...');
+
+        $result = $spinner->spin(fn () => 'done');
+
+        $this->assertSame('done', $result);
+        $this->assertTrue($spinner->static);
+        $this->assertStringContainsString('Running...', $output->content());
+        $this->assertSame(Utils::sanitizeTerminalFormatting($output->content()), $output->content());
+    }
+
+    public function testAnimatesWhenOutputIsADecoratedTerminal(): void
+    {
+        Prompt::fake();
+
+        $output = new BufferedConsoleOutput(decorated: true);
+        Prompt::setOutput($output);
+
+        $spinner = new Spinner('Running...');
+
+        $spinner->spin(fn () => 'done');
+
+        $this->assertFalse($spinner->static);
+    }
+
     public function testRestoresThePreviousSignalHandler(): void
     {
         Prompt::fake();
@@ -61,15 +99,18 @@ class SpinnerTest extends TestCase
         }
     }
 
-    public function testCallbackFailureRemainsPrimaryWhenTerminalRestorationFails(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCallbackFailureRemainsPrimaryUnlessTerminalRestorationIsCanceled(bool $canceled): void
     {
         Prompt::fake();
         $callbackFailure = new RuntimeException('callback failed');
+        $cleanupFailure = $canceled ? new CanceledException : new RuntimeException('terminal restoration failed');
 
         Prompt::terminal()
             ->shouldReceive('restoreTty') // @phpstan-ignore-line
             ->once()
-            ->andThrow(new RuntimeException('terminal restoration failed'));
+            ->andThrow($cleanupFailure);
 
         try {
             (new Spinner('Running...'))->spin(function () use ($callbackFailure): never {
@@ -77,8 +118,8 @@ class SpinnerTest extends TestCase
             });
 
             $this->fail('Expected the spinner callback to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($callbackFailure, $exception);
+        } catch (CanceledException|RuntimeException $exception) {
+            $this->assertSame($canceled ? $cleanupFailure : $callbackFailure, $exception);
         }
     }
 
@@ -144,6 +185,38 @@ class SpinnerTest extends TestCase
         $renderCalls = $spinner->renderCalls;
         usleep(150_000);
         $this->assertSame($renderCalls, $spinner->renderCalls);
+    }
+
+    public function testCancellationDuringStopWaitsForTheLastFrame(): void
+    {
+        Prompt::fake();
+        $spinner = new SpinnerAnimationFixture('Running');
+        $spinner->interval = 1;
+        $cancellation = null;
+        $callbackFinished = new Channel(1);
+        $owner = Coroutine::fork(static function () use ($spinner, $callbackFinished, &$cancellation): void {
+            try {
+                $spinner->spin(static function () use ($spinner, $callbackFinished): void {
+                    $spinner->renderStarted->pop(1);
+                    Event::defer(static fn () => $callbackFinished->push(true));
+                    throw new RuntimeException('Callback failed before the spinner stopped.');
+                });
+            } catch (Throwable $exception) {
+                $cancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertTrue($callbackFinished->pop(1));
+            EngineCoroutine::cancelById($owner);
+            $this->assertTrue(Coroutine::exists($owner));
+        } finally {
+            $spinner->renderRelease->push(true);
+            Coroutine::join([$owner]);
+        }
+
+        $this->assertInstanceOf(CanceledException::class, $cancellation);
+        $this->assertFalse($spinner->rendering);
     }
 
     public function testSurfacesAnimationRenderFailureAfterSuccessfulCallback(): void

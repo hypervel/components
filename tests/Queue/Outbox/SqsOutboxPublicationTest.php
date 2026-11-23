@@ -9,6 +9,7 @@ use Aws\MockHandler;
 use Aws\Result;
 use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
+use Closure;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
@@ -18,7 +19,8 @@ use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -27,14 +29,48 @@ use Throwable;
 
 class SqsOutboxPublicationTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    protected MockHandler $handler;
+
+    protected SqsClient $client;
+
+    /**
+     * Create a real SDK client whose requests stay inside the test.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->handler = new MockHandler;
+        $this->client = new SqsClient([
+            'region' => 'us-east-1',
+            'version' => 'latest',
+            'credentials' => false,
+            'handler' => $this->handler,
+        ]);
+    }
+
+    /**
+     * Verify that every expected SDK request was made.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            $this->assertCount(0, $this->handler);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     #[DataProvider('deliveryTimes')]
     public function testPublicationPreservesQueueDefaultsAndAbsoluteTimers(?int $offset, bool $fifo, ?int $expected): void
     {
         CarbonImmutable::setTestNow('2040-01-01 12:00:00');
-        $client = m::mock(SqsClient::class);
+        $client = $this->client;
         $queue = new SqsQueue($client, 'orders', 'https://sqs.test/account');
         $message = $this->message(1, $fifo ? 'orders.fifo' : 'orders', $offset);
-        $client->expects('sendMessageBatch')->andReturnUsing(function (array $arguments) use ($fifo, $expected): Result {
+        $this->expectBatch(function (array $arguments) use ($fifo, $expected): Result {
             $entry = $arguments['Entries'][0];
             $this->assertSame('https://sqs.test/account/orders' . ($fifo ? '.fifo' : ''), $arguments['QueueUrl']);
 
@@ -71,7 +107,7 @@ class SqsOutboxPublicationTest extends TestCase
     #[TestWith(['cleanup'])]
     public function testBatchSizeLimitsAndLaterSdkFailureRetainEarlierConfirmation(string $failureType): void
     {
-        $client = m::mock(SqsClient::class);
+        $client = $this->client;
         $queue = new SqsQueue($client, 'orders');
         $failure = match ($failureType) {
             'cancellation' => new CanceledException,
@@ -79,7 +115,7 @@ class SqsOutboxPublicationTest extends TestCase
             default => new RuntimeException('SDK retries exhausted.'),
         };
         $calls = 0;
-        $client->expects('sendMessageBatch')->twice()->andReturnUsing(function (array $arguments) use (&$calls, $failure): Result {
+        $this->expectBatch(function (array $arguments) use (&$calls, $failure): Result {
             if (++$calls === 2) {
                 $this->assertCount(1, $arguments['Entries']);
                 throw $failure;
@@ -88,7 +124,7 @@ class SqsOutboxPublicationTest extends TestCase
             $this->assertCount(10, $arguments['Entries']);
 
             return new Result(['Successful' => array_map(static fn (array $entry): array => ['Id' => $entry['Id'], 'MessageId' => 'sqs-' . $entry['Id']], $arguments['Entries'])]);
-        });
+        }, times: 2);
 
         try {
             $result = $queue->publishOutboxMessages(array_map(fn (int $id): OutboxMessage => $this->message($id), range(1, 11)));
@@ -106,13 +142,13 @@ class SqsOutboxPublicationTest extends TestCase
 
     public function testByteLimitSplitsLargeMessagesBeforeTheCountLimit(): void
     {
-        $client = m::mock(SqsClient::class);
+        $client = $this->client;
         $queue = new SqsQueue($client, 'orders');
-        $client->expects('sendMessageBatch')->twice()->andReturnUsing(function (array $arguments): Result {
+        $this->expectBatch(function (array $arguments): Result {
             $this->assertCount(1, $arguments['Entries']);
 
             return new Result(['Successful' => [['Id' => $arguments['Entries'][0]['Id'], 'MessageId' => 'accepted']]]);
-        });
+        }, times: 2);
 
         $result = $queue->publishOutboxMessages([
             $this->message(1, payload: json_encode(['data' => str_repeat('a', 600000)])),
@@ -128,10 +164,10 @@ class SqsOutboxPublicationTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $store = new Repository(new WorkerArrayStore);
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldReceive('store')->with(null)->andReturn($store);
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->allows('store')->with(null)->returns($store);
         $container->instance('cache', $cache);
-        $client = m::mock(SqsClient::class);
+        $client = $this->client;
         $queue = new SqsQueue($client, 'orders', overflowStorage: ['enabled' => true, 'always' => true]);
         $queue->setContainer($container);
         $first = $this->message(1);
@@ -151,7 +187,7 @@ class SqsOutboxPublicationTest extends TestCase
         $accepted = $this->message(2);
         $paths = [];
         $calls = 0;
-        $client->expects('sendMessageBatch')->twice()->andReturnUsing(function (array $arguments) use (&$calls, &$paths, $store): Result {
+        $this->expectBatch(function (array $arguments) use (&$calls, &$paths, $store): Result {
             foreach ($arguments['Entries'] as $entry) {
                 $path = json_decode($entry['MessageBody'], true)['@pointer'];
                 $paths[] = $path;
@@ -166,7 +202,7 @@ class SqsOutboxPublicationTest extends TestCase
                 'Successful' => [['Id' => '2', 'MessageId' => 'confirmed']],
                 'Failed' => [['Id' => '1', 'Code' => 'Rejected', 'Message' => 'Rejected entry', 'SenderFault' => true]],
             ]);
-        });
+        }, times: 2);
 
         $this->assertSame([], $queue->publishOutboxMessages([$first])->accepted);
         $result = $queue->publishOutboxMessages([$secondAttempt, $accepted]);
@@ -185,11 +221,11 @@ class SqsOutboxPublicationTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $store = new Repository(new WorkerArrayStore);
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldReceive('store')->with(null)->andReturn($store);
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->allows('store')->with(null)->returns($store);
         $container->instance('cache', $cache);
         $paths = [];
-        $handler = new MockHandler;
+        $handler = $this->handler;
         $handler->append(
             function (CommandInterface $command) use (&$paths): SqsException {
                 $paths[] = json_decode($command['Entries'][0]['MessageBody'], true)['@pointer'];
@@ -205,7 +241,7 @@ class SqsOutboxPublicationTest extends TestCase
                 ]);
             },
         );
-        $client = new SqsClient(['region' => 'us-east-1', 'version' => 'latest', 'credentials' => false, 'handler' => $handler]);
+        $client = $this->client;
         $queue = new SqsQueue($client, 'orders.fifo', overflowStorage: ['enabled' => true, 'always' => true]);
         $queue->setContainer($container);
         $message = $this->message(1, 'orders.fifo');
@@ -217,6 +253,22 @@ class SqsOutboxPublicationTest extends TestCase
         $this->assertCount(2, $paths);
         $this->assertSame($paths[0], $paths[1]);
         $this->assertSame($message->payload, $store->get($paths[0]));
+    }
+
+    /**
+     * Queue the expected batch requests and their responses.
+     *
+     * @param Closure(array): Result $response
+     */
+    protected function expectBatch(Closure $response, int $times = 1): void
+    {
+        for ($index = 0; $index < $times; ++$index) {
+            $this->handler->append(function (CommandInterface $command) use ($response): Result {
+                $this->assertSame('SendMessageBatch', $command->getName());
+
+                return $response($command->toArray());
+            });
+        }
     }
 
     /**

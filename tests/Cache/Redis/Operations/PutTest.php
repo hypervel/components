@@ -11,65 +11,49 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class PutTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testSetMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 60, serialize('foo'))
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->put('foo', 'foo', 60);
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testSetMethodProperlyCallsRedisForNumerics(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 60, 1)
-            ->andReturn(false);
+            ->returns(false);
 
         $redis = $this->createStore($connection);
         $result = $redis->put('foo', 1, 60);
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutPreservesArrayValues(): void
     {
         $connection = $this->mockConnection();
         $array = ['nested' => ['data' => 'value']];
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 60, serialize($array))
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $this->assertTrue($redis->put('foo', $array, 60));
     }
 
-    /**
-     * @test
-     */
     public function testPutEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();
         // TTL of 0 should become 1 (Redis requires positive TTL for SETEX)
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 1, serialize('bar'))
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $this->assertTrue($redis->put('foo', 'bar', 0));

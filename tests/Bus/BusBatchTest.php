@@ -8,16 +8,23 @@ use Generator;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchFactory;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\ChainedBatch;
 use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Events\BatchCanceled;
 use Hypervel\Bus\Events\BatchFinished;
 use Hypervel\Bus\Events\BatchStarted;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\Queueable;
+use Hypervel\Bus\UpdatedBatchJobCounts;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
@@ -25,21 +32,32 @@ use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\QueueFake;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
+#[ResetRefreshDatabaseState]
 class BusBatchTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -67,6 +85,9 @@ class BusBatchTest extends TestCase
         $_SERVER['__progress.count'] = 0;
         $_SERVER['__then.count'] = 0;
         $_SERVER['__catch.count'] = 0;
+
+        RetriedBatchJob::$handled = false;
+        RetriedBatchableOnlyJob::$handled = false;
     }
 
     /**
@@ -110,7 +131,7 @@ class BusBatchTest extends TestCase
 
     public function testBatchRepositoryAppliesAZeroBeforeCursor(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
         $batch = $this->createTestBatch($queue);
 
         $repository = new DatabaseBatchRepository(
@@ -125,7 +146,7 @@ class BusBatchTest extends TestCase
 
     public function testJobsCanBeAddedToTheBatch(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue);
 
@@ -139,13 +160,14 @@ class BusBatchTest extends TestCase
 
         $thirdJob = function (): void {
         };
+        $job->batchPositionId = 'previous-enrollment';
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
-        $connection->expects('bulk')->with(m::on(function (array $jobs) use ($job, $secondJob, $thirdJob): bool {
+        $connection->expects('bulk')->with(Argument::satisfies(function (array $jobs) use ($job, $secondJob, $thirdJob): bool {
             return
                 count($jobs) === 3
                 && $jobs[0] === $job
@@ -160,6 +182,7 @@ class BusBatchTest extends TestCase
         $this->assertEquals(3, $batch->totalJobs);
         $this->assertEquals(3, $batch->pendingJobs);
         $this->assertIsString($job->batchId);
+        $this->assertNull($job->batchPositionId);
         $this->assertSame(CarbonImmutable::class, $batch->createdAt::class);
     }
 
@@ -183,6 +206,8 @@ class BusBatchTest extends TestCase
         $this->assertCount(2, $batch->jobs);
     }
 
+    #[WithConfig('database.default', 'testing')]
+    #[WithConfig('queue.batching.database', 'testing')]
     public function testStoredOutboxDefaultsApplyToNewJobsWithoutReplacingExplicitChoices(): void
     {
         Queue::fake();
@@ -265,9 +290,39 @@ class BusBatchTest extends TestCase
         $this->assertEquals(60, $batch->progress());
     }
 
+    #[TestWith([false], 'ordinary callback failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testProgressContinuesOnlyAfterOrdinaryCallbackFailures(bool $canceled): void
+    {
+        $failure = new RuntimeException('Progress failed.', previous: $canceled ? new CanceledException : null);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->times($canceled ? 0 : 1)->with(Argument::same($failure), []);
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $repository = Double::for(BatchRepository::class)->strict();
+        $continued = false;
+        $batch = new Batch(Double::for(Factory::class)->strict(), $repository, 'batch', 'batch', 2, 2, 0, [], [
+            'progress' => [
+                static fn () => throw $failure,
+                static function () use (&$continued): void { $continued = true; },
+            ],
+        ], CarbonImmutable::now());
+        $repository->allows('find')->with('batch')->returns($batch);
+        $repository->expects('decrementPendingJobs')->returns(new UpdatedBatchJobCounts(1));
+        $caught = null;
+
+        try {
+            $batch->recordSuccessfulJob('job');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($canceled ? $failure : null, $caught);
+        $this->assertSame(! $canceled, $continued);
+    }
+
     public function testSuccessfulJobsCanBeRecorded(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue);
 
@@ -279,10 +334,10 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
         $connection->expects('bulk');
 
@@ -291,6 +346,15 @@ class BusBatchTest extends TestCase
 
         $batch->recordSuccessfulJob('test-id');
         $batch->recordSuccessfulJob('test-id');
+        $batch->recordFailedJob('test-id', new RuntimeException);
+
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
+        $this->assertFalse($batch->fresh()->finished());
+        $this->assertSame(0, $batch->fresh()->failedJobs);
+        $this->assertSame(1, $_SERVER['__progress.count']);
+        $this->assertSame(0, $_SERVER['__finally.count']);
+        $this->assertSame(0, $_SERVER['__then.count']);
+        $batch->recordSuccessfulJob('second-id');
 
         $this->assertInstanceOf(Batch::class, $_SERVER['__finally.batch']);
         $this->assertInstanceOf(Batch::class, $_SERVER['__progress.batch']);
@@ -332,7 +396,19 @@ class BusBatchTest extends TestCase
         });
     }
 
-    public function testBatchStartedEventIsDispatched(): void
+    public function testBatchFinishedEventUsesTheOriginalBatchWhenProgressDeletesIt(): void
+    {
+        Queue::fake();
+        $batch = Bus::batch([new TestBatchJob])->progress(static fn (Batch $batch) => $batch->delete())->dispatch();
+        $events = new EventFake(new EventsDispatcher);
+        $this->app->instance(EventDispatcher::class, $events);
+
+        $batch->recordSuccessfulJob('last');
+
+        $events->assertDispatched(BatchFinished::class, static fn (BatchFinished $event): bool => $event->batch === $batch);
+    }
+
+    public function testBatchStartedEventIsDispatchedWhenTheBatchInstanceHasAStaleTotal(): void
     {
         $events = new EventFake(new EventsDispatcher);
         $this->app->instance(EventDispatcher::class, $events);
@@ -348,9 +424,11 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $batch = $batch->add([$job, $secondJob]);
+        $batch = $batch->add([$job]);
+        $batch->add([$secondJob]);
 
         $batch->recordSuccessfulJob('test-id-1');
+        $events->assertDispatchedOnce(BatchStarted::class);
         $batch->recordSuccessfulJob('test-id-2');
 
         $events->assertDispatchedOnce(BatchStarted::class);
@@ -389,7 +467,7 @@ class BusBatchTest extends TestCase
 
     public function testFailedJobsCanBeRecordedWhileNotAllowingFailures(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue, $allowFailures = false);
 
@@ -401,18 +479,19 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
         $connection->expects('bulk');
 
         $batch = $batch->add([$job, $secondJob]);
         $this->assertEquals(2, $batch->pendingJobs);
 
-        $batch->recordFailedJob('test-id', new RuntimeException('Something went wrong.'));
-        $batch->recordFailedJob('test-id', new RuntimeException('Something else went wrong.'));
+        // Distinct IDs: Laravel records 'test-id' twice, which is one job failing twice, not every job running.
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('second-id', new RuntimeException('Something else went wrong.'));
 
         $this->assertInstanceOf(Batch::class, $_SERVER['__finally.batch']);
         $this->assertFalse(isset($_SERVER['__then.batch']));
@@ -430,7 +509,7 @@ class BusBatchTest extends TestCase
 
     public function testFailedJobsCanBeRecordedWhileAllowingFailures(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue, $allowFailures = true);
 
@@ -442,30 +521,300 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
         $connection->expects('bulk');
 
         $batch = $batch->add([$job, $secondJob]);
         $this->assertEquals(2, $batch->pendingJobs);
 
-        $batch->recordFailedJob('test-id', new RuntimeException('Something went wrong.'));
-        $batch->recordFailedJob('test-id', new RuntimeException('Something else went wrong.'));
+        // Distinct IDs: Laravel records 'test-id' twice, which is one job failing twice, not every job running.
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('second-id', new RuntimeException('Something else went wrong.'));
 
-        // While allowing failures this batch never actually completes...
         $this->assertFalse(isset($_SERVER['__then.batch']));
 
         $batch = $batch->fresh();
         $this->assertEquals(2, $batch->pendingJobs);
         $this->assertEquals(2, $batch->failedJobs);
-        $this->assertFalse($batch->finished());
+        $this->assertTrue($batch->finished());
+        $this->assertTrue($_SERVER['__finally.batch']->finished());
         $this->assertFalse($batch->cancelled());
         $this->assertEquals(1, $_SERVER['__catch.count']);
         $this->assertEquals(2, $_SERVER['__progress.count']);
         $this->assertSame('Something went wrong.', $_SERVER['__catch.exception']->getMessage());
+    }
+
+    public function testBatchAllowingFailuresIsFinishedWhenTheLastJobSucceedsAfterAFailure(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new class {
+            use Batchable;
+        }, new class {
+            use Batchable;
+        }]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $this->assertFalse($batch->fresh()->finished());
+
+        $batch->recordSuccessfulJob('second-id');
+
+        $batch = $batch->fresh();
+        $this->assertTrue($batch->finished());
+        $this->assertEquals(1, $batch->pendingJobs);
+        $this->assertSame(['first-id'], $batch->failedJobIds);
+        $this->assertEquals(0, $_SERVER['__then.count']);
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+        $this->assertTrue($_SERVER['__finally.batch']->finished());
+
+        $batch->recordSuccessfulJob('first-id');
+
+        $this->assertSame([], $batch->fresh()->failedJobIds);
+        $this->assertEquals(1, $_SERVER['__then.count']);
+    }
+
+    public function testRetriedJobsDoNotCompleteTheBatchUntilEveryJobHasRun(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new class {
+            use Batchable;
+        }, new class {
+            use Batchable;
+        }]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('first-id', new RuntimeException('The retry failed too.'));
+        $batch->recordSuccessfulJob('first-id');
+
+        $this->assertFalse($batch->fresh()->finished());
+        $this->assertEquals(0, $_SERVER['__finally.count']);
+
+        $batch->recordSuccessfulJob('second-id');
+
+        $this->assertTrue($batch->fresh()->finished());
+        $this->assertEquals(1, $_SERVER['__then.count']);
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+    }
+
+    /**
+     * @param class-string<RetriedBatchableOnlyJob|RetriedBatchJob> $job
+     */
+    #[TestWith([RetriedBatchJob::class])]
+    #[TestWith([RetriedBatchableOnlyJob::class])]
+    public function testRetriedJobDoesItsWorkAfterItsBatchFinishedWithFailures(string $job): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new $job, new $job]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordSuccessfulJob('second-id');
+
+        $this->assertTrue($batch->fresh()->finished());
+
+        $handler = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+        $command = serialize((new $job)->withBatchId($batch->id));
+
+        // Horizon gives each retry a new UUID and carries the original batch job ID.
+        $handler->failed(['command' => $command], new RuntimeException('The retry failed.'), 'first-retry-uuid', new FakeJob([
+            'uuid' => 'first-retry-uuid',
+            'batchJobId' => 'first-id',
+        ]));
+
+        $this->assertSame(['first-retry-uuid'], $batch->fresh()->failedJobIds);
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+
+        $handler->call(new FakeJob(['uuid' => 'second-retry-uuid', 'batchJobId' => 'first-id']), ['command' => $command]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertSame([], $batch->fresh()->failedJobIds);
+        $this->assertEquals(1, $_SERVER['__then.count']);
+    }
+
+    public function testWorkAddedWhileOnlyFailuresRemainReopensTheBatch(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->times(2)->returns($connection);
+        $connection->expects('bulk')->times(2);
+
+        $repository = new DatabaseBatchRepository(new BatchFactory($queue), $this->app->make('db'), 'job_batches');
+
+        // The failure callback stands in for a retried job adding work just as the batch finishes.
+        $batch = $repository->store((new PendingBatch($this->app, Collection::make()))->allowFailures(
+            fn (Batch $batch) => $batch->add([new TestBatchJob]),
+        )->finally(static function (): void {
+            ++$_SERVER['__finally.count'];
+        }));
+
+        $batch = $batch->add([new TestBatchJob]);
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $batch = $batch->fresh();
+        $this->assertFalse($batch->finished());
+        $this->assertSame(2, $batch->pendingJobs);
+        $this->assertSame(0, $_SERVER['__finally.count']);
+        $batch->recordSuccessfulJob('added');
+        $this->assertSame(1, $_SERVER['__finally.count']);
+    }
+
+    public function testFinishingWithFailuresKeepsAnEarlierCancellationTime(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new TestBatchJob]);
+
+        $this->app->make('db')->table('job_batches')->where('id', $batch->id)->update([
+            'cancelled_at' => 100,
+            'finished_at' => 100,
+        ]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $this->assertSame(100, $batch->fresh()->finishedAt->getTimestamp());
+        $batch->recordSuccessfulJob('first-id');
+        $this->assertSame(100, $batch->fresh()->finishedAt->getTimestamp());
+    }
+
+    public function testBatchesNotAllowingFailuresAreOnlyFinishedByCancellation(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new TestBatchJob]);
+
+        $finishedWhenStarted = null;
+        $this->app->make(EventDispatcher::class)->listen(BatchStarted::class, function (BatchStarted $event) use (&$finishedWhenStarted): void {
+            $finishedWhenStarted = $event->batch->fresh()->finished();
+        });
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $this->assertFalse($finishedWhenStarted);
+        $this->assertTrue($batch->fresh()->cancelled());
+    }
+
+    public function testRepositoriesWithoutFirstPassReportingFinishBatchesAfterTheCallbacks(): void
+    {
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = new Batch(Double::for(Factory::class)->strict(), $repository, 'batch', 'batch', 1, 1, 0, [], [
+            'allowFailures' => true,
+        ], CarbonImmutable::now());
+        $repository->expects('incrementFailedJobs')->with('batch', 'job', null)->returns(new UpdatedBatchJobCounts(1, 1));
+        $repository->expects('decrementPendingJobs')->with('batch', 'job')->returns(new UpdatedBatchJobCounts(0, 1));
+        $repository->expects('markAsFinished')->with('batch')->times(2);
+
+        $batch->recordFailedJob('job', new RuntimeException('Something went wrong.'));
+        $batch->recordSuccessfulJob('job');
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testWorkAddedByLastSuccessProgressCallbackReopensBatch(bool $finishInCallback): void
+    {
+        Queue::fake();
+        $finishedTotals = [];
+        $this->app->make(EventDispatcher::class)->listen(BatchFinished::class, function (BatchFinished $event) use (&$finishedTotals): void {
+            $finishedTotals[] = $event->batch->totalJobs;
+        });
+        $batch = Bus::batch([new TestBatchJob])->progress(static function (Batch $batch) use ($finishInCallback): void {
+            if ($batch->totalJobs === 1) {
+                $added = $batch->add(new TestBatchJob);
+                if ($finishInCallback) {
+                    $added->recordSuccessfulJob('added');
+                }
+            }
+        })->then(static function (): void {
+            ++$_SERVER['__then.count'];
+        })->finally(static function (Batch $batch): void {
+            ++$_SERVER['__finally.count'];
+            $batch->add([]);
+        })->dispatch();
+
+        $batch->recordSuccessfulJob('first');
+        if (! $finishInCallback) {
+            $this->assertSame(1, $batch->fresh()->pendingJobs);
+            $this->assertFalse($batch->fresh()->finished());
+            $this->assertSame([], $finishedTotals);
+            $this->assertSame(0, $_SERVER['__then.count']);
+            $this->assertSame(0, $_SERVER['__finally.count']);
+            $batch->recordSuccessfulJob('added');
+        }
+
+        $this->assertTrue($batch->fresh()->finished());
+        $this->assertSame([2], $finishedTotals);
+        $this->assertSame(1, $_SERVER['__then.count']);
+        $this->assertSame(1, $_SERVER['__finally.count']);
+    }
+
+    public function testOutstandingRetryIdsLoadOnceWhenReadAndRemainWritable(): void
+    {
+        $batch = $this->createTestBatch(new QueueFake($this->app), true)->add([new TestBatchJob, new TestBatchJob]);
+        $batch->recordFailedJob('position', null, 'original-retry');
+        $repository = $this->app->make(DatabaseBatchRepository::class);
+        $connection = $repository->getConnection();
+        $connection->enableQueryLog();
+
+        try {
+            $batch->recordSuccessfulJob('other');
+            $loaded = $repository->find($batch->id);
+            $listed = $repository->get(1)[0];
+            $this->assertSame($loaded->id, $listed->id);
+            $reads = fn (): int => count(array_filter(
+                $connection->getQueryLog(),
+                static fn (array $query): bool => str_starts_with($query['query'], 'select') && str_contains($query['query'], 'job_batch_results')
+            ));
+            $this->assertSame(0, $reads());
+            $this->assertSame('original-retry', $loaded->failedJobIds[0]);
+            $reference = &$loaded->failedJobIds;
+            $reference[] = 'local';
+            $this->assertSame(['original-retry', 'local'], $loaded->failedJobIds);
+            $listed->failedJobIds = ['assigned'];
+            $this->assertSame(['assigned'], $listed->failedJobIds);
+            $this->assertSame(1, $reads());
+        } finally {
+            $connection->disableQueryLog();
+        }
     }
 
     public function testPendingBatchFiltersOutFalsyJobs(): void
@@ -489,7 +838,7 @@ class BusBatchTest extends TestCase
 
     public function testFailureCallbacksExecuteCorrectly(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
@@ -522,10 +871,10 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
         $connection->expects('bulk');
 
@@ -596,17 +945,17 @@ class BusBatchTest extends TestCase
 
     public function testDeletedBatchIgnoresLateJobResultsAndCallbacks(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
         $batch = $this->createTestBatch($queue, $allowFailures = true);
 
         $job = new class {
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
         $connection->expects('bulk');
 
@@ -665,7 +1014,7 @@ class BusBatchTest extends TestCase
 
     public function testChainCanBeAddedToBatch(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue);
 
@@ -675,16 +1024,16 @@ class BusBatchTest extends TestCase
 
         $thirdJob = new ThirdTestJob;
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
-        $connection->expects('bulk')->with(m::on(function (array $jobs) use ($chainHeadJob, $secondJob, $thirdJob): bool {
+        $connection->expects('bulk')->with(Argument::satisfies(function (array $jobs) use ($chainHeadJob, $secondJob, $thirdJob): bool {
             return
                 $jobs[0] === $chainHeadJob
-                && serialize($secondJob) === $jobs[0]->chained[0]
-                && serialize($thirdJob) === $jobs[0]->chained[1];
+                && Batch::matchesChainedJob($secondJob, $jobs[0]->chained[0])
+                && Batch::matchesChainedJob($thirdJob, $jobs[0]->chained[1]);
         }), '', 'test-queue');
 
         $batch = $batch->add([
@@ -700,9 +1049,25 @@ class BusBatchTest extends TestCase
         $this->assertSame(CarbonImmutable::class, $batch->createdAt::class);
     }
 
+    public function testObjectAssertionsCompareTheApplicationJobsAtRepeatedPositions(): void
+    {
+        Queue::fake();
+        $head = new ChainHeadJob;
+        $tail = (new SecondTestJob)->onQueue('tail-route');
+        $batch = Bus::batch([[$head, $tail, $tail]])->dispatch();
+        $expected = (new SecondTestJob)->onQueue('tail-route')->withBatchId($batch->id);
+
+        $head->assertHasChain([$tail, $tail]);
+        Queue::assertPushedWithChain(ChainHeadJob::class, [$expected, $expected]);
+        Bus::fake();
+        $head->dispatchNextJobInChain();
+        Bus::assertChained([$expected, $expected]);
+        Bus::assertChained([unserialize($head->chained[0]), $expected]);
+    }
+
     public function testChainedJobsInBatchPreserveTheirQueueWhenBatchHasNoQueue(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
@@ -718,12 +1083,12 @@ class BusBatchTest extends TestCase
         $firstJob = (new ChainHeadJob)->onQueue('custom-queue');
         $secondJob = (new SecondTestJob)->onQueue('custom-queue');
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
-            ->andReturn($connection);
+            ->returns($connection);
 
-        $connection->expects('bulk')->with(m::type('array'), '', null);
+        $connection->expects('bulk')->with(Argument::type('array'), '', null);
 
         $batch->add([
             [$firstJob, $secondJob],
@@ -735,7 +1100,7 @@ class BusBatchTest extends TestCase
 
     public function testChainedJobsPreserveTheirRoutesWhenTheBatchHasNone(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
@@ -752,12 +1117,12 @@ class BusBatchTest extends TestCase
             ->onConnection('custom-connection')
             ->onQueue('custom-queue');
 
-        $connection = m::mock(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with(null)
-            ->andReturn($connection);
+            ->returns($connection);
 
-        $connection->expects('bulk')->with(m::type('array'), '', null);
+        $connection->expects('bulk')->with(Argument::type('array'), '', null);
 
         $batch->add([
             [$firstJob, $secondJob],
@@ -780,7 +1145,7 @@ class BusBatchTest extends TestCase
             },
         ])->dispatch();
 
-        $this->assertTrue(true);
+        Queue::assertPushedWithChain(ChainedBatch::class, [ChainedBatch::class, CallQueuedClosure::class]);
     }
 
     public function testOptionsSerializationOnPostgres(): void
@@ -788,58 +1153,88 @@ class BusBatchTest extends TestCase
         $pendingBatch = (new PendingBatch($this->app, Collection::make()))
             ->onQueue('test-queue');
 
-        $connection = m::spy(PostgresConnection::class);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->andReturn($connection);
-        $builder = m::spy(Builder::class);
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->returns($connection);
+        $builder = Double::for(Builder::class)->strict();
 
-        $connection->expects('table')->times(2)->andReturn($builder);
-        $builder->expects('useWritePdo')->andReturnSelf();
-        $builder->expects('where')->andReturnSelf();
-        $builder->expects('first')->andReturn((object) [
-            'id' => 'test-id',
-            'name' => '',
-            'total_jobs' => 0,
-            'pending_jobs' => 0,
-            'failed_jobs' => 0,
-            'failed_job_ids' => '[]',
-            'options' => base64_encode(serialize($pendingBatch->options)),
-            'created_at' => time(),
-            'cancelled_at' => null,
-            'finished_at' => null,
-        ]);
+        $connection->expects('table')->with('job_batches')->returns($builder);
+        $builder->expects('insert')->with(Argument::satisfies(static function (array $values) use ($pendingBatch): bool {
+            return unserialize(base64_decode($values['options'])) === $pendingBatch->options;
+        }))->returns(true);
 
         $repository = new DatabaseBatchRepository(
-            new BatchFactory(m::mock(Factory::class)),
+            new BatchFactory(Double::for(Factory::class)->strict()),
             $resolver,
             'job_batches'
         );
 
-        $repository->store($pendingBatch);
+        $this->assertSame($pendingBatch->options, $repository->store($pendingBatch)->options);
+    }
 
-        $builder->shouldHaveReceived('insert')
-            ->withArgs(function (array $argument) use ($pendingBatch): bool {
-                return unserialize(base64_decode($argument['options'])) === $pendingBatch->options;
-            });
+    #[TestWith([false], 'ordinary restoration failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testOptionsRestorationFallbackDoesNotSwallowCancellation(bool $canceled): void
+    {
+        $factory = Double::for(BatchFactory::class)->strict();
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->returns($connection);
+        $builder = Double::for(Builder::class)->strict();
+        $connection->expects('table')->returns($builder);
+        $builder->expects('useWritePdo')->returns($builder);
+        $builder->expects('where')->returns($builder);
+        $builder->expects('first')->returns((object) [
+            'id' => 'batch', 'name' => '', 'total_jobs' => 0, 'pending_jobs' => 0,
+            'failed_jobs' => 0, 'outstanding_failed_jobs' => 0,
+            'options' => serialize([new BatchOptionWithFailingRestoration($canceled)]),
+            'created_at' => now()->getTimestamp(), 'cancelled_at' => null, 'finished_at' => null,
+        ]);
+        $repository = new DatabaseBatchRepository($factory, $resolver, 'job_batches');
+        if ($canceled) {
+            $factory->expects('make')->never();
+        } else {
+            $factory->expects('make')
+                ->with(Argument::same($repository), 'batch', '', 0, 0, 0, [], [], Argument::remaining())
+                ->returns(Double::for(Batch::class)->strict());
+        }
+        $caught = null;
+
+        try {
+            $repository->find('batch');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        if ($canceled) {
+            $this->assertInstanceOf(RuntimeException::class, $caught);
+            $this->assertTrue(Coroutine::causedByCancellation($caught));
+        } else {
+            $this->assertNull($caught);
+        }
     }
 
     #[DataProvider('serializedOptions')]
     public function testOptionsUnserializeOnPostgres(string $serialize, array $options): void
     {
-        $factory = m::mock(BatchFactory::class);
+        $factory = Double::for(BatchFactory::class)->strict();
 
-        $connection = m::spy(PostgresConnection::class);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->andReturn($connection);
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->returns($connection);
 
-        $connection->expects('table->useWritePdo->where->first')
-            ->andReturn((object) [
+        $builder = Double::for(Builder::class)->strict();
+        $connection->expects('table')->returns($builder);
+        $builder->expects('useWritePdo')->returns($builder);
+        $builder->expects('where')->returns($builder);
+        $builder->expects('first')
+            ->returns((object) [
                 'id' => '',
                 'name' => '',
                 'total_jobs' => '',
                 'pending_jobs' => '',
                 'failed_jobs' => '',
-                'failed_job_ids' => '[]',
+                'outstanding_failed_jobs' => 0,
                 'options' => $serialize,
                 'created_at' => now()->getTimestamp(),
                 'cancelled_at' => null,
@@ -849,8 +1244,8 @@ class BusBatchTest extends TestCase
         $batch = new DatabaseBatchRepository($factory, $resolver, 'job_batches');
 
         $factory->expects('make')
-            ->withSomeOfArgs($batch, '', '', 0, 0, 0, [], $options)
-            ->andReturn(m::mock(Batch::class));
+            ->with(Argument::same($batch), '', '', 0, 0, 0, [], $options, Argument::remaining())
+            ->returns(Double::for(Batch::class)->strict());
 
         $batch->find('1');
     }
@@ -905,6 +1300,24 @@ class BusBatchTest extends TestCase
     }
 }
 
+class BatchOptionWithFailingRestoration
+{
+    /**
+     * Configure a canceled or ordinary application-object restoration failure.
+     */
+    public function __construct(private bool $canceled)
+    {
+    }
+
+    /**
+     * Fail while restoring a stored batch option.
+     */
+    public function __wakeup(): void
+    {
+        throw new RuntimeException('Option restoration failed.', previous: $this->canceled ? new CanceledException : null);
+    }
+}
+
 class TestBatchJob implements ShouldQueue
 {
     use Batchable;
@@ -916,6 +1329,48 @@ class TestBatchJob implements ShouldQueue
      */
     public function handle(): void
     {
+    }
+}
+
+class RetriedBatchJob implements ShouldQueue
+{
+    use Batchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    public static bool $handled = false;
+
+    /**
+     * Do the job's work while its batch still includes it.
+     */
+    public function handle(): void
+    {
+        if ($this->batching()) {
+            static::$handled = true;
+        }
+    }
+}
+
+class RetriedBatchableOnlyJob implements ShouldQueue
+{
+    use Batchable;
+    use Queueable;
+
+    public static bool $handled = false;
+
+    public ?Job $job = null;
+
+    /**
+     * Do the job's work while its batch still includes it.
+     */
+    public function handle(): void
+    {
+        // The application's own job property does not identify this job to its batch.
+        $this->job = new FakeJob(['uuid' => 'referenced-job']);
+
+        if ($this->batching()) {
+            static::$handled = true;
+        }
     }
 }
 

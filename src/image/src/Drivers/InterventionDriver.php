@@ -22,12 +22,14 @@ use Hypervel\Image\Transformations\Resize;
 use Hypervel\Image\Transformations\Rotate;
 use Hypervel\Image\Transformations\Scale;
 use Hypervel\Image\Transformations\Sharpen;
+use Hypervel\Support\Attributes\BootOnly;
 use Intervention\Image\Direction;
 use Intervention\Image\Encoders\AvifEncoder;
 use Intervention\Image\Encoders\BmpEncoder;
 use Intervention\Image\Encoders\GifEncoder;
 use Intervention\Image\Encoders\HeicEncoder;
 use Intervention\Image\Encoders\JpegEncoder;
+use Intervention\Image\Encoders\JxlEncoder;
 use Intervention\Image\Encoders\MediaTypeEncoder;
 use Intervention\Image\Encoders\PngEncoder;
 use Intervention\Image\Encoders\WebpEncoder;
@@ -73,7 +75,7 @@ abstract class InterventionDriver implements Driver
         if (! class_exists(ImageManager::class)) {
             throw new ImageException(
                 'Intervention Image is required to use this driver. '
-                . 'You may install it via: composer require intervention/image:^4.0',
+                . 'You may install it via: composer require intervention/image:^4.2',
             );
         }
     }
@@ -85,7 +87,7 @@ abstract class InterventionDriver implements Driver
     {
         $mimeType = (new finfo(FILEINFO_MIME_TYPE))->buffer($contents);
 
-        if (! in_array($mimeType, ['image/jpeg', 'image/png', 'image/bmp', 'image/gif', 'image/webp', 'image/avif', 'image/x-avif', 'image/heic', 'image/x-heic', 'image/heif'], true)) {
+        if (! in_array($mimeType, ['image/jpeg', 'image/png', 'image/bmp', 'image/gif', 'image/webp', 'image/avif', 'image/x-avif', 'image/heic', 'image/x-heic', 'image/heif', 'image/jxl', 'image/x-jxl'], true)) {
             throw new ImageException("The image format [{$mimeType}] is not supported.");
         }
 
@@ -133,6 +135,7 @@ abstract class InterventionDriver implements Driver
                     'gif' => new GifEncoder,
                     'avif' => new AvifEncoder($quality),
                     'heic' => new HeicEncoder($quality),
+                    'jxl' => new JxlEncoder($quality),
                     'bmp' => new BmpEncoder,
                 })->toString();
             }
@@ -206,10 +209,11 @@ abstract class InterventionDriver implements Driver
     /**
      * Register a transformation handler.
      *
-     * Boot-only. The handler persists on this cached driver for the worker lifetime and affects every subsequent image processed by it.
+     * On a cached driver, the handler persists for the worker lifetime and affects every subsequent image processed by it.
      *
      * @param class-string<Transformation> $transformation
      */
+    #[BootOnly(whenShared: true)]
     public function transformUsing(string $transformation, callable $callback): static
     {
         $this->transformationHandlers[$transformation] = $callback;

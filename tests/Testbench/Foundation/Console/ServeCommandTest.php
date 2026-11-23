@@ -21,7 +21,9 @@ use Hypervel\Testbench\Foundation\Console\ServeCommand;
 use Hypervel\Testbench\Foundation\Events\ServeCommandEnded;
 use Hypervel\Testbench\Foundation\Events\ServeCommandStarted;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -32,6 +34,8 @@ use function Hypervel\Testbench\workbench_relative_path;
 
 class ServeCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const array ENVIRONMENT_VARIABLES = ['TESTBENCH_WORKING_PATH', 'SERVER_HOST'];
 
     /** @var array<string, array{process: false|string, environment_exists: bool, environment: mixed, server_exists: bool, server: mixed}> */
@@ -100,11 +104,11 @@ class ServeCommandTest extends TestCase
     {
         $linkedWhileServing = false;
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once();
-        $serverFactory->shouldReceive('start')->once()->andReturnUsing(function () use (&$linkedWhileServing): void {
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher')->returns($serverFactory);
+        $serverFactory->expects('setLogger')->returns($serverFactory);
+        $serverFactory->expects('configure');
+        $serverFactory->expects('start')->resolves(function () use (&$linkedWhileServing): void {
             $linkedWhileServing = is_link($this->syncLinkPath());
         });
 
@@ -151,11 +155,11 @@ class ServeCommandTest extends TestCase
     #[Test]
     public function passiveObserversDoNotCauseServeLifecycleEventsToDispatch(): void
     {
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once();
-        $serverFactory->shouldReceive('start')->once();
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher')->returns($serverFactory);
+        $serverFactory->expects('setLogger')->returns($serverFactory);
+        $serverFactory->expects('configure');
+        $serverFactory->expects('start');
 
         $this->bindServer($serverFactory);
         $this->app->instance(ConfigContract::class, new Config);
@@ -230,11 +234,11 @@ class ServeCommandTest extends TestCase
         $failure = new RuntimeException('Unable to bind the server.');
         $linkedWhenFailing = false;
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once();
-        $serverFactory->shouldReceive('start')->once()->andReturnUsing(function () use ($failure, &$linkedWhenFailing): never {
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher')->returns($serverFactory);
+        $serverFactory->expects('setLogger')->returns($serverFactory);
+        $serverFactory->expects('configure');
+        $serverFactory->expects('start')->resolves(function () use ($failure, &$linkedWhenFailing): never {
             $linkedWhenFailing = is_link($this->syncLinkPath());
 
             throw $failure;
@@ -271,8 +275,8 @@ class ServeCommandTest extends TestCase
         $this->filesystem->put($occupiedPath, 'existing');
         $this->filesystem->put($this->backupPath($occupiedPath), 'existing backup');
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldNotReceive('start');
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('start')->never();
 
         $this->app->instance(ServerFactory::class, $serverFactory);
         $this->app->instance(ConfigContract::class, new Config([
@@ -313,8 +317,8 @@ class ServeCommandTest extends TestCase
     {
         $startedFailure = new RuntimeException('Started listener failed.');
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldNotReceive('start');
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('start')->never();
 
         $this->app->instance(ServerFactory::class, $serverFactory);
         $this->app->instance(ConfigContract::class, $this->syncConfiguration());
@@ -344,16 +348,16 @@ class ServeCommandTest extends TestCase
      */
     private function bindServer(ServerFactory $serverFactory): void
     {
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn([
+        $config = Double::for(Repository::class)->strict();
+        $config->expects('array')->with('server')->returns([
             'servers' => [
                 ['name' => 'http', 'type' => ServerInterface::SERVER_HTTP, 'host' => '0.0.0.0', 'port' => 9501],
             ],
         ]);
-        $config->shouldReceive('set')->once()->with('server.servers', m::type('array'));
+        $config->expects('set')->with('server.servers', Argument::type('array'));
 
         $this->app->instance(ServerFactory::class, $serverFactory);
-        $this->app->instance(StdoutLoggerInterface::class, m::mock(StdoutLoggerInterface::class));
+        $this->app->instance(StdoutLoggerInterface::class, Double::for(StdoutLoggerInterface::class)->strict());
         $this->app->instance('config', $config);
     }
 
@@ -366,13 +370,13 @@ class ServeCommandTest extends TestCase
     {
         $host = null;
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->andReturnUsing(static function (array $config) use (&$host): void {
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher')->returns($serverFactory);
+        $serverFactory->expects('setLogger')->returns($serverFactory);
+        $serverFactory->expects('configure')->resolves(static function (array $config) use (&$host): void {
             $host = $config['servers'][0]['host'];
         });
-        $serverFactory->shouldReceive('start')->once();
+        $serverFactory->expects('start');
 
         $this->bindServer($serverFactory);
         $this->app->instance(ConfigContract::class, new Config);

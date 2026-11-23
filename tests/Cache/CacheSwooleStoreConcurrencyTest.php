@@ -7,10 +7,9 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use ReflectionMethod;
 use RuntimeException;
 use Swoole\Atomic;
@@ -112,7 +111,6 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
             1,
             fn (): bool => true,
             beforeReady: fn () => posix_kill(getmypid(), SIGKILL),
-            timeout: 0.25,
         );
     }
 
@@ -125,7 +123,6 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
             $this->createState(),
             1,
             fn () => posix_kill(getmypid(), SIGKILL),
-            timeout: 0.25,
         );
     }
 
@@ -195,7 +192,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
                 return true;
             },
-            timeout: 0.05,
+            payloadTimeout: 0.05,
         );
     }
 
@@ -207,7 +204,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
         int $count,
         callable $callback,
         ?callable $beforeReady = null,
-        float $timeout = 5.0,
+        ?float $payloadTimeout = null,
     ): array {
         $ready = new Atomic(0);
         $start = new Atomic(0);
@@ -256,7 +253,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
         $results = [];
         $exception = null;
-        $deadline = hrtime(true) + (int) ($timeout * 1_000_000_000);
+        $deadline = hrtime(true) + 5_000_000_000;
 
         try {
             foreach ($processes as $process) {
@@ -272,6 +269,9 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
             $this->waitForReadyProcesses($ready, $count, $pids, $reaped, $deadline);
             $start->set(1);
+            if ($payloadTimeout !== null) {
+                $deadline = min($deadline, hrtime(true) + (int) ($payloadTimeout * 1_000_000_000));
+            }
 
             foreach ($pids as $pid => $process) {
                 $payload = $this->readChildPayload($process, $pid, $reaped, $deadline);
@@ -498,7 +498,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
     private function createState(): SwooleTableState
     {
-        $state = (new SwooleTableManager(m::mock(Container::class)))
+        $state = (new SwooleTableManager(new Container))
             ->createState(128, 10240, 0.2, 12345);
 
         $this->trackSwooleTable($state->table());

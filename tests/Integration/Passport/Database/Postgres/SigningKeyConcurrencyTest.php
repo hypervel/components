@@ -18,7 +18,8 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -27,6 +28,7 @@ use function Hypervel\Coroutine\parallel;
 class SigningKeyConcurrencyTest extends TestCase
 {
     use DatabaseTruncation;
+    use VerifiesDoubles;
 
     /** @var list<array{private: string, public: string}> */
     protected static array $keys = [];
@@ -77,8 +79,8 @@ class SigningKeyConcurrencyTest extends TestCase
     {
         $ready = new Channel(2);
         $release = new Channel(2);
-        $generator = m::mock(KeyGenerator::class);
-        $generator->shouldReceive('generate')->with(2048)->twice()->andReturnUsing(function () use ($ready, $release): array {
+        $generator = Double::for(KeyGenerator::class)->strict();
+        $generator->expects('generate')->with(2048)->times(2)->resolves(function () use ($ready, $release): array {
             $this->assertSame(0, DB::transactionLevel());
             $ready->push(true);
             $this->assertTrue($release->pop(5));
@@ -116,8 +118,8 @@ class SigningKeyConcurrencyTest extends TestCase
             'public_key' => self::$keys[0]['public'], 'private_key' => self::$keys[0]['private'],
             'activates_at' => $now->subDay(),
         ]);
-        $generator = m::mock(KeyGenerator::class);
-        $generator->shouldReceive('generate')->with(2048)->once()->andReturn(self::$keys[1]);
+        $generator = Double::for(KeyGenerator::class)->strict();
+        $generator->expects('generate')->with(2048)->returns(self::$keys[1]);
         $this->app->instance(KeyGenerator::class, $generator);
         $repository = $this->app->make(SigningKeyRepository::class);
         $ready = new Channel(1);
@@ -155,8 +157,8 @@ class SigningKeyConcurrencyTest extends TestCase
             'public_key' => self::$keys[0]['public'], 'private_key' => self::$keys[0]['private'],
             'activates_at' => $now->subDay(),
         ]);
-        $generator = m::mock(KeyGenerator::class);
-        $generator->shouldReceive('generate')->with(2048)->once()->andReturn(self::$keys[1]);
+        $generator = Double::for(KeyGenerator::class)->strict();
+        $generator->expects('generate')->with(2048)->returns(self::$keys[1]);
         $this->app->instance(KeyGenerator::class, $generator);
         $repository = $this->app->make(SigningKeyRepository::class);
         $servers = $this->app->make(ServerFactory::class);

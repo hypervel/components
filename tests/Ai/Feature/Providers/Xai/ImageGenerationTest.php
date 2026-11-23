@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Xai;
 
 use Closure;
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Files\Base64Image;
@@ -241,6 +242,21 @@ class ImageGenerationTest extends TestCase
                 ],
             ], 400),
         ]);
+
+        Image::of('A red apple')->generate(provider: 'xai', model: 'grok-imagine-image');
+    }
+
+    public function testImageRejectedApiKeyHintsAtTheKey(): void
+    {
+        Http::fake([
+            'api.x.ai/*' => Http::response([
+                'code' => 'invalid-argument',
+                'error' => 'Incorrect API key provided. You can obtain an API key from https://console.x.ai.',
+            ], 400),
+        ]);
+
+        $this->expectException(InvalidApiKeyException::class);
+        $this->expectExceptionMessage('Missing or invalid API key for AI provider [xai].');
 
         Image::of('A red apple')->generate(provider: 'xai', model: 'grok-imagine-image');
     }

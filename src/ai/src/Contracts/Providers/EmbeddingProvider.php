@@ -10,6 +10,7 @@ use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Files\Video;
 use Hypervel\Ai\Responses\EmbeddingsResponse;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface EmbeddingProvider extends Provider
 {
@@ -29,6 +30,7 @@ interface EmbeddingProvider extends Provider
     /**
      * Set the provider's embedding gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useEmbeddingGateway(EmbeddingGateway $gateway): self;
 
     /**

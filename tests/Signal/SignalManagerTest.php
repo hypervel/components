@@ -20,13 +20,17 @@ use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\Signal\Fixtures\SignalHandlerStub;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
 
 class SignalManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[RunInSeparateProcess]
     public function testCommandTrapsShareTheWorkerListenerAndUntrapOnlyTheirOwnHandlers(): void
     {
@@ -132,10 +136,10 @@ class SignalManagerTest extends TestCase
                 throw new RuntimeException('Signal handler failed.');
             }
         };
-        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-        $exceptionHandler->shouldReceive('report')
-            ->twice()
-            ->with(m::type(RuntimeException::class));
+        $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $exceptionHandler->expects('report')
+            ->times(2)
+            ->with(Argument::type(RuntimeException::class));
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance(ConfigContract::class, new Repository([
@@ -493,14 +497,14 @@ class SignalManagerTest extends TestCase
 
     public function testListenAfterStopDoesNotResolveHandlersOrSpawnWatchers(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(ConfigContract::class)->andReturn(new Repository([
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->allows('make')->with(ConfigContract::class)->returns(new Repository([
             'signal' => ['handlers' => [SignalHandlerStub::class]],
         ]));
-        $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
-        $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
-        $container->shouldNotReceive('make')->with(SignalHandlerStub::class);
-        $manager = new SignalManager($container);
+        $container->allows('make')->with(SafeCaller::class)->returns(new SafeCaller($container->instance()));
+        $container->allows('make')->with(SignalRegistry::class)->returns(new SignalRegistry);
+        $container->expects('make')->with(SignalHandlerStub::class)->never();
+        $manager = new SignalManager($container->instance());
         $manager->stop();
         $coroutinesBeforeListen = SwooleCoroutine::stats()['coroutine_num'];
 
@@ -538,15 +542,15 @@ class SignalManagerTest extends TestCase
      */
     protected function createManagerFromConfig(array $handlers, array $instances = []): SignalManager
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(ConfigContract::class)->andReturn(new Repository([
+        $container = new Container;
+        $container->instance(ConfigContract::class, new Repository([
             'signal' => ['handlers' => $handlers],
         ]));
-        $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
-        $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
+        $container->instance(SafeCaller::class, new SafeCaller($container));
+        $container->instance(SignalRegistry::class, new SignalRegistry);
 
         foreach ($instances as $class => $instance) {
-            $container->shouldReceive('make')->with($class)->andReturn($instance);
+            $container->instance($class, $instance);
         }
 
         return new SignalManager($container);

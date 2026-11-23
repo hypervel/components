@@ -962,14 +962,26 @@ abstract class Call
     }
 
     /**
-     * Release unfinished native call resources.
+     * Finish a dropped call and release its unfinished native resources.
      */
     public function __destruct()
     {
         try {
-            $this->state->abandonIfIncomplete();
+            try {
+                if (! $this->finished) {
+                    // A transport attempt that already completed keeps its result; work
+                    // nobody waited for was abandoned and finishes without one.
+                    $status = $this->state->finalStatus();
+                    $this->finish(
+                        $status === null ? null : $this->resolveStatus($status),
+                        $this->state->finalFailure(),
+                    );
+                }
+            } finally {
+                $this->state->abandonIfIncomplete();
+            }
         } catch (Throwable) {
-            // Destructors cannot safely surface cleanup failures during process shutdown.
+            // Destructors cannot safely surface cleanup or observer failures during process shutdown.
         }
     }
 }

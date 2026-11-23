@@ -10,7 +10,6 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
 use Hypervel\Tests\TestCase;
 use LogicException;
-use Mockery as m;
 use Swoole\Coroutine\Channel;
 use Throwable;
 
@@ -27,7 +26,7 @@ class AbstractProviderTest extends TestCase
     public function testWithConfigSeedsBaselineConfig(): void
     {
         $provider = new GenericTestProviderStub(
-            m::mock(Request::class),
+            new Request,
         );
         $provider->withConfig([
             'base_url' => 'https://idp.example.com',
@@ -41,7 +40,7 @@ class AbstractProviderTest extends TestCase
     public function testSetConfigOverridesPerRequest(): void
     {
         $provider = new GenericTestProviderStub(
-            m::mock(Request::class),
+            new Request,
         );
         $provider->withConfig([
             'base_url' => 'https://idp.example.com',
@@ -57,7 +56,7 @@ class AbstractProviderTest extends TestCase
     public function testGetConfigReturnsDefaultForMissingKeys(): void
     {
         $provider = new GenericTestProviderStub(
-            m::mock(Request::class),
+            new Request,
         );
 
         $this->assertNull($provider->getProviderConfig('nonexistent'));
@@ -66,7 +65,7 @@ class AbstractProviderTest extends TestCase
 
     public function testGetConfigDelegatesNullAndZeroKeysToArr(): void
     {
-        $provider = new GenericTestProviderStub(m::mock(Request::class));
+        $provider = new GenericTestProviderStub(new Request);
         $provider->withConfig([
             0 => 'zero',
             'realm' => 'default',
@@ -79,10 +78,10 @@ class AbstractProviderTest extends TestCase
     public function testSetHttpClient(): void
     {
         $provider = new GenericTestProviderStub(
-            m::mock(Request::class),
+            new Request,
         );
 
-        $client = m::mock(Client::class);
+        $client = new Client;
         $provider->setHttpClient($client);
 
         $this->assertSame($client, $provider->getProviderHttpClient());
@@ -91,7 +90,7 @@ class AbstractProviderTest extends TestCase
     public function testStatelessToggle(): void
     {
         $provider = new GenericTestProviderStub(
-            m::mock(Request::class),
+            new Request,
         );
 
         $this->assertTrue($provider->providerUsesState());
@@ -103,8 +102,8 @@ class AbstractProviderTest extends TestCase
 
     public function testSetRequest(): void
     {
-        $originalRequest = m::mock(Request::class);
-        $newRequest = m::mock(Request::class);
+        $originalRequest = new Request;
+        $newRequest = new Request;
 
         $provider = new GenericTestProviderStub($originalRequest);
         $provider->setRequest($newRequest);
@@ -190,7 +189,7 @@ class AbstractProviderTest extends TestCase
     public function testBaselineConfigSurvivesAcrossCoroutines(): void
     {
         $provider = new GenericTestProviderStub(
-            m::mock(Request::class),
+            new Request,
         );
         $provider->withConfig([
             'base_url' => 'https://idp.example.com',
@@ -212,7 +211,7 @@ class AbstractProviderTest extends TestCase
     public function testSetConfigIsIsolatedPerCoroutine(): void
     {
         $provider = new GenericTestProviderStub(
-            m::mock(Request::class),
+            new Request,
         );
         $provider->withConfig([
             'realm' => 'default',

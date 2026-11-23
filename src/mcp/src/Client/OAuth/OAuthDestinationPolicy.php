@@ -20,4 +20,18 @@ class OAuthDestinationPolicy extends PublicDestinationPolicy
         return in_array(trim($uri->getHost(), '[]'), self::LOCALHOSTS, true)
             && IpUtils::checkIp($address, ['127.0.0.0/8', '::1']);
     }
+
+    /**
+     * Resolve hostnames through AuthServerDiscovery::resolveHostsUsing() when a callback is set.
+     *
+     * @return list<string>
+     */
+    protected function resolveHost(string $host, float $timeoutSeconds): array
+    {
+        if (filter_var($host, FILTER_VALIDATE_IP) === false && ($addresses = AuthServerDiscovery::resolvedHostAddresses($host)) !== null) {
+            return $addresses;
+        }
+
+        return parent::resolveHost($host, $timeoutSeconds);
+    }
 }

@@ -188,6 +188,8 @@ php artisan vendor:publish --tag=mcp-config
 ],
 ```
 
+Your application's own origin is allowed even when `app.url` is local, but other origins on your machine are not. Add a frontend that calls the server directly from another local port to this list, such as `http://localhost:5173`. To allow every origin, use `'*'`.
+
 Set `app.url` to your application's trusted public URL. Origin validation does not replace authentication or your application's CORS configuration. These settings belong to the application; end users do not need to change their browsers or CLI clients.
 
 <a name="local-servers"></a>
@@ -510,7 +512,7 @@ class CurrentWeatherTool extends Tool
     public function handle(Request $request): Response
     {
         $validated = $request->validate([
-            'location' => 'required|string|max:100',
+            'location' => ['required', 'string', 'max:100'],
             'units' => 'in:celsius,fahrenheit',
         ]);
 
@@ -958,7 +960,7 @@ class DescribeWeatherPrompt extends Prompt
     public function handle(Request $request): Response
     {
         $validated = $request->validate([
-            'tone' => 'required|string|max:50',
+            'tone' => ['required', 'string', 'max:50'],
         ]);
 
         $tone = $validated['tone'];
@@ -1697,6 +1699,27 @@ The `Library` enum includes pre-configured CDN scripts for common front-end libr
 
 For computed or dynamic configuration, override the `appMeta` method on your resource using the fluent `AppMeta`, `Csp`, and `Permissions` builders from the `Hypervel\Mcp\Server\Ui` namespace.
 
+By default, the app's sandbox domain is derived from the current server URL in the format Claude expects. You may set the `domain` argument to use a specific sandbox domain. If the host rejects the derived domain, for example because the connector URL was saved with a trailing slash, set `domain` to `false` to leave it out so the host uses its default sandbox origin:
+
+```php
+#[AppMeta(domain: false)]
+class WeatherDashboardApp extends AppResource
+{
+    // ...
+}
+```
+
+When overriding the `appMeta` method, call `withoutDomain` on the builder instead:
+
+```php
+use Hypervel\Mcp\Server\Ui\AppMeta;
+
+public function appMeta(): AppMeta
+{
+    return AppMeta::make()->withoutDomain();
+}
+```
+
 For the complete protocol reference, including the full client-side API and schema details, see the official [MCP Apps documentation](https://modelcontextprotocol.io/extensions/apps/overview).
 
 <a name="metadata"></a>
@@ -1858,11 +1881,12 @@ Mcp::web('/mcp/weather', WeatherExample::class)
     ]);
 ```
 
+<a name="new-passport-installation"></a>
 #### New Passport Installation
 
 If your application is not already using Passport, follow Passport's [installation and deployment guide](/docs/{{version}}/passport#installation) to add Passport to your application. You should have an `OAuthenticatable` model, new authentication guard, and Passport keys before moving on.
 
-Dynamic client registration applies `passport.middleware` and Passport's named `passport` rate limiter. You may customize that limiter using Passport's [rate limiting configuration](/docs/{{version}}/passport#rate-limiting).
+Clients may register up to 10 redirect URIs, each at most 1,024 characters long.
 
 Dynamically registered clients are marked as third-party clients, so Passport's `firstParty()` method returns `false` even though they have no owner. This keeps them subject to consent when your application skips consent for its own clients.
 
@@ -1926,6 +1950,17 @@ OAuth2.1 is the documented authentication mechanism in the Model Context Protoco
 
 If your application is already using [Sanctum](/docs/{{version}}/sanctum) then adding Passport may be cumbersome. In this instance, we recommend using Sanctum without Passport until you have a clear, necessary requirement to use an MCP client that only supports OAuth.
 
+<a name="rate-limiting-oauth-routes"></a>
+#### Rate Limiting OAuth Routes
+
+As expected by the MCP specification and RFC 7591, the dynamic client registration route registered by `Mcp::oauthRoutes` is publicly accessible, allowing any MCP client to register itself without authentication. Each registration creates a new OAuth client in your database. Hypervel automatically applies `passport.middleware` and Passport's named `passport` rate limiter. Customize that limiter to fit your application's traffic using Passport's [rate limiting configuration](/docs/{{version}}/passport#rate-limiting).
+
+If your MCP clients do not need to register themselves dynamically, you may disable the client registration route entirely by passing `false` to the `registration` argument:
+
+```php
+Mcp::oauthRoutes(registration: false);
+```
+
 <a name="sanctum"></a>
 ### Sanctum
 
@@ -1966,6 +2001,8 @@ public function handle(Request $request): Response
 }
 ```
 
+For guidance on securing MCP clients and servers, see the MCP [Security Best Practices](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices).
+
 <a name="client"></a>
 ## MCP Client
 
@@ -1983,6 +2020,8 @@ use Hypervel\Mcp\Client;
 
 $client = Client::web('https://api.githubcopilot.com/mcp/');
 ```
+
+The client does not follow redirects, so use the server's final URL.
 
 To connect to a local MCP server that runs as a command, use the `Client::local` method, providing the command and any arguments needed to start the server:
 
@@ -2059,6 +2098,19 @@ $client = Client::web('https://api.githubcopilot.com/mcp/')->withToken(
 ```
 
 If you already obtained a suitable token through [Socialite](/docs/{{version}}/socialite) or another account-linking flow, pass that token to `withToken`; you do not need to register MCP OAuth routes.
+
+<a name="client-custom-headers"></a>
+#### Custom Headers
+
+If a server expects an API key or another custom header, use the `withHeaders` method. Named clients may define the same values using the `headers` configuration option:
+
+```php
+use Hypervel\Mcp\Client;
+
+$client = Client::web('https://projects.example.com/mcp')->withHeaders([
+    'X-Api-Key' => config()->string('services.projects.api_key'),
+]);
+```
 
 <a name="client-oauth"></a>
 #### Linking User Accounts With OAuth
@@ -2192,10 +2244,12 @@ try {
 
 Your application stores the token and scopes and decides when to retry the operation. Limit repeated authorization attempts when a server continues to reject the requested permissions.
 
+Before redirecting for authorization, the client verifies that the resource advertises any supplied custom metadata URL. The standard well-known metadata URL needs no probe. Direct client-credentials and refresh grants do not perform this check.
+
 <a name="oauth-destinations"></a>
 #### OAuth Destinations
 
-OAuth discovery, registration and token requests validate resolved addresses before sending, then pin those addresses for the connection. This prevents remote metadata from directing the server to private network services. These checks run during OAuth requests, not on every MCP tool call. Automatic redirects are disabled, and DNS resolution shares the request's timeout budget.
+OAuth discovery, registration and token requests validate resolved addresses before sending, then pin those addresses for the connection. This prevents remote metadata from directing the server to private network services. These checks run during OAuth requests, not on every MCP tool call. Automatic redirects are disabled for these requests; resource advertisement probes follow up to five redirects, validating and pinning each hop. DNS resolution shares the request's timeout budget, and response bodies are limited to 1 MiB by default.
 
 Hostname pinning requires cURL with SSL support and libcurl 7.75 or later. See the HTTP client's [destination policy limitations](/docs/{{version}}/http-client#destination-policy-limitations).
 
@@ -2437,6 +2491,53 @@ You may assert that a response contains specific text using the `assertSee` meth
 $response->assertSee('The current weather in New York City is 72°F and sunny.');
 ```
 
+For tools that return [structured content](#structured-responses), you may assert counts, values at specific paths, and the structure of the response:
+
+```php
+$response
+    ->assertStructuredContentCount(2, 'data')
+    ->assertStructuredContentPath('data.0.location', 'New York City')
+    ->assertStructuredContentPaths([
+        'data.0.temperature' => 72,
+        'data.1.temperature' => 68,
+    ])
+    ->assertStructuredContentStructure([
+        'data' => [
+            '*' => ['location', 'temperature'],
+        ],
+    ]);
+```
+
+Paths support "dot" notation. The `assertStructuredContentPath` method also accepts a closure to determine if the value passes a given truth test:
+
+```php
+$response->assertStructuredContentPath('data.0.temperature', fn (int $temperature): bool => $temperature > 70);
+```
+
+The `assertStructuredContent` method accepts the expected structured content, or a closure that receives an `AssertableJson` instance for fluent assertions.
+
+The following structured content assertions are available:
+
+| Method | Description |
+| --- | --- |
+| `assertExactStructuredContent($data)` | Assert that the structured content matches the given array exactly. |
+| `assertSimilarStructuredContent($data)` | Assert that the structured content matches the given array, ignoring order. |
+| `assertStructuredContentCount($count, $key = null)` | Assert the number of items, optionally at a given key. |
+| `assertStructuredContentPath($path, $expect)` | Assert the value at a given path. |
+| `assertStructuredContentPaths($paths)` | Assert multiple path / value pairs. |
+| `assertStructuredContentPathCanonicalizing($path, $expect)` | Assert the values at a given path, ignoring order. |
+| `assertStructuredContentPathsCanonicalizing($paths)` | Assert multiple path / value pairs, ignoring order. |
+| `assertStructuredContentFragment($data)` | Assert that each key/value pair appears somewhere in the structured content. |
+| `assertStructuredContentFragments($data)` | Assert that each given fragment appears in the structured content. |
+| `assertStructuredContentMissing($data)` | Assert that a fragment does not appear in the structured content. |
+| `assertStructuredContentMissingExact($data)` | Assert that an exact fragment does not appear in the structured content. |
+| `assertStructuredContentMissingPath($path)` | Assert that a path does not exist. |
+| `assertStructuredContentMissingPaths($paths)` | Assert that multiple paths do not exist. |
+| `assertStructuredContentStructure($structure)` | Assert that the given keys exist, allowing additional keys. |
+| `assertExactStructuredContentStructure($structure)` | Assert that only the given keys exist. |
+| `assertStructuredContentIsArray($key = null)` | Assert that the structured content, optionally at a given key, is a JSON array. |
+| `assertStructuredContentIsObject($key = null)` | Assert that the structured content, optionally at a given key, is a JSON object. |
+
 You may assert that a response contains an error using the `assertHasErrors` method:
 
 ```php
@@ -2487,23 +2588,13 @@ $response->dump();
 <a name="testing-oauth"></a>
 ### Testing OAuth Clients
 
-`Http::fake()` replaces HTTP responses, but OAuth destination validation still runs before sending. When a test uses an invented hostname, replace `OAuthDestinationPolicy` with a test policy that supplies controlled DNS answers. The normal address validation still applies:
+`Http::fake()` replaces HTTP responses, but OAuth destination validation still runs before sending. When a test uses an invented hostname, supply its DNS answers with `AuthServerDiscovery::resolveHostsUsing()`. The normal address validation still applies to the returned addresses:
 
 ```php
-use Hypervel\Mcp\Client\OAuth\OAuthDestinationPolicy;
+use Hypervel\Mcp\Client\OAuth\AuthServerDiscovery;
 use Hypervel\Support\Facades\Http;
 
-$this->app->instance(OAuthDestinationPolicy::class, new class extends OAuthDestinationPolicy {
-    /**
-     * Resolve test endpoints without external DNS.
-     *
-     * @return list<string>
-     */
-    protected function resolveHost(string $host, float $timeoutSeconds): array
-    {
-        return ['93.184.216.34'];
-    }
-});
+AuthServerDiscovery::resolveHostsUsing(fn (string $host): array => ['93.184.216.34']);
 
 Http::fake([
     'https://auth.test/token' => Http::response(['access_token' => 'test-token']),

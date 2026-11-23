@@ -17,7 +17,8 @@ use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -47,6 +48,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ConsoleInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string DURATION_METRIC = 'hypervel.console.command.duration';
 
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
@@ -235,20 +238,28 @@ class ConsoleInstrumentationTest extends TestCase
         );
     }
 
-    public function testCancellationProducesNoFalseCompletionTelemetry(): void
+    public function testCanceledCommandEndsItsSpanWithoutAnOutcome(): void
     {
         $this->instrumentation()->register($this->options());
         $command = new ConsoleInstrumentationCommand('reports:daily');
 
+        $this->clock->timestamp = 1_000_000_000;
         $input = $this->startCommand($command);
-        $active = Span::getCurrent()->getContext();
+        $this->clock->timestamp = 3_000_000_000;
         $this->finishCommand($command, $input, new CanceledException, 1);
 
-        $this->assertTrue($active->isValid());
-        $this->assertSame($active->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $span = $this->exportedSpan('reports:daily');
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertNull($span->getAttributes()->get('result'));
+        $this->assertNull($span->getAttributes()->get('hypervel.console.exit_code'));
+        $this->assertNull($span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame([], $span->getEvents());
+        $this->assertFalse(Span::getCurrent()->getContext()->isValid());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(self::DURATION_METRIC)->data->dataPoints);
+        $point = $this->histogramPoint();
+        $this->assertSame(2, $point->sum);
+        $this->assertNull($point->attributes->get('result'));
+        $this->assertNull($point->attributes->get('hypervel.console.exit_code'));
     }
 
     public function testNestedCommandsOnlyCompleteTheExactTopState(): void
@@ -379,8 +390,8 @@ class ConsoleInstrumentationTest extends TestCase
      */
     private function instrumentation(): ConsoleInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new ConsoleInstrumentation(
             $this->events,

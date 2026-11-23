@@ -209,7 +209,7 @@ class Response implements Responsable
         if ($request->header(Header::INERTIA)) {
             $response = new JsonResponse($page, 200, [Header::INERTIA => 'true']);
         } else {
-            InertiaState::current()->page = $page;
+            InertiaState::current()->setPage($page);
 
             $response = ResponseFactory::view($this->rootView, ['page' => $page] + $this->viewData);
         }

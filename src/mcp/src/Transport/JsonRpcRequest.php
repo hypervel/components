@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Transport;
 
+use Hypervel\Mcp\Enums\ErrorCode;
 use Hypervel\Mcp\Enums\MetaKey;
 use Hypervel\Mcp\Enums\RequestHeader;
 use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Mcp\Request;
+use Hypervel\Mcp\Support\ValidationMessages;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\ValidationException;
 use stdClass;
 
 class JsonRpcRequest
@@ -105,6 +109,26 @@ class JsonRpcRequest
     public function get(string $key, mixed $default = null): mixed
     {
         return $this->params[$key] ?? $default;
+    }
+
+    /**
+     * Validate the request parameters.
+     *
+     * Use this in custom JSON-RPC method handlers registered with Server::addMethod(). Tools,
+     * prompts and resources validate their arguments through Hypervel\Mcp\Request instead.
+     *
+     * @param array<string, mixed> $rules
+     * @return array<string, mixed>
+     *
+     * @throws JsonRpcException
+     */
+    public function validate(array $rules): array
+    {
+        try {
+            return Validator::make($this->params, $rules)->validate();
+        } catch (ValidationException $validationException) {
+            throw new JsonRpcException(ValidationMessages::from($validationException), ErrorCode::INVALID_PARAMS->value, $this->id);
+        }
     }
 
     /**

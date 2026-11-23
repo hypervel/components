@@ -8,11 +8,14 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Support\Fixtures\MultipleInstanceManager;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class MultipleInstanceManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConfigurableInstancesCanBeResolved(): void
     {
         $manager = new MultipleInstanceManager($this->app);
@@ -46,10 +49,10 @@ class MultipleInstanceManagerTest extends TestCase
                 ],
             ],
         ]);
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')->with('config')->returns($config);
 
-        $this->assertSame($manager, $manager->setApplication($application));
+        $this->assertSame($manager, $manager->setApplication($application->instance()));
         $this->assertSame($resolved, $manager->instance('foo'));
         $this->assertSame('replacement', $manager->instance('configured')->config['source']);
     }

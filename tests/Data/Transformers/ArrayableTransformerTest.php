@@ -9,16 +9,19 @@ use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Transformers\ArrayableTransformer;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ArrayableTransformerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCanTransformAnArrayable(): void
     {
         $value = new Collection(['A', 'B']);
 
         $result = (new ArrayableTransformer)->transform(
-            m::mock(DataProperty::class),
+            Double::for(DataProperty::class)->strict(),
             $value,
             new TransformationContext,
         );

@@ -16,7 +16,9 @@ use Hypervel\Redis\Subscriber\Exceptions\SocketException;
 use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
@@ -26,6 +28,8 @@ use function Hypervel\Coroutine\go;
 
 class CommandInvokerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testInvokeSendsCommandAndCollectsDecodedResults(): void
     {
         $command = CommandBuilder::build(['subscribe', 'foo']);
@@ -379,16 +383,14 @@ class CommandInvokerTest extends TestCase
 
     public function testMessageCapacityFailureLogsOnceAndRemainsPrimaryWhenLoggingFails(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')
-            ->once()
-            ->andThrow(new RuntimeException('logger failed'));
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')->throws(new RuntimeException('logger failed'));
         $connection = new ControlledConnection;
         $invoker = new CommandInvoker($connection, $logger);
-        $messageChannel = m::mock(Channel::class);
-        $messageChannel->shouldReceive('push')->once()->with(m::type(Message::class), 30.0)->andReturn(false);
-        $messageChannel->shouldReceive('isTimeout')->once()->andReturn(true);
-        $messageChannel->shouldReceive('close')->once()->andReturn(true);
+        $messageChannel = Double::for(Channel::class)->strict();
+        $messageChannel->expects('push')->with(Argument::type(Message::class), 30.0)->returns(false);
+        $messageChannel->expects('isTimeout')->returns(true);
+        $messageChannel->expects('close')->returns(true);
         (new ReflectionProperty(CommandInvoker::class, 'messageChannel'))
             ->setValue($invoker, $messageChannel);
         $connection->pushResponse(['message', 'foo', 'payload']);
@@ -405,8 +407,8 @@ class CommandInvokerTest extends TestCase
 
     public function testConcurrentMessageChannelCloseIsTerminalWithoutLoggingCapacityFailure(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldNotReceive('error');
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')->never();
         $connection = new ControlledConnection;
         $invoker = new CommandInvoker($connection, $logger);
         $messageChannel = $invoker->channel();

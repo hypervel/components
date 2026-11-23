@@ -4,13 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
+use Hypervel\Redis\Pool\PoolManager;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\RedisSentinelFactory;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
+use Redis;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Tests for ConcurrencyLimiterBuilder.
@@ -20,6 +32,8 @@ use RuntimeException;
  */
 class ConcurrencyLimiterBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLimitSetsMaxLocks(): void
     {
         $builder = $this->createBuilder();
@@ -83,20 +97,16 @@ class ConcurrencyLimiterBuilderTest extends TestCase
 
     public function testThenExecutesCallbackWhenLockAcquired(): void
     {
-        $redis = $this->mockRedis();
+        [$redis, $client] = $this->createRedis();
         // ConcurrencyLimiter::acquire() Lua script returns a slot name
         $this->expectSlotClaim($redis, 'test-key1');
 
         // ConcurrencyLimiter::release() called after callback
-        $redis->shouldReceive('eval')
-            ->once()
-            ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
-                $this->assertSame(1, $numKeys);
-                $this->assertSame('test-key1', $key);
-
-                return true;
-            })
-            ->andReturn(1);
+        $client->expects('eval')
+            ->with(Argument::any(), Argument::satisfies(
+                static fn (array $arguments): bool => count($arguments) === 2 && $arguments[0] === 'test-key1',
+            ), 1)
+            ->returns(1);
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0);
@@ -110,13 +120,12 @@ class ConcurrencyLimiterBuilderTest extends TestCase
 
     public function testThenPropagatesReleaseFailureAfterSuccessfulCallback(): void
     {
-        $redis = $this->mockRedis();
+        [$redis, $client] = $this->createRedis();
         $releaseException = new RuntimeException('release failed');
 
         $this->expectSlotClaim($redis, 'test-key1');
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andThrow($releaseException);
+        $client->expects('eval')
+            ->throws($releaseException);
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0);
@@ -130,33 +139,42 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         }
     }
 
-    public function testThenPreservesCallbackFailureWhenReleaseAlsoFails(): void
+    #[TestWith(['ordinary'])]
+    #[TestWith(['direct cancellation'])]
+    #[TestWith(['wrapped cancellation'])]
+    public function testThenPreservesCallbackFailureWhenReleaseAlsoFails(string $kind): void
     {
-        $redis = $this->mockRedis();
+        [$redis, $client] = $this->createRedis();
         $callbackException = new RuntimeException('callback failed');
+        $releaseException = match ($kind) {
+            'direct cancellation' => new CanceledException,
+            'wrapped cancellation' => new RuntimeException('Release cleanup failed.', previous: new CanceledException),
+            default => new RuntimeException('release failed'),
+        };
 
         $this->expectSlotClaim($redis, 'test-key1');
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andThrow(new RuntimeException('release failed'));
+        $client->expects('eval')
+            ->throws($releaseException);
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0);
+
+        $caught = null;
 
         try {
             $builder->then(function () use ($callbackException): never {
                 throw $callbackException;
             });
-
-            $this->fail('Expected the callback failure to be thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($callbackException, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($kind === 'ordinary' ? $callbackException : $releaseException, $caught);
     }
 
     public function testThenCallsFailureCallbackOnTimeout(): void
     {
-        $redis = $this->mockRedis();
+        [$redis] = $this->createRedis();
         // ConcurrencyLimiter::acquire() always fails
         $this->expectSlotClaim($redis, false);
 
@@ -180,7 +198,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
 
     public function testThenThrowsExceptionWithoutFailureCallback(): void
     {
-        $redis = $this->mockRedis();
+        [$redis] = $this->createRedis();
         // ConcurrencyLimiter::acquire() always fails
         $this->expectSlotClaim($redis, false);
 
@@ -196,7 +214,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
 
     public function testAcquireReturnsOwnedLease(): void
     {
-        $redis = $this->mockRedis();
+        [$redis] = $this->createRedis();
         $this->expectSlotClaim($redis, 'test-key1');
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
@@ -209,11 +227,10 @@ class ConcurrencyLimiterBuilderTest extends TestCase
 
     public function testThenDoesNotRouteCallbackTimeoutExceptionToFailureCallback(): void
     {
-        $redis = $this->mockRedis();
+        [$redis, $client] = $this->createRedis();
         $this->expectSlotClaim($redis, 'test-key1');
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn(1);
+        $client->expects('eval')
+            ->returns(1);
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0);
@@ -257,33 +274,45 @@ class ConcurrencyLimiterBuilderTest extends TestCase
      */
     private function createBuilder(): ConcurrencyLimiterBuilder
     {
-        return new ConcurrencyLimiterBuilder($this->mockRedis(), 'test-key');
+        return new ConcurrencyLimiterBuilder(Double::for(RedisProxy::class)->strict(), 'test-key');
     }
 
     /**
-     * Create a mock RedisProxy.
+     * Create a proxy that borrows a connection wrapping the native client.
+     *
+     * @return array{DoubleInterface&RedisProxy, DoubleInterface&Redis}
      */
-    private function mockRedis(): m\MockInterface|RedisProxy
+    private function createRedis(): array
     {
-        $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('isCluster')->byDefault()->andReturnFalse();
+        $client = Double::for(Redis::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $connection = Double::for((new PhpRedisConnectionStub)->setActiveConnection($client))->passthru();
+        $connection->allows('release');
+        $pool = Double::for(RedisPool::class)->strict();
+        $pool->allows('borrow')->returns($connection);
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
+        $poolManager->allows('pool')->with('limiter')->returns($pool);
+        $redis = Double::for(new RedisProxy(
+            $poolManager,
+            'limiter',
+            new RedisSentinelFactory,
+        ))->passthru();
+        $redis->allows('isCluster')->returns(false);
 
-        return $redis;
+        return [$redis, $client];
     }
 
     /**
      * Expect a slot-claim script evaluation on one held Redis connection.
      */
-    private function expectSlotClaim(m\MockInterface|RedisProxy $redis, false|string $result): void
+    private function expectSlotClaim(RedisProxy&DoubleInterface $redis, false|string $result): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class)->strict();
 
-        $redis->shouldReceive('withConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $redis->expects('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn($result);
+        $connection->expects('evalWithShaCache')
+            ->returns($result);
     }
 }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Unit;
 
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
 use Hypervel\RateLimiter\RateLimiter;
@@ -18,10 +18,13 @@ use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Http\Sender;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class PoolNonCoroutineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testPoolEntersOneRootCoroutineWhenCalledFromCliCode(): void
@@ -47,15 +50,12 @@ class PoolNonCoroutineTest extends TestCase
     {
         $http = new Factory;
         $http->registerConnection('saloon');
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
-            ->with('saloon.connection.name')
-            ->andReturn('saloon');
+        $config = new ConfigRepository(['saloon' => ['connection' => ['name' => 'saloon']]]);
 
         return new SaloonManager(
             new Sender($http, $config),
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
+            Double::for(CacheFactory::class)->strict(),
+            Double::for(RateLimiter::class, override: true)->strict()->instance(),
             $config,
             new Dispatcher,
         );

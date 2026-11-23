@@ -10,6 +10,7 @@ use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class PreventRequestsDuringMaintenance
@@ -143,9 +144,10 @@ class PreventRequestsDuringMaintenance
     /**
      * Indicate that the given URIs should always be accessible.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function except(array|string $uris): void
     {
         static::$neverPrevent = array_values(array_unique(

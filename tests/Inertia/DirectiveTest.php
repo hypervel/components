@@ -4,35 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
-use Hypervel\Filesystem\Filesystem;
-use Hypervel\Inertia\Directive;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Tests\Inertia\Fixtures\FakeGateway;
-use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\ViewException;
 use JsonException;
-use Mockery as m;
 
 class DirectiveTest extends TestCase
 {
-    private Filesystem|m\MockInterface $filesystem;
-
-    protected BladeCompiler $compiler;
-
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->app->bind(Gateway::class, FakeGateway::class);
-        $this->filesystem = m::mock(Filesystem::class);
-
-        /** @var Filesystem $filesystem */
-        $filesystem = $this->filesystem;
-        $this->compiler = new BladeCompiler($filesystem, __DIR__ . '/cache/views');
-        $this->compiler->directive('inertia', [Directive::class, 'compile']);
-        $this->compiler->directive('inertiaHead', [Directive::class, 'compileHead']);
     }
 
     /**

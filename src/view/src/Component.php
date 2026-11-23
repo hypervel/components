@@ -11,6 +11,8 @@ use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionMethod;
@@ -77,9 +79,16 @@ abstract class Component
     protected static array $ignoredParameterNames = [];
 
     /**
+     * The cache of blade view names for raw templates, keyed by template.
+     *
+     * @var array<string, string>
+     */
+    protected static array $rawTemplateViewCache = [];
+
+    /**
      * Get the view / view contents that represent the component.
      */
-    abstract public function render(): ViewContract|Htmlable|Closure|string;
+    abstract public function render(): ViewContract|Htmlable|RawTemplate|Closure|string;
 
     /**
      * Resolve the component instance with the given data.
@@ -141,6 +150,10 @@ abstract class Component
                 return $view;
             }
 
+            if ($view instanceof RawTemplate) {
+                return $this->createBladeViewFromRawTemplate($view);
+            }
+
             return $this->extractBladeViewFromString($view);
         };
 
@@ -166,6 +179,17 @@ abstract class Component
         }
 
         return static::$bladeViewCache[$key] = $this->createBladeViewFromString($this->factory(), $contents);
+    }
+
+    /**
+     * Create a Blade view from the given raw template.
+     */
+    protected function createBladeViewFromRawTemplate(RawTemplate $template): string
+    {
+        return static::$rawTemplateViewCache[static::bladeViewCacheKey($template->template)] ??= $this->createBladeViewFromString(
+            $this->factory(),
+            $template->template
+        );
     }
 
     /**
@@ -312,6 +336,8 @@ abstract class Component
 
     /**
      * Set the component alias name.
+     *
+     * @return $this
      */
     public function withName(string $name): static
     {
@@ -322,6 +348,8 @@ abstract class Component
 
     /**
      * Set the extra attributes that the component should make available.
+     *
+     * @return $this
      */
     public function withAttributes(array $attributes): static
     {
@@ -393,13 +421,14 @@ abstract class Component
     /**
      * Flush the component's cached state.
      *
-     * Boot or tests only when called directly. Clears the worker-wide reflection
-     * and view caches shared by every coroutine; next render rebuilds them. The
-     * view:clear command owns runtime invalidation.
+     * Clears the worker-wide reflection and view caches shared by every
+     * coroutine; next render rebuilds them. The view:clear command owns runtime
+     * invalidation.
      */
     public static function flushCache(): void
     {
         static::$bladeViewCache = [];
+        static::$rawTemplateViewCache = [];
         static::$constructorParametersCache = [];
         static::$methodCache = [];
         static::$propertyCache = [];
@@ -419,9 +448,10 @@ abstract class Component
     /**
      * Forget the component's factory instance.
      *
-     * Boot or tests only. Clears the worker-wide ViewFactory reference shared
-     * by every coroutine; next render re-resolves it from the container.
+     * Clears the worker-wide ViewFactory reference shared by every coroutine;
+     * next render re-resolves it from the container.
      */
+    #[BootOrTestsOnly]
     public static function forgetFactory(): void
     {
         static::$factory = null;
@@ -430,11 +460,12 @@ abstract class Component
     /**
      * Forget the component's resolver callback.
      *
-     * Boot or tests only. Clears the worker-wide resolver shared by every
-     * coroutine; next component resolution falls back to default behavior.
+     * Clears the worker-wide resolver shared by every coroutine; next
+     * component resolution falls back to default behavior.
      *
      * @internal
      */
+    #[BootOrTestsOnly]
     public static function forgetComponentsResolver(): void
     {
         static::$componentsResolver = null;
@@ -443,13 +474,14 @@ abstract class Component
     /**
      * Set the callback that should be used to resolve components within views.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent component resolution.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent component resolution.
      *
      * @param Closure(string $component, array $data): static $resolver
      *
      * @internal
      */
+    #[BootOnly]
     public static function resolveComponentsUsing(Closure $resolver): void
     {
         static::$componentsResolver = $resolver;

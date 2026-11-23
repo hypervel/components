@@ -45,13 +45,13 @@ class RequestOptionValidatorTest extends TestCase
 
     public function testItAllowsTransportOptions(): void
     {
+        $this->expectNotToPerformAssertions();
+
         RequestOptionValidator::validate([
             'allow_redirects' => false,
             'proxy' => 'http://proxy.example.com',
             'timeout' => 10,
             'verify' => true,
         ], 'request options');
-
-        $this->addToAssertionCount(1);
     }
 }

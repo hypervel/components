@@ -48,6 +48,8 @@ use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\ValidationData;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Laravel\SerializableClosure\SerializableClosure;
 use Laravel\SerializableClosure\Serializers\Native;
 use Laravel\SerializableClosure\Serializers\Signed;
@@ -65,6 +67,8 @@ use Symfony\Component\VarDumper\VarDumper;
 
 class AfterEachTestSubscriberTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string CALLBACK_NAME = self::class;
 
     #[Override]
@@ -529,8 +533,8 @@ class AfterEachTestSubscriberTest extends TestCase
         DumpWatcher::flushState();
         VarDumper::setHandler(static function (): void {
         });
-        (new DumpWatcher(m::mock(CacheFactory::class), ['always' => true]))
-            ->register(m::mock(ApplicationContract::class));
+        (new DumpWatcher(Double::for(CacheFactory::class)->strict(), ['always' => true]))
+            ->register(Double::for(ApplicationContract::class, override: true)->strict()->instance());
 
         $handler = new ReflectionProperty(VarDumper::class, 'handler');
         $this->assertNotNull($handler->getValue());

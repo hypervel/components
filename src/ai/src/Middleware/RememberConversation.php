@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Middleware;
 
 use Closure;
 use Generator;
+use Hypervel\Ai\Agents\ConversationTitleAgent;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Concerns\RemembersConversations as RemembersConversationsTrait;
 use Hypervel\Ai\Contracts\Agent;
@@ -14,15 +15,18 @@ use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\RemembersConversations;
 use Hypervel\Ai\Contracts\StoresConversationTurns;
 use Hypervel\Ai\Exceptions\StreamAbandonedException;
+use Hypervel\Ai\Gateway\ParentInvocation;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Models\Conversation;
 use Hypervel\Ai\Prompts\AgentPrompt;
+use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Storage\StoredTurn;
 use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
@@ -76,9 +80,12 @@ class RememberConversation
             try {
                 $response = $next($prompt);
             } catch (Throwable $exception) {
-                $this->rememberFailedTurn($prompt, $exception, $pendingConversationId);
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure recording throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $this->rememberFailedTurn($prompt, $exception, $pendingConversationId);
+                }
             }
 
             // Record each failed producer attempt; public catch callbacks run only once per response.
@@ -97,9 +104,12 @@ class RememberConversation
                             yield from $produce();
                         } catch (Throwable $exception) {
                             $threw = true;
-                            $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
-
-                            throw $exception;
+                            // Keep the original exception, including cancellation, as previous if failure recording throws.
+                            try {
+                                throw $exception;
+                            } finally {
+                                $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
+                            }
                         }
 
                         $completed = true;
@@ -209,7 +219,9 @@ class RememberConversation
         if ($newConversation) {
             if (($exception === null || ! Coroutine::causedByCancellation($exception)) && ! $exception instanceof StreamAbandonedException) {
                 try {
-                    $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt);
+                    $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt);
+                } catch (ChildCancellationException) {
+                    // An independently canceled title must not discard the caller's completed turn.
                 } catch (Throwable $caught) {
                     if (! Coroutine::causedByCancellation($caught)) {
                         throw $caught;
@@ -226,53 +238,56 @@ class RememberConversation
             }
         }
 
-        if ($this->store instanceof StoresConversationTurns) {
-            $stored = $this->store->storeTurn($conversationId, $title, $participantType, $participantId, $prompt, $response, $exception);
-        } else {
-            if ($newConversation) {
-                $conversationId = $this->store->storeConversation(
+        // Persist the finished turn if the caller was canceled during title generation; storage failures retain that cancellation.
+        try {
+            if ($cancellation !== null) {
+                throw $cancellation;
+            }
+        } finally {
+            if ($this->store instanceof StoresConversationTurns) {
+                $stored = $this->store->storeTurn($conversationId, $title, $participantType, $participantId, $prompt, $response, $exception);
+            } else {
+                if ($newConversation) {
+                    $conversationId = $this->store->storeConversation(
+                        $participantType,
+                        $participantId,
+                        $title,
+                        $conversationId,
+                    );
+                }
+
+                // A resume continues the turn its decisions answer, so it adds no message of its own...
+                $userMessageId = $prompt->hasApprovalDecisions() ? null : $this->store->storeUserMessage(
+                    $conversationId,
                     $participantType,
                     $participantId,
-                    $title,
-                    $conversationId,
+                    $agent::class,
+                    new UserMessage($prompt->prompt, $prompt->attachments),
                 );
+
+                $assistantMessageId = $this->store->storeAssistantMessage(
+                    $conversationId,
+                    $participantType,
+                    $participantId,
+                    $prompt,
+                    $response,
+                    $exception,
+                );
+
+                $stored = new StoredTurn($conversationId, $userMessageId, $assistantMessageId);
             }
 
-            // A resume continues the turn its decisions answer, so it adds no message of its own...
-            $userMessageId = $prompt->hasApprovalDecisions() ? null : $this->store->storeUserMessage(
-                $conversationId,
-                $participantType,
-                $participantId,
-                $agent::class,
-                new UserMessage($prompt->prompt, $prompt->attachments),
-            );
+            if ($newConversation) {
+                // Completing a lazy operation must not replace a selection the caller changed meanwhile.
+                if ($agent->currentConversation() === $selection->conversationId && $agent->conversationParticipant() === $participant) {
+                    $agent->continue($stored->conversationId, $participant);
+                }
 
-            $assistantMessageId = $this->store->storeAssistantMessage(
-                $conversationId,
-                $participantType,
-                $participantId,
-                $prompt,
-                $response,
-                $exception,
-            );
-
-            $stored = new StoredTurn($conversationId, $userMessageId, $assistantMessageId);
-        }
-
-        if ($newConversation) {
-            // Completing a lazy operation must not replace a selection the caller changed meanwhile.
-            if ($agent->currentConversation() === $selection->conversationId && $agent->conversationParticipant() === $participant) {
-                $agent->continue($stored->conversationId, $participant);
+                $selection->conversationId = $stored->conversationId;
             }
 
-            $selection->conversationId = $stored->conversationId;
-        }
-
-        $response->withinConversation($stored->conversationId, $participant)
-            ->withStoredMessages($stored->userMessageId, $stored->assistantMessageId);
-
-        if ($cancellation !== null) {
-            throw $cancellation;
+            $response->withinConversation($stored->conversationId, $participant)
+                ->withStoredMessages($stored->userMessageId, $stored->assistantMessageId);
         }
 
         return $stored;
@@ -335,20 +350,19 @@ class RememberConversation
         /** @var Agent&RemembersConversations $agent */
         $agent = $prompt->agent;
 
-        // Decisions are validated during generation, and agent fakes hand out responses in call order.
+        // Decisions are validated during generation.
         if (! config()->boolean('ai.conversations.concurrent_title', false)
             || ! config()->boolean('ai.conversations.generate_title', true)
             || $prompt->hasApprovalDecisions()
             || ! $this->startsConversation($prompt)
-            || ! $this->shouldRememberTurn($agent, $prompt)
-            || Ai::hasFakeGatewayFor($agent::class)) {
+            || ! $this->shouldRememberTurn($agent, $prompt)) {
             return null;
         }
 
         DB::releaseIdleConnections();
 
         return new PendingConversationTitle(
-            fn (): string => $this->generateTitle($prompt->prompt),
+            fn (): string => $this->generateTitle($prompt),
             $prompt->contextRunner() ?? Ai::captureContext(),
         );
     }
@@ -356,27 +370,33 @@ class RememberConversation
     /**
      * Generate a title for the conversation.
      */
-    protected function generateTitle(string $prompt): string
+    protected function generateTitle(AgentPrompt $prompt): string
     {
         if (! config()->boolean('ai.conversations.generate_title', true)) {
-            return Str::limit($prompt, 50, preserveWords: true);
+            return Str::limit($prompt->prompt, 50, preserveWords: true);
         }
 
         try {
-            $response = $this->provider->textGenerationLoop()->generate(
-                $this->provider,
-                $this->provider->cheapestTextModel(),
-                'Generate a concise 3-5 word title for a conversation that starts with the following message. Use the same language as the message. Respond with only the title, no quotes or punctuation.',
-                [new UserMessage(Str::limit($prompt, 500))],
-            );
+            $agent = resolve(ConversationTitleAgent::class);
 
-            return Str::limit($response->text, 100);
+            // A faked conversation must not reach a real provider for its title...
+            if (Ai::hasFakeGatewayFor($prompt->agent) && ! $agent::isFaked()) {
+                $agent::fake();
+            }
+
+            // Unlike upstream, a provider instance is passed instead of its name, so an on-demand provider keeps its credentials. On-demand providers are always concrete; providers that only implement the contract are registered by name.
+            $response = ParentInvocation::within($prompt->invocationId, null, fn (): AgentResponse => $agent->prompt(
+                Str::limit($prompt->prompt, 500),
+                provider: $this->provider instanceof Provider ? $this->provider : $this->provider->name(),
+            ));
         } catch (Throwable $exception) {
             if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 
-            return Str::limit($prompt, 100, preserveWords: true);
+            return Str::limit($prompt->prompt, 100, preserveWords: true);
         }
+
+        return Str::limit($response->text, 100);
     }
 }

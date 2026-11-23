@@ -4,20 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Exceptions\ResourceClassNotFoundException;
+use Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Exceptions;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\ArrayBackedJsonApiResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\PostResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\ProfileResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Team;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\User;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserResource;
 use Override;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 class JsonApiResourceTest extends TestCase
 {
@@ -103,8 +113,6 @@ class JsonApiResourceTest extends TestCase
 
     public function testItCanGenerateJsonApiResponseWithRelationshipsUsingSparseIncluded(): void
     {
-        $now = $this->freezeSecond();
-
         $user = User::factory()->create();
 
         $profile = Profile::factory()->create([
@@ -150,7 +158,6 @@ class JsonApiResourceTest extends TestCase
                         'teams' => [
                             'data' => [
                                 ['id' => (string) $team->getKey(), 'type' => 'teams'],
-                                ['id' => (string) $team->getKey(), 'type' => 'teams'],
                             ],
                         ],
                     ],
@@ -187,29 +194,6 @@ class JsonApiResourceTest extends TestCase
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
-                            'membership' => [
-                                'created_at' => $now->toISOString(),
-                                'role' => 'Admin',
-                                'team_id' => $team->getKey(),
-                                'user_id' => $user->getKey(),
-                                'updated_at' => $now->toISOString(),
-                            ],
-                        ],
-                    ],
-                    [
-                        'id' => (string) $team->getKey(),
-                        'type' => 'teams',
-                        'attributes' => [
-                            'user_id' => $team->user_id,
-                            'name' => 'Hypervel Team',
-                            'personal_team' => true,
-                            'membership' => [
-                                'created_at' => $now->toISOString(),
-                                'role' => 'Member',
-                                'team_id' => $team->getKey(),
-                                'user_id' => $user->getKey(),
-                                'updated_at' => $now->toISOString(),
-                            ],
                         ],
                     ],
                 ],
@@ -352,6 +336,280 @@ class JsonApiResourceTest extends TestCase
             ->assertJsonMissingPath('jsonapi');
     }
 
+    public function testToOneRelationshipIdentifiersExposeMetadata(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->getKey()]);
+        $resource = new class($user) extends UserResource {
+            /**
+             * Get the profile resource with identifier metadata.
+             */
+            #[Override]
+            public function toRelationships(Request $request): array
+            {
+                return ['profile' => function (User $user): ProfileResource {
+                    return new class($user->profile) extends ProfileResource {
+                        /**
+                         * Get the resource type.
+                         */
+                        #[Override]
+                        public function toType(Request $request): string
+                        {
+                            return 'profiles';
+                        }
+
+                        /**
+                         * Get metadata for the profile identifier.
+                         */
+                        #[Override]
+                        public function toIdentifierMeta(Request $request): array
+                        {
+                            return ['primary' => true];
+                        }
+                    };
+                }];
+            }
+        };
+
+        $data = $resource->toResponse(JsonApiRequest::create('/?include=profile'))->getData(true);
+
+        $this->assertSame([
+            'id' => (string) $profile->getKey(),
+            'type' => 'profiles',
+            'meta' => ['primary' => true],
+        ], $data['data']['relationships']['profile']['data']);
+    }
+
+    public function testDefaultRelatedResourcesDoNotReportMissingResourceClasses(): void
+    {
+        Exceptions::fake();
+        $user = User::factory()->create();
+        $team = Team::factory()->create();
+        $user->teams()->attach($team);
+
+        $data = $user->toResource()->toResponse(JsonApiRequest::create('/?include=teams'))->getData(true);
+
+        $this->assertSame((string) $team->getKey(), $data['included'][0]['id']);
+        Exceptions::assertNothingReported();
+    }
+
+    #[TestWith(['profile', false])]
+    #[TestWith(['posts', true])]
+    public function testRelationshipClosuresPreserveResourceConstructorState(string $relationName, bool $many): void
+    {
+        $user = User::factory()->create();
+        $relatedResources = [];
+
+        foreach ($many ? ['first', 'second'] : ['first'] as $label) {
+            $relatedModel = $many
+                ? Post::factory()->create(['user_id' => $user->getKey()])
+                : Profile::factory()->create(['user_id' => $user->getKey()]);
+            $relatedResources[] = new ConstructorStateJsonApiResource($relatedModel, $label);
+
+            if ($many) {
+                Comment::factory()->create(['user_id' => $user->getKey(), 'post_id' => $relatedModel->getKey()]);
+            }
+        }
+
+        $resource = new class($user) extends UserResource {
+            public array $relationships = [];
+
+            public array $loadedModelClasses = [];
+
+            /**
+             * Record the models passed to the custom preload hook.
+             */
+            #[Override]
+            protected function loadMissingRequestedRelationships(
+                JsonApiRequest $request,
+                Collection $relatedModels,
+                ?string $resourceClass,
+                array $requestedRelationships
+            ): void {
+                $this->loadedModelClasses[] = $relatedModels->map(fn (Model $model): string => $model::class)->all();
+
+                parent::loadMissingRequestedRelationships($request, $relatedModels, $resourceClass, $requestedRelationships);
+            }
+        };
+        $resource->relationships = [
+            $relationName => fn (): AnonymousResourceCollection|ConstructorStateJsonApiResource => $many
+                ? new AnonymousResourceCollection($relatedResources, ConstructorStateJsonApiResource::class)
+                : $relatedResources[0],
+        ];
+
+        $data = $resource->toResponse(JsonApiRequest::create('/?include=' . $relationName . ($many ? '.comments' : '')))->getData(true);
+
+        $this->assertSame($many ? ['first', 'second'] : ['first'], array_column(array_column($data['included'], 'attributes'), 'label'));
+
+        if ($many) {
+            $this->assertSame([[Post::class, Post::class]], $resource->loadedModelClasses);
+            $this->assertCount(2, array_filter($data['included'], fn (array $entry): bool => $entry['type'] === 'comments'));
+        }
+    }
+
+    #[TestWith([false, true, false])]
+    #[TestWith([true, true, false])]
+    #[TestWith([true, false, false])]
+    #[TestWith([true, false, true])]
+    public function testSharedModelOccurrencesMergeRelationshipLinkage(bool $distinctResolvers, bool $requested, bool $newRelationship): void
+    {
+        $root = User::factory()->create();
+        $author = User::factory()->create();
+        [$firstPost, $secondPost] = Post::factory()->count(2)->create(['user_id' => $author->getKey()]);
+        $profile = Profile::factory()->create(['user_id' => $author->getKey()]);
+        $root->setRelation('author', $author)->setRelation('editor', $author);
+        $first = new RelationshipStateUserResource($author);
+        $second = $distinctResolvers ? new RelationshipStateUserResource($author) : $first;
+        $secondPostResolutions = 0;
+
+        if ($distinctResolvers) {
+            $first->relationships = ['posts' => fn (): Collection => collect([$firstPost])];
+            $second->relationships = ['posts' => function () use ($secondPost, &$secondPostResolutions): Collection {
+                ++$secondPostResolutions;
+
+                return collect([$secondPost]);
+            }];
+        } else {
+            $first->relationships = ['posts', 'profile'];
+        }
+
+        if (! $requested) {
+            $author->load('posts', 'profile');
+
+            if ($newRelationship) {
+                $second->relationships['profile'] = ProfileResource::class;
+            }
+        }
+
+        $resource = new RelationshipStateUserResource($root);
+        $resource->relationships = ['author' => fn (): RelationshipStateUserResource => $first, 'editor' => fn (): RelationshipStateUserResource => $second];
+        $include = ! $requested ? 'author,editor' : ($distinctResolvers ? 'author.posts,editor.posts' : 'author.posts,editor.profile');
+        $data = $resource->toResponse(JsonApiRequest::create('/?include=' . $include))->getData(true);
+        $posts = array_filter($data['included'], fn (array $entry): bool => $entry['type'] === 'posts');
+        $includedAuthor = collect($data['included'])->firstWhere('type', 'users');
+
+        // Explicit paths retain every resolver; an already expanded implicit name keeps its first linkage.
+        $expectedPosts = $requested ? [$firstPost, $secondPost] : [$firstPost];
+        $this->assertEqualsCanonicalizing(array_map(fn (Post $post): string => (string) $post->getKey(), $expectedPosts), array_column($posts, 'id'));
+        $this->assertCount(count($expectedPosts), $includedAuthor['relationships']['posts']['data']);
+
+        if ($distinctResolvers) {
+            $this->assertSame($requested ? 1 : 0, $secondPostResolutions);
+        }
+
+        if (! $distinctResolvers || $newRelationship) {
+            $this->assertSame((string) $profile->getKey(), $includedAuthor['relationships']['profile']['data']['id']);
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSharedResourcesTerminateForFiniteCycles(bool $freshWrappers): void
+    {
+        [$first, $second] = User::factory()->count(2)->create();
+        $first->setRelation('peer', $second);
+        $second->setRelation('peer', $first);
+        $firstResource = new class($first) extends RelationshipStateUserResource {
+            /**
+             * Fail a non-terminating preparation instead of hanging the test worker.
+             */
+            #[Override]
+            protected function compileResourceRelationships(JsonApiRequest $request): void
+            {
+                $compilations = $request->attributes->getInt('jsonapi.compilations') + 1;
+                $request->attributes->set('jsonapi.compilations', $compilations);
+
+                if ($compilations > 50) {
+                    throw new RuntimeException('Preparation did not terminate for a finite include.');
+                }
+
+                parent::compileResourceRelationships($request);
+            }
+        };
+        $secondResource = clone $firstResource;
+        $secondResource->resource = $second;
+        if ($freshWrappers) {
+            $third = User::factory()->create();
+            $second->setRelation('peer', $third);
+            $third->setRelation('peer', $second);
+            $firstResource->relationships = ['peer' => function (User $user) use ($firstResource): RelationshipStateUserResource {
+                $resource = clone $firstResource;
+                $resource->resource = $user->getRelation('peer');
+
+                return $resource;
+            }];
+        } else {
+            $firstResource->relationships = ['peer' => fn (): RelationshipStateUserResource => $secondResource];
+            $secondResource->relationships = ['peer' => fn (): RelationshipStateUserResource => $firstResource];
+        }
+
+        $include = $freshWrappers ? 'peer' : 'peer.peer.peer.peer';
+        $data = $firstResource->toResponse(JsonApiRequest::create('/?include=' . $include))->getData(true);
+
+        $this->assertCount($freshWrappers ? 2 : 1, $data['included']);
+        $this->assertSame((string) $second->getKey(), $data['included'][0]['id']);
+        $this->assertSame((string) ($freshWrappers ? $third : $first)->getKey(), $data['included'][0]['relationships']['peer']['data']['id']);
+    }
+
+    #[TestWith(['profile', false])]
+    #[TestWith(['teams', false])]
+    #[TestWith(['teams', true])]
+    public function testArrayBackedRelationshipResourcesAvoidModelOperations(string $relation, bool $nested): void
+    {
+        $user = User::factory()->create();
+        $user->setRelation($relation, $relation === 'teams' ? $user->newCollection() : null);
+        $related = new ArrayBackedJsonApiResource(['id' => 99, 'name' => 'Example']);
+        $resource = new class($user) extends RelationshipStateUserResource {
+            /**
+             * Reject a preload for backing values that are not models.
+             */
+            #[Override]
+            protected function loadMissingRequestedRelationships(JsonApiRequest $request, Collection $relatedModels, ?string $resourceClass, array $requestedRelationships): void
+            {
+                throw new RuntimeException('Array-backed resources must not reach model preloading.');
+            }
+        };
+        $resource->relationships = [$relation => fn (): Collection|ArrayBackedJsonApiResource => $relation === 'teams' ? collect([$related]) : $related];
+
+        $data = $resource->toResponse(JsonApiRequest::create('/?include=' . $relation . ($nested ? '.nested' : '')))->getData(true);
+
+        $this->assertSame([
+            ['id' => '99', 'type' => 'things', 'attributes' => ['name' => 'Example']],
+        ], $data['included']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNestedDiscoveryFailuresPropagateFromRelatedResourceConstructors(bool $discovered): void
+    {
+        $user = User::factory()->create();
+        $team = new RelatedResourceDiscoveryTeam;
+        $team->setRawAttributes(['id' => 100, 'name' => 'Outer team']);
+        $team->hasResourceMapping = true;
+        $user->setRelation('teams', $user->newCollection([$team]));
+        $resource = new RelationshipStateUserResource($user);
+        $resource->relationships = ['teams' => $discovered ? null : NestedMissingRelatedResource::class];
+
+        $this->expectException(ResourceClassNotFoundException::class);
+        $this->expectExceptionMessage('Failed to find resource class for model [' . RelatedResourceDiscoveryTeam::class . '].');
+
+        $resource->toResponse(JsonApiRequest::create('/?include=teams'));
+    }
+
+    public function testRelatedResourceConstructionErrorsAreNotReplacedWithDefaultResources(): void
+    {
+        $user = User::factory()->create();
+        $team = Team::factory()->create();
+        $user->teams()->attach($team);
+        $resource = new class($user) extends UserResource {
+            protected array $relationships = ['teams' => FailingRelatedJsonApiResource::class];
+        };
+
+        $this->expectExceptionObject(new RuntimeException('The related resource could not be constructed.'));
+
+        $resource->toResponse(JsonApiRequest::create('/?include=teams'));
+    }
+
     public function testItCanResolveRelationshipWithNestedRelationship(): void
     {
         $now = $this->freezeSecond();
@@ -467,9 +725,71 @@ class JsonApiResourceTest extends TestCase
         ));
     }
 
-    // Upstream testItIgnoresNestedIncludesThatAreNotResourceRelationships and
-    // testItIgnoresDeeplyNestedIncludesThatAreNotResourceRelationships are replaced by
-    // testRelativeRelationshipSelectionIsRestrictedToResourceDeclarations in the unit JsonApiResourceTest.
+    public function testItIgnoresNestedIncludesThatAreNotResourceRelationships(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        Comment::factory()->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        Comment::factory()->create([
+            'user_id' => $otherUser->getKey(),
+        ]);
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'comments.truncate']))
+            ->assertOk()
+            ->assertJsonCount(1, 'included');
+
+        $this->assertSame(2, Comment::count());
+    }
+
+    public function testItIgnoresDeeplyNestedIncludesThatAreNotResourceRelationships(): void
+    {
+        $user = User::factory()->create();
+        $post = Post::factory()->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        Comment::factory()->create([
+            'post_id' => $post->getKey(),
+            'user_id' => $user->getKey(),
+        ]);
+
+        Comment::factory()->create();
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'posts.comments.truncate']))
+            ->assertOk()
+            ->assertJsonCount(2, 'included');
+
+        $this->assertSame(2, Comment::count());
+    }
+
+    public function testItEagerLoadsNestedIncludesForAllRelatedModelsAtOnce(): void
+    {
+        $user = User::factory()->create();
+
+        $posts = Post::factory()->count(3)->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        foreach ($posts as $post) {
+            Comment::factory()->create([
+                'post_id' => $post->getKey(),
+                'user_id' => $user->getKey(),
+            ]);
+        }
+
+        DB::enableQueryLog();
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'posts.comments']))
+            ->assertOk()
+            ->assertJsonCount(6, 'included');
+
+        // One query for the user, one for the posts and one for the comments of all posts...
+        $this->assertCount(3, DB::getQueryLog());
+    }
 
     #[TestWith(['posts.comments', 3])]
     #[TestWith(['posts.comments.commenter', 4])]
@@ -736,6 +1056,57 @@ class JsonApiResourceTest extends TestCase
             ->assertJsonCount(2, 'included');
     }
 
+    public function testChaperoneClosuresDoNotReexpandPrimaryResourceRelationships(): void
+    {
+        $user = User::factory()->create();
+        Post::factory()->count(2)->create(['user_id' => $user->getKey()]);
+        Profile::factory()->create(['user_id' => $user->getKey()]);
+        $user->load('profile');
+        $user->setRelation('posts', $user->chaperonePosts()->get());
+        $resource = new RelationshipStateUserResource($user);
+        $postWrappers = 0;
+        $resource->relationships = ['posts' => function (User $user) use ($resource, &$postWrappers): Collection {
+            return $user->posts->map(function (Post $post) use ($resource, &$postWrappers): PostResource {
+                ++$postWrappers;
+
+                return new class($post, $resource) extends PostResource {
+                    /**
+                     * Retain the author resource supplied for the inverse relationship.
+                     */
+                    public function __construct(Post $post, protected RelationshipStateUserResource $authorResource)
+                    {
+                        parent::__construct($post);
+                    }
+
+                    /**
+                     * Keep the post identity for the custom relationship resolver.
+                     */
+                    #[Override]
+                    public function toType(Request $request): string
+                    {
+                        return 'posts';
+                    }
+
+                    /**
+                     * Supply a fresh wrapper for the chaperoned author.
+                     */
+                    #[Override]
+                    public function toRelationships(Request $request): array
+                    {
+                        return ['author' => fn (): RelationshipStateUserResource => clone $this->authorResource];
+                    }
+                };
+            });
+        }];
+        $resource->relationships[] = 'profile';
+
+        $data = $resource->toResponse(JsonApiRequest::create('/?include=posts'))->getData(true);
+
+        $this->assertSame(2, $postWrappers);
+        $this->assertSame(['posts'], array_keys($data['data']['relationships']));
+        $this->assertSame(['posts', 'posts'], array_column($data['included'], 'type'));
+    }
+
     public function testIncludedResourcesCanBeArrayBackedCustomResources(): void
     {
         $user = User::factory()->create();
@@ -765,6 +1136,39 @@ class JsonApiResourceTest extends TestCase
             ])
             ->assertJsonMissingPath('jsonapi')
             ->assertJsonMissingPath('included');
+    }
+
+    public function testAttributesCanBeConditionallyMerged(): void
+    {
+        Route::get('things-with-merged-attributes/{id}', function (string $id) {
+            return new class(['id' => (int) $id, 'name' => 'test', 'secret' => 'hidden', 'notes' => 'internal']) extends ArrayBackedJsonApiResource {
+                /**
+                 * Transform the resource into attributes.
+                 */
+                #[Override]
+                public function toAttributes(Request $request): array
+                {
+                    return [
+                        'name' => $this->resource['name'],
+                        $this->mergeWhen(false, ['secret' => $this->resource['secret']]),
+                        $this->mergeWhen(true, ['notes' => $this->resource['notes']]),
+                    ];
+                }
+            };
+        });
+
+        $this->getJson('/things-with-merged-attributes/99')
+            ->assertHeader('Content-type', 'application/vnd.api+json')
+            ->assertExactJson([
+                'data' => [
+                    'id' => '99',
+                    'type' => 'things',
+                    'attributes' => [
+                        'name' => 'test',
+                        'notes' => 'internal',
+                    ],
+                ],
+            ]);
     }
 
     public function testSameModelWithTheSameResourceTypeIsDeduplicated(): void
@@ -903,5 +1307,79 @@ class JsonApiResourceTest extends TestCase
             ->assertJsonPath('included.1.type', 'authors')
             ->assertJsonPath('included.1.id', (string) $user->getKey())
             ->assertJsonCount(2, 'included');
+    }
+}
+
+class RelationshipStateUserResource extends UserResource
+{
+    public array $relationships = [];
+
+    /**
+     * Keep the user identity while customizing its relationship resolvers.
+     */
+    #[Override]
+    public function toType(Request $request): string
+    {
+        return 'users';
+    }
+}
+
+class RelatedResourceDiscoveryTeam extends Team
+{
+    public bool $hasResourceMapping = false;
+
+    /**
+     * Select a resource based on this model's presentation state.
+     */
+    #[Override]
+    protected function resolveResourceFromAttribute(string $class): ?string
+    {
+        return $this->hasResourceMapping ? NestedMissingRelatedResource::class : null;
+    }
+}
+
+class NestedMissingRelatedResource extends JsonApiResource
+{
+    /**
+     * Attempt a nested lookup for an unmapped instance of the same model class.
+     */
+    public function __construct(mixed $resource)
+    {
+        parent::__construct($resource);
+
+        (new RelatedResourceDiscoveryTeam)->toResource();
+    }
+}
+
+class FailingRelatedJsonApiResource extends JsonApiResource
+{
+    /**
+     * Fail while constructing the configured resource.
+     */
+    public function __construct(mixed $resource)
+    {
+        throw new RuntimeException('The related resource could not be constructed.');
+    }
+}
+
+class ConstructorStateJsonApiResource extends JsonApiResource
+{
+    protected array $relationships = ['comments'];
+
+    /**
+     * Create a resource with caller-supplied presentation state.
+     */
+    public function __construct(mixed $resource, private string $label)
+    {
+        parent::__construct($resource);
+    }
+
+    /**
+     * Transform the resource attributes.
+     */
+    #[Override]
+    public function toAttributes(Request $request): array
+    {
+        return ['label' => $this->label];
     }
 }

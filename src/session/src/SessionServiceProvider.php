@@ -17,6 +17,7 @@ class SessionServiceProvider extends ServiceProvider
         $this->registerSessionDriver();
 
         $this->commands([
+            Console\SessionGarbageCollectCommand::class,
             Console\SessionTableCommand::class,
         ]);
     }

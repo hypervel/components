@@ -17,6 +17,7 @@ use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Tests\Mcp\Fixtures\discoverResponse;
 use function Hypervel\Tests\Mcp\Fixtures\initializeResponse;
@@ -104,6 +105,42 @@ class HandshakeTest extends TestCase
         $this->assertCount(2, $transport->sent);
         $this->assertSame('initialize', json_decode($transport->sent[0], true)['method']);
         $this->assertSame('notifications/initialized', json_decode($transport->sent[1], true)['method']);
+    }
+
+    public function testLegacyFallbackPreservesCancellationThroughCleanup(): void
+    {
+        $failure = new RuntimeException('Handshake cleanup failed.', previous: new CanceledException);
+        $transport = new class($failure) extends FakeTransport {
+            /**
+             * Capture the failure raised by the legacy handshake.
+             */
+            public function __construct(private Throwable $failure)
+            {
+            }
+
+            /**
+             * Cancel while waiting for the legacy handshake response.
+             */
+            public function receive(): string
+            {
+                throw $this->failure;
+            }
+        };
+        $transport->negotiates = true;
+        $transport->timesOutOnDiscover = true;
+        $client = new Client($transport);
+        $caught = null;
+
+        try {
+            $client->connect();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse($client->connected());
+        $this->assertCount(1, $transport->sent);
+        $this->assertSame('initialize', json_decode($transport->sent[0], true)['method']);
     }
 
     public function testNeverSendsADiscoveryEraVersionOrMetadataThroughTheHandshake(): void
@@ -480,7 +517,10 @@ class HandshakeTest extends TestCase
         $this->assertCount(1, $transport->sent);
     }
 
-    public function testRethrowsAnAuthorizationFailureWhenReinitializingARememberedLegacyServer(): void
+    #[TestWith(['authorization'])]
+    #[TestWith(['direct cancellation'])]
+    #[TestWith(['wrapped cancellation'])]
+    public function testRethrowsAuthorizationAndCancellationWhenReinitializingARememberedLegacyServer(string $kind): void
     {
         $transport = $this->negotiatingTransport();
         $transport->responses[] = methodNotFoundResponse();
@@ -491,13 +531,17 @@ class HandshakeTest extends TestCase
         $client->disconnect();
 
         $transport->sent = [];
-        $failure = new AuthorizationRequiredException;
+        $failure = match ($kind) {
+            'direct cancellation' => new CanceledException,
+            'wrapped cancellation' => new RuntimeException('Request cleanup failed.', previous: new CanceledException),
+            default => new AuthorizationRequiredException,
+        };
         $transport->throwOnNextSend = $failure;
         $caught = null;
 
         try {
             $client->connect();
-        } catch (AuthorizationRequiredException $exception) {
+        } catch (Throwable $exception) {
             $caught = $exception;
         }
 
@@ -594,16 +638,20 @@ class HandshakeTest extends TestCase
         }
     }
 
-    public function testCancellationDuringDisconnectTakesPrecedenceOverARequestFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancellationDuringDisconnectTakesPrecedenceOverARequestFailure(bool $wrapped): void
     {
-        $cancellation = new CanceledException('Disconnect canceled.');
+        $cancellation = $wrapped
+            ? new RuntimeException('Disconnect cleanup failed.', previous: new CanceledException)
+            : new CanceledException('Disconnect canceled.');
         $transport = new class($cancellation) extends FakeTransport {
             public bool $disconnected = false;
 
             /**
              * Create a transport whose cleanup is cancelled.
              */
-            public function __construct(private CanceledException $cancellation)
+            public function __construct(private Throwable $cancellation)
             {
             }
 
@@ -627,7 +675,7 @@ class HandshakeTest extends TestCase
 
         try {
             $client->ping();
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $caught = $exception;
         }
 

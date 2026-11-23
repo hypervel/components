@@ -30,6 +30,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class OperationEventsTest extends TestCase
@@ -62,6 +63,29 @@ class OperationEventsTest extends TestCase
         $this->assertSame($started->model, $failed->model);
         $this->assertSame($started->prompt, $failed->prompt);
         $this->assertSame($exception, $failed->exception);
+    }
+
+    public function testThrowingFailureListenerDoesNotAllowRetryAfterCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Failure observer failed.');
+        $attempts = 0;
+        Embeddings::fake(static function () use ($cancellation, &$attempts): never {
+            ++$attempts;
+            throw $cancellation;
+        });
+        Event::listen(EmbeddingsFailed::class, static fn () => throw $observerFailure);
+        $caught = null;
+
+        try {
+            retry(2, fn () => Embeddings::for(['Hello'])->generate());
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame(1, $attempts);
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
     }
 
     #[DataProvider('operations')]

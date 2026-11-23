@@ -22,7 +22,8 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -31,6 +32,8 @@ use Throwable;
 
 class BroadcastBatchingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBatchesPreserveContentBoundariesAndOriginalReplay(): void
     {
         config(['ai.broadcasting.batching.milliseconds' => 60000]);
@@ -238,8 +241,8 @@ class BroadcastBatchingTest extends TestCase
     {
         config(['broadcasting.default' => 'null', 'ai.broadcasting.batching.max_bytes' => 1]);
         $failure = $cleanupThrows ? new RuntimeException('Release cleanup failed.', previous: new CanceledException) : new CanceledException;
-        $lease = m::mock(ConnectionLease::class);
-        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        $lease = Double::for(ConnectionLease::class)->strict();
+        $lease->expects('releaseIfIdle')->throws($failure);
         $waiting = new Channel(1);
         $senderCanceled = false;
         $senderId = null;

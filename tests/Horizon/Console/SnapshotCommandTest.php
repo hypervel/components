@@ -10,10 +10,13 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Horizon\Lock;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SnapshotCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
@@ -23,15 +26,15 @@ class SnapshotCommandTest extends TestCase
 
     public function testDefaultSnapshotLockLeavesAThirtySecondSafetyMargin(): void
     {
-        $lock = m::mock(Lock::class);
-        $lock->shouldReceive('get')->once()->with(
+        $lock = Double::for(Lock::class)->strict();
+        $lock->expects('get')->with(
             'metrics:snapshot',
             270,
-        )->andReturnFalse();
+        )->returns(false);
 
         $this->app->make(SnapshotCommand::class)->handle(
             $lock,
-            m::mock(MetricsRepository::class),
+            Double::for(MetricsRepository::class)->strict(),
         );
     }
 
@@ -41,15 +44,15 @@ class SnapshotCommandTest extends TestCase
             'trim_snapshots' => ['job' => 12, 'queue' => 12],
         ]]);
 
-        $lock = m::mock(Lock::class);
-        $lock->shouldReceive('get')->once()->with(
+        $lock = Double::for(Lock::class)->strict();
+        $lock->expects('get')->with(
             'metrics:snapshot',
             270,
-        )->andReturnFalse();
+        )->returns(false);
 
         $this->app->make(SnapshotCommand::class)->handle(
             $lock,
-            m::mock(MetricsRepository::class),
+            Double::for(MetricsRepository::class)->strict(),
         );
     }
 }

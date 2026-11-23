@@ -12,10 +12,13 @@ use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class HorizonConfigTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCanonicalDefaultsAreDeclared(): void
     {
         $config = $this->withEnvironmentValues(
@@ -54,12 +57,12 @@ class HorizonConfigTest extends TestCase
                 ],
             ],
         ]);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturnFalse();
-        $app->shouldReceive('make')->with('config')->andReturn($config);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
+        $app = Double::for(Application::class, override: true)->passthru();
+        $app->allows('configurationIsCached')->returns(false);
+        $app->allows('make')->with('config')->returns($config);
+        $app->allows('make')->with(ConfigMutationTracker::class)->returns(new ConfigMutationTracker);
 
-        (new HorizonConfigServiceProvider($app))->register();
+        (new HorizonConfigServiceProvider($app->instance()))->register();
 
         $this->assertSame([
             'trim_snapshots' => ['job' => 12, 'queue' => 12],
@@ -73,12 +76,12 @@ class HorizonConfigTest extends TestCase
                 'app' => ['name' => 'Hypervel'],
                 'horizon' => ['name' => $name],
             ]);
-            $app = m::mock(Application::class)->makePartial();
-            $app->shouldReceive('configurationIsCached')->andReturnFalse();
-            $app->shouldReceive('make')->with('config')->andReturn($config);
-            $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
+            $app = Double::for(Application::class, override: true)->passthru();
+            $app->allows('configurationIsCached')->returns(false);
+            $app->allows('make')->with('config')->returns($config);
+            $app->allows('make')->with(ConfigMutationTracker::class)->returns(new ConfigMutationTracker);
 
-            (new HorizonServiceProviderForTesting($app))->normalize();
+            (new HorizonServiceProviderForTesting($app->instance()))->normalize();
 
             $this->assertSame($name === '0' ? '0' : 'Hypervel', $config->get('horizon.name'));
         }
@@ -92,12 +95,12 @@ class HorizonConfigTest extends TestCase
         ]);
         $tracker = new ConfigMutationTracker;
         $tracker->observe($masterConfig);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturnFalse();
-        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        $app = Double::for(Application::class, override: true)->passthru();
+        $app->allows('configurationIsCached')->returns(false);
+        $app->allows('make')->with('config')->returns($masterConfig);
+        $app->allows('make')->with(ConfigMutationTracker::class)->returns($tracker);
 
-        (new HorizonServiceProviderForTesting($app))->normalize();
+        (new HorizonServiceProviderForTesting($app->instance()))->normalize();
 
         $this->assertSame('Old Name', $masterConfig->get('horizon.name'));
 
@@ -129,15 +132,15 @@ class HorizonConfigTest extends TestCase
         $tracker->observe($masterConfig);
         // Horizon::use() reads the application's configuration, which a rebuild refreshes in place.
         $currentConfig = $masterConfig;
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturnFalse();
-        $app->shouldReceive('make')->with('config')->andReturnUsing(static function () use (&$currentConfig): ConfigRepository {
+        $app = Double::for(Application::class, override: true)->passthru();
+        $app->allows('configurationIsCached')->returns(false);
+        $app->allows('make')->with('config')->resolves(static function () use (&$currentConfig): ConfigRepository {
             return $currentConfig;
         });
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
-        Container::setInstance($app);
+        $app->allows('make')->with(ConfigMutationTracker::class)->returns($tracker);
+        Container::setInstance($app->instance());
 
-        (new HorizonServiceProviderForTesting($app))->configureForTest();
+        (new HorizonServiceProviderForTesting($app->instance()))->configureForTest();
 
         $this->assertSame('old-host', $masterConfig->get('database.redis.horizon.host'));
         $this->assertSame('old_horizon:', $masterConfig->get('database.redis.horizon.prefix'));

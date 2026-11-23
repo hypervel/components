@@ -23,6 +23,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
+use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
@@ -37,6 +38,9 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as FlysystemS3Adapter;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\FilesystemOperator;
@@ -46,7 +50,6 @@ use League\Flysystem\PathPrefixing\PathPrefixedAdapter;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnableToReadFile;
 use League\Flysystem\UnableToWriteFile;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -55,6 +58,8 @@ use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
+use UnitEnum;
 
 use function Aws\serialize;
 
@@ -66,6 +71,7 @@ enum FilesystemTestStringBackedDisk: string
 enum FilesystemTestIntBackedDisk: int
 {
     case Local = 1;
+    case Zero = 0;
 }
 
 enum FilesystemTestUnitDisk
@@ -75,6 +81,8 @@ enum FilesystemTestUnitDisk
 
 class FilesystemManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $tempDir;
 
     /** @var list<PoolManager> */
@@ -321,6 +329,48 @@ class FilesystemManagerTest extends TestCase
         ]));
     }
 
+    public function testCanSetDiskUsingEnum(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer());
+        $filesystem->set(FilesystemManagerTestDisk::Local, $disk = Double::for(Filesystem::class)->strict());
+
+        $this->assertSame($disk, $filesystem->disk('local'));
+    }
+
+    public function testCanForgetDiskUsingEnum(): void
+    {
+        $filesystem = $this->filesystemManagerWithLocalDisks();
+        $filesystem->set('local', $local = Double::for(Filesystem::class)->strict());
+        $filesystem->set('backup', $backup = Double::for(Filesystem::class)->strict());
+
+        $filesystem->forgetDisk(FilesystemManagerTestDisk::Local);
+
+        $this->assertNotSame($local, $filesystem->disk('local'));
+        $this->assertSame($backup, $filesystem->disk('backup'));
+
+        $filesystem->forgetDisk([FilesystemManagerTestDisk::Backup]);
+
+        $this->assertNotSame($backup, $filesystem->disk('backup'));
+    }
+
+    #[TestWith([FilesystemManagerTestDisk::Local, 'local'])]
+    #[TestWith([FilesystemTestUnitDisk::local, 'local'])]
+    #[TestWith([FilesystemTestIntBackedDisk::Local, '1'])]
+    #[TestWith([FilesystemTestIntBackedDisk::Zero, '0'])]
+    public function testCanPurgeDiskUsingEnum(UnitEnum $name, string $key): void
+    {
+        $filesystem = $this->filesystemManagerWithLocalDisks();
+        $filesystem->set($key, $local = Double::for(Filesystem::class)->strict());
+
+        $filesystem->purge($name);
+
+        $this->assertNotSame($local, $filesystem->disk($key));
+
+        // An uncached integer-backed name must also reach the string-only config lookup.
+        $filesystem->forgetDisk($key);
+        $filesystem->purge($name);
+    }
+
     public function testCanBuildLocalDisksThatLazilyCreateTheirRootDirectory(): void
     {
         $filesystem = new FilesystemManager($this->getContainer());
@@ -365,6 +415,27 @@ class FilesystemManagerTest extends TestCase
         $this->expectExceptionMessageIs('The disk name [ondemand] is reserved for on-demand disk fakes. Rename the configured disk.');
 
         $filesystem->disk('ondemand');
+    }
+
+    #[TestWith(['sftp'])]
+    #[TestWith(['ftp'])]
+    public function testCanBuildRemoteDisksThatDetectMimeTypesUsingThePath(string $driver): void
+    {
+        if ($driver === 'ftp' && ! function_exists('ftp_connect')) {
+            $this->markTestSkipped('Swoole FTP support is not enabled.');
+        }
+
+        $filesystem = new FilesystemManager($this->getContainer());
+
+        $disk = $filesystem->build([
+            'driver' => $driver,
+            'host' => 'localhost',
+            'username' => 'hypervel',
+            'password' => 'secret',
+            'detect_mime_type_using_path' => true,
+        ]);
+
+        $this->assertSame('text/csv', $disk->mimeType('export.csv'));
     }
 
     public function testCanBuildReadOnlyDisks(): void
@@ -442,15 +513,13 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         $expiration = new DateTimeImmutable('+5 minutes');
-        $url = m::mock();
-        $url->shouldReceive('temporarySignedRoute')
-            ->once()
-            ->with('storage.local', $expiration, ['path' => 'tenant/file.txt'], false)
-            ->andReturn('/signed/file.txt');
-        $url->shouldReceive('to')
-            ->once()
+        $url = Double::for(UrlGenerator::class)->strict();
+        $url->expects('temporarySignedRoute')
+            ->with('storage.local', Argument::same($expiration), ['path' => 'tenant/file.txt'], false)
+            ->returns('/signed/file.txt');
+        $url->expects('to')
             ->with('/signed/file.txt')
-            ->andReturn('https://example.test/signed/file.txt');
+            ->returns('https://example.test/signed/file.txt');
         $container->instance('url', $url);
 
         $filesystem = new FilesystemManager($container);
@@ -484,15 +553,13 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         $expiration = new DateTimeImmutable('+5 minutes');
-        $url = m::mock();
-        $url->shouldReceive('temporarySignedRoute')
-            ->once()
-            ->with('storage.local', $expiration, ['path' => 'tenant/documents/file.txt'], false)
-            ->andReturn('/signed/file.txt');
-        $url->shouldReceive('to')
-            ->once()
+        $url = Double::for(UrlGenerator::class)->strict();
+        $url->expects('temporarySignedRoute')
+            ->with('storage.local', Argument::same($expiration), ['path' => 'tenant/documents/file.txt'], false)
+            ->returns('/signed/file.txt');
+        $url->expects('to')
             ->with('/signed/file.txt')
-            ->andReturn('https://example.test/signed/file.txt');
+            ->returns('https://example.test/signed/file.txt');
         $container->instance('url', $url);
         $filesystem = new FilesystemManager($container);
         $disk = $filesystem->disk('documents');
@@ -544,15 +611,13 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         $expiration = new DateTimeImmutable('+5 minutes');
-        $url = m::mock();
-        $url->shouldReceive('temporarySignedRoute')
-            ->once()
-            ->with('storage.local', $expiration, ['path' => 'tenant/file.txt'], false)
-            ->andReturn('/signed/file.txt');
-        $url->shouldReceive('to')
-            ->once()
+        $url = Double::for(UrlGenerator::class)->strict();
+        $url->expects('temporarySignedRoute')
+            ->with('storage.local', Argument::same($expiration), ['path' => 'tenant/file.txt'], false)
+            ->returns('/signed/file.txt');
+        $url->expects('to')
             ->with('/signed/file.txt')
-            ->andReturn('https://example.test/signed/file.txt');
+            ->returns('https://example.test/signed/file.txt');
         $container->instance('url', $url);
         $filesystem = new FilesystemManager($container);
         $disk = $filesystem->build([
@@ -594,8 +659,8 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         Container::setInstance($container);
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldReceive('report')->once()->with(m::type(UnableToWriteFile::class));
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('report')->with(Argument::type(UnableToWriteFile::class));
         $container->instance(ExceptionHandler::class, $exceptionHandler);
         $filesystem = (new FilesystemManager($container))->addPoolableDriver('local');
         $disk = $filesystem->disk('archive');
@@ -653,15 +718,13 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         $expiration = new DateTimeImmutable('+5 minutes');
-        $url = m::mock();
-        $url->shouldReceive('temporarySignedRoute')
-            ->once()
-            ->with('storage.uploads', $expiration, ['path' => 'file.txt'], false)
-            ->andReturn('/signed/file.txt');
-        $url->shouldReceive('to')
-            ->once()
+        $url = Double::for(UrlGenerator::class)->strict();
+        $url->expects('temporarySignedRoute')
+            ->with('storage.uploads', Argument::same($expiration), ['path' => 'file.txt'], false)
+            ->returns('/signed/file.txt');
+        $url->expects('to')
             ->with('/signed/file.txt')
-            ->andReturn('https://example.test/signed/file.txt');
+            ->returns('https://example.test/signed/file.txt');
         $container->instance('url', $url);
 
         $filesystem = new FilesystemManager($container);
@@ -698,15 +761,13 @@ class FilesystemManagerTest extends TestCase
         ];
         $container = $this->getContainer(['disks' => ['public' => $config]]);
         $expiration = new DateTimeImmutable('+5 minutes');
-        $url = m::mock();
-        $url->shouldReceive('temporarySignedRoute')
-            ->once()
-            ->with('storage.public', $expiration, ['path' => 'file.txt'], false)
-            ->andReturn('/signed/file.txt');
-        $url->shouldReceive('to')
-            ->once()
+        $url = Double::for(UrlGenerator::class)->strict();
+        $url->expects('temporarySignedRoute')
+            ->with('storage.public', Argument::same($expiration), ['path' => 'file.txt'], false)
+            ->returns('/signed/file.txt');
+        $url->expects('to')
             ->with('/signed/file.txt')
-            ->andReturn('https://example.test/signed/file.txt');
+            ->returns('https://example.test/signed/file.txt');
         $container->instance('url', $url);
 
         $disk = (new FilesystemManager($container))->build($config, 'public');
@@ -1052,7 +1113,9 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
-    public function testReadThroughPromotionCancellationClosesOwnedStreams(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testReadThroughPromotionCancellationClosesOwnedStreams(bool $wrapped): void
     {
         $initialStreamIds = array_keys(get_resources('stream'));
         $source = fopen('php://temp', 'w+b');
@@ -1060,24 +1123,30 @@ class FilesystemManagerTest extends TestCase
         rewind($source);
         $temporary = null;
         $cancellation = new CanceledException('promotion canceled');
-        $primary = m::mock(FilesystemOperator::class);
-        $primary->shouldReceive('fileExists')->twice()->with('file.txt')->andReturn(false);
-        $primary->shouldReceive('writeStream')->once()->andReturnUsing(
-            static function (string $path, mixed $stream) use (&$temporary, $cancellation): never {
+        $failure = $wrapped ? UnableToWriteFile::atLocation('file.txt', previous: $cancellation) : $cancellation;
+        $primary = Double::for(FilesystemOperator::class)->strict();
+        $primary->expects('fileExists')->times(2)->with('file.txt')->returns(false);
+        $primary->expects('writeStream')->resolves(
+            static function (string $path, mixed $stream) use (&$temporary, $failure): never {
                 $temporary = $stream;
 
-                throw $cancellation;
+                throw $failure;
             },
         );
-        $fallback = m::mock(FilesystemOperator::class);
-        $fallback->shouldReceive('readStream')->once()->with('file.txt')->andReturn($source);
+        $fallback = Double::for(FilesystemOperator::class)->strict();
+        $fallback->expects('readStream')->with('file.txt')->returns($source);
         $adapter = new ReadThroughFilesystemAdapter($primary, $fallback);
 
+        $caught = null;
+
         try {
-            $adapter->readStream('file.txt');
-            $this->fail('Expected cancellation to escape promotion.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            try {
+                $adapter->readStream('file.txt');
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($failure, $caught);
             $this->assertFalse(is_resource($source));
             $this->assertNotNull($temporary);
             $this->assertFalse(is_resource($temporary));
@@ -1096,15 +1165,35 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testReadThroughPromotionPreservesWrappedCancellationForStringReads(): void
+    {
+        $failure = UnableToWriteFile::atLocation('file.txt', previous: new CanceledException);
+        $primary = Double::for(FilesystemOperator::class)->strict();
+        $primary->expects('fileExists')->times(2)->with('file.txt')->returns(false);
+        $primary->expects('write')->with('file.txt', 'contents')->throws($failure);
+        $fallback = Double::for(FilesystemOperator::class)->strict();
+        $fallback->expects('read')->with('file.txt')->returns('contents');
+        $adapter = new ReadThroughFilesystemAdapter($primary, $fallback);
+        $caught = null;
+
+        try {
+            $adapter->read('file.txt');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+    }
+
     #[DataProvider('closingPromotionResults')]
     public function testReadThroughPromotionRetainsItsStreamWhenThePrimaryClosesItsInput(bool $fails): void
     {
         $filesystem = $this->readThroughFilesystemManager();
         $fallback = $filesystem->disk('fallback');
         $fallback->put('file.txt', 'fallback contents');
-        $primary = m::mock(FilesystemOperator::class);
-        $primary->shouldReceive('fileExists')->twice()->with('file.txt')->andReturn(false);
-        $primary->shouldReceive('writeStream')->once()->andReturnUsing(
+        $primary = Double::for(FilesystemOperator::class)->strict();
+        $primary->expects('fileExists')->times(2)->with('file.txt')->returns(false);
+        $primary->expects('writeStream')->resolves(
             function (string $path, mixed $stream) use ($fails): void {
                 $this->assertSame('file.txt', $path);
                 $this->assertSame('fallback contents', stream_get_contents($stream));
@@ -1142,9 +1231,9 @@ class FilesystemManagerTest extends TestCase
         $filesystem = $this->readThroughFilesystemManager();
         $fallback = $filesystem->disk('fallback');
         $fallback->put('source.txt', 'contents');
-        $primary = m::mock(FilesystemOperator::class);
-        $primary->shouldReceive('fileExists')->once()->with('source.txt')->andReturn(false);
-        $primary->shouldReceive('writeStream')->once()->andReturnUsing(
+        $primary = Double::for(FilesystemOperator::class)->strict();
+        $primary->expects('fileExists')->with('source.txt')->returns(false);
+        $primary->expects('writeStream')->resolves(
             function (string $path, mixed $stream, array $config): void {
                 $this->assertSame('destination.txt', $path);
                 $this->assertSame('contents', stream_get_contents($stream));
@@ -2412,17 +2501,13 @@ class FilesystemManagerTest extends TestCase
             ]);
             $disk = $filesystem->buildS3DiskForTest($client, $config);
         } else {
-            $bucket = m::mock(Bucket::class);
-            $bucket->shouldReceive('upload')->once()->withArgs(
-                function (string $contents, array $options) use ($expectedAcl): bool {
-                    $this->assertSame('contents', $contents);
-                    $this->assertSame($expectedAcl, $options['predefinedAcl']);
-
-                    return true;
-                },
+            $bucket = Double::for(Bucket::class)->strict();
+            $bucket->expects('upload')->with(
+                'contents',
+                Argument::satisfies(fn (array $options): bool => $options['predefinedAcl'] === $expectedAcl),
             );
-            $client = m::mock(GcsClient::class);
-            $client->shouldReceive('bucket')->once()->with('documents')->andReturn($bucket);
+            $client = Double::for(GcsClient::class)->strict();
+            $client->expects('bucket')->with('documents')->returns($bucket);
             $disk = $filesystem->buildGcsDiskForTest($client, $config);
         }
 
@@ -2462,9 +2547,9 @@ class FilesystemManagerTest extends TestCase
 
     public function testGcsDiskUsesTheSharedFlysystemStackConfiguration(): void
     {
-        $bucket = m::mock(Bucket::class);
-        $client = m::mock(GcsClient::class);
-        $client->shouldReceive('bucket')->once()->with('documents')->andReturn($bucket);
+        $bucket = Double::for(Bucket::class)->strict();
+        $client = Double::for(GcsClient::class)->strict();
+        $client->expects('bucket')->with('documents')->returns($bucket);
         $filesystem = new InspectableFilesystemManager($this->getContainer());
         $disk = $filesystem->buildGcsDiskForTest($client, [
             'bucket' => 'documents',
@@ -2505,9 +2590,9 @@ class FilesystemManagerTest extends TestCase
 
     public function testGcsDiskDefaultsStreamingReadsAndAllowsOptOut(): void
     {
-        $bucket = m::mock(Bucket::class);
-        $client = m::mock(GcsClient::class);
-        $client->shouldReceive('bucket')->twice()->with('documents')->andReturn($bucket);
+        $bucket = Double::for(Bucket::class)->strict();
+        $client = Double::for(GcsClient::class)->strict();
+        $client->expects('bucket')->times(2)->with('documents')->returns($bucket);
         $filesystem = new InspectableFilesystemManager($this->getContainer());
 
         $default = $filesystem->buildGcsDiskForTest($client, ['bucket' => 'documents']);
@@ -2662,6 +2747,21 @@ class FilesystemManagerTest extends TestCase
         ]));
     }
 
+    /**
+     * Create a filesystem manager with isolated local disks.
+     */
+    protected function filesystemManagerWithLocalDisks(): FilesystemManager
+    {
+        return new FilesystemManager($this->getContainer([
+            'disks' => [
+                'local' => ['driver' => 'local', 'root' => $this->tempDir . '/local'],
+                'backup' => ['driver' => 'local', 'root' => $this->tempDir . '/backup'],
+                '1' => ['driver' => 'local', 'root' => $this->tempDir . '/integer'],
+                '0' => ['driver' => 'local', 'root' => $this->tempDir . '/zero'],
+            ],
+        ]));
+    }
+
     protected function getContainer(array $config = []): Container
     {
         $config = new Repository(['filesystems' => $config]);
@@ -2733,4 +2833,10 @@ class InspectableFilesystemManager extends FilesystemManager
     {
         return static::s3ArgumentNames();
     }
+}
+
+enum FilesystemManagerTestDisk: string
+{
+    case Local = 'local';
+    case Backup = 'backup';
 }

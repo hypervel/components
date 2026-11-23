@@ -16,7 +16,9 @@ use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -28,6 +30,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ObjectPoolTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCloseDrainsIdleObjectsAndIsIdempotent(): void
     {
         $destroyed = [];
@@ -66,8 +70,8 @@ class ObjectPoolTest extends TestCase
         if ($secondCleanupThrows) {
             $secondCancellation = new RuntimeException('Second cleanup failed.', previous: $secondCancellation);
         }
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->with($secondCancellation)->times($secondCleanupThrows ? 1 : 0);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($secondCancellation))->times($secondCleanupThrows ? 1 : 0);
         $this->container()->instance(ExceptionHandler::class, $handler);
         $destroyed = [];
         $pool = $this->pool(
@@ -745,8 +749,8 @@ class ObjectPoolTest extends TestCase
     {
         $container = $this->container();
         $failure = new RuntimeException('destroy failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->twice()->with($failure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->times(2)->with(Argument::same($failure));
         $container->instance(ExceptionHandler::class, $handler);
         $pool = new InspectableObjectPool(
             PoolOptions::fromArray(['max_objects' => 2]),
@@ -777,8 +781,8 @@ class ObjectPoolTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Destroy cleanup failed.', previous: $cancellation);
         }
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $this->container()->instance(ExceptionHandler::class, $handler);
         $pool = $this->pool(
             destroyCallback: static function () use ($cancellation): never {

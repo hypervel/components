@@ -10,7 +10,6 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ClassInvoker;
-use Hypervel\Support\Env;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
@@ -28,22 +27,12 @@ use Symfony\Component\VarDumper\Caster\Caster;
 
 class TinkerCommandTest extends TestCase
 {
-    private ?string $originalComposerVendorDirectory = null;
-
     private Filesystem $filesystem;
 
     private string $temporaryDirectory;
 
     protected function setUp(): void
     {
-        $originalComposerVendorDirectory = Env::get('COMPOSER_VENDOR_DIR');
-        $this->originalComposerVendorDirectory = is_string($originalComposerVendorDirectory)
-            ? $originalComposerVendorDirectory
-            : null;
-
-        Env::deleteMany(['COMPOSER_VENDOR_DIR']);
-        Env::flushRepository();
-
         parent::setUp();
 
         $this->filesystem = new Filesystem;
@@ -56,13 +45,6 @@ class TinkerCommandTest extends TestCase
     {
         try {
             $this->filesystem->deleteDirectory($this->temporaryDirectory);
-
-            Env::deleteMany(['COMPOSER_VENDOR_DIR']);
-            Env::flushRepository();
-
-            if ($this->originalComposerVendorDirectory !== null) {
-                Env::getRepository()->set('COMPOSER_VENDOR_DIR', $this->originalComposerVendorDirectory);
-            }
         } finally {
             parent::tearDown();
         }
@@ -71,12 +53,6 @@ class TinkerCommandTest extends TestCase
     protected function getPackageProviders(Application $app): array
     {
         return [TinkerServiceProvider::class];
-    }
-
-    protected function defineEnvironment(Application $app): void
-    {
-        // Point to the real vendor directory so the classmap file is found.
-        Env::getRepository()->set('COMPOSER_VENDOR_DIR', dirname(__DIR__, 2) . '/vendor');
     }
 
     public function testExecuteSuccess(): void
@@ -238,7 +214,6 @@ class TinkerCommandTest extends TestCase
             command: [PHP_BINARY, BASE_PATH . '/artisan', 'tinker', '--execute=' . $code],
             cwd: dirname(__DIR__, 2),
             env: array_merge($_ENV, [
-                'COMPOSER_VENDOR_DIR' => (string) Env::get('COMPOSER_VENDOR_DIR'),
                 'HYPERVEL_AUTOLOAD_PATH' => dirname(__DIR__, 2) . '/vendor/autoload.php',
             ]),
             timeout: 10,

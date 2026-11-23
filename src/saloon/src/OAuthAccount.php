@@ -30,8 +30,10 @@ class OAuthAccount extends Model
 {
     use HasUuids;
 
+    // @phpstan-ignore hypervel.legacyModelProperty (a subclass's own #[Table] would drop this table name)
     protected ?string $table = 'oauth_accounts';
 
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Fillable] would merge with a subclass's $fillable instead of letting it replace this list)
     protected array $fillable = [
         'provider',
         'provider_account_id',
@@ -41,6 +43,7 @@ class OAuthAccount extends Model
         'scopes',
     ];
 
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Hidden] would merge with a subclass's $hidden instead of letting it replace this list)
     protected array $hidden = ['access_token', 'refresh_token'];
 
     protected array $casts = [

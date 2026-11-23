@@ -238,7 +238,7 @@ class ServerRestartStrategy implements RestartStrategy
                 try {
                     $this->closeProcess($process);
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
         }

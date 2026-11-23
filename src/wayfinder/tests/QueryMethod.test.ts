@@ -4,6 +4,7 @@ import {
     show,
 } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/SearchController";
 import search from "./.generated/routes/search";
+import photos from "./.generated/routes/photos";
 
 describe("query only route", () => {
     test("properties", () => {
@@ -103,5 +104,18 @@ describe("get and query route", () => {
             url: "/search/posts",
             method: "query",
         });
+    });
+});
+
+describe("redirect route", () => {
+    test("every registered verb", () => {
+        expect(photos.redirect.definition.methods).toContain("query");
+
+        for (const method of photos.redirect.definition.methods) {
+            expect(photos.redirect[method]()).toEqual({
+                url: "/old-photos",
+                method,
+            });
+        }
     });
 });

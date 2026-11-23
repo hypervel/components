@@ -85,7 +85,7 @@ class ViewEngineDecoratorTest extends TestCase
         }
     }
 
-    public function testViewNameIsAvailableDuringRender(): void
+    public function testNamedViewUsesViewNameAsSpanDescription(): void
     {
         $this->filesystem->put($this->viewPath . '/hello.blade.php', 'Hello');
 
@@ -101,6 +101,32 @@ class ViewEngineDecoratorTest extends TestCase
             'sentrytest::hello',
             $this->lastViewSpanDescription($transaction)
         );
+    }
+
+    public function testFileViewInsideBasePathHasBasePathStrippedFromSpanDescription(): void
+    {
+        $this->filesystem->ensureDirectoryExists($this->viewPath . '/views');
+        $this->filesystem->put($this->viewPath . '/views/hello.blade.php', 'Hello');
+
+        // Use the temporary directory as the application base path so the view file is located inside of it
+        $this->app->setBasePath($this->viewPath);
+
+        $transaction = $this->startTransaction();
+
+        $this->app->make('view')->file($this->viewPath . '/views/hello.blade.php')->render();
+
+        $this->assertSame('/views/hello.blade.php', $this->lastViewSpanDescription($transaction));
+    }
+
+    public function testFileViewOutsideBasePathKeepsFullPathAsSpanDescription(): void
+    {
+        $this->filesystem->put($this->viewPath . '/hello.blade.php', 'Hello');
+
+        $transaction = $this->startTransaction();
+
+        $this->app->make('view')->file($this->viewPath . '/hello.blade.php')->render();
+
+        $this->assertSame($this->viewPath . '/hello.blade.php', $this->lastViewSpanDescription($transaction));
     }
 
     public function testViewNamesAreIsolatedBetweenConcurrentRenders(): void

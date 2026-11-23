@@ -21,6 +21,18 @@ interface BatchRepository
     public function find(string $batchId): ?Batch;
 
     /**
+     * Get the retry lookup IDs of the batch's outstanding failures.
+     *
+     * @return list<string>
+     */
+    public function getFailedJobIds(string $batchId): array;
+
+    /**
+     * Determine if the job's counting identity has an outstanding failure.
+     */
+    public function hasFailedJob(string $batchId, string $jobId): bool;
+
+    /**
      * Store a new pending batch.
      */
     public function store(PendingBatch $batch): Batch;
@@ -31,14 +43,19 @@ interface BatchRepository
     public function incrementTotalJobs(string $batchId, int $amount): void;
 
     /**
-     * Decrement the total number of pending jobs for the batch.
+     * Record a success once per counting identity, returning null after a prior success or deletion.
+     *
+     * Repositories reporting completedFirstPass finish in the same write at zero pending,
+     * or when the first pass completes and failures are allowed.
      */
     public function decrementPendingJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts;
 
     /**
-     * Increment the total number of failed jobs for the batch.
+     * Record a failure unless the job already succeeded or the batch was deleted.
+     *
+     * Keep the latest retry lookup ID for the counting identity. A null retry ID uses $jobId.
      */
-    public function incrementFailedJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts;
+    public function incrementFailedJobs(string $batchId, string $jobId, ?string $retryId = null): ?UpdatedBatchJobCounts;
 
     /**
      * Mark the batch that has the given ID as finished.

@@ -75,6 +75,8 @@ class File extends UploadedFile
 
     /**
      * Set the "size" of the file in kilobytes.
+     *
+     * @return $this
      */
     public function size(int $kilobytes): static
     {
@@ -93,6 +95,8 @@ class File extends UploadedFile
 
     /**
      * Set the MIME type for the file.
+     *
+     * @return $this
      */
     public function mimeType(string $mimeType): static
     {

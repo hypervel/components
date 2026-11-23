@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Filesystem;
 
 use Hypervel\Contracts\Filesystem\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
 use Throwable;
 
@@ -95,7 +96,23 @@ class LockableFile
     }
 
     /**
+     * Determine whether the open file has been unlinked.
+     */
+    public function wasDeleted(): bool
+    {
+        $stat = @fstat($this->handle);
+
+        if ($stat === false) {
+            throw new RuntimeException("Unable to determine the link count of file at path [{$this->path}].");
+        }
+
+        return $stat['nlink'] === 0;
+    }
+
+    /**
      * Write to the file.
+     *
+     * @return $this
      */
     public function write(string $contents): static
     {
@@ -118,6 +135,8 @@ class LockableFile
 
     /**
      * Truncate the file.
+     *
+     * @return $this
      */
     public function truncate(): static
     {
@@ -170,6 +189,8 @@ class LockableFile
 
     /**
      * Release the lock on the file.
+     *
+     * @return $this
      */
     public function releaseLock(): static
     {
@@ -204,7 +225,7 @@ class LockableFile
                 throw new RuntimeException("Unable to close file at path [{$this->path}].");
             }
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

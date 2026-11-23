@@ -123,7 +123,7 @@ class ImageGenerationTest extends TestCase
         });
     }
 
-    public function testImageRequestAlwaysIncludesModerationLow(): void
+    public function testImageRequestIncludesModerationLowByDefault(): void
     {
         Http::fake([
             '*' => $this->fakeAzureImageResponse(),
@@ -135,6 +135,23 @@ class ImageGenerationTest extends TestCase
             $body = json_decode($request->body(), true);
 
             return ($body['moderation'] ?? null) === 'low';
+        });
+    }
+
+    public function testImageRequestModerationCanBeSetThroughProviderOptions(): void
+    {
+        Http::fake([
+            '*' => $this->fakeAzureImageResponse(),
+        ]);
+
+        Image::of('A red apple')
+            ->withProviderOptions(['moderation' => 'auto'])
+            ->generate(provider: 'azure', model: 'gpt-image-1');
+
+        Http::assertSent(function (Request $request): bool {
+            $body = json_decode($request->body(), true);
+
+            return ($body['moderation'] ?? null) === 'auto';
         });
     }
 

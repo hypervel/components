@@ -10,7 +10,9 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Sentry\EventHandler;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use RuntimeException;
 use Sentry\Client;
@@ -24,6 +26,8 @@ use Swoole\Server;
 
 class EventHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMissingEventHandlerThrowsException(): void
     {
         $handler = new EventHandler($this->app, config()->array('sentry'));
@@ -54,23 +58,21 @@ class EventHandlerTest extends TestCase
     public function testWorkerExitListenerReturnsBeforeCoordinatorReleaseThenDrainsAndCloses(): void
     {
         $closed = new Channel(1);
-        $transport = m::mock(HttpPoolTransport::class);
-        $transport->shouldReceive('shutdown')->once()->andReturnUsing(function () use ($closed): void {
+        $transport = Double::for(HttpPoolTransport::class)->strict();
+        $transport->expects('shutdown')->resolves(function () use ($closed): void {
             $closed->push(true);
         });
-        $client = m::mock(Client::class);
-        $client->shouldReceive('getOptions')->once()->andReturn(new Options(['http_timeout' => 0.1]));
-        $client->shouldReceive('flush')
-            ->once()
-            ->withNoArgs()
+        $client = Double::for(Client::class)->strict();
+        $client->expects('getOptions')->returns(new Options(['http_timeout' => 0.1]));
+        $client->expects('flush')
+            ->with(Argument::none())
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $client->shouldReceive('flush')
-            ->once()
+            ->returns(new Result(ResultStatus::success()));
+        $client->expects('flush')
             ->with(1)
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $client->shouldReceive('getTransport')->once()->andReturn($transport);
+            ->returns(new Result(ResultStatus::success()));
+        $client->expects('getTransport')->returns($transport);
         $previousHub = SentrySdk::getCurrentHub();
         SentrySdk::setCurrentHub(new Hub($client));
         CoordinatorManager::initialize(Constants::WORKER_EXIT);
@@ -80,7 +82,7 @@ class EventHandlerTest extends TestCase
         });
 
         try {
-            $this->dispatchHypervelEvent(new OnWorkerExit(m::mock(Server::class), 1));
+            $this->dispatchHypervelEvent(new OnWorkerExit(Double::for(Server::class)->strict(), 1));
 
             $this->assertTrue($laterListenerRan);
             $this->assertTrue($closed->isEmpty());
@@ -98,35 +100,32 @@ class EventHandlerTest extends TestCase
     {
         $closed = new Channel(1);
         $flushException = new RuntimeException('Unable to flush.');
-        $transport = m::mock(HttpPoolTransport::class);
-        $transport->shouldReceive('shutdown')->once()->andReturnUsing(function () use ($closed): void {
+        $transport = Double::for(HttpPoolTransport::class)->strict();
+        $transport->expects('shutdown')->resolves(function () use ($closed): void {
             $closed->push(true);
         });
-        $client = m::mock(Client::class);
-        $client->shouldReceive('getOptions')->once()->andReturn(new Options(['http_timeout' => 0.1]));
-        $client->shouldReceive('flush')
-            ->once()
-            ->withNoArgs()
+        $client = Double::for(Client::class)->strict();
+        $client->expects('getOptions')->returns(new Options(['http_timeout' => 0.1]));
+        $client->expects('flush')
+            ->with(Argument::none())
             ->ordered()
-            ->andReturn(new Result(ResultStatus::success()));
-        $client->shouldReceive('flush')
-            ->once()
+            ->returns(new Result(ResultStatus::success()));
+        $client->expects('flush')
             ->with(1)
             ->ordered()
-            ->andThrow($flushException);
-        $client->shouldReceive('getTransport')
-            ->once()
-            ->andReturn($transport);
+            ->throws($flushException);
+        $client->expects('getTransport')
+            ->returns($transport);
         $previousHub = SentrySdk::getCurrentHub();
         SentrySdk::setCurrentHub(new Hub($client));
         CoordinatorManager::initialize(Constants::WORKER_EXIT);
-        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-        $exceptionHandler->shouldReceive('report')->once()->with($flushException);
+        $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $exceptionHandler->expects('report')->with(Argument::same($flushException));
         $this->app->instance(ExceptionHandlerContract::class, $exceptionHandler);
 
         try {
             $handler = new EventHandler($this->app, config()->array('sentry'));
-            $handler->workerExit(new OnWorkerExit(m::mock(Server::class), 1));
+            $handler->workerExit(new OnWorkerExit(Double::for(Server::class)->strict(), 1));
 
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
 

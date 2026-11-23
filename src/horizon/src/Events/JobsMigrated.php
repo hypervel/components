@@ -41,6 +41,8 @@ class JobsMigrated
 
     /**
      * Set the connection name.
+     *
+     * @return $this
      */
     public function connection(string $connectionName): static
     {
@@ -51,6 +53,8 @@ class JobsMigrated
 
     /**
      * Set the queue name.
+     *
+     * @return $this
      */
     public function queue(string $queue): static
     {

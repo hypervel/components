@@ -8,11 +8,14 @@ use Exception;
 use Hypervel\Testbench\Foundation\Process\ProcessResult;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Process\Process;
 
 class ProcessResultTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItReturnsBinaryResultsLosslessly(): void
     {
         $result = $this->processResultFor([
@@ -55,8 +58,10 @@ class ProcessResultTest extends TestCase
     public function testItReturnsRawNonClosureOutputWithoutInterpretingGzipMarkers(): void
     {
         $output = "raw\x1f\x8boutput";
-        $process = m::mock(Process::class);
-        $process->shouldReceive('getOutput')->once()->andReturn($output);
+        $process = Double::for(Process::class)->strict();
+        // Symfony's destructor stops the process even when no child was started.
+        $process->allows('stop')->with(0.0);
+        $process->expects('getOutput')->returns($output);
         $result = new ProcessResult($process, ['php', '--version']);
 
         $this->assertSame($output, $result->output());
@@ -69,9 +74,15 @@ class ProcessResultTest extends TestCase
      */
     private function processResultFor(array $payload): ProcessResult
     {
-        $process = m::mock(Process::class);
-        $process->shouldReceive('getOutput')->once()->andReturn(json_encode($payload, JSON_THROW_ON_ERROR));
+        $key = 'test-envelope-key';
+        $encoded = base64_encode(json_encode($payload, JSON_THROW_ON_ERROR));
+        $signature = hash_hmac('sha256', $encoded, $key);
+        $process = Double::for(Process::class)->strict();
+        // Symfony's destructor stops the process even when no child was started.
+        $process->allows('stop')->with(0.0);
+        $process->expects('getOutput')->returns("\n@@HYPERVEL-CONCURRENCY-V1@@{$encoded}@@{$signature}@@\n");
+        $process->expects('getEnv')->returns(['HYPERVEL_CONCURRENCY_HMAC_KEY' => $key]);
 
-        return new ProcessResult($process, static fn () => null);
+        return new ProcessResult($process, static fn (): null => null);
     }
 }

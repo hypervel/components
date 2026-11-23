@@ -16,11 +16,14 @@ use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\WebSocketServer\Events\ConnectionClosing;
 use Hypervel\WebSocketServer\Events\ConnectionOpening;
 use Hypervel\WebSocketServer\Events\MessageReceived;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionFunction;
 
 class ServiceProviderListenerRegistrationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
     ];
@@ -80,8 +83,8 @@ class ServiceProviderListenerRegistrationTest extends TestCase
 
     public function testRuntimeContextBoundariesPrecedeFeatureListenersAndResolveAtDispatchTime(): void
     {
-        $boundary = m::mock(RuntimeContextBoundary::class);
-        $boundary->shouldReceive('start')->times(5);
+        $boundary = Double::for(RuntimeContextBoundary::class)->strict();
+        $boundary->expects('start')->times(5);
         $this->app->instance(RuntimeContextBoundary::class, $boundary);
 
         foreach ([

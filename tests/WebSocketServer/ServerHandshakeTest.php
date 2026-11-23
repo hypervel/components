@@ -15,6 +15,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
@@ -30,7 +31,10 @@ use Hypervel\WebSocketServer\Events\ConnectionOpening;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Security;
 use Hypervel\WebSocketServer\Server;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use JMac\Testing\OverriddenDouble;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -44,30 +48,41 @@ use function Hypervel\Support\defer;
 
 class ServerHandshakeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('acceptedTerminationOutcomes')]
     public function testAcceptedHandshakeTerminatesAfterOpenAndDrainsOnce(string $outcome, array $expected): void
     {
         $calls = [];
-        $exception = $outcome === 'canceled' ? new CanceledException : new RuntimeException('termination failed');
+        $canceled = [];
+        $exception = match ($outcome) {
+            'canceled' => new CanceledException,
+            'wrapped' => new RuntimeException('termination cleanup failed', previous: new CanceledException),
+            default => new RuntimeException('termination failed'),
+        };
         $events = new Dispatcher;
         $events->listen(RequestReceived::class, function () use (&$calls): void {
             defer(function () use (&$calls): void { $calls[] = 'handshake deferred'; });
         });
+        $events->listen(RequestCanceled::class, function (RequestCanceled $event) use (&$calls, &$canceled): void {
+            $canceled[] = $event;
+            $calls[] = 'request canceled';
+        });
         $container = $this->container($events);
-        $reporter = m::mock(ExceptionHandler::class);
-        if ($outcome === 'failed') {
-            $reporter->expects('report')->with($exception);
+        $reporter = Double::for(ExceptionHandler::class)->strict();
+        if ($outcome === 'failed' || $outcome === 'wrapped') {
+            $reporter->expects('report')->with(Argument::same($exception));
         } else {
-            $reporter->shouldNotReceive('report');
+            $reporter->expects('report')->never();
         }
-        $container->shouldReceive('make')->with(ExceptionHandler::class)->andReturn($reporter);
-        $container->shouldReceive('make')->with(Security::class)->andReturn(new Security);
-        $handler = m::mock(OnOpenInterface::class);
-        $handler->expects('onOpen')->andReturnUsing(function () use (&$calls): void {
+        $container->allows('make')->with(ExceptionHandler::class)->returns($reporter);
+        $container->allows('make')->with(Security::class)->returns(new Security);
+        $handler = Double::for(OnOpenInterface::class)->strict();
+        $handler->expects('onOpen')->resolves(function () use (&$calls): void {
             $calls[] = 'open';
             defer(function () use (&$calls): void { $calls[] = 'open deferred'; });
         });
-        $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn($handler);
+        $container->allows('make')->with(WebSocketStub::class)->returns($handler);
         $middleware = new HandshakeTerminationStub(function () use (&$calls, $outcome, $exception): void {
             $calls[] = FdCollector::get(42);
             $calls[] = 'terminated';
@@ -76,10 +91,10 @@ class ServerHandshakeTest extends TestCase
                 throw $exception;
             }
         });
-        $container->shouldReceive('make')->with(HandshakeTerminationStub::class)->andReturn($middleware);
-        $native = m::mock(SwooleWebSocketServer::class);
-        $native->expects('isEstablished')->with(42)->andReturnTrue();
-        $server = new HandshakeLifecycleServer($container, $this->router(101, [HandshakeTerminationStub::class . ':value']), $native);
+        $container->allows('make')->with(HandshakeTerminationStub::class)->returns($middleware);
+        $native = Double::for(SwooleWebSocketServer::class)->strict();
+        $native->expects('isEstablished')->with(42)->returns(true);
+        $server = new HandshakeLifecycleServer($container->instance(), $this->router(101, [HandshakeTerminationStub::class . ':value']), $native);
         $response = $this->response(101, onEnd: function () use (&$calls): bool {
             $calls[] = 'sent';
             return true;
@@ -88,6 +103,11 @@ class ServerHandshakeTest extends TestCase
         (new Waiter(1))->wait(fn () => $server->onHandshake($this->request(), $response));
 
         $this->assertSame(['sent', 'open', WebSocketStub::class, 'terminated', ...$expected], $calls);
+
+        foreach ($canceled as $event) {
+            $this->assertSame($exception, $event->cancellation);
+            $this->assertSame(101, $event->response?->getStatusCode());
+        }
     }
 
     /**
@@ -98,7 +118,8 @@ class ServerHandshakeTest extends TestCase
         return [
             ['success', ['handshake deferred', 'open deferred', 'termination deferred']],
             ['failed', ['termination deferred']],
-            ['canceled', []],
+            ['canceled', ['request canceled']],
+            ['wrapped', ['request canceled']],
         ];
     }
 
@@ -112,9 +133,14 @@ class ServerHandshakeTest extends TestCase
             defer(function () use (&$calls): void { $calls[] = 'normal'; });
             defer(function () use (&$calls): void { $calls[] = WebSocketContext::get('middleware.value'); })->always();
         });
+        $cancellations = [];
+        $events->listen(RequestCanceled::class, function (RequestCanceled $event) use (&$calls, &$cancellations): void {
+            $cancellations[] = $event->cancellation;
+            $calls[] = 'request canceled';
+        });
         $container = $this->container($events);
-        $container->shouldReceive('make')->with(Security::class)->andReturn(new Security);
-        $container->shouldReceive('make')->with(HandshakeTerminationStub::class)->andReturn(
+        $container->allows('make')->with(Security::class)->returns(new Security);
+        $container->allows('make')->with(HandshakeTerminationStub::class)->returns(
             new HandshakeTerminationStub(function () use (&$calls, $outcome, $exception): void {
                 $calls[] = 'first';
                 if ($outcome !== 'success') {
@@ -122,13 +148,13 @@ class ServerHandshakeTest extends TestCase
                 }
             }),
         );
-        $container->shouldReceive('make')->with('second.middleware')->andReturn(
+        $container->allows('make')->with('second.middleware')->returns(
             new HandshakeTerminationStub(function () use (&$calls): void { $calls[] = 'second'; }),
         );
         $server = new HandshakeLifecycleServer(
-            $container,
+            $container->instance(),
             $this->router($status, [HandshakeTerminationStub::class, 'second.middleware']),
-            m::mock(SwooleWebSocketServer::class),
+            Double::for(SwooleWebSocketServer::class)->strict(),
         );
         $caught = null;
 
@@ -140,6 +166,7 @@ class ServerHandshakeTest extends TestCase
 
         $this->assertSame($outcome === 'success' ? null : $exception, $caught);
         $this->assertSame($expected, $calls);
+        $this->assertSame($outcome === 'canceled' ? [$exception] : [], $cancellations);
         $this->assertNull(FdCollector::get(42));
         $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
     }
@@ -152,7 +179,7 @@ class ServerHandshakeTest extends TestCase
         return [
             [302, 'success', ['first', 'second', 'normal', 'preserved']],
             [302, 'failed', ['first', 'second', 'preserved']],
-            [302, 'canceled', ['first']],
+            [302, 'canceled', ['first', 'request canceled']],
             [403, 'success', ['first', 'second', 'preserved']],
         ];
     }
@@ -168,11 +195,11 @@ class ServerHandshakeTest extends TestCase
             throw $exception;
         });
         $container = $this->container($events);
-        $container->expects('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
-        $handler = m::mock(WebSocketExceptionHandler::class);
-        $handler->expects('handle')->with($exception, m::type(Response::class))->andReturn(new Response('', 302));
-        $container->expects('make')->with(WebSocketExceptionHandler::class)->andReturn($handler);
-        $server = new HandshakeLifecycleServer($container, m::mock(Router::class), m::mock(SwooleWebSocketServer::class));
+        $container->expects('make')->with(SafeCaller::class)->returns(new SafeCaller($container->instance()));
+        $handler = Double::for(WebSocketExceptionHandler::class)->strict();
+        $handler->expects('handle')->with(Argument::same($exception), Argument::type(Response::class))->returns(new Response('', 302));
+        $container->expects('make')->with(WebSocketExceptionHandler::class)->returns($handler);
+        $server = new HandshakeLifecycleServer($container->instance(), Double::for(Router::class)->strict(), Double::for(SwooleWebSocketServer::class)->strict());
 
         $server->onHandshake($this->request(), $this->response(302));
 
@@ -181,15 +208,14 @@ class ServerHandshakeTest extends TestCase
 
     public function testDisabledHandshakeMiddlewareIsNotTerminated(): void
     {
-        $container = $this->container();
-        $container->shouldReceive('bound')->with('middleware.disable')->andReturnTrue();
-        $container->shouldReceive('make')->with('middleware.disable')->andReturnTrue();
-        $container->shouldReceive('make')->with(Security::class)->andReturn(new Security);
-        $container->shouldNotReceive('make')->with(HandshakeTerminationStub::class);
+        $container = $this->container(middlewareDisabled: true);
+        $container->allows('make')->with('middleware.disable')->returns(true);
+        $container->allows('make')->with(Security::class)->returns(new Security);
+        $container->expects('make')->never()->with(HandshakeTerminationStub::class);
         $server = new HandshakeLifecycleServer(
-            $container,
+            $container->instance(),
             $this->router(403, [HandshakeTerminationStub::class]),
-            m::mock(SwooleWebSocketServer::class),
+            Double::for(SwooleWebSocketServer::class)->strict(),
         );
 
         $server->onHandshake($this->request(), $this->response(403, 'Forbidden'));
@@ -211,10 +237,10 @@ class ServerHandshakeTest extends TestCase
         }
 
         $container = $this->container($events);
-        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
-        $container->shouldReceive('make')->once()->with(WebSocketStub::class)->andReturn(new WebSocketStub);
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldReceive('isEstablished')->once()->with(42)->andReturnTrue();
+        $container->expects('make')->with(Security::class)->returns(new Security);
+        $container->expects('make')->with(WebSocketStub::class)->returns(new WebSocketStub);
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->with(42)->returns(true);
         $response = $this->response(
             Response::HTTP_SWITCHING_PROTOCOLS,
             onEnd: function () use (&$order): bool {
@@ -225,7 +251,7 @@ class ServerHandshakeTest extends TestCase
         );
 
         (new HandshakeLifecycleServer(
-            $container,
+            $container->instance(),
             $this->router(Response::HTTP_SWITCHING_PROTOCOLS),
             $nativeServer,
         ))->onHandshake($this->request(), $response);
@@ -250,18 +276,18 @@ class ServerHandshakeTest extends TestCase
     public function testPublishesConnectionOnlyAfterSuccessfulLiveHandshakeEmission(): void
     {
         $container = $this->container();
-        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
-        $container->shouldReceive('make')->once()->with(WebSocketStub::class)->andReturn(new WebSocketStub);
+        $container->expects('make')->with(Security::class)->returns(new Security);
+        $container->expects('make')->with(WebSocketStub::class)->returns(new WebSocketStub);
 
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldReceive('isEstablished')->once()->with(42)->andReturnUsing(function (): bool {
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->with(42)->resolves(function (): bool {
             $this->assertNull(FdCollector::get(42));
 
             return true;
         });
 
         $server = new HandshakeLifecycleServer(
-            $container,
+            $container->instance(),
             $this->router(Response::HTTP_SWITCHING_PROTOCOLS),
             $nativeServer,
         );
@@ -280,17 +306,17 @@ class ServerHandshakeTest extends TestCase
             $sentEvent = $event;
         });
         $container = $this->container($events);
-        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
-        $container->shouldReceive('make')->once()->with(WebSocketStub::class)->andReturn(new WebSocketStub);
+        $container->expects('make')->with(Security::class)->returns(new Security);
+        $container->expects('make')->with(WebSocketStub::class)->returns(new WebSocketStub);
 
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldNotReceive('isEstablished');
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->never();
 
         $response = $this->response(Response::HTTP_SWITCHING_PROTOCOLS, endResult: false);
 
         try {
             (new HandshakeLifecycleServer(
-                $container,
+                $container->instance(),
                 $this->router(Response::HTTP_SWITCHING_PROTOCOLS),
                 $nativeServer,
             ))->onHandshake($this->request(), $response);
@@ -307,13 +333,13 @@ class ServerHandshakeTest extends TestCase
     public function testRejectedHandshakeReleasesConnectionContext(): void
     {
         $container = $this->container();
-        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
+        $container->expects('make')->with(Security::class)->returns(new Security);
 
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldNotReceive('isEstablished');
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->never();
 
         (new HandshakeLifecycleServer(
-            $container,
+            $container->instance(),
             $this->router(Response::HTTP_FORBIDDEN),
             $nativeServer,
         ))->onHandshake($this->request(), $this->response(Response::HTTP_FORBIDDEN, 'Forbidden'));
@@ -330,17 +356,17 @@ class ServerHandshakeTest extends TestCase
             $sentEvent = $event;
         });
         $container = $this->container($events);
-        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
-        $container->shouldReceive('make')->once()->with(SafeCaller::class)->andReturn(new SafeCaller($container));
-        $container->shouldReceive('make')->once()->with(WebSocketExceptionHandler::class)->andReturn(
-            new WebSocketExceptionHandler(m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing()),
-        );
-        $router = m::mock(Router::class);
-        $router->shouldNotReceive('dispatchToCallback');
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldNotReceive('isEstablished');
+        $container->expects('make')->with(Security::class)->returns(new Security);
+        $container->expects('make')->with(SafeCaller::class)->returns(new SafeCaller($container->instance()));
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('warning');
+        $container->expects('make')->with(WebSocketExceptionHandler::class)->returns(new WebSocketExceptionHandler($logger));
+        $router = Double::for(Router::class)->strict();
+        $router->expects('dispatchToCallback')->never();
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->never();
 
-        (new HandshakeLifecycleServer($container, $router, $nativeServer))->onHandshake(
+        (new HandshakeLifecycleServer($container->instance(), $router, $nativeServer))->onHandshake(
             $this->request(version: '8'),
             $this->response(Response::HTTP_UPGRADE_REQUIRED, 'sec-websocket-version is unsupported!'),
         );
@@ -356,18 +382,18 @@ class ServerHandshakeTest extends TestCase
     public function testConnectionClosedDuringEmissionIsNotPublishedAfterward(): void
     {
         $container = $this->container();
-        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
-        $container->shouldReceive('make')->once()->with(WebSocketStub::class)->andReturn(new WebSocketStub);
+        $container->expects('make')->with(Security::class)->returns(new Security);
+        $container->expects('make')->with(WebSocketStub::class)->returns(new WebSocketStub);
 
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldReceive('isEstablished')->once()->with(42)->andReturnUsing(function (): bool {
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->with(42)->resolves(function (): bool {
             $this->assertNull(FdCollector::get(42));
 
             return false;
         });
 
         (new HandshakeLifecycleServer(
-            $container,
+            $container->instance(),
             $this->router(Response::HTTP_SWITCHING_PROTOCOLS),
             $nativeServer,
         ))->onHandshake($this->request(), $this->response(Response::HTTP_SWITCHING_PROTOCOLS));
@@ -380,37 +406,70 @@ class ServerHandshakeTest extends TestCase
     {
         $dispatchedEvents = [];
         $events = new Dispatcher;
-        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class, RequestCanceled::class] as $eventClass) {
             $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
                 $dispatchedEvents[] = $event::class;
             });
         }
         $container = $this->container($events);
-        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
+        $container->expects('make')->with(Security::class)->returns(new Security);
 
-        $router = m::mock(Router::class);
-        $router->shouldReceive('dispatchToCallback')->once()
-            ->andReturnUsing(function (): never {
+        $router = Double::for(Router::class)->strict();
+        $router->expects('dispatchToCallback')
+            ->resolves(function (): never {
                 WebSocketContext::set('middleware.value', 'preserved');
 
                 throw new CanceledException;
             });
 
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldNotReceive('isEstablished');
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->never();
 
-        $response = m::mock(SwooleResponse::class);
-        $response->shouldReceive('status', 'header', 'end')->never();
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('status')->never();
+        $response->expects('header')->never();
+        $response->expects('end')->never();
 
         try {
-            (new HandshakeLifecycleServer($container, $router, $nativeServer))
+            (new HandshakeLifecycleServer($container->instance(), $router, $nativeServer))
                 ->onHandshake($this->request(), $response);
             $this->fail('Expected handshake cancellation to be rethrown.');
         } catch (CanceledException) {
-            $this->assertSame([RequestReceived::class], $dispatchedEvents);
+            $this->assertSame([RequestReceived::class, RequestCanceled::class], $dispatchedEvents);
             $this->assertNull(FdCollector::get(42));
             $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
         }
+    }
+
+    public function testHandshakeCancellationReportsTheHeldFailure(): void
+    {
+        $heldFailure = new RuntimeException('Handled listener failed.');
+        $cancellation = new CanceledException;
+        $canceled = null;
+        $events = new Dispatcher;
+        $events->listen(RequestHandled::class, static fn () => throw $heldFailure);
+        $events->listen(ResponseSent::class, static fn () => throw $cancellation);
+        $events->listen(RequestCanceled::class, static function (RequestCanceled $event) use (&$canceled): void {
+            $canceled = $event;
+        });
+        $container = $this->container($events);
+        $container->allows('make')->with(Security::class)->returns(new Security);
+        $reporter = Double::for(ExceptionHandler::class)->strict();
+        $reporter->expects('report')->with(Argument::same($heldFailure));
+        $reportingContainer = new BaseContainer;
+        $reportingContainer->instance(ExceptionHandler::class, $reporter);
+        BaseContainer::setInstance($reportingContainer);
+        $server = new HandshakeLifecycleServer($container->instance(), $this->router(302), Double::for(SwooleWebSocketServer::class)->strict());
+
+        try {
+            $server->onHandshake($this->request(), $this->response(302));
+            $this->fail('Expected handshake cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame($heldFailure, $canceled->exception);
+        $this->assertSame(302, $canceled->response?->getStatusCode());
     }
 
     public function testConnectionOpeningFailureIsRenderedAndReleasesContext(): void
@@ -425,16 +484,16 @@ class ServerHandshakeTest extends TestCase
             $handledEvent = $event;
         });
         $container = $this->container($events);
-        $container->shouldNotReceive('make')->with(Security::class);
-        $container->shouldReceive('make')->once()->with(SafeCaller::class)
-            ->andReturn(new SafeCaller($container));
-        $router = m::mock(Router::class);
-        $router->shouldNotReceive('dispatchToCallback');
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldNotReceive('isEstablished');
+        $container->expects('make')->never()->with(Security::class);
+        $container->expects('make')->with(SafeCaller::class)
+            ->returns(new SafeCaller($container->instance()));
+        $router = Double::for(Router::class)->strict();
+        $router->expects('dispatchToCallback')->never();
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->never();
 
         (new RenderingHandshakeLifecycleServer(
-            $container,
+            $container->instance(),
             $router,
             $nativeServer,
         ))->onHandshake($this->request(), $this->response(
@@ -455,16 +514,18 @@ class ServerHandshakeTest extends TestCase
             throw new CanceledException;
         });
         $container = $this->container($events);
-        $container->shouldNotReceive('make')->with(Security::class);
-        $router = m::mock(Router::class);
-        $router->shouldNotReceive('dispatchToCallback');
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldNotReceive('isEstablished');
-        $response = m::mock(SwooleResponse::class);
-        $response->shouldReceive('status', 'header', 'end')->never();
+        $container->expects('make')->never()->with(Security::class);
+        $router = Double::for(Router::class)->strict();
+        $router->expects('dispatchToCallback')->never();
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->never();
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('status')->never();
+        $response->expects('header')->never();
+        $response->expects('end')->never();
 
         try {
-            (new HandshakeLifecycleServer($container, $router, $nativeServer))
+            (new HandshakeLifecycleServer($container->instance(), $router, $nativeServer))
                 ->onHandshake($this->request(), $response);
             $this->fail('Expected connection opening cancellation to be rethrown.');
         } catch (CanceledException) {
@@ -476,16 +537,17 @@ class ServerHandshakeTest extends TestCase
     /**
      * Create the package container mock.
      */
-    protected function container(?Dispatcher $events = null): Container
+    protected function container(?Dispatcher $events = null, bool $middlewareDisabled = false): OverriddenDouble
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with(StdoutLoggerInterface::class)
-            ->andReturn(m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing());
-        $container->shouldReceive('bound')->once()->with('events')->andReturn($events !== null);
-        $container->shouldReceive('bound')->with('middleware.disable')->andReturnFalse()->byDefault();
+        $container = Double::for(Container::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('debug');
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->expects('bound')->with('events')->returns($events !== null);
+        $container->allows('bound')->with('middleware.disable')->returns($middlewareDisabled);
 
         if ($events !== null) {
-            $container->shouldReceive('make')->once()->with('events')->andReturn($events);
+            $container->expects('make')->with('events')->returns($events);
         }
 
         return $container;
@@ -496,14 +558,14 @@ class ServerHandshakeTest extends TestCase
      */
     protected function router(int $status, array $middleware = []): Router
     {
-        $route = m::mock(Route::class);
-        $route->shouldReceive('getControllerClass')->andReturn(WebSocketStub::class);
+        $route = Double::for(Route::class)->strict();
+        $route->allows('getControllerClass')->returns(WebSocketStub::class);
 
-        $router = m::mock(Router::class);
-        $router->shouldReceive('gatherRouteMiddleware')->with($route)->andReturn($middleware);
-        $router->shouldReceive('dispatchToCallback')->once()
-            ->with(m::type(HttpRequest::class), m::type(Closure::class))
-            ->andReturnUsing(function (HttpRequest $request) use ($route, $status): Response {
+        $router = Double::for(Router::class)->strict();
+        $router->allows('gatherRouteMiddleware')->with(Argument::same($route))->returns($middleware);
+        $router->expects('dispatchToCallback')
+            ->with(Argument::type(HttpRequest::class), Argument::type(Closure::class))
+            ->resolves(function (HttpRequest $request) use ($route, $status): Response {
                 WebSocketContext::set('middleware.value', 'preserved');
                 $request->setRouteResolver(static fn (): Route => $route);
 
@@ -518,7 +580,7 @@ class ServerHandshakeTest extends TestCase
      */
     protected function request(string $version = Security::VERSION): SwooleRequest
     {
-        $request = m::mock(SwooleRequest::class);
+        $request = Double::for(SwooleRequest::class)->strict();
         $request->fd = 42;
         $request->server = [
             'request_method' => 'get',
@@ -533,7 +595,7 @@ class ServerHandshakeTest extends TestCase
         $request->post = [];
         $request->cookie = [];
         $request->files = [];
-        $request->shouldReceive('rawContent')->once()->andReturnFalse();
+        $request->expects('rawContent')->returns(false);
 
         return $request;
     }
@@ -547,14 +609,14 @@ class ServerHandshakeTest extends TestCase
         bool $endResult = true,
         ?Closure $onEnd = null,
     ): SwooleResponse {
-        $response = m::mock(SwooleResponse::class);
-        $response->shouldReceive('status')->once()->with($status)->andReturnTrue();
-        $response->shouldReceive('header')->zeroOrMoreTimes()->andReturnTrue();
-        $expectation = $response->shouldReceive('end')->once()->with($content);
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('status')->with($status)->returns(true);
+        $response->allows('header')->returns(true);
+        $expectation = $response->expects('end')->with($content);
 
         $onEnd === null
-            ? $expectation->andReturn($endResult)
-            : $expectation->andReturnUsing($onEnd);
+            ? $expectation->returns($endResult)
+            : $expectation->resolves($onEnd);
 
         return $response;
     }

@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Attributes;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -23,7 +21,7 @@ class WithEnvTest extends TestCase
         try {
             $this->assertNull(Env::get('TESTING_USING_ATTRIBUTE'));
 
-            $callback = $attribute(m::mock(ApplicationContract::class));
+            $callback = $attribute($this->app);
 
             $this->assertTrue(Env::get('TESTING_USING_ATTRIBUTE'));
         } finally {
@@ -39,13 +37,12 @@ class WithEnvTest extends TestCase
     public function itCanResolveSpecialCharactersAndZero(): void
     {
         $value = "O'Reilly\\path\" \$HOME\nline\rreturn\fform\ttab\vvertical # hash";
-        $app = m::mock(ApplicationContract::class);
         $specialCallback = null;
         $zeroCallback = null;
 
         try {
-            $specialCallback = (new WithEnv('TESTING_SPECIAL_ATTRIBUTE', $value))($app);
-            $zeroCallback = (new WithEnv('TESTING_ZERO_ATTRIBUTE', '0'))($app);
+            $specialCallback = (new WithEnv('TESTING_SPECIAL_ATTRIBUTE', $value))($this->app);
+            $zeroCallback = (new WithEnv('TESTING_ZERO_ATTRIBUTE', '0'))($this->app);
 
             $this->assertSame($value, Env::get('TESTING_SPECIAL_ATTRIBUTE'));
             $this->assertSame('0', Env::get('TESTING_ZERO_ATTRIBUTE'));
@@ -83,7 +80,7 @@ class WithEnvTest extends TestCase
                 Env::getRepository()->set($key, $originalValue);
             }
 
-            $restore = (new WithEnv($key, 'temporary'))(m::mock(ApplicationContract::class));
+            $restore = (new WithEnv($key, 'temporary'))($this->app);
 
             try {
                 $this->assertSame('temporary', Env::get($key));
@@ -111,7 +108,7 @@ class WithEnvTest extends TestCase
 
             $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
 
-            $callback = $attribute(m::mock(ApplicationContract::class));
+            $callback = $attribute($this->app);
 
             $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
 

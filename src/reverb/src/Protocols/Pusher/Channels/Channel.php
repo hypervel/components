@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher\Channels;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Events\ChannelCreated;
 use Hypervel\Reverb\Events\ChannelRemoved;
@@ -16,7 +17,6 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SubscriptionResult;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Channel
@@ -388,9 +388,11 @@ class Channel
 
             try {
                 $connection->send($message);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }

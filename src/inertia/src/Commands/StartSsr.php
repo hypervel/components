@@ -17,7 +17,9 @@ class StartSsr extends Command
     /**
      * The console command name.
      */
-    protected ?string $signature = 'inertia:start-ssr {--runtime= : The runtime to use (e.g. `node`, `bun`, or an absolute path)}';
+    protected ?string $signature = 'inertia:start-ssr
+        {--runtime= : The runtime to use (e.g. `node`, `bun`, or an absolute path)}
+        {--no-stop-before-start : Do not send a shutdown request to the configured SSR URL before starting}';
 
     /**
      * The console command description.
@@ -60,25 +62,33 @@ class StartSsr extends Command
             return self::FAILURE;
         }
 
-        $this->callSilently('inertia:stop-ssr');
+        if (! $this->option('no-stop-before-start')) {
+            $this->callSilently('inertia:stop-ssr');
+        }
 
         $process = app(Process::class, ['command' => [$runtime, $bundle]]);
         $process->setTimeout(null);
-        $process->start();
 
-        $this->trap([SIGINT, SIGQUIT, SIGTERM], function () use ($process): void {
-            $process->stop();
-        });
+        try {
+            $process->start();
 
-        foreach ($process as $type => $data) {
-            if ($process::OUT === $type) {
-                $this->info(trim($data));
-            } else {
-                $this->error(trim($data));
-                report(new SsrException($data));
+            $this->trap([SIGINT, SIGQUIT, SIGTERM], function () use ($process): void {
+                $process->stop();
+            });
+
+            foreach ($process as $type => $data) {
+                if ($process::OUT === $type) {
+                    $this->info(trim($data));
+                } else {
+                    $this->error(trim($data));
+                    report(new SsrException($data));
+                }
             }
-        }
 
-        return $process->isSuccessful() ? self::SUCCESS : self::FAILURE;
+            return $process->isSuccessful() ? self::SUCCESS : self::FAILURE;
+        } finally {
+            // The command owns the child; a failed report must not leave it running.
+            $process->stop(0);
+        }
     }
 }

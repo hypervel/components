@@ -26,7 +26,10 @@ trait ReadsAttributes
         $cacheKey = static::class . '@' . $attributeClass;
 
         if (array_key_exists($cacheKey, static::$attributeCache)) {
-            return static::$attributeCache[$cacheKey]; // @phpstan-ignore return.type
+            /** @var null|T $attribute */
+            $attribute = static::$attributeCache[$cacheKey];
+
+            return $attribute;
         }
 
         $reflection = new ReflectionClass($this);
@@ -55,7 +58,10 @@ trait ReadsAttributes
         $cacheKey = static::class . '@' . $attributeClass . '[]';
 
         if (array_key_exists($cacheKey, static::$attributeCache)) {
-            return static::$attributeCache[$cacheKey]; // @phpstan-ignore return.type
+            /** @var list<T> $instances */
+            $instances = static::$attributeCache[$cacheKey];
+
+            return $instances;
         }
 
         $instances = [];
@@ -67,7 +73,7 @@ trait ReadsAttributes
             }
         } while ($reflection = $reflection->getParentClass());
 
-        return static::$attributeCache[$cacheKey] = $instances; // @phpstan-ignore return.type
+        return static::$attributeCache[$cacheKey] = $instances;
     }
 
     /**

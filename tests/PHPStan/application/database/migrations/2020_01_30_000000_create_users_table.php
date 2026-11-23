@@ -1,0 +1,70 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Database\Migrations;
+
+use Hypervel\Database\Migrations\Migration;
+use Hypervel\Database\Schema\Blueprint;
+
+class CreateUsersTable extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('users', static function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->string('stringButInt');
+            $table->float('floatButRoundedDecimalString');
+            $table->json('allowed_ips');
+            $table->json('meta');
+            $table->json('options');
+            $table->json('properties');
+            $table->json('enum_collection');
+            $table->json('enum_array_object');
+            $table->json('favorites');
+            $table->string('secret');
+            $table->boolean('blocked');
+            // Unlike upstream's unregistered macro, which would make the whole table unknown, a raw column keeps only its own type unknown.
+            $table->rawColumn('unknown_column', 'text');
+            $table->rememberToken();
+            $table->enum('enum_status', ['active', 'inactive', 'don\'t know']);
+            $table->string('basic_enum');
+            $table->string('backed_enum');
+            $table->string('castable_with_argument');
+
+            // Testing property casts
+            $table->integer('int');
+            $table->integer('integer');
+            $table->unsignedInteger('unsigned_integer');
+            $table->integer('unsigned_integer_method')->unsigned();
+            $table->float('real');
+            $table->float('float');
+            $table->double('double');
+            $table->decimal('decimal');
+            $table->decimal('nullable_decimal')->nullable();
+            $table->string('string');
+            $table->boolean('bool');
+            $table->boolean('boolean');
+            $table->json('object');
+            $table->json('array');
+            $table->json('json');
+            $table->json('collection');
+            $table->json('nullable_collection')->nullable();
+            $table->date('date');
+            $table->dateTime('datetime');
+            $table->date('immutable_date');
+            $table->dateTime('immutable_datetime');
+            $table->timestamp('timestamp');
+
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+}

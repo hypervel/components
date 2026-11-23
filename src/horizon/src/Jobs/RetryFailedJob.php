@@ -45,13 +45,20 @@ class RetryFailedJob
     {
         $payload = json_decode($payload, true);
 
-        return json_encode(array_merge($payload, [
+        $retry = [
             'id' => $id,
             'uuid' => $id,
             'attempts' => 0,
             'retry_of' => $this->id,
             'retryUntil' => $this->prepareNewTimeout($payload),
-        ]));
+        ];
+
+        // Horizon tracks each retry by its new UUID, but a batch tracks the job by its original ID.
+        if (isset($payload['data']['batchId'])) {
+            $retry['batchJobId'] = $payload['batchJobId'] ?? $payload['uuid'];
+        }
+
+        return json_encode(array_merge($payload, $retry));
     }
 
     /**

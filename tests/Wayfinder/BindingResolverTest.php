@@ -9,13 +9,16 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Wayfinder\BindingResolver;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 
 class BindingResolverTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('castTypes')]
     public function testPrimitiveCastEvidenceTakesPrecedence(string $cast, array $expected): void
     {
@@ -130,11 +133,11 @@ class BindingResolverTest extends TestCase
 
     private function mockConnection(string $table, array $columns): Connection
     {
-        $schema = m::mock(Builder::class);
-        $schema->shouldReceive('getColumns')->once()->with($table)->andReturn($columns);
+        $schema = Double::for(Builder::class)->strict();
+        $schema->expects('getColumns')->with($table)->returns($columns);
 
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schema);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaBuilder')->returns($schema);
 
         return $connection;
     }
@@ -173,7 +176,7 @@ class NonIncrementingBindingResolverModel extends Model
 
     protected ?string $table = 'external_binding_models';
 
-    protected string $primaryKey = 'external_id';
+    protected ?string $primaryKey = 'external_id';
 
     protected string $keyType = 'string';
 

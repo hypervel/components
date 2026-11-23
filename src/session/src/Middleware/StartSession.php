@@ -16,6 +16,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
 use Hypervel\Session\SessionManager;
 use Hypervel\Session\Store;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\CarbonImmutable;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
@@ -248,13 +249,14 @@ class StartSession
     /**
      * Register a callback to configure the session cookie attributes.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every session cookie write across all coroutines.
-     * Callbacks run in registration order; later callbacks receive the values
-     * returned by earlier callbacks and may overwrite them.
+     * The callback persists in a static property for the worker lifetime and
+     * runs on every session cookie write across all coroutines. Callbacks run
+     * in registration order; later callbacks receive the values returned by
+     * earlier callbacks and may overwrite them.
      *
      * @param Closure(Request, array): array $callback
      */
+    #[BootOnly]
     public static function configureSessionCookieUsing(Closure $callback): void
     {
         static::$sessionCookieCallbacks[] = $callback;

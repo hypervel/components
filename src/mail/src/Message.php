@@ -31,6 +31,8 @@ class Message
 
     /**
      * Add a "from" address to the message.
+     *
+     * @return $this
      */
     public function from(array|string $address, ?string $name = null): static
     {
@@ -43,6 +45,8 @@ class Message
 
     /**
      * Set the "sender" of the message.
+     *
+     * @return $this
      */
     public function sender(array|string $address, ?string $name = null): static
     {
@@ -55,6 +59,8 @@ class Message
 
     /**
      * Set the "return path" of the message.
+     *
+     * @return $this
      */
     public function returnPath(Address|string $address): static
     {
@@ -67,6 +73,8 @@ class Message
 
     /**
      * Add a recipient to the message.
+     *
+     * @return $this
      */
     public function to(array|string $address, ?string $name = null, bool $override = false): static
     {
@@ -83,6 +91,8 @@ class Message
 
     /**
      * Remove all "to" addresses from the message.
+     *
+     * @return $this
      */
     public function forgetTo(): static
     {
@@ -98,6 +108,8 @@ class Message
 
     /**
      * Add a carbon copy to the message.
+     *
+     * @return $this
      */
     public function cc(array|string $address, ?string $name = null, bool $override = false): static
     {
@@ -114,6 +126,8 @@ class Message
 
     /**
      * Remove all carbon copy addresses from the message.
+     *
+     * @return $this
      */
     public function forgetCc(): static
     {
@@ -129,6 +143,8 @@ class Message
 
     /**
      * Add a blind carbon copy to the message.
+     *
+     * @return $this
      */
     public function bcc(array|string $address, ?string $name = null, bool $override = false): static
     {
@@ -145,6 +161,8 @@ class Message
 
     /**
      * Remove all of the blind carbon copy addresses from the message.
+     *
+     * @return $this
      */
     public function forgetBcc(): static
     {
@@ -160,6 +178,8 @@ class Message
 
     /**
      * Add a "reply to" address to the message.
+     *
+     * @return $this
      */
     public function replyTo(array|string $address, ?string $name = null): static
     {
@@ -168,6 +188,8 @@ class Message
 
     /**
      * Add a recipient to the message.
+     *
+     * @return $this
      */
     protected function addAddresses(array|string $address, ?string $name, string $type): static
     {
@@ -237,6 +259,7 @@ class Message
      * Add an address debug header for a list of recipients.
      *
      * @param Address[] $addresses
+     * @return $this
      */
     protected function addAddressDebugHeader(string $header, array $addresses): static
     {
@@ -250,6 +273,8 @@ class Message
 
     /**
      * Set the subject of the message.
+     *
+     * @return $this
      */
     public function subject(string $subject): static
     {
@@ -260,6 +285,8 @@ class Message
 
     /**
      * Set the message priority level.
+     *
+     * @return $this
      */
     public function priority(int $level): static
     {
@@ -270,6 +297,8 @@ class Message
 
     /**
      * Attach a file to the message.
+     *
+     * @return $this
      */
     public function attach(Attachable|Attachment|string $file, array $options = []): static
     {
@@ -290,6 +319,7 @@ class Message
      * Attach in-memory data as an attachment.
      *
      * @param resource|string $data
+     * @return $this
      */
     public function attachData(mixed $data, string $name, array $options = []): static
     {

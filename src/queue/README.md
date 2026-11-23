@@ -7,6 +7,7 @@ Documentation: https://hypervel.org/docs/queues
 
 ## Differences From Laravel
 
+- Daemon jobs own their database routing, log context and scoped-container state. Laravel's `Worker::$flushStickyConnections` setting and the worker constructor's `$resetScope` callback are omitted; a worker-wide reset could affect concurrent jobs. See [porting queues](https://hypervel.org/docs/porting-from-laravel#queues).
 - Laravel's DynamoDB failed-job provider is not provided. Use database or file storage for failed jobs.
 - Custom job implementations must support `JobLifecycleCallbacks` to use `CountCrashesAsExceptions`, so cleanup completes before a concurrent retry starts. The base `Jobs\Job` already implements it; the `Job` contract is unchanged. See [counting worker crashes](https://hypervel.org/docs/queues#counting-worker-crashes).
 - Timeouts unwind yielding job code with Swoole's `CanceledException`, starting its `catch` and `finally` blocks. Use `finally` for cleanup and rethrow cancellation if caught. The worker stops after timeout handling by default, with a bounded wait for cleanup; `Worker::$killOnTimeout = false` keeps other jobs running. See [worker timeouts](https://hypervel.org/docs/queues#worker-timeouts) for cleanup and blocked-loop recovery.

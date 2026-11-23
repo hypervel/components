@@ -9,7 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -18,6 +18,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Database\SimpleConnectionResolver;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
 use UnitEnum;
 
@@ -85,7 +86,7 @@ class Manager
     /**
      * Get a connection instance from the global manager.
      */
-    public static function connection(?string $connection = null): ConnectionInterface
+    public static function connection(?string $connection = null): Connection
     {
         return static::$instance->getConnection($connection);
     }
@@ -109,7 +110,7 @@ class Manager
     /**
      * Get a registered connection instance.
      */
-    public function getConnection(?string $name = null): ConnectionInterface
+    public function getConnection(?string $name = null): Connection
     {
         return $this->manager->connection($name);
     }
@@ -129,7 +130,11 @@ class Manager
 
     /**
      * Bootstrap Eloquent so it is ready for usage.
+     *
+     * The resolver and dispatcher persist in Eloquent's static properties for
+     * the worker lifetime and are used by every model across all coroutines.
      */
+    #[BootOnly]
     public function bootEloquent(): void
     {
         Eloquent::setConnectionResolver($this->manager);

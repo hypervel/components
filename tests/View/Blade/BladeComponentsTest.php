@@ -11,7 +11,6 @@ use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
-use Mockery as m;
 use ReflectionClassConstant;
 use RuntimeException;
 
@@ -94,9 +93,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
     {
         $attributes = new ComponentAttributeBag(['foo' => 'baz', 'other' => 'ok']);
 
-        $component = m::mock(ComponentStub::class);
-        $component->expects('withName')->with('test')->andReturnSelf();
-        $component->expects('shouldRender')->andReturn(false);
+        $component = new BladeComponentsTestComponent;
 
         $resolvedData = null;
         Component::resolveComponentsUsing(function (string $componentClass, array $data) use ($component, &$resolvedData): Component {
@@ -112,6 +109,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
         $this->assertSame('', trim((string) ob_get_clean()));
         $this->assertSame(['foo' => 'bar', 'other' => 'ok'], $resolvedData);
+        $this->assertSame('test', $component->componentName);
     }
 
     private function expectedEndComponentClass(): string
@@ -134,5 +132,16 @@ class ComponentStub extends Component
     public function render(): ViewContract|Htmlable|Closure|string
     {
         return '';
+    }
+}
+
+class BladeComponentsTestComponent extends ComponentStub
+{
+    /**
+     * Determine whether the component should be rendered.
+     */
+    public function shouldRender(): bool
+    {
+        return false;
     }
 }

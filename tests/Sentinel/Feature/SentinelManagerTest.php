@@ -38,6 +38,13 @@ class SentinelManagerTest extends TestCase
         $this->assertSame($manager->driver(), $manager->driverOrFallback(null));
     }
 
+    public function testItFallsBackForANameWithoutACreatorMethod(): void
+    {
+        $manager = app(SentinelManager::class);
+
+        $this->assertSame($manager->driver(), $manager->driverOrFallback('-'));
+    }
+
     public function testItResolvesRegisteredDriversWithoutTheDefault(): void
     {
         $manager = app(SentinelManager::class);

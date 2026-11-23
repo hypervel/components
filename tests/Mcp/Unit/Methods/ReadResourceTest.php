@@ -82,13 +82,7 @@ class ReadResourceTest extends TestCase
             params: [] // intentionally omitting 'uri'
         );
 
-        try {
-            $readResource->handle($jsonRpcRequest, $context);
-        } catch (JsonRpcException $exception) {
-            $this->assertNull($exception->data());
-
-            throw $exception;
-        }
+        $readResource->handle($jsonRpcRequest, $context);
     }
 
     public function testThrowsExceptionWhenResourceIsNotFound(): void
@@ -105,12 +99,36 @@ class ReadResourceTest extends TestCase
             params: ['uri' => 'file://resources/non-existent']
         );
 
-        try {
-            $readResource->handle($jsonRpcRequest, $context);
-        } catch (JsonRpcException $exception) {
-            $this->assertSame(['uri' => 'file://resources/non-existent'], $exception->data());
+        $readResource->handle($jsonRpcRequest, $context);
+    }
 
-            throw $exception;
+    public function testIncludesTheRequestedUriInTheNotFoundErrorData(): void
+    {
+        $jsonRpcRequest = new JsonRpcRequest(
+            id: 1,
+            method: 'resources/read',
+            params: ['uri' => 'file://resources/non-existent']
+        );
+
+        try {
+            (new ReadResource)->handle($jsonRpcRequest, $this->getServerContext());
+
+            $this->fail('Expected a JsonRpcException.');
+        } catch (JsonRpcException $jsonRpcException) {
+            $this->assertSame(['uri' => 'file://resources/non-existent'], $jsonRpcException->data());
+        }
+    }
+
+    public function testOmitsTheErrorDataWhenTheUriIsMissing(): void
+    {
+        $jsonRpcRequest = new JsonRpcRequest(id: 1, method: 'resources/read', params: []);
+
+        try {
+            (new ReadResource)->handle($jsonRpcRequest, $this->getServerContext());
+
+            $this->fail('Expected a JsonRpcException.');
+        } catch (JsonRpcException $jsonRpcException) {
+            $this->assertNull($jsonRpcException->data());
         }
     }
 
@@ -922,7 +940,7 @@ class ReadResourceTest extends TestCase
     }
 
     #[DataProvider('invalidUris')]
-    public function testRejectsNonStringUris(mixed $uri): void
+    public function testRejectsAWronglyTypedUriParameter(mixed $uri): void
     {
         $request = new JsonRpcRequest(42, 'resources/read', ['uri' => $uri]);
 
@@ -938,6 +956,6 @@ class ReadResourceTest extends TestCase
      */
     public static function invalidUris(): array
     {
-        return [[1], [[]], [false]];
+        return ['array' => [['x']], 'int' => [1], 'empty array' => [[]], 'bool' => [false]];
     }
 }

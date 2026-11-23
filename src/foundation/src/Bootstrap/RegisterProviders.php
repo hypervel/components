@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Bootstrap;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\ClassMap\ClassMapManager;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 class RegisterProviders
 {
@@ -68,12 +69,13 @@ class RegisterProviders
     /**
      * Merge the given providers into the provider configuration before registration.
      *
-     * Boot or tests only. The provider list persists in a static property used
-     * during the RegisterProviders bootstrapper; runtime use has no effect on
+     * The provider list persists in a static property used during the
+     * RegisterProviders bootstrapper; runtime use has no effect on
      * already-registered providers.
      *
      * @param array<int, class-string|string> $providers
      */
+    #[BootOrTestsOnly]
     public static function merge(array $providers, ?string $bootstrapProviderPath = null): void
     {
         static::$bootstrapProviderPath = $bootstrapProviderPath;

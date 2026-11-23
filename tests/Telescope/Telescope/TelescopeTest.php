@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Telescope;
 
+use Hypervel\Cache\CacheManager;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -17,6 +19,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Facades\Auth;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
@@ -24,10 +27,12 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArrayInput;
+use Throwable;
 
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
@@ -108,6 +113,25 @@ class TelescopeTest extends FeatureTestCase
         EntryModel::count();
 
         $this->assertCount(1, Telescope::getEntriesQueue());
+    }
+
+    public function testRecordingPreservesCancellationFromUserResolution(): void
+    {
+        $failure = new RuntimeException('User lookup cleanup failed.', previous: new CanceledException);
+        $original = Auth::getFacadeRoot();
+        Auth::shouldReceive('hasUser')->once()->andThrow($failure);
+        $caught = null;
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'entry']));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            Auth::swap($original);
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame([], Telescope::getEntriesQueue());
     }
 
     public function testThrowingTagCallbackDoesNotPoisonLaterRecording(): void
@@ -274,6 +298,30 @@ class TelescopeTest extends FeatureTestCase
         $this->assertTrue(Telescope::shouldListen());
     }
 
+    public function testStartingRecordingPreservesCacheCancellation(): void
+    {
+        Telescope::stopRecording();
+        $failure = new RuntimeException('Pause lookup cleanup failed.', previous: new CanceledException);
+        $original = $this->app->make('cache');
+        $repository = Double::for(CacheRepository::class)->strict();
+        $repository->expects('get')->with('telescope:pause-recording', false)->throws($failure);
+        $cache = Double::for(new CacheManager($this->app))->passthru();
+        $cache->expects('store')->returns($repository);
+        $this->app->instance('cache', $cache);
+        $caught = null;
+
+        try {
+            Telescope::startRecording();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            $this->app->instance('cache', $original);
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse(Telescope::isRecording());
+    }
+
     public function testResolvedCommandStartsRecording(): void
     {
         Telescope::stopRecording();
@@ -355,7 +403,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new ScheduledTaskStarting(m::mock(Event::class)));
+            ->dispatch(new ScheduledTaskStarting(Double::for(Event::class)->strict()));
 
         $this->assertTrue(Telescope::isRecording());
     }
@@ -366,7 +414,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new ScheduledTaskStarting(m::mock(Event::class)));
+            ->dispatch(new ScheduledTaskStarting(Double::for(Event::class)->strict()));
 
         $this->assertFalse(Telescope::isRecording());
     }

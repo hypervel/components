@@ -9,6 +9,7 @@ use Hypervel\Support\Facades\Facade;
 /**
  * @method static \Hypervel\Inertia\AlwaysProp always(mixed $value)
  * @method static \Hypervel\Http\RedirectResponse back(int $status = 302, array<string, string> $headers = [], string|bool $fallback = false)
+ * @method static array broadcastProps(array<array-key, mixed> $props)
  * @method static void clearHistory()
  * @method static void configureSsrRequestUsing(\Closure|null $callback = null)
  * @method static \Hypervel\Inertia\MergeProp deepMerge(mixed $value)
@@ -24,6 +25,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static string getVersion()
  * @method static void handleExceptionsUsing(callable $callback)
  * @method static bool hasMacro(string $name)
+ * @method static \Hypervel\Inertia\LiveProp live(mixed $value, null|array<int, string|object>|string|object $on = null, null|array<int, \Hypervel\Broadcasting\Channel|string>|\Hypervel\Broadcasting\Channel|string $channel = null, int|null $throttle = null)
  * @method static \Symfony\Component\HttpFoundation\Response location(\Symfony\Component\HttpFoundation\RedirectResponse|string $url)
  * @method static void macro(string $name, callable|object $macro)
  * @method static \Hypervel\Inertia\MergeProp merge(mixed $value)

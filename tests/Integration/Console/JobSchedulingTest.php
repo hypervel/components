@@ -11,10 +11,13 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class JobSchedulingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testJobQueuingRespectsJobQueue(): void
     {
         Queue::fake();
@@ -108,9 +111,9 @@ class JobSchedulingTest extends TestCase
     public function testJobQueuingRespectsQueueRoutes(): void
     {
         // QueueFake ignores connection names, so verify selection separately from its push assertions.
-        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
-        $queue->shouldReceive('connection')->twice()->with(null)->andReturnSelf();
-        $queue->shouldReceive('connection')->once()->with('some-connection')->andReturnSelf();
+        $queue = Double::for(new QueueFake($this->app))->passthru();
+        $queue->expects('connection')->times(2)->with(null)->returns($queue);
+        $queue->expects('connection')->with('some-connection')->returns($queue);
         Queue::swap($queue);
 
         Queue::route(JobWithDefaultQueue::class, 'default-queue');

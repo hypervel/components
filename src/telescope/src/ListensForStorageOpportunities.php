@@ -17,6 +17,7 @@ use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 
 trait ListensForStorageOpportunities
@@ -33,9 +34,10 @@ trait ListensForStorageOpportunities
     /**
      * Register listeners that store the recorded Telescope entries.
      *
-     * Boot-only. Registers worker-lifetime event listeners; runtime use would
-     * accumulate duplicate listeners for every subsequent request/job.
+     * Registers worker-lifetime event listeners; runtime use would accumulate
+     * duplicate listeners for every subsequent request/job.
      */
+    #[BootOnly]
     public static function listenForStorageOpportunities(Container $app): void
     {
         static::recordEntriesForRequests($app);
@@ -46,9 +48,10 @@ trait ListensForStorageOpportunities
     /**
      * Set the callback that determines if Telescope should start recording.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and is checked before every Telescope recording opportunity.
+     * The callback persists in a static property for the worker lifetime
+     * and is checked before every Telescope recording opportunity.
      */
+    #[BootOnly]
     public static function shouldListenUsing(?Closure $callback): void
     {
         static::$shouldListenCallback = $callback;
@@ -69,9 +72,10 @@ trait ListensForStorageOpportunities
     /**
      * Record the entries in queue before the request termination.
      *
-     * Boot-only. Registers a worker-lifetime request listener; runtime use
-     * would accumulate duplicate listeners.
+     * Registers a worker-lifetime request listener; runtime use would
+     * accumulate duplicate listeners.
      */
+    #[BootOnly]
     public static function recordEntriesForRequests(Container $app): void
     {
         $app->make(Dispatcher::class)
@@ -87,9 +91,10 @@ trait ListensForStorageOpportunities
     /**
      * Start recording for approved console commands and scheduled tasks.
      *
-     * Boot-only. Registers worker-lifetime command and scheduled-task listeners;
-     * runtime use would accumulate duplicate listeners.
+     * Registers worker-lifetime command and scheduled-task listeners; runtime
+     * use would accumulate duplicate listeners.
      */
+    #[BootOnly]
     public static function manageRecordingStateForCommands(Container $app): void
     {
         $events = $app->make(Dispatcher::class);

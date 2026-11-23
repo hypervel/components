@@ -91,6 +91,60 @@ class ConditionalDedupeTest extends FacadeDocumenterTestCase
         $this->assertContains('object', $members);
     }
 
+    public function testParameterConditionalWithIdenticalBranchesIsCollapsed(): void
+    {
+        $this->writeAppFile(
+            'Conditional/IdenticalBranches/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Conditional\IdenticalBranches;
+
+                class Proxy
+                {
+                    /**
+                     * @template TFirst
+                     * @template TSecond
+                     *
+                     * @return ($callback is null ? TFirst : TSecond)
+                     */
+                    public function when(?callable $callback = null): mixed
+                    {
+                        return null;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Conditional/IdenticalBranches/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Conditional\IdenticalBranches;
+
+                /**
+                 * @see \App\Conditional\IdenticalBranches\Proxy
+                 */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\Conditional\IdenticalBranches\Facade']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+        $this->assertStringContainsString(
+            '@method static mixed when(callable|null $callback = null)',
+            $this->appFileContents('App\Conditional\IdenticalBranches\Facade'),
+        );
+    }
+
     public function testNestedGenericUnionIsNotShreddedByDedupe(): void
     {
         $this->writeAppFile(

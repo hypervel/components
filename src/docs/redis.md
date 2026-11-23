@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Configuration](#configuration)
+    - [Key Prefixes](#key-prefixes)
     - [Configuring the Connection Scheme](#configuring-the-connection-scheme)
     - [PhpRedis](#phpredis)
     - [Retry and Backoff Configuration](#retry-and-backoff-configuration)
@@ -93,6 +94,22 @@ REDIS_CACHE_URL="tls://user:password@127.0.0.1:6380?database=0"
 ```
 
 URLs may also use the `redis` or `valkey` scheme for TCP connections and the `rediss` or `valkeys` scheme for TLS connections.
+
+<a name="key-prefixes"></a>
+#### Key Prefixes
+
+Hypervel prefixes every key it stores in Redis using the `prefix` option of your Redis configuration. By default, this prefix is derived from your [application ID](/docs/{{version}}/configuration#application-id). If several instances of the same application share a Redis server, such as a production and a staging environment hosted on the same machine, they will use the same prefix and read each other's data. For example, the queue worker of one instance may process jobs that were dispatched by another instance.
+
+To avoid this, give each instance a unique prefix using the `REDIS_PREFIX` environment variable, or point each instance to its own Redis database using the `REDIS_DB` environment variable. The `cache`, `session`, `queue`, and `reverb` connections use the same database unless you set `REDIS_CACHE_DB`, `REDIS_SESSION_DB`, `REDIS_QUEUE_DB`, or `REDIS_REVERB_DB`:
+
+```ini
+REDIS_PREFIX=my_application_staging:
+```
+
+If your application uses [Horizon](/docs/{{version}}/horizon), Horizon stores its own data under a separate prefix, which may be configured using the `HORIZON_PREFIX` environment variable.
+
+> [!WARNING]
+> Changing the prefix of an existing application will cause any queued jobs and cached values stored under the previous prefix to be ignored.
 
 <a name="configuring-the-connection-scheme"></a>
 #### Configuring the Connection Scheme

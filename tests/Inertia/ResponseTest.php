@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
+use GuzzleHttp\Promise\FulfilledPromise;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\JsonResponse;
@@ -27,7 +28,6 @@ use Hypervel\Support\Fluent;
 use Hypervel\Tests\Inertia\Fixtures\FakeResource;
 use Hypervel\Tests\Inertia\Fixtures\MergeWithSharedProp;
 use Hypervel\View\View;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ResponseTest extends TestCase
@@ -898,10 +898,7 @@ class ResponseTest extends TestCase
 
         $user = (object) ['name' => 'Jonathan'];
 
-        $promise = m::mock('GuzzleHttp\Promise\PromiseInterface')
-            ->shouldReceive('wait')
-            ->andReturn($user)
-            ->getMock();
+        $promise = new FulfilledPromise($user);
 
         $response = new Response('User/Edit', [], ['user' => $promise], 'app', '123');
         /** @var JsonResponse $response */

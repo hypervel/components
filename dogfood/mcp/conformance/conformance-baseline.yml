@@ -25,13 +25,10 @@ server:
   - tools-call-embedded-resource
   - tools-call-mixed-content
   - prompts-get-embedded-resource
-  # Diagnostic tools for capability requests, elicitation and logging are not implemented.
+  # The diagnostic tool for requests needing an undeclared client capability is not implemented.
   - server-stateless
-  # TODO: Remove once Swoole strips trailing HTTP/1 header whitespace upstream.
-  - http-header-validation
-  # Server schemas do not expose custom header annotations or arbitrary JSON Schema keywords.
+  # The server does not validate mirrored Mcp-Param headers against the request body.
   - http-custom-header-server-validation
-  - json-schema-2020-12
 
 client:
   # Multi-round input requests are not implemented.

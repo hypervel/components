@@ -11,30 +11,29 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the Flush operation.
  */
 class FlushTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testFlushDeletesCacheEntriesAndScannedMemberships(): void
     {
         $connection = $this->mockConnection();
 
         // Mock GetEntries to return cache keys
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
-            ->andReturn(new LazyCollection(['key1', 'key2']));
+            ->returns(new LazyCollection(['key1', 'key2']));
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:users:entries', 'prefix:key1', 'prefix:key2'], [1, 'key1', 'key2'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_all:tag:users:entries', 'prefix:key1', 'prefix:key2'], ['key1', 'key2'])
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getEntries);
@@ -42,50 +41,48 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
-    public function testFlushWithMultipleTagsDeletesAllScannedEntries(): void
+    public function testFlushWithMultipleTagsOnlyRemovesEntriesFromTheirOwnTag(): void
     {
         $connection = $this->mockConnection();
 
-        // Mock GetEntries to return cache keys from multiple tags
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
-            ->with(['_all:tag:users:entries', '_all:tag:posts:entries'])
-            ->andReturn(new LazyCollection(['user_key1', 'user_key2', 'post_key1']));
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
+            ->with(['_all:tag:people:entries'])
+            ->returns(new LazyCollection(['person-1', 'person-2']));
+        $getEntries->expects('execute')
+            ->with(['_all:tag:artist:entries'])
+            ->returns(new LazyCollection(['person-2', 'person-3']));
+        $getEntries->expects('execute')
+            ->with(['_all:tag:empty:entries'])
+            ->returns(new LazyCollection([]));
 
         $connection->expects('evalWithShaCache')
-            ->with(
-                m::type('string'),
-                ['prefix:_all:tag:users:entries', 'prefix:_all:tag:posts:entries', 'prefix:user_key1', 'prefix:user_key2', 'prefix:post_key1'],
-                [2, 'user_key1', 'user_key2', 'post_key1'],
-            )
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_all:tag:people:entries', 'prefix:person-1', 'prefix:person-2'], ['person-1', 'person-2'])
+            ->returns(1)
+            ->ordered();
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::type('string'), ['prefix:_all:tag:artist:entries', 'prefix:person-2', 'prefix:person-3'], ['person-2', 'person-3'])
+            ->returns(1)
+            ->ordered();
 
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getEntries);
 
-        $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries']);
+        $operation->execute(['_all:tag:people:entries', '_all:tag:artist:entries', '_all:tag:empty:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithNoEntriesDoesNotDeleteTagSets(): void
     {
         $connection = $this->mockConnection();
 
         // Mock GetEntries to return empty collection
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
-            ->andReturn(new LazyCollection([]));
+            ->returns(new LazyCollection([]));
 
-        $connection->shouldNotReceive('del');
-        $connection->shouldNotReceive('evalWithShaCache');
+        $connection->client()->expects('del')->never();
+        $connection->expects('evalWithShaCache')->never();
 
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getEntries);
@@ -93,9 +90,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushChunksLargeEntrySets(): void
     {
         $connection = $this->mockConnection();
@@ -107,11 +101,10 @@ class FlushTest extends RedisCacheTestCase
         }
 
         // Mock GetEntries to return many cache keys
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
-            ->andReturn(new LazyCollection($entries));
+            ->returns(new LazyCollection($entries));
 
         // First chunk: 1000 entries.
         $firstChunkArgs = [];
@@ -119,8 +112,8 @@ class FlushTest extends RedisCacheTestCase
             $firstChunkArgs[] = "prefix:key{$i}";
         }
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:users:entries', ...$firstChunkArgs], [1, ...array_slice($entries, 0, 1000)])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_all:tag:users:entries', ...$firstChunkArgs], array_slice($entries, 0, 1000))
+            ->returns(1);
 
         // Second chunk: 500 entries.
         $secondChunkArgs = [];
@@ -128,8 +121,8 @@ class FlushTest extends RedisCacheTestCase
             $secondChunkArgs[] = "prefix:key{$i}";
         }
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:users:entries', ...$secondChunkArgs], [1, ...array_slice($entries, 1000)])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_all:tag:users:entries', ...$secondChunkArgs], array_slice($entries, 1000))
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getEntries);
@@ -139,41 +132,32 @@ class FlushTest extends RedisCacheTestCase
 
     public function testFlushReleasesScanConnectionsBeforeCheckingOutEachDeletionChunk(): void
     {
-        $connection = $this->mockConnection();
         $entries = [];
 
         for ($i = 1; $i <= 1001; ++$i) {
             $entries["key{$i}"] = 1;
         }
 
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) use ($entries) {
-                $cursor = 0;
-
-                return $entries;
-            });
+        $client = new FakeRedisClient(
+            zScanResults: [
+                'prefix:_all:tag:users:entries' => [['members' => $entries, 'iterator' => 0]],
+            ],
+            evalShaResults: [1, 1],
+        );
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
 
         $firstChunk = [];
         for ($i = 1; $i <= 1000; ++$i) {
             $firstChunk[] = "prefix:key{$i}";
         }
 
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:users:entries', ...$firstChunk], [1, ...array_slice(array_keys($entries), 0, 1000)])
-            ->andReturn(1);
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:users:entries', 'prefix:key1001'], [1, 'key1001'])
-            ->andReturn(1);
-
         $active = false;
-        $proxy = m::mock(RedisProxy::class);
-        $proxy->shouldReceive('isCluster')->once()->andReturnFalse();
-        $proxy->shouldReceive('withConnection')
+        $proxy = Double::for(RedisProxy::class)->strict();
+        $proxy->expects('isCluster')->returns(false);
+        $proxy->expects('withConnection')
             ->times(3)
-            ->with(m::type('callable'), false)
-            ->andReturnUsing(function (callable $callback) use ($connection, &$active) {
+            ->with(Argument::type('callable'), false)
+            ->resolves(function (callable $callback) use ($connection, &$active) {
                 $this->assertFalse($active);
                 $active = true;
 
@@ -184,36 +168,45 @@ class FlushTest extends RedisCacheTestCase
                 }
             });
 
-        $redis = m::mock(RedisFactory::class);
-        $redis->shouldReceive('connection')
+        $redis = Double::for(RedisFactory::class)->strict();
+        $redis->expects('connection')
             ->times(4)
             ->with('default')
-            ->andReturn($proxy);
+            ->returns($proxy);
 
         $store = new RedisStore($redis, 'prefix:', 'default');
         $context = $store->getContext();
         $operation = new Flush($context, new GetEntries($context));
 
         $operation->execute(['_all:tag:users:entries']);
+
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
+        $calls = $client->getEvalShaCalls();
+        $this->assertCount(2, $calls);
+        $this->assertSame(
+            ['prefix:_all:tag:users:entries', ...$firstChunk, ...array_slice(array_keys($entries), 0, 1000)],
+            $calls[0]['args'],
+        );
+        $this->assertSame(1001, $calls[0]['num_keys']);
+        $this->assertSame(['prefix:_all:tag:users:entries', 'prefix:key1001', 'key1001'], $calls[1]['args']);
+        $this->assertSame(2, $calls[1]['num_keys']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
 
         // Mock GetEntries to return cache keys
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
-            ->andReturn(new LazyCollection(['mykey']));
+            ->returns(new LazyCollection(['mykey']));
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['custom_prefix:_all:tag:users:entries', 'custom_prefix:mykey'], [1, 'mykey'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['custom_prefix:_all:tag:users:entries', 'custom_prefix:mykey'], ['mykey'])
+            ->returns(1);
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $operation = new Flush($store->getContext(), $getEntries);
@@ -221,22 +214,15 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithEmptyTagIds(): void
     {
         $connection = $this->mockConnection();
 
-        // Mock GetEntries - will be called with empty array
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
-            ->with([])
-            ->andReturn(new LazyCollection([]));
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')->never();
 
-        // No del calls should be made for entries or tags
-        $connection->shouldNotReceive('del');
+        $connection->client()->expects('del')->never();
+        $connection->expects('evalWithShaCache')->never();
 
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getEntries);
@@ -244,22 +230,18 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute([]);
     }
 
-    /**
-     * @test
-     */
     public function testFlushTagKeyFormat(): void
     {
         $connection = $this->mockConnection();
 
         // Mock GetEntries
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
-            ->andReturn(new LazyCollection(['key']));
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
+            ->returns(new LazyCollection(['key']));
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:my-special-tag:entries', 'prefix:key'], [1, 'key'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_all:tag:my-special-tag:entries', 'prefix:key'], ['key'])
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getEntries);
@@ -267,42 +249,31 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:my-special-tag:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeUsesSequentialDel(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
         // Mock GetEntries to return cache keys
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
-            ->andReturn(new LazyCollection(['key1', 'key2']));
+            ->returns(new LazyCollection(['key1', 'key2']));
 
-        // Cluster mode should NOT use pipeline
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->expects('zrem')
+        $client->expects('zrem')
             ->with('prefix:_all:tag:users:entries', 'key1', 'key2')
-            ->andReturn(2)->ordered();
+            ->returns(2)->ordered();
 
-        $connection->shouldReceive('del')
-            ->once()
+        $client->expects('del')
             ->with('prefix:key1', 'prefix:key2')
-            ->andReturn(2)->ordered();
+            ->returns(2)->ordered();
 
         $operation = new Flush($store->getContext(), $getEntries);
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeChunksLargeSets(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
         // Create more than CHUNK_SIZE (1000) entries
         $entries = [];
@@ -311,97 +282,80 @@ class FlushTest extends RedisCacheTestCase
         }
 
         // Mock GetEntries to return many cache keys
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
-            ->andReturn(new LazyCollection($entries));
-
-        // Cluster mode should NOT use pipeline
-        $connection->shouldNotReceive('pipeline');
+            ->returns(new LazyCollection($entries));
 
         // First chunk: 1000 entries (sequential DEL)
         $firstChunkArgs = [];
         for ($i = 1; $i <= 1000; ++$i) {
             $firstChunkArgs[] = "prefix:key{$i}";
         }
-        $connection->expects('zrem')
+        $client->expects('zrem')
             ->with('prefix:_all:tag:users:entries', ...array_slice($entries, 0, 1000))
-            ->andReturn(1000)->ordered();
-        $connection->shouldReceive('del')
-            ->once()
+            ->returns(1000)->ordered();
+        $client->expects('del')
             ->with(...$firstChunkArgs)
-            ->andReturn(1000)->ordered();
+            ->returns(1000)->ordered();
 
         // Second chunk: 500 entries (sequential DEL)
         $secondChunkArgs = [];
         for ($i = 1001; $i <= 1500; ++$i) {
             $secondChunkArgs[] = "prefix:key{$i}";
         }
-        $connection->expects('zrem')
+        $client->expects('zrem')
             ->with('prefix:_all:tag:users:entries', ...array_slice($entries, 1000))
-            ->andReturn(500)->ordered();
-        $connection->shouldReceive('del')
-            ->once()
+            ->returns(500)->ordered();
+        $client->expects('del')
             ->with(...$secondChunkArgs)
-            ->andReturn(500)->ordered();
+            ->returns(500)->ordered();
 
         $operation = new Flush($store->getContext(), $getEntries);
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeWithMultipleTags(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        // Mock GetEntries to return cache keys from multiple tags
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
-            ->with(['_all:tag:users:entries', '_all:tag:posts:entries'])
-            ->andReturn(new LazyCollection(['user_key1', 'user_key2', 'post_key1']));
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
+            ->with(['_all:tag:users:entries'])
+            ->returns(new LazyCollection(['user_key1', 'shared_key']));
+        $getEntries->expects('execute')
+            ->with(['_all:tag:posts:entries'])
+            ->returns(new LazyCollection(['shared_key', 'post_key1']));
 
-        // Cluster mode should NOT use pipeline
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->expects('zrem')
-            ->with('prefix:_all:tag:users:entries', 'user_key1', 'user_key2', 'post_key1')
-            ->andReturn(2)->ordered();
-        $connection->expects('zrem')
-            ->with('prefix:_all:tag:posts:entries', 'user_key1', 'user_key2', 'post_key1')
-            ->andReturn(1)->ordered();
-
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:user_key1', 'prefix:user_key2', 'prefix:post_key1')
-            ->andReturn(3)->ordered();
+        $client->expects('zrem')
+            ->with('prefix:_all:tag:users:entries', 'user_key1', 'shared_key')
+            ->returns(2)->ordered();
+        $client->expects('del')
+            ->with('prefix:user_key1', 'prefix:shared_key')
+            ->returns(2)->ordered();
+        $client->expects('zrem')
+            ->with('prefix:_all:tag:posts:entries', 'shared_key', 'post_key1')
+            ->returns(2)->ordered();
+        $client->expects('del')
+            ->with('prefix:shared_key', 'prefix:post_key1')
+            ->returns(1)->ordered();
 
         $operation = new Flush($store->getContext(), $getEntries);
         $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeWithNoEntries(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
         // Mock GetEntries to return empty collection
-        $getEntries = m::mock(GetEntries::class);
-        $getEntries->shouldReceive('execute')
-            ->once()
+        $getEntries = Double::for(GetEntries::class)->strict();
+        $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
-            ->andReturn(new LazyCollection([]));
+            ->returns(new LazyCollection([]));
 
-        // Cluster mode should NOT use pipeline
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->shouldNotReceive('del');
-        $connection->shouldNotReceive('zrem');
+        $client->expects('del')->never();
+        $client->expects('zrem')->never();
 
         $operation = new Flush($store->getContext(), $getEntries);
         $operation->execute(['_all:tag:users:entries']);

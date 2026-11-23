@@ -7,24 +7,9 @@ namespace Hypervel\Support;
 use Closure;
 use Hypervel\Contracts\Support\HasOnceHash;
 use Laravel\SerializableClosure\Support\ReflectionClosure;
-use WeakMap;
 
 class Onceable
 {
-    protected const int DEFAULT_LAST_OBJECT_TOKEN = 0;
-
-    /**
-     * The tokens identifying captured objects.
-     *
-     * @var null|WeakMap<object, int>
-     */
-    private static ?WeakMap $objectTokens = null;
-
-    /**
-     * The last token assigned to a captured object.
-     */
-    private static int $lastObjectToken = self::DEFAULT_LAST_OBJECT_TOKEN;
-
     /**
      * Create a new onceable instance.
      *
@@ -54,6 +39,28 @@ class Onceable
     }
 
     /**
+     * Get the objects used by the callable, which are hashed by their identity.
+     *
+     * @return array<int, object>
+     */
+    public function objects(): array
+    {
+        if (! $this->callable instanceof Closure) {
+            return [];
+        }
+
+        $objects = [];
+
+        foreach ((new ReflectionClosure($this->callable))->getClosureUsedVariables() as $argument) {
+            if (is_object($argument) && ! $argument instanceof HasOnceHash) {
+                $objects[] = $argument;
+            }
+        }
+
+        return $objects;
+    }
+
+    /**
      * Compute the object of the onceable from the given trace, if any.
      *
      * @param array<int, array<string, mixed>> $trace
@@ -74,6 +81,9 @@ class Onceable
             return null;
         }
 
+        // Reuse the reflection for captures and called class on this frequently used path.
+        $reflection = $callable instanceof Closure ? new ReflectionClosure($callable) : null;
+
         $uses = array_map(
             static function (mixed $argument): mixed {
                 if ($argument instanceof HasOnceHash) {
@@ -81,19 +91,16 @@ class Onceable
                 }
 
                 if (is_object($argument)) {
-                    // Object IDs can be reused after destruction; tokens remain unique without retaining the objects.
-                    self::$objectTokens ??= new WeakMap;
-
-                    // Keep object tokens distinct from captured scalars and arrays.
-                    return (object) ['id' => self::$objectTokens[$argument] ??= ++self::$lastObjectToken];
+                    // Keep object identities distinct from captured scalars and arrays.
+                    return (object) ['id' => spl_object_id($argument)];
                 }
 
                 return $argument;
             },
-            $callable instanceof Closure ? (new ReflectionClosure($callable))->getClosureUsedVariables() : [],
+            $reflection?->getClosureUsedVariables() ?? [],
         );
 
-        $class = $callable instanceof Closure ? (new ReflectionClosure($callable))->getClosureCalledClass()?->getName() : null;
+        $class = $reflection?->getClosureCalledClass()?->getName();
 
         $class ??= isset($trace[1]['class']) ? $trace[1]['class'] : null;
 
@@ -105,14 +112,5 @@ class Onceable
             $trace[0]['line'],
             serialize($uses),
         ));
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        self::$objectTokens = null;
-        self::$lastObjectToken = self::DEFAULT_LAST_OBJECT_TOKEN;
     }
 }

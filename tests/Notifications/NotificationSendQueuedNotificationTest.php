@@ -15,11 +15,15 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Notifications\Fixtures\Models\NotifiableUser;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Throwable;
 
 class NotificationSendQueuedNotificationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testManualFailureWithoutAnExceptionReachesTheNotification(): void
     {
         $notification = new class extends Notification {
@@ -43,12 +47,12 @@ class NotificationSendQueuedNotificationTest extends TestCase
     {
         $notification = new TestNotification;
         $job = new SendQueuedNotifications('notifiables', $notification);
-        $manager = m::mock(ChannelManager::class);
-        $manager->expects('sendNow')->withArgs(function (mixed $notifiables, mixed $notification, ?array $channels): bool {
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('sendNow')->with(Argument::all(function (mixed $notifiables, mixed $notification, ?array $channels): bool {
             return $notifiables instanceof Collection && $notifiables->toArray() === ['notifiables']
                 && $notification instanceof TestNotification
                 && $channels === null;
-        });
+        }));
         $job->handle($manager);
     }
 

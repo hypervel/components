@@ -9,7 +9,9 @@ use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 /**
  * Tests for DurationLimiterBuilder.
@@ -19,6 +21,8 @@ use Mockery as m;
  */
 class DurationLimiterBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAllowSetsMaxLocks(): void
     {
         $builder = $this->createBuilder();
@@ -153,24 +157,22 @@ class DurationLimiterBuilderTest extends TestCase
     /**
      * Create a mock RedisProxy.
      */
-    private function mockRedis(): m\MockInterface|RedisProxy
+    private function mockRedis(): RedisProxy&DoubleInterface
     {
-        return m::mock(RedisProxy::class);
+        return Double::for(RedisProxy::class)->strict();
     }
 
     /**
      * Expect a script evaluation on one held Redis connection.
      */
-    private function expectEvaluation(m\MockInterface|RedisProxy $redis, mixed $result): void
+    private function expectEvaluation(RedisProxy&DoubleInterface $redis, mixed $result): void
     {
-        $connection = m::mock(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class)->strict();
 
-        $redis->shouldReceive('withConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $redis->expects('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn($result);
+        $connection->expects('evalWithShaCache')
+            ->returns($result);
     }
 }

@@ -7,6 +7,7 @@ namespace Hypervel\Mcp\Server\Methods\Concerns;
 use Generator;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Mcp\Response;
 use Hypervel\Mcp\ResponseFactory;
@@ -18,7 +19,6 @@ use Hypervel\Mcp\Transport\JsonRpcResponse;
 use Hypervel\Support\Arr;
 use Hypervel\Validation\ValidationException;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 trait InteractsWithResponses
@@ -37,7 +37,7 @@ trait InteractsWithResponses
         $responseFactory->responses()->each(function (Response $response) use ($request): void {
             if (! $this instanceof Errable && $response->isError()) {
                 throw new JsonRpcException(
-                    $response->content()->__toString(), // @phpstan-ignore-line
+                    $response->content()->__toString(),
                     -32603,
                     $request->id,
                 );
@@ -73,9 +73,11 @@ trait InteractsWithResponses
 
                 $pendingResponses[] = $response;
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             if ($this instanceof Errable) {
                 yield $this->toJsonRpcResponse(
                     $request,
@@ -99,9 +101,11 @@ trait InteractsWithResponses
     {
         try {
             return $handler();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             if ($this instanceof Errable) {
                 return $this->toErrorResponse($throwable);
             }

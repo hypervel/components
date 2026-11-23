@@ -148,6 +148,25 @@ class FormTest extends TestCase
         Prompt::assertOutputContains('Are you sure your name is Luke and your language is PHP?');
     }
 
+    public function testTextareaAcceptsValidationRules(): void
+    {
+        Prompt::fake(['H', 'i', Key::CTRL_D]);
+
+        $rules = null;
+        Prompt::validateUsing(function (Prompt $prompt) use (&$rules): null {
+            $rules = $prompt->validate;
+
+            return null;
+        });
+
+        $responses = form()
+            ->textarea('Story', validate: ['required', 'max:100'])
+            ->submit();
+
+        $this->assertSame(['Hi'], $responses);
+        $this->assertSame(['required', 'max:100'], $rules);
+    }
+
     public function testDoesNotAllowRevertingNormalPrompts(): void
     {
         Prompt::fake([

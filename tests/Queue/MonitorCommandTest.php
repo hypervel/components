@@ -12,7 +12,9 @@ use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\MonitorCommand;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -20,25 +22,26 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class MonitorCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('outputDecoration')]
     public function testItDisplaysQueueMetricsAsJsonAndDispatchesBusyEvent(bool $decorated): void
     {
         $name = '<info>Queue\name</info> \<error>literal</error>';
-        $queue = m::mock(Queue::class);
-        $queue->shouldReceive('size')->with($name)->andReturn(1001);
-        $queue->shouldReceive('pendingSize')->with($name)->andReturn(0);
-        $queue->shouldReceive('delayedSize')->with($name)->andReturn(2);
-        $queue->shouldReceive('reservedSize')->with($name)->andReturn(3);
-        $queue->shouldReceive('creationTimeOfOldestPendingJob')->with($name)->andReturn(null);
+        $queue = Double::for(Queue::class)->strict();
+        $queue->allows('size')->with($name)->returns(1001);
+        $queue->allows('pendingSize')->with($name)->returns(0);
+        $queue->allows('delayedSize')->with($name)->returns(2);
+        $queue->allows('reservedSize')->with($name)->returns(3);
+        $queue->allows('creationTimeOfOldestPendingJob')->with($name)->returns(null);
 
-        $manager = m::mock(Factory::class);
-        $manager->shouldReceive('connection')->with('redis')->andReturn($queue);
+        $manager = Double::for(Factory::class)->strict();
+        $manager->allows('connection')->with('redis')->returns($queue);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(QueueBusy::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(fn (mixed $event): bool => $event instanceof QueueBusy
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(QueueBusy::class)->returns(true);
+        $events->expects('dispatch')
+            ->with(Argument::satisfies(fn (mixed $event): bool => $event instanceof QueueBusy
                 && $event->connectionName === 'redis'
                 && $event->queue === $name
                 && $event->size === 1001));
@@ -71,19 +74,19 @@ class MonitorCommandTest extends TestCase
 
     public function testItDisplaysDetailedQueueMetricsForTheDefaultConnection(): void
     {
-        $queue = m::mock(Queue::class);
-        $queue->shouldReceive('size')->with('default')->andReturn(1);
-        $queue->shouldReceive('pendingSize')->with('default')->andReturn(1);
-        $queue->shouldReceive('delayedSize')->with('default')->andReturn(0);
-        $queue->shouldReceive('reservedSize')->with('default')->andReturn(0);
-        $queue->shouldReceive('creationTimeOfOldestPendingJob')->with('default')->andReturn(null);
+        $queue = Double::for(Queue::class)->strict();
+        $queue->allows('size')->with('default')->returns(1);
+        $queue->allows('pendingSize')->with('default')->returns(1);
+        $queue->allows('delayedSize')->with('default')->returns(0);
+        $queue->allows('reservedSize')->with('default')->returns(0);
+        $queue->allows('creationTimeOfOldestPendingJob')->with('default')->returns(null);
 
-        $manager = m::mock(Factory::class);
-        $manager->shouldReceive('connection')->with('redis')->andReturn($queue);
+        $manager = Double::for(Factory::class)->strict();
+        $manager->allows('connection')->with('redis')->returns($queue);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(QueueBusy::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(QueueBusy::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $output = $this->runCommand(
             new MonitorCommand($manager, $events, new Repository(['queue' => ['default' => 'redis']])),

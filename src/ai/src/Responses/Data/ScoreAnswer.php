@@ -11,7 +11,7 @@ class ScoreAnswer extends Answer
      *
      * @param float $score the probability-weighted level, which may fall between two levels
      * @param array<int, float> $probabilities
-     * @param array<int, array<string, mixed>|string> $legend
+     * @param array<int, array<array-key, mixed>|string> $legend
      * @param null|float $confidence null when the provider cannot measure the distribution's certainty
      */
     public function __construct(
@@ -35,7 +35,7 @@ class ScoreAnswer extends Answer
     /**
      * Get the description of the most probable level.
      *
-     * @return null|array<string, mixed>|string
+     * @return null|array<array-key, mixed>|string
      */
     public function label(): string|array|null
     {

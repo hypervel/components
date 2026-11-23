@@ -18,7 +18,9 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
@@ -27,6 +29,8 @@ use Swoole\Coroutine\CanceledException;
 
 class TimerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAfter(): void
     {
         $this->wait(function () {
@@ -142,7 +146,7 @@ class TimerTest extends TestCase
 
     public function testCancellationDuringStartupReportingRollsBackThePublishedTimer(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $timer = new Timer;
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -155,10 +159,9 @@ class TimerTest extends TestCase
         $cancellationRequested = false;
         $callbackCalled = false;
 
-        $handler->shouldReceive('report')
-            ->once()
-            ->with($hookFailure)
-            ->andReturnUsing(static function () use (
+        $handler->expects('report')
+            ->with(Argument::same($hookFailure))
+            ->resolves(static function () use (
                 $timer,
                 $reportStarted,
                 $releaseReport,
@@ -427,8 +430,8 @@ class TimerTest extends TestCase
     public function testTickStopsSilentlyWhenItsCallbackIsCancelled(): void
     {
         $logs = 0;
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldReceive('error')->zeroOrMoreTimes()->andReturnUsing(
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->allows('error')->resolves(
             static function () use (&$logs): void {
                 ++$logs;
             },
@@ -472,8 +475,8 @@ class TimerTest extends TestCase
     {
         $this->wait(function (): void {
             $exception = new RuntimeException('recurring timer failed');
-            $logger = m::mock(LoggerInterface::class);
-            $logger->shouldReceive('error')->once()->with((string) $exception);
+            $logger = Double::for(LoggerInterface::class)->strict();
+            $logger->expects('error')->with((string) $exception);
             $timer = new Timer($logger);
             $calls = 0;
             $completed = new Channel(1);
@@ -546,11 +549,10 @@ class TimerTest extends TestCase
 
     public function testClearDontExistsClosure(): void
     {
+        $this->expectNotToPerformAssertions();
         $timer = new Timer;
 
         $timer->clear(999);
-
-        $this->assertTrue(true);
     }
 
     public function testUntil(): void

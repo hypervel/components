@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\OpenTelemetry\Instrumentation;
 
 use ArrayObject;
+use Hypervel\Console\Events\ScheduledTaskCanceled;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
@@ -20,7 +21,8 @@ use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanContext;
@@ -44,6 +46,7 @@ use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -51,6 +54,8 @@ use function Hypervel\Coroutine\parallel;
 
 class SchedulerInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string DURATION_METRIC = 'hypervel.scheduler.task.duration';
 
     private const string EXECUTIONS_METRIC = 'hypervel.scheduler.task.executions';
@@ -246,20 +251,39 @@ class SchedulerInstrumentationTest extends TestCase
         $this->assertSame('failure', $this->sumPoint(self::EXECUTIONS_METRIC)->attributes->get('result'));
     }
 
-    public function testCancellationProducesNoFalseCompletionTelemetry(): void
+    #[TestWith(['direct', StatusCode::STATUS_UNSET, null])]
+    #[TestWith(['wrapped', StatusCode::STATUS_ERROR, 'failure'])]
+    #[TestWith(['failure', StatusCode::STATUS_ERROR, 'failure'])]
+    #[TestWith(['finished', StatusCode::STATUS_UNSET, 'success'])]
+    public function testCanceledTaskEndsItsSpanWithTheKnownOutcome(string $case, string $status, ?string $result): void
     {
         $this->instrumentation()->register($this->options());
         $task = new SchedulerInstrumentationTask('reports:daily');
+        $cancellation = $case === 'wrapped'
+            ? new RuntimeException('Cleanup failed.', previous: new CanceledException)
+            : new CanceledException;
 
+        $this->clock->timestamp = 1_000_000_000;
         $this->events->dispatch(new ScheduledTaskStarting($task));
-        $active = Span::getCurrent()->getContext();
-        $this->events->dispatch(new ScheduledTaskFailed($task, new CanceledException));
+        $task->setTestExitCode(0);
+        $this->clock->timestamp = 3_000_000_000;
+        $this->events->dispatch(new ScheduledTaskCanceled(
+            $task,
+            $cancellation,
+            runtime: $case === 'finished' ? 2.0 : null,
+            exception: $case === 'failure' ? new RuntimeException('Task failed.') : null,
+        ));
 
-        $this->assertTrue($active->isValid());
-        $this->assertSame($active->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $span = $this->exportedSpan('schedule reports:daily');
+        $this->assertSame($status, $span->getStatus()->getCode());
+        $this->assertSame($result, $span->getAttributes()->get('result'));
+        $this->assertSame($case === 'finished' ? 0 : null, $span->getAttributes()->get('hypervel.scheduler.exit_code'));
+        $this->assertCount($case === 'direct' || $case === 'finished' ? 0 : 1, $span->getEvents());
+        $this->assertFalse(Span::getCurrent()->getContext()->isValid());
+
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(self::EXECUTIONS_METRIC)->data->dataPoints);
+        $this->assertSame($result, $this->sumPoint(self::EXECUTIONS_METRIC)->attributes->get('result'));
+        $this->assertSame(2, $this->histogramPoint(self::DURATION_METRIC)->sum);
     }
 
     public function testTaskIdentityIsAvailableToTheSampler(): void
@@ -339,8 +363,8 @@ class SchedulerInstrumentationTest extends TestCase
      */
     private function instrumentation(): SchedulerInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new SchedulerInstrumentation(
             $this->events,

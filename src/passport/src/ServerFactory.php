@@ -283,7 +283,7 @@ class ServerFactory
 
         if ($entry->resourceServer === null) {
             $repository = $this->app->make(Bridge\AccessTokenRepository::class);
-            $publicKey = $entry->verificationKeys[array_key_first($entry->verificationKeys)] ?? null;
+            $publicKey = array_first($entry->verificationKeys);
 
             if ($publicKey === null) {
                 throw new LogicException('No Passport verification keys are available. Generate or import signing keys first.');

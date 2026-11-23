@@ -24,8 +24,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testPutThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('setex')
-            ->andThrow(new RedisException('Connection refused'));
+        $connection->client()->allows('getLastError')->returns(null);
+        $connection->client()->expects('setex')
+            ->throws(new RedisException('Connection refused'));
 
         $store = $this->createStore($connection);
 
@@ -38,8 +39,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testGetThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('get')
-            ->andThrow(new RedisException('Connection timed out'));
+        $connection->client()->allows('getLastError')->returns(null);
+        $connection->client()->expects('get')
+            ->throws(new RedisException('Connection timed out'));
 
         $store = $this->createStore($connection);
 
@@ -52,8 +54,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testForgetThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('del')
-            ->andThrow(new RedisException('READONLY You can\'t write against a read only replica'));
+        $connection->client()->allows('getLastError')->returns('READONLY You can\'t write against a read only replica');
+        $connection->client()->expects('del')
+            ->throws(new RedisException('READONLY You can\'t write against a read only replica'));
 
         $store = $this->createStore($connection);
 
@@ -66,8 +69,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testIncrementThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('incrby')
-            ->andThrow(new RedisException('OOM command not allowed when used memory > maxmemory'));
+        $connection->client()->allows('getLastError')->returns('OOM command not allowed when used memory > maxmemory');
+        $connection->client()->expects('incrby')
+            ->throws(new RedisException('OOM command not allowed when used memory > maxmemory'));
 
         $store = $this->createStore($connection);
 
@@ -80,8 +84,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testDecrementThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('decrby')
-            ->andThrow(new RedisException('NOAUTH Authentication required'));
+        $connection->client()->allows('getLastError')->returns('NOAUTH Authentication required');
+        $connection->client()->expects('decrby')
+            ->throws(new RedisException('NOAUTH Authentication required'));
 
         $store = $this->createStore($connection);
 
@@ -94,8 +99,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testForeverThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('set')
-            ->andThrow(new RedisException('ERR invalid DB index'));
+        $connection->client()->allows('getLastError')->returns('ERR invalid DB index');
+        $connection->client()->expects('set')
+            ->throws(new RedisException('ERR invalid DB index'));
 
         $store = $this->createStore($connection);
 
@@ -114,8 +120,8 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Tagged put uses evalWithShaCache for Lua script
-        $connection->shouldReceive('evalWithShaCache')
-            ->andThrow(new RedisException('Connection lost'));
+        $connection->expects('evalWithShaCache')
+            ->throws(new RedisException('Connection lost'));
 
         $store = $this->createStore($connection, tagMode: 'any');
         $taggedCache = new AnyTaggedCache($store, new AnyTagSet($store, ['test-tag']));
@@ -131,8 +137,8 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Tagged increment uses evalWithShaCache for Lua script
-        $connection->shouldReceive('evalWithShaCache')
-            ->andThrow(new RedisException('Connection reset by peer'));
+        $connection->expects('evalWithShaCache')
+            ->throws(new RedisException('Connection reset by peer'));
 
         $store = $this->createStore($connection, tagMode: 'any');
         $taggedCache = new AnyTaggedCache($store, new AnyTagSet($store, ['test-tag']));
@@ -148,8 +154,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Flush calls hlen to check hash size
-        $connection->shouldReceive('hlen')
-            ->andThrow(new RedisException('ERR unknown command'));
+        $connection->client()->allows('getLastError')->returns('ERR unknown command');
+        $connection->client()->expects('hlen')
+            ->throws(new RedisException('ERR unknown command'));
 
         $store = $this->createStore($connection, tagMode: 'any');
         $taggedCache = new AnyTaggedCache($store, new AnyTagSet($store, ['test-tag']));
@@ -169,8 +176,8 @@ class ExceptionPropagationTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // PutMany uses evalWithShaCache for Lua script
-        $connection->shouldReceive('evalWithShaCache')
-            ->andThrow(new RedisException('CLUSTERDOWN The cluster is down'));
+        $connection->expects('evalWithShaCache')
+            ->throws(new RedisException('CLUSTERDOWN The cluster is down'));
 
         $store = $this->createStore($connection);
 
@@ -183,8 +190,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testManyThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('mget')
-            ->andThrow(new RedisException('LOADING Redis is loading the dataset in memory'));
+        $connection->client()->allows('getLastError')->returns('LOADING Redis is loading the dataset in memory');
+        $connection->client()->expects('mget')
+            ->throws(new RedisException('LOADING Redis is loading the dataset in memory'));
 
         $store = $this->createStore($connection);
 
@@ -201,8 +209,9 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     public function testFlushThrowsOnRedisError(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('flushdb')
-            ->andThrow(new RedisException('MISCONF Redis is configured to save RDB snapshots'));
+        $connection->client()->allows('getLastError')->returns('MISCONF Redis is configured to save RDB snapshots');
+        $connection->client()->expects('flushdb')
+            ->throws(new RedisException('MISCONF Redis is configured to save RDB snapshots'));
 
         $store = $this->createStore($connection);
 

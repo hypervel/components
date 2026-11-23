@@ -27,8 +27,8 @@ use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall;
 use Hypervel\Ai\Streaming\Events\ToolResult;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Ai\ulid;
@@ -135,7 +135,7 @@ class AgentUserInteractionProtocol extends StreamProtocol
             }
         } catch (Throwable $exception) {
             // Masked error parts are rendered after finally releases the response.
-            if (! $this->started && ! $exception instanceof CanceledException) {
+            if (! $this->started && ! Coroutine::causedByCancellation($exception)) {
                 $this->threadId ??= $response->conversationId;
             }
 
@@ -234,16 +234,18 @@ class AgentUserInteractionProtocol extends StreamProtocol
      */
     protected function runFinishedPart(array $attributes = []): array
     {
-        $assistantMessageId = $this->response?->assistantMessageId;
-        $userMessageId = $this->response?->userMessageId;
+        $messageIds = array_filter([
+            'messageId' => $this->response?->assistantMessageId,
+            'userMessageId' => $this->response?->userMessageId,
+        ]);
 
         return [
             'type' => 'RUN_FINISHED',
             'threadId' => $this->threadId,
             'runId' => $this->runId,
-            ...($assistantMessageId ? ['messageId' => $assistantMessageId] : []),
-            ...($userMessageId ? ['userMessageId' => $userMessageId] : []),
+            ...$messageIds,
             ...$attributes,
+            ...($messageIds ? ['metadata' => [...($attributes['metadata'] ?? []), ...$messageIds]] : []),
         ];
     }
 

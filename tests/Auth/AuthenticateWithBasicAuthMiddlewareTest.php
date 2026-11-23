@@ -10,14 +10,18 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\SupportsBasicAuth;
 use Hypervel\Http\Request;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUsingGeneratesCorrectMiddlewareString(): void
     {
         $this->assertSame(
@@ -38,11 +42,11 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 
     public function testItCallsBasicWithDefaultField(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('basic')->with('email')->once()->andReturnNull();
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
+        $guard->expects('basic')->with('email')->returns(null);
 
-        $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('guard')->with(null)->andReturn($guard);
+        $authFactory = Double::for(AuthFactory::class)->strict();
+        $authFactory->expects('guard')->with(null)->returns($guard);
 
         $middleware = new AuthenticateWithBasicAuth($authFactory);
         $request = Request::create('/', 'GET');
@@ -55,11 +59,11 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 
     public function testItCallsBasicWithCustomField(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('basic')->with('username')->once()->andReturnNull();
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
+        $guard->expects('basic')->with('username')->returns(null);
 
-        $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('guard')->with('api')->andReturn($guard);
+        $authFactory = Double::for(AuthFactory::class)->strict();
+        $authFactory->expects('guard')->with('api')->returns($guard);
 
         $middleware = new AuthenticateWithBasicAuth($authFactory);
         $request = Request::create('/', 'GET');
@@ -72,11 +76,11 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 
     public function testItUsesSpecifiedGuard(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('basic')->with('email')->once()->andReturnNull();
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
+        $guard->expects('basic')->with('email')->returns(null);
 
-        $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('guard')->with('web')->andReturn($guard);
+        $authFactory = Double::for(AuthFactory::class)->strict();
+        $authFactory->expects('guard')->with('web')->returns($guard);
 
         $middleware = new AuthenticateWithBasicAuth($authFactory);
         $request = Request::create('/', 'GET');
@@ -97,8 +101,8 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
             ],
         ]));
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('basic')->with('username')->once()->andReturnNull();
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
+        $guard->expects('basic')->with('username')->returns(null);
 
         $auth = new AuthManager($container);
         $auth->extend('basic', fn () => $guard);

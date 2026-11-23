@@ -6,6 +6,7 @@ namespace Hypervel\Hashing;
 
 use Error;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 use SensitiveParameter;
 
@@ -151,11 +152,12 @@ class ArgonHasher extends AbstractHasher implements HasherContract
     /**
      * Set the default password memory factor.
      *
-     * Boot-only. Mutates the shared hasher instance held by the HashManager;
+     * Mutates the shared hasher instance held by the HashManager;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setMemory(int $memory): static
     {
         $this->memory = $memory;
@@ -166,11 +168,12 @@ class ArgonHasher extends AbstractHasher implements HasherContract
     /**
      * Set the default password timing factor.
      *
-     * Boot-only. Mutates the shared hasher instance held by the HashManager;
+     * Mutates the shared hasher instance held by the HashManager;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setTime(int $time): static
     {
         $this->time = $time;
@@ -181,11 +184,12 @@ class ArgonHasher extends AbstractHasher implements HasherContract
     /**
      * Set the default password threads factor.
      *
-     * Boot-only. Mutates the shared hasher instance held by the HashManager;
+     * Mutates the shared hasher instance held by the HashManager;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setThreads(int $threads): static
     {
         $this->threads = $threads;
@@ -214,7 +218,7 @@ class ArgonHasher extends AbstractHasher implements HasherContract
      */
     protected function threads(array $options): int
     {
-        if (defined('PASSWORD_ARGON2_PROVIDER') && PASSWORD_ARGON2_PROVIDER === 'sodium') { // @phpstan-ignore identical.alwaysFalse, booleanAnd.alwaysFalse (platform-specific constant)
+        if (defined('PASSWORD_ARGON2_PROVIDER') && PASSWORD_ARGON2_PROVIDER === 'sodium') { // @phpstan-ignore identical.alwaysFalse (platform-specific constant), booleanAnd.alwaysFalse (platform-specific constant)
             return 1;
         }
 

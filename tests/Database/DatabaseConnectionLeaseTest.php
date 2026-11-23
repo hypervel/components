@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Aws\Result;
 use Closure;
+use ErrorException;
 use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Create;
@@ -20,7 +21,9 @@ use Hypervel\Database\Connectors\ConnectorInterface;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\PdoConnection;
+use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Database\Pool\DatabasePool;
+use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Schema\Blueprint;
@@ -54,6 +57,8 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Grpc\Fixtures\ClientCallClient;
 use Hypervel\Tests\Grpc\Fixtures\ClientCallClientFactory;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -70,6 +75,8 @@ use function Hypervel\Coroutine\parallel;
 
 class DatabaseConnectionLeaseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure a single physical slot shared by independently owned connections.
      */
@@ -147,6 +154,27 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertTrue($connection->logging());
         $this->assertGreaterThanOrEqual(2, $queries);
         $this->assertCount($queries, $connection->getQueryLog());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIdleReleaseContinuesAfterFailureAndGivesCancellationPriority(bool $cancel): void
+    {
+        $firstFailure = new RuntimeException('First release failed.');
+        $secondFailure = $cancel ? new CanceledException('Second release canceled.') : new RuntimeException('Second release failed.');
+
+        foreach (['first' => $firstFailure, 'second' => $secondFailure] as $name => $failure) {
+            $lease = Double::for(ConnectionLease::class)->strict();
+            $lease->expects('releaseIfIdle')->throws($failure);
+            CoroutineContext::set($name, $lease);
+        }
+
+        try {
+            DB::releaseIdleConnections();
+            $this->fail('Expected idle release to propagate a failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancel ? $secondFailure : $firstFailure, $exception);
+        }
     }
 
     public function testConcurrentExternalWaitsDoNotRetainTheOnlyPoolSlot(): void
@@ -782,6 +810,53 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertSame(2, $connection->selectOne('select 2 as value')->value);
     }
 
+    public function testReconnectReleasesWarningHandlesThroughThePhysicalConnection(): void
+    {
+        $this->app->instance('db.connector.pgsql', new class extends LeasePdoConnector {
+            private bool $first = true;
+
+            /**
+             * Make the first physical handle warn when it is released.
+             */
+            public function connect(array $config): PDO
+            {
+                if (! $this->first) {
+                    return parent::connect($config);
+                }
+
+                $this->first = false;
+
+                return new class('sqlite::memory:') extends PDO {
+                    /**
+                     * Simulate a native teardown warning.
+                     */
+                    public function __destruct()
+                    {
+                        trigger_error('SSL: Broken pipe', E_USER_WARNING);
+                    }
+                };
+            }
+        });
+
+        $connection = DB::connection('physical_leases');
+        $original = WeakReference::create($connection->getPdo());
+
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): void {
+            if (error_reporting() & $severity) {
+                throw new ErrorException($message, 0, $severity, $file, $line);
+            }
+        });
+
+        try {
+            $connection->reconnect();
+
+            $this->assertNull($original->get());
+            $this->assertSame(2, $connection->selectFromWriteConnection('select 2 as value')[0]->value);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     public function testCapturedMySqlInsertIdsSurviveEarlyRelease(): void
     {
         $connection = DB::connection('insert_id_leases');
@@ -960,6 +1035,34 @@ class DatabaseConnectionLeaseTest extends TestCase
             [spl_object_id($other), '2'],
             [spl_object_id($connection), '1'],
         ], $configurator->applied);
+    }
+
+    public function testAcquisitionCleanupPropagatesWrappedCancellation(): void
+    {
+        $setupFailure = new RuntimeException('Connection listener failed.');
+        $cleanupFailure = new RuntimeException('Discard cleanup failed.', previous: new CanceledException('Discard canceled.'));
+        $physical = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:', '', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+        $pool = Double::for(DatabasePool::class)->strict();
+        $wrapper = Double::for(PooledConnection::class)->strict();
+        $pool->expects('borrow')->returns($wrapper);
+        $wrapper->expects('attachLease')->times(2);
+        $wrapper->expects('getDriverConnection')->returns($physical);
+        $wrapper->expects('dispatchConnectionEstablishedEvent')->throws($setupFailure);
+        $wrapper->expects('discard')->throws($cleanupFailure);
+
+        $lease = new ConnectionLease($pool, $wrapper, $this->app->make('db.factory'), $physical);
+        $lease->detach();
+
+        try {
+            $lease->connection->getPdo();
+            $this->fail('Expected cleanup cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupFailure, $exception, $exception::class . ': ' . $exception->getMessage());
+        }
     }
 
     #[DataProvider('connectionListenerFailures')]

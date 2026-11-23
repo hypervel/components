@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Image;
 
 use Hypervel\Image\ImagePipeline;
+use Hypervel\Support\Attributes\BootOnly;
 
 interface Driver
 {
@@ -30,9 +31,10 @@ interface Driver
     /**
      * Register a transformation handler.
      *
-     * Boot-only. The handler persists on a cached driver for the worker lifetime and affects every subsequent image processed by that driver.
+     * The handler persists on a cached driver for the worker lifetime and affects every subsequent image processed by that driver.
      *
      * @param class-string<Transformation> $transformation
      */
+    #[BootOnly(whenShared: true)]
     public function transformUsing(string $transformation, callable $callback): static;
 }

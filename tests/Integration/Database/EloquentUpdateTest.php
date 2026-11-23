@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Closure;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 class EloquentUpdateTest extends DatabaseTestCase
 {
@@ -91,6 +99,64 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame('Engineer: Abdul', $record->job . ': ' . $record->name);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTouchQualifiesUpdatedAtColumnOnQueriesWithJoins(bool $scoped): void
+    {
+        TestUpdateModel2::forceCreate([
+            'name' => Str::random(),
+            'updated_at' => '2000-01-01 00:00:00',
+        ]);
+
+        TestUpdateModel3::forceCreate([
+            'counter' => 1,
+            'updated_at' => '2000-01-01 00:00:00',
+        ]);
+
+        $query = TestUpdateModel2::query();
+        $join = static fn (Builder $builder) => $builder->join('test_model3', 'test_model3.id', '=', 'test_model2.id');
+
+        if ($scoped) {
+            $query->withGlobalScope('joined', $join);
+        } else {
+            $join($query);
+        }
+
+        $affected = $query->touch();
+
+        $this->assertSame(1, $affected);
+        $this->assertNotSame('2000-01-01 00:00:00', TestUpdateModel2::find(1)->updated_at->toDateTimeString());
+        $this->assertSame('2000-01-01 00:00:00', TestUpdateModel3::find(1)->updated_at->toDateTimeString());
+    }
+
+    #[TestWith(['touch', [], 2])]
+    #[TestWith(['update', [['counter' => 3]], 3])]
+    #[TestWith(['increment', ['counter'], 3])]
+    #[TestWith(['decrement', ['counter'], 1])]
+    #[TestWith(['incrementEach', [['counter' => 1]], 3])]
+    #[TestWith(['decrementEach', [['counter' => 1]], 1])]
+    public function testWritesUseTableAliasAddedByGlobalScope(string $method, array $arguments, int $counter): void
+    {
+        TestUpdateModel1::create(['name' => 'access', 'title' => 'allowed']);
+        TestUpdateModel3::forceCreate(['counter' => 2, 'updated_at' => '2000-01-01 00:00:00']);
+        $scopeCalls = 0;
+
+        $query = TestUpdateModel3::withoutGlobalScopes()
+            ->withGlobalScope('access', function (Builder $query) use (&$scopeCalls): void {
+                ++$scopeCalls;
+                $query->from('test_model3', 'target')
+                    ->join('test_model1', 'test_model1.id', '=', 'target.id')
+                    ->where('test_model1.title', 'allowed');
+            });
+
+        $affected = $query->{$method}(...$arguments);
+
+        $this->assertSame(1, $affected);
+        $this->assertSame(1, $scopeCalls);
+        $this->assertSame($counter, TestUpdateModel3::find(1)->counter);
+        $this->assertNotSame('2000-01-01 00:00:00', TestUpdateModel3::find(1)->updated_at->toDateTimeString());
+    }
+
     public function testSoftDeleteWithJoins(): void
     {
         TestUpdateModel1::create([
@@ -108,6 +174,27 @@ class EloquentUpdateTest extends DatabaseTestCase
         })->delete();
 
         $this->assertCount(0, TestUpdateModel2::all());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSoftDeleteAndRestoreWithScopedJoins(bool $restore): void
+    {
+        TestUpdateModel2::forceCreate([
+            'name' => 'target',
+            'deleted_at' => $restore ? '2000-01-01 00:00:00' : null,
+        ]);
+        TestUpdateModel3::create(['counter' => 1]);
+        $scopeCalls = 0;
+        $query = TestUpdateModel2::query()->withGlobalScope('joined', function (Builder $query) use (&$scopeCalls): void {
+            ++$scopeCalls;
+            $query->join('test_model3', 'test_model3.id', '=', 'test_model2.id');
+        });
+
+        $this->assertSame(1, $restore ? $query->restore() : $query->delete());
+        $this->assertSame(1, $scopeCalls);
+        $this->assertSame(! $restore, TestUpdateModel2::withTrashed()->find(1)->trashed());
+        $this->assertFalse(TestUpdateModel3::find(1)->trashed());
     }
 
     public function testIncrement(): void
@@ -185,6 +272,82 @@ class EloquentUpdateTest extends DatabaseTestCase
 
         $this->assertSame(['name' => 'Abigail'], $model->getDirty());
         $this->assertSame(1, TestOverriddenAttributesUpdateModel::$getAttributesCalls);
+    }
+
+    #[DataProvider('writeSynchronizationMethods')]
+    public function testWritesCallSyncChangesOverridesWithoutLeakingTheirValues(string $method): void
+    {
+        $model = TestSyncChangesUpdateModel::create(['name' => 'initial']);
+        $copy = null;
+        $model->onSyncChanges = function (Model $updated) use (&$copy): void {
+            $copy = clone $updated;
+        };
+        $model->name = 'written';
+
+        match ($method) {
+            'save' => $model->save(),
+            'increment' => $model->increment('views', 1, ['name' => 'written']),
+            'incrementEach' => $model->incrementEach(['views' => 1], ['name' => 'written']),
+        };
+
+        $this->assertSame(1, $model->syncCalls);
+        $this->assertSame('written', $model->getChanges()['name']);
+
+        $copy->name = 'copied';
+        $copy->syncChanges();
+        $this->assertSame('copied', $copy->getChanges()['name']);
+
+        $model->name = 'manual';
+        $model->syncChanges();
+        $this->assertSame('manual', $model->getChanges()['name']);
+    }
+
+    /**
+     * Provide write paths that call the change synchronization hook.
+     */
+    public static function writeSynchronizationMethods(): array
+    {
+        return [
+            'save' => ['save'],
+            'increment' => ['increment'],
+            'incrementEach' => ['incrementEach'],
+        ];
+    }
+
+    public function testThrowingSyncChangesOverrideRestoresManualSynchronization(): void
+    {
+        $model = TestSyncChangesUpdateModel::create(['name' => 'initial']);
+        $failure = new RuntimeException('Synchronization failed.');
+        $model->onSyncChanges = static fn () => throw $failure;
+        $caught = null;
+
+        try {
+            $model->increment('views', 1, ['name' => 'written']);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $model->name = 'manual';
+        $model->syncChanges();
+        $this->assertSame('manual', $model->getChanges()['name']);
+    }
+
+    public function testNestedWriteRestoresOuterSynchronizationValues(): void
+    {
+        $outer = TestSyncChangesUpdateModel::create(['name' => 'initial']);
+        $inner = TestSyncChangesUpdateModel::create(['name' => 'inner']);
+        $outer->onSyncChanges = static function (Model $model) use ($inner): void {
+            $model->name = 'pending';
+            $inner->increment('views', 1, ['name' => 'inner-written']);
+        };
+
+        $outer->increment('views', 1, ['name' => 'outer-written']);
+
+        $this->assertSame('outer-written', $outer->getChanges()['name']);
+        $this->assertSame('inner-written', $inner->getChanges()['name']);
+        $this->assertSame('pending', $outer->name);
+        $this->assertTrue($outer->isDirty('name'));
     }
 
     public function testSaveRetainsAllLogicalChangesWhenUpdateValuesAreFiltered(): void
@@ -365,6 +528,111 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame(['views' => 11, 'likes' => 7], $post->getChanges());
         $this->assertSame(['views' => 10, 'likes' => 5], $post->getPrevious());
     }
+
+    public function testIncrementCastsExtraAttributes(): void
+    {
+        config(['app.key' => str_repeat('a', 32)]);
+
+        $post = TestUpdateModel5::create(['views' => 10]);
+
+        $post->increment('views', 1, ['name' => 'secret']);
+
+        $this->assertNotSame('secret', TestUpdateModel5::query()->toBase()->value('name'));
+        $this->assertSame('secret', $post->fresh()->name);
+
+        $post->incrementEach(['views' => 1], ['name' => 'another secret']);
+
+        $this->assertNotSame('another secret', TestUpdateModel5::query()->toBase()->value('name'));
+        $this->assertSame('another secret', $post->fresh()->name);
+    }
+
+    #[DataProvider('encryptedIncrementCases')]
+    public function testIncrementReportsStoredCastValues(string $method, bool $refresh, bool $editInPlace): void
+    {
+        $modelClass = $refresh ? TestRefreshingUpdateModel::class : TestUpdateModel4::class;
+        $post = $modelClass::create(['name' => Crypt::encryptString('["initial"]')]);
+        $post->mergeCasts(['name' => AsEncryptedCollection::class]);
+        $updatedState = null;
+        $editPending = $editInPlace;
+
+        $modelClass::updating(function (Model $model) use (&$editPending): void {
+            if ($editPending) {
+                $model->name->push('pending');
+                $editPending = false;
+            }
+        });
+
+        $modelClass::updated(function (Model $model) use (&$updatedState): void {
+            $updatedState = [
+                'changed' => $model->getChanges()['name'],
+                'stored' => $model->newQuery()->whereKey($model->getKey())->toBase()->value('name'),
+            ];
+        });
+
+        $extra = ['name' => new Collection(['written'])];
+        $arguments = $method === 'increment' ? ['views', 1, $extra] : [['views' => 1], $extra];
+        $post->{$method}(...$arguments);
+
+        $this->assertSame($updatedState['stored'], $updatedState['changed']);
+        $this->assertSame('["written"]', Crypt::decryptString($updatedState['stored']));
+        $this->assertSame($editInPlace, $post->isDirty('name'));
+
+        if ($editInPlace) {
+            $this->assertSame(['written', 'pending'], $post->name->all());
+            $post->save();
+            $this->assertSame(['written', 'pending'], $post->fresh()->name->all());
+        }
+    }
+
+    /**
+     * Provide cast writeback and refresh paths.
+     */
+    public static function encryptedIncrementCases(): array
+    {
+        return [
+            'increment' => ['increment', false, false],
+            'incrementEach' => ['incrementEach', false, false],
+            'increment with refresh' => ['increment', true, false],
+            'incrementEach with refresh' => ['incrementEach', true, false],
+            'increment with refresh and pending object edit' => ['increment', true, true],
+            'incrementEach with refresh and pending object edit' => ['incrementEach', true, true],
+        ];
+    }
+
+    #[DataProvider('incrementObserverCases')]
+    public function testIncrementExtraChangesCompareWrittenValues(string $method, string $written, string $pending): void
+    {
+        $post = TestUpdateModel4::create(['name' => 'initial']);
+
+        TestUpdateModel4::updating(function (Model $model) use ($pending): void {
+            $model->name = $pending;
+        });
+
+        $arguments = $method === 'increment' ? ['views', 1, ['name' => $written]] : [['views' => 1], ['name' => $written]];
+        $post->{$method}(...$arguments);
+
+        $this->assertSame($written, $post->newQuery()->whereKey($post->getKey())->toBase()->value('name'));
+        $this->assertSame($written !== 'initial', $post->wasChanged('name'));
+        $this->assertSame($pending, $post->name);
+        $this->assertTrue($post->isDirty('name'));
+
+        if ($written !== 'initial') {
+            $this->assertSame($written, $post->getChanges()['name']);
+        }
+    }
+
+    /**
+     * Provide observer changes that reverse the stored value's dirty state.
+     */
+    public static function incrementObserverCases(): array
+    {
+        return [
+            'increment observer restores original' => ['increment', 'changed', 'initial'],
+            'incrementEach observer restores original' => ['incrementEach', 'changed', 'initial'],
+            'increment observer changes unchanged extra' => ['increment', 'initial', 'changed'],
+            'incrementEach observer changes unchanged extra' => ['incrementEach', 'initial', 'changed'],
+        ];
+    }
 }
 
 class TestUpdateModel1 extends Model
@@ -405,6 +673,42 @@ class TestUpdateModel4 extends Model
     protected array $fillable = ['views', 'likes', 'name'];
 
     protected array $casts = ['deleted_at' => 'datetime'];
+}
+
+class TestUpdateModel5 extends Model
+{
+    public ?string $table = 'test_model4';
+
+    protected array $fillable = ['views', 'likes', 'name'];
+
+    protected array $casts = ['name' => 'encrypted'];
+}
+
+class TestRefreshingUpdateModel extends TestUpdateModel4
+{
+    protected array $refreshes = ['likes'];
+}
+
+class TestSyncChangesUpdateModel extends TestUpdateModel4
+{
+    public int $syncCalls = 0;
+
+    public ?Closure $onSyncChanges = null;
+
+    /**
+     * Observe synchronization and exercise a one-shot override callback.
+     */
+    public function syncChanges(): static
+    {
+        ++$this->syncCalls;
+
+        if ($callback = $this->onSyncChanges) {
+            $this->onSyncChanges = null;
+            $callback($this);
+        }
+
+        return parent::syncChanges();
+    }
 }
 
 class TestSelectiveUpdateModel extends TestUpdateModel1

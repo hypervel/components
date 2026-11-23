@@ -10,7 +10,6 @@ use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Gateway\Concerns\CreatesClient;
 use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
-use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\PreparesStorableFiles;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\FileResponse;
@@ -20,9 +19,9 @@ use Hypervel\Support\Str;
 
 class GeminiFileGateway implements FileGateway
 {
+    use Concerns\HandlesGeminiErrors;
     use CreatesClient;
     use EncodesResourceIds;
-    use HandlesFailoverErrors;
     use PreparesStorableFiles;
 
     /**

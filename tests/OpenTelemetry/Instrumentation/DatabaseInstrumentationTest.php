@@ -16,7 +16,8 @@ use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -45,6 +46,8 @@ use RuntimeException;
 
 class DatabaseInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Dispatcher $events;
@@ -410,13 +413,12 @@ class DatabaseInstrumentationTest extends TestCase
         array $config = [],
         string $name = 'primary',
     ): Connection {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->zeroOrMoreTimes()->andReturn($name);
-        $connection->shouldReceive('getDriverName')->zeroOrMoreTimes()->andReturn($driver);
-        $connection->shouldReceive('getDatabaseName')->zeroOrMoreTimes()->andReturn($database);
-        $connection->shouldReceive('getConfig')
-            ->zeroOrMoreTimes()
-            ->andReturnUsing(static fn (?string $key = null): mixed => $key === null
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getName')->returns($name);
+        $connection->allows('getDriverName')->returns($driver);
+        $connection->allows('getDatabaseName')->returns($database);
+        $connection->allows('getConfig')
+            ->resolves(static fn (?string $key = null): mixed => $key === null
                 ? $config
                 : ($config[$key] ?? null));
 

@@ -11,6 +11,7 @@ use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Files;
 use Hypervel\Ai\Responses\FileResponse;
 use Hypervel\Ai\Responses\StoredFileResponse;
+use Hypervel\Support\Attributes\TestsOnly;
 use RuntimeException;
 
 class FakeFileGateway implements FileGateway
@@ -97,8 +98,10 @@ class FakeFileGateway implements FileGateway
     /**
      * Indicate that an exception should be thrown if any file operation is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayOperations(bool $prevent = true): self
     {
         $this->preventStrayOperations = $prevent;

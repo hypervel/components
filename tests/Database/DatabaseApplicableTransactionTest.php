@@ -11,13 +11,16 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Engine\Channel;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use UnitEnum;
 
 use function Hypervel\Coroutine\parallel;
 
 class DatabaseApplicableTransactionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure two isolated databases with one slot each.
      */
@@ -99,8 +102,8 @@ class DatabaseApplicableTransactionTest extends TestCase
     public function testCustomManagerResolversProvideTransactionStateAndDateFormat(): void
     {
         $connection = DB::connection('first');
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with('first')->times(3)->andReturn($connection);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->expects('connection')->with('first')->times(3)->returns($connection);
         $this->app->instance('db.resolver', $resolver);
 
         $this->assertFalse(DB::hasApplicableTransaction());
@@ -132,8 +135,8 @@ class DatabaseApplicableTransactionTest extends TestCase
     {
         $connection = DB::connection('second');
         $connection->beginTransaction();
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with(null)->once()->andReturn($connection);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->expects('connection')->with(null)->returns($connection);
         Model::setConnectionResolver($resolver);
 
         try {

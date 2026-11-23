@@ -41,8 +41,18 @@ class ImageGenerationTest extends TestCase
             'usage' => [
                 'prompt_tokens' => 10,
                 'completion_tokens' => 20,
+                'cost' => 0.04,
             ],
         ]);
+    }
+
+    public function testTheRawHttpResponseExposesProviderSpecificImageUsage(): void
+    {
+        Http::fake(['openrouter.ai/*' => $this->fakeOpenRouterImageResponse()]);
+
+        $response = Image::of('A blue circle')->generate(provider: 'openrouter', model: 'black-forest-labs/flux.2-pro');
+
+        $this->assertSame(0.04, $response->raw->json('usage.cost'));
     }
 
     public function testImageRequestIsSentToTheImagesEndpointWithModelAndPrompt(): void

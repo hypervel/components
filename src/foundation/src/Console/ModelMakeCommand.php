@@ -56,10 +56,6 @@ class ModelMakeCommand extends GeneratorCommand
     public function handle(): bool|int
     {
         if (parent::handle() === false && ! $this->option('force')) {
-            if (! $this->alreadyExists($this->getNameInput())) {
-                return false;
-            }
-
             if (! confirm('Do you want to generate additional components for the model?')) {
                 return false;
             }

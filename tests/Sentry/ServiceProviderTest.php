@@ -26,8 +26,10 @@ use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Di\Fixtures\ProxySources;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Depends;
 use Psr\Log\LoggerInterface;
@@ -46,6 +48,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ?string $proxyFile = null;
 
     protected array $setupConfig = [
@@ -141,11 +145,10 @@ class ServiceProviderTest extends TestCase
 
     public function testRootTelemetryFlushesAtApplicationTermination(): void
     {
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('flush')
-            ->once()
-            ->withNoArgs()
-            ->andReturn(new Result(ResultStatus::success()));
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('flush')
+            ->with(Argument::none())
+            ->returns(new Result(ResultStatus::success()));
         $previousHub = SentrySdk::getCurrentHub();
 
         try {
@@ -160,14 +163,12 @@ class ServiceProviderTest extends TestCase
     public function testApplicationTerminationDoesNotFlushAnActiveExecutionContext(): void
     {
         $flushed = false;
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
-            ->once()
-            ->andReturn(new Options);
-        $client->shouldReceive('flush')
-            ->once()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')
+            ->returns(new Options);
+        $client->expects('flush')
             ->with(null)
-            ->andReturnUsing(static function () use (&$flushed): Result {
+            ->resolves(static function () use (&$flushed): Result {
                 $flushed = true;
 
                 return new Result(ResultStatus::success());
@@ -194,18 +195,14 @@ class ServiceProviderTest extends TestCase
 
     public function testMiddlewareRegistersThroughTheKernelContract(): void
     {
-        $kernel = m::mock(Kernel::class);
-        $kernel->shouldReceive('prependMiddleware')
-            ->once()
+        $kernel = Double::for(Kernel::class)->strict();
+        $kernel->expects('prependMiddleware')
             ->with(TracingMiddleware::class)
-            ->ordered()
-            ->andReturnSelf();
-        $kernel->shouldReceive('prependMiddleware')
-            ->once()
+            ->ordered();
+        $kernel->expects('prependMiddleware')
             ->with(FlushEventsMiddleware::class)
-            ->ordered()
-            ->andReturnSelf();
-        $kernel->shouldNotReceive('pushMiddleware');
+            ->ordered();
+        $kernel->expects('pushMiddleware')->never();
         $this->app->instance(Kernel::class, $kernel);
 
         (new InspectableSentryServiceProvider($this->app))
@@ -216,26 +213,20 @@ class ServiceProviderTest extends TestCase
     public function testRequestIpMiddlewareIsRegisteredOnlyWhenUserInfoIsCollected(array $config, bool $registered): void
     {
         $this->resetApplicationWithConfig($config);
-        $kernel = m::mock(Kernel::class);
-        $kernel->shouldReceive('prependMiddleware')
-            ->once()
+        $kernel = Double::for(Kernel::class)->strict();
+        $kernel->expects('prependMiddleware')
             ->with(TracingMiddleware::class)
-            ->ordered()
-            ->andReturnSelf();
-        $kernel->shouldReceive('prependMiddleware')
-            ->once()
+            ->ordered();
+        $kernel->expects('prependMiddleware')
             ->with(FlushEventsMiddleware::class)
-            ->ordered()
-            ->andReturnSelf();
+            ->ordered();
 
         if ($registered) {
-            $kernel->shouldReceive('pushMiddleware')
-                ->once()
+            $kernel->expects('pushMiddleware')
                 ->with(SetRequestIpMiddleware::class)
-                ->ordered()
-                ->andReturnSelf();
+                ->ordered();
         } else {
-            $kernel->shouldNotReceive('pushMiddleware');
+            $kernel->expects('pushMiddleware')->never();
         }
 
         $this->app->instance(Kernel::class, $kernel);
@@ -408,10 +399,9 @@ class ServiceProviderTest extends TestCase
         $exception = new RuntimeException('Feature registration failed.');
         $feature = new FailingRegistrationSentryFeature($this->app);
         $feature->exception = $exception;
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldReceive('warning')
-            ->once()
-            ->withArgs(static function (string $message, array $context) use ($exception): bool {
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->expects('warning')
+            ->with(Argument::all(static function (string $message, array $context) use ($exception): bool {
                 return str_contains($message, 'failed during [register]')
                     && str_contains($message, 'effects applied before the failure remain in place')
                     && str_contains($message, 'will not be retried for this worker lifetime')
@@ -420,7 +410,7 @@ class ServiceProviderTest extends TestCase
                         'phase' => 'register',
                         'exception' => $exception,
                     ];
-            });
+            }));
         $this->app->instance('log', $logger);
         $this->app->instance(FailingRegistrationSentryFeature::class, $feature);
         config()->set('sentry.features', [FailingRegistrationSentryFeature::class]);
@@ -442,12 +432,12 @@ class ServiceProviderTest extends TestCase
         ]);
         $tracker = new ConfigMutationTracker;
         $tracker->observe($masterConfig);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturnFalse();
-        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        $app = Double::for(Application::class, override: true)->strict();
+        $app->allows('configurationIsCached')->returns(false);
+        $app->allows('make')->with('config')->returns($masterConfig);
+        $app->allows('make')->with(ConfigMutationTracker::class)->returns($tracker);
 
-        (new CustomRootInspectableSentryServiceProvider($app))->registerLogChannelsForTest();
+        (new CustomRootInspectableSentryServiceProvider($app->instance()))->registerLogChannelsForTest();
 
         $this->assertSame($explicitChannel, $masterConfig->get('logging.channels.sentry'));
         $this->assertSame(['driver' => 'sentry_logs', 'level' => 'debug'], $masterConfig->get('logging.channels.sentry_logs'));

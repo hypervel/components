@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Contracts\Providers;
 use Hypervel\Ai\Contracts\Files\TranscribableAudio;
 use Hypervel\Ai\Contracts\Gateway\TranscriptionGateway;
 use Hypervel\Ai\Responses\TranscriptionResponse;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface TranscriptionProvider extends Provider
 {
@@ -32,6 +33,7 @@ interface TranscriptionProvider extends Provider
     /**
      * Set the provider's transcription gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useTranscriptionGateway(TranscriptionGateway $gateway): self;
 
     /**

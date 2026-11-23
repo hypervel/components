@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Providers;
 
+use Hypervel\Ai\Contracts\Gateway\ClassificationGateway;
 use Hypervel\Ai\Contracts\Gateway\FileGateway;
 use Hypervel\Ai\Contracts\Gateway\StoreGateway;
 use Hypervel\Ai\Contracts\Providers\AudioProvider;
+use Hypervel\Ai\Contracts\Providers\ClassificationProvider;
 use Hypervel\Ai\Contracts\Providers\EmbeddingProvider;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Contracts\Providers\ImageProvider;
@@ -18,14 +20,17 @@ use Hypervel\Ai\Contracts\Providers\SupportsWebSearch;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Gateway\Gemini\GeminiClassificationGateway;
 use Hypervel\Ai\Gateway\Gemini\GeminiFileGateway;
 use Hypervel\Ai\Gateway\Gemini\GeminiStoreGateway;
+use Hypervel\Ai\Providers\Concerns\Classifies;
 use Hypervel\Ai\Providers\Concerns\GeneratesAudio;
 use Hypervel\Ai\Providers\Concerns\GeneratesEmbeddings;
 use Hypervel\Ai\Providers\Concerns\GeneratesImages;
 use Hypervel\Ai\Providers\Concerns\GeneratesText;
 use Hypervel\Ai\Providers\Concerns\GeneratesTranscriptions;
 use Hypervel\Ai\Providers\Concerns\HasAudioGateway;
+use Hypervel\Ai\Providers\Concerns\HasClassificationGateway;
 use Hypervel\Ai\Providers\Concerns\HasEmbeddingGateway;
 use Hypervel\Ai\Providers\Concerns\HasFileGateway;
 use Hypervel\Ai\Providers\Concerns\HasImageGateway;
@@ -42,14 +47,16 @@ use Hypervel\Ai\Providers\Tools\WebSearch;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
-class GeminiProvider extends Provider implements AudioProvider, EmbeddingProvider, FileProvider, ImageProvider, StoreProvider, SupportsCodeExecution, SupportsFileSearch, SupportsWebFetch, SupportsWebSearch, TextProvider, TranscriptionProvider
+class GeminiProvider extends Provider implements AudioProvider, ClassificationProvider, EmbeddingProvider, FileProvider, ImageProvider, StoreProvider, SupportsCodeExecution, SupportsFileSearch, SupportsWebFetch, SupportsWebSearch, TextProvider, TranscriptionProvider
 {
+    use Classifies;
     use GeneratesAudio;
     use GeneratesEmbeddings;
     use GeneratesImages;
     use GeneratesText;
     use GeneratesTranscriptions;
     use HasAudioGateway;
+    use HasClassificationGateway;
     use HasEmbeddingGateway;
     use HasFileGateway;
     use HasImageGateway;
@@ -203,6 +210,22 @@ class GeminiProvider extends Provider implements AudioProvider, EmbeddingProvide
     }
 
     /**
+     * Get the name of the default classification model.
+     */
+    public function defaultClassificationModel(): string
+    {
+        return $this->config['models']['classification']['default'] ?? 'gemini-decision-1';
+    }
+
+    /**
+     * Determine if the provider can classify attachments alongside the state.
+     */
+    public function supportsClassificationAttachments(): bool
+    {
+        return true;
+    }
+
+    /**
      * Get the name of the default embeddings model.
      */
     public function defaultEmbeddingsModel(): string
@@ -246,6 +269,14 @@ class GeminiProvider extends Provider implements AudioProvider, EmbeddingProvide
     protected function isGeminiMultimodalEmbeddingModel(string $model): bool
     {
         return in_array($model, ['gemini-embedding-2', 'gemini-embedding-2-preview'], true);
+    }
+
+    /**
+     * Get the provider's classification gateway.
+     */
+    public function classificationGateway(): ClassificationGateway
+    {
+        return $this->classificationGateway ??= new GeminiClassificationGateway;
     }
 
     /**

@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Routing\RouteCollection;
 use LogicException;
-use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -170,7 +171,7 @@ class RouteCacheCommand extends Command
 
             throw $throwable;
         } finally {
-            $cleanupException = null;
+            $failure = $exception;
 
             foreach ([$dumpPath, $buildPath] as $path) {
                 if (! is_string($path)) {
@@ -182,12 +183,12 @@ class RouteCacheCommand extends Command
                         throw new RuntimeException("Unable to delete the temporary route cache file [{$path}].");
                     }
                 } catch (Throwable $throwable) {
-                    $cleanupException ??= $throwable;
+                    $failure = Coroutine::preferCancellation($failure, $throwable);
                 }
             }
 
-            if ($exception === null && $cleanupException !== null) {
-                throw $cleanupException;
+            if ($failure !== $exception) {
+                throw $failure;
             }
         }
     }
@@ -207,20 +208,12 @@ class RouteCacheCommand extends Command
      */
     protected function resolveSubprocessAutoloadPath(): string
     {
-        $componentRoot = dirname((new ReflectionClass(Filesystem::class))->getFileName(), 4);
+        $autoloadPath = $this->hypervel->make(PackageManifest::class)->vendorPath . '/autoload.php';
 
-        $candidates = array_unique([
-            $this->hypervel->basePath('vendor/autoload.php'),
-            $componentRoot . '/vendor/autoload.php',
-            dirname($componentRoot, 2) . '/autoload.php',
-        ]);
-
-        foreach ($candidates as $candidate) {
-            if (is_file($candidate)) {
-                return $candidate;
-            }
+        if (! is_file($autoloadPath)) {
+            throw new LogicException('Unable to locate the Composer autoloader for the route cache subprocess.');
         }
 
-        throw new LogicException('Unable to locate the Composer autoloader for the route cache subprocess.');
+        return $autoloadPath;
     }
 }

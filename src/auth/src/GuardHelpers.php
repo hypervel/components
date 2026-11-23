@@ -6,6 +6,7 @@ namespace Hypervel\Auth;
 
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 /**
  * These methods are typically the same across all guards.
@@ -27,6 +28,24 @@ trait GuardHelpers
      * @var null|TProvider
      */
     protected ?UserProvider $provider = null;
+
+    /**
+     * The sequence used to build unique per-guard context key prefixes.
+     *
+     * Each class using this trait has its own sequence, so the prefix also
+     * includes that class.
+     */
+    // Do not reset this; live context entries may still use earlier prefixes.
+    private static int $contextKeySequence = 0;
+
+    /**
+     * The prefix of this guard's coroutine context keys.
+     *
+     * Users and credentials cached in context belong to the guard that
+     * resolved them, so a guard created later with the same name, such as
+     * after AuthManager::forgetGuards(), starts without them.
+     */
+    private ?string $contextKeyPrefix = null;
 
     /**
      * Determine if the current user is authenticated. If not, throw an exception.
@@ -75,13 +94,22 @@ trait GuardHelpers
     /**
      * Set the user provider used by the guard.
      *
-     * Boot or tests only. The provider is stored on the worker-lifetime guard
-     * and affects every subsequent request.
+     * The provider is stored on the worker-lifetime guard and affects every
+     * subsequent request.
      *
      * @param TProvider $provider
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setProvider(UserProvider $provider): void
     {
         $this->provider = $provider;
+    }
+
+    /**
+     * Get this guard's coroutine context key for the given entry.
+     */
+    protected function contextKey(string $key): string
+    {
+        return ($this->contextKeyPrefix ??= '__auth.guards.' . self::class . '.' . ++self::$contextKeySequence . '.') . $key;
     }
 }

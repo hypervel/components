@@ -37,7 +37,7 @@ jobs:
           --health-retries 15
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
 
     strategy:
       fail-fast: false
@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 

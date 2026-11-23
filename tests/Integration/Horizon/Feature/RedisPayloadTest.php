@@ -28,12 +28,15 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeModel;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeSilencedJob;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SilencedMailable;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use StdClass;
 
 class RedisPayloadTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testTypeIsCorrectlyDetermined(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
@@ -44,7 +47,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $JobPayload->prepare(new CallQueuedListener('stdClass', 'method', [new StdClass]));
         $this->assertSame('event', $JobPayload->decoded['type']);
 
-        $JobPayload->prepare(new SendQueuedMailable(m::mock(Mailable::class)));
+        $JobPayload->prepare(new SendQueuedMailable(Double::for(Mailable::class)->strict()));
         $this->assertSame('mail', $JobPayload->decoded['type']);
 
         $JobPayload->prepare(new SendQueuedNotifications([], new StdClass, ['mail']));
@@ -162,6 +165,17 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals([FakeModel::class . ':1', FakeModel::class . ':2'], $JobPayload->decoded['tags']);
     }
 
+    public function testTagsAreGatheredFromParentPrivateProperties(): void
+    {
+        $payload = new JobPayload(json_encode(['id' => '1']));
+
+        $model = new FakeModel;
+        $model->id = 1;
+
+        $payload->prepare(new FakeJobWithInheritedPrivateModel($model));
+        $this->assertSame([FakeModel::class . ':1'], $payload->decoded['tags']);
+    }
+
     public function testTagsAreCorrectlyExtractedForListeners(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
@@ -270,7 +284,7 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
-        $mailableMock = m::mock(SilencedMailable::class);
+        $mailableMock = Double::for(SilencedMailable::class)->strict();
         config(['horizon.silenced' => [get_class($mailableMock)]]);
         $JobPayload->prepare(new SendQueuedMailable($mailableMock));
         $this->assertTrue($JobPayload->isSilenced());
@@ -340,4 +354,18 @@ class ListenerEventStateInspectingJob
     {
         return [$event === null ? 'no-event' : 'stale-event'];
     }
+}
+
+class FakeJobWithPrivateModel
+{
+    /**
+     * Create a job holding its model privately.
+     */
+    public function __construct(private FakeModel $model)
+    {
+    }
+}
+
+class FakeJobWithInheritedPrivateModel extends FakeJobWithPrivateModel
+{
 }

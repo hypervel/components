@@ -58,11 +58,11 @@ class DbCommand extends Command
         }
 
         try {
-            (new Process(
-                array_merge([$configuration->command], $configuration->arguments),
-                null,
-                $configuration->environment
-            ))->setTimeout(null)->setTty(true)->mustRun(function ($type, $buffer) {
+            // Container resolution lets tests replace the process without class overloading.
+            $this->hypervel->make(Process::class, [
+                'command' => array_merge([$configuration->command], $configuration->arguments),
+                'env' => $configuration->environment,
+            ])->setTimeout(null)->setTty(true)->mustRun(function ($type, $buffer) {
                 $this->output->write($buffer);
             });
         } catch (ProcessFailedException $e) {

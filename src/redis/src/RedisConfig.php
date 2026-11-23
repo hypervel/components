@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Hypervel\Config\Repository;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\ConfigurationUrlParser;
 use InvalidArgumentException;
 
@@ -106,8 +107,10 @@ class RedisConfig
     /**
      * Enable Redis command events.
      *
-     * Boot-only. The worker-wide override affects every subsequently assembled connection config.
+     * On the shared config, the override affects every subsequently assembled
+     * connection config.
      */
+    #[BootOnly(whenShared: true)]
     public function enableEvents(): void
     {
         $this->eventsOverride = true;
@@ -116,8 +119,10 @@ class RedisConfig
     /**
      * Disable Redis command events.
      *
-     * Boot-only. The worker-wide override affects every subsequently assembled connection config.
+     * On the shared config, the override affects every subsequently assembled
+     * connection config.
      */
+    #[BootOnly(whenShared: true)]
     public function disableEvents(): void
     {
         $this->eventsOverride = false;

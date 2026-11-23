@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hypervel\Engine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use RedisClusterException;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
@@ -19,15 +20,21 @@ class RedisCancellation
 {
     /**
      * Resolve an exact or native phpredis cancellation.
+     *
+     * Call swoole_clear_error() immediately before the native operation, so an earlier
+     * cancellation the coroutine already handled cannot be mistaken for this one.
      */
     public static function cancellationFrom(Throwable $exception, string $message): ?CanceledException
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (the classification primitive for phpredis failures)
         if ($exception instanceof CanceledException) {
             return $exception;
         }
 
+        // phpredis keeps a thrown cancellation as the cause; a non-throwing one leaves only the socket error.
         if (($exception instanceof RedisException || $exception instanceof RedisClusterException)
-            && Coroutine::isCanceled()
+            && (Coroutine::causedByCancellation($exception)
+                || (EngineCoroutine::isCanceled() && swoole_last_error() === SOCKET_ECANCELED))
         ) {
             return new CanceledException($message, previous: $exception);
         }
@@ -42,11 +49,11 @@ class RedisCancellation
         ?Throwable $operationFailure,
         ?Throwable $cleanupFailure,
     ): void {
-        if ($operationFailure instanceof CanceledException) {
+        if ($operationFailure !== null && Coroutine::causedByCancellation($operationFailure)) {
             throw $operationFailure;
         }
 
-        if ($cleanupFailure instanceof CanceledException) {
+        if ($cleanupFailure !== null && Coroutine::causedByCancellation($cleanupFailure)) {
             throw $cleanupFailure;
         }
 

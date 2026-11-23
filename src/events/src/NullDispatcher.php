@@ -50,6 +50,8 @@ class NullDispatcher implements DispatcherContract
 
     /**
      * Register an event listener with the dispatcher.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      */
     public function listen(array|Closure|QueuedClosure|string $events, array|object|string|null $listener = null): void
     {
@@ -58,6 +60,8 @@ class NullDispatcher implements DispatcherContract
 
     /**
      * Register a passive event observer with the dispatcher.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      */
     public function observe(array|string $events, array|object|string $observer): void
     {
@@ -74,6 +78,8 @@ class NullDispatcher implements DispatcherContract
 
     /**
      * Register an event subscriber with the dispatcher.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      */
     public function subscribe(object|string $subscriber): void
     {
@@ -90,6 +96,8 @@ class NullDispatcher implements DispatcherContract
 
     /**
      * Remove a set of listeners from the dispatcher.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      */
     public function forget(string $event): void
     {

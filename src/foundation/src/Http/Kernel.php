@@ -12,15 +12,17 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Foundation\Http\Events\RequestHandled;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Pipeline;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -176,19 +178,21 @@ class Kernel implements KernelContract
             }
 
             return $response;
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             // Keep the original in flight while it is handled, so a failure in
             // reporting or rendering carries it as that failure's previous. The
             // return suppresses it once a response exists.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $e;
             } finally {
                 $this->reportException($e);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return $this->renderException($request, $e);
             }
         }
@@ -260,29 +264,35 @@ class Kernel implements KernelContract
             if ($events->hasListeners(Terminating::class)) {
                 $events->dispatch(new Terminating);
             }
-        } catch (CanceledException $throwable) {
-            $cancellation = $throwable;
         } catch (Throwable $throwable) {
-            $exception = $throwable;
+            if (Coroutine::causedByCancellation($throwable)) {
+                $cancellation = $throwable;
+            } else {
+                $exception = $throwable;
+            }
         }
 
         if ($cancellation === null) {
             try {
                 $this->terminateMiddleware($request, $response);
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
         if ($cancellation === null) {
             try {
                 $this->app->terminate();
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
@@ -304,27 +314,25 @@ class Kernel implements KernelContract
                             if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
                                 $handler($requestStartedAt, $request, $response);
                             }
-                        } catch (CanceledException $throwable) {
-                            throw $throwable;
                         } catch (Throwable $throwable) {
+                            if (Coroutine::causedByCancellation($throwable)) {
+                                throw $throwable;
+                            }
+
                             $exception ??= $throwable;
                         }
                     }
                 }
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
-        try {
-            CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
-        } catch (CanceledException $throwable) {
-            $cancellation ??= $throwable;
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
-        }
+        CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
 
         if ($cancellation !== null) {
             throw $cancellation;
@@ -378,9 +386,11 @@ class Kernel implements KernelContract
                 if ($terminable) {
                     $instance->terminate($request, $response);
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
@@ -464,12 +474,12 @@ class Kernel implements KernelContract
     /**
      * Add a new middleware to the beginning of the stack if it does not already exist.
      *
-     * Boot-only. Middleware persists in the singleton Kernel's global stack for
-     * the worker lifetime and runs on every subsequent request across all
-     * coroutines.
+     * Middleware persists in the singleton Kernel's global stack for the worker
+     * lifetime and runs on every subsequent request across all coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function prependMiddleware(string $middleware): static
     {
         if (array_search($middleware, $this->middleware) === false) {
@@ -482,12 +492,12 @@ class Kernel implements KernelContract
     /**
      * Add a new middleware to end of the stack if it does not already exist.
      *
-     * Boot-only. Middleware persists in the singleton Kernel's global stack for
-     * the worker lifetime and runs on every subsequent request across all
-     * coroutines.
+     * Middleware persists in the singleton Kernel's global stack for the worker
+     * lifetime and runs on every subsequent request across all coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function pushMiddleware(string $middleware): static
     {
         if (array_search($middleware, $this->middleware) === false) {
@@ -500,13 +510,14 @@ class Kernel implements KernelContract
     /**
      * Prepend the given middleware to the given middleware group.
      *
-     * Boot-only. The middleware group persists in the singleton Kernel for the
-     * worker lifetime and runs on every subsequent request matching the group.
+     * The middleware group persists in the singleton Kernel for the worker
+     * lifetime and runs on every subsequent request matching the group.
      *
      * @return $this
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly]
     public function prependMiddlewareToGroup(string $group, string $middleware): static
     {
         if (! isset($this->middlewareGroups[$group])) {
@@ -525,13 +536,14 @@ class Kernel implements KernelContract
     /**
      * Append the given middleware to the given middleware group.
      *
-     * Boot-only. The middleware group persists in the singleton Kernel for the
-     * worker lifetime and runs on every subsequent request matching the group.
+     * The middleware group persists in the singleton Kernel for the worker
+     * lifetime and runs on every subsequent request matching the group.
      *
      * @return $this
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly]
     public function appendMiddlewareToGroup(string $group, string $middleware): static
     {
         if (! isset($this->middlewareGroups[$group])) {
@@ -550,12 +562,13 @@ class Kernel implements KernelContract
     /**
      * Prepend the given middleware to the middleware priority list.
      *
-     * Boot-only. The middleware priority list persists in the singleton Kernel
-     * for the worker lifetime and affects middleware ordering for every
-     * subsequent request.
+     * The middleware priority list persists in the singleton Kernel for the
+     * worker lifetime and affects middleware ordering for every subsequent
+     * request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function prependToMiddlewarePriority(string $middleware): static
     {
         if (! in_array($middleware, $this->middlewarePriority)) {
@@ -570,12 +583,13 @@ class Kernel implements KernelContract
     /**
      * Append the given middleware to the middleware priority list.
      *
-     * Boot-only. The middleware priority list persists in the singleton Kernel
-     * for the worker lifetime and affects middleware ordering for every
-     * subsequent request.
+     * The middleware priority list persists in the singleton Kernel for the
+     * worker lifetime and affects middleware ordering for every subsequent
+     * request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function appendToMiddlewarePriority(string $middleware): static
     {
         if (! in_array($middleware, $this->middlewarePriority)) {
@@ -590,13 +604,14 @@ class Kernel implements KernelContract
     /**
      * Add the given middleware to the middleware priority list before other middleware.
      *
-     * Boot-only. The middleware priority list persists in the singleton Kernel
-     * for the worker lifetime and affects middleware ordering for every
-     * subsequent request.
+     * The middleware priority list persists in the singleton Kernel for the
+     * worker lifetime and affects middleware ordering for every subsequent
+     * request.
      *
      * @param array<int, string>|string $before
      * @return $this
      */
+    #[BootOnly]
     public function addToMiddlewarePriorityBefore(string|array $before, string $middleware): static
     {
         return $this->addToMiddlewarePriorityRelative($before, $middleware, after: false);
@@ -605,13 +620,14 @@ class Kernel implements KernelContract
     /**
      * Add the given middleware to the middleware priority list after other middleware.
      *
-     * Boot-only. The middleware priority list persists in the singleton Kernel
-     * for the worker lifetime and affects middleware ordering for every
-     * subsequent request.
+     * The middleware priority list persists in the singleton Kernel for the
+     * worker lifetime and affects middleware ordering for every subsequent
+     * request.
      *
      * @param array<int, string>|string $after
      * @return $this
      */
+    #[BootOnly]
     public function addToMiddlewarePriorityAfter(string|array $after, string $middleware): static
     {
         return $this->addToMiddlewarePriorityRelative($after, $middleware);
@@ -720,13 +736,13 @@ class Kernel implements KernelContract
     /**
      * Set the application's global middleware.
      *
-     * Boot-only. Middleware persists in the singleton Kernel's global stack for
-     * the worker lifetime and runs on every subsequent request across all
-     * coroutines.
+     * Middleware persists in the singleton Kernel's global stack for the worker
+     * lifetime and runs on every subsequent request across all coroutines.
      *
      * @param array<int, class-string|string> $middleware
      * @return $this
      */
+    #[BootOnly]
     public function setGlobalMiddleware(array $middleware): static
     {
         $this->middleware = $middleware;
@@ -749,12 +765,13 @@ class Kernel implements KernelContract
     /**
      * Set the application's middleware groups.
      *
-     * Boot-only. Middleware groups persist in the singleton Kernel for the
-     * worker lifetime and affect every subsequent request matching those groups.
+     * Middleware groups persist in the singleton Kernel for the worker lifetime
+     * and affect every subsequent request matching those groups.
      *
      * @param array<string, array<int, class-string|string>> $groups
      * @return $this
      */
+    #[BootOnly]
     public function setMiddlewareGroups(array $groups): static
     {
         $this->middlewareGroups = $groups;
@@ -779,12 +796,13 @@ class Kernel implements KernelContract
     /**
      * Set the application's route middleware aliases.
      *
-     * Boot-only. Middleware aliases persist in the singleton Kernel for the
-     * worker lifetime and affect every subsequent request that uses them.
+     * Middleware aliases persist in the singleton Kernel for the worker
+     * lifetime and affect every subsequent request that uses them.
      *
      * @param array<string, class-string|string> $aliases
      * @return $this
      */
+    #[BootOnly]
     public function setMiddlewareAliases(array $aliases): static
     {
         $this->middlewareAliases = $aliases;
@@ -797,13 +815,14 @@ class Kernel implements KernelContract
     /**
      * Set the application's middleware priority.
      *
-     * Boot-only. The middleware priority list persists in the singleton Kernel
-     * for the worker lifetime and affects middleware ordering for every
-     * subsequent request.
+     * The middleware priority list persists in the singleton Kernel for the
+     * worker lifetime and affects middleware ordering for every subsequent
+     * request.
      *
      * @param string[] $priority
      * @return $this
      */
+    #[BootOnly]
     public function setMiddlewarePriority(array $priority): static
     {
         $this->middlewarePriority = $priority;
@@ -824,12 +843,13 @@ class Kernel implements KernelContract
     /**
      * Set the application instance.
      *
-     * Tests only. Swaps the singleton Kernel's application reference; per-request
-     * use races across coroutines and breaks every concurrent request the worker
-     * is handling.
+     * Swaps the singleton Kernel's application reference; per-request use races
+     * across coroutines and breaks every concurrent request the worker is
+     * handling.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Application $app): static
     {
         $this->app = $app;

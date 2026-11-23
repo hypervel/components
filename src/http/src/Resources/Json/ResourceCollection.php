@@ -50,6 +50,8 @@ class ResourceCollection extends JsonResource implements Countable, IteratorAggr
 
     /**
      * Indicate that all current query parameters should be appended to pagination links.
+     *
+     * @return $this
      */
     public function preserveQuery(): static
     {
@@ -60,6 +62,8 @@ class ResourceCollection extends JsonResource implements Countable, IteratorAggr
 
     /**
      * Specify the query string parameters that should be present on pagination links.
+     *
+     * @return $this
      */
     public function withQuery(array $query): static
     {

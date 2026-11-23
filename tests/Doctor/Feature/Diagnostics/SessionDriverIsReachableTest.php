@@ -12,11 +12,14 @@ use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class SessionDriverIsReachableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $path;
 
     /**
@@ -119,8 +122,8 @@ class SessionDriverIsReachableTest extends TestCase
     public function testDatabaseSessionsKeepTheDefaultSchemaConnection(): void
     {
         config(['session.driver' => 'database', 'session.connection' => null, 'session.table' => 'custom_sessions']);
-        $schema = m::mock(Builder::class);
-        $schema->expects('hasTable')->with('custom_sessions')->andReturnTrue();
+        $schema = Double::for(Builder::class)->strict();
+        $schema->expects('hasTable')->with('custom_sessions')->returns(true);
         Schema::shouldReceive('connection')->with(null)->andReturn($schema);
 
         $this->assertSame('pass', (new SessionDriverIsReachable)->check()->status->value);

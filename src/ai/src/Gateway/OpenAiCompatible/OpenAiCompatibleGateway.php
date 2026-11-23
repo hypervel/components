@@ -12,6 +12,7 @@ use Hypervel\Ai\Contracts\Providers\EmbeddingProvider;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
 use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\ParsesIndexedEmbeddings;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\Concerns\ResolvesAudioFilenames;
 use Hypervel\Ai\Gateway\OpenAiCompatible\Concerns\BuildsTextRequests;
@@ -31,7 +32,6 @@ use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Ai\Responses\TranscriptionResponse;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
 class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, TranscriptionGateway
@@ -45,6 +45,7 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
     use ParsesTextResponses;
     use PerformsChatCompletionSteps;
     use HandlesFailoverErrors;
+    use ParsesIndexedEmbeddings;
     use ParsesServerSentEvents;
     use ResolvesAudioFilenames;
 
@@ -86,11 +87,11 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
 
         $this->validateTextResponse($data);
 
-        return new EmbeddingsResponse(
+        return (new EmbeddingsResponse(
             $this->parseEmbeddings($data, count($inputs)),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -100,19 +101,13 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
      */
     protected function parseEmbeddings(array $data, int $expectedCount): array
     {
-        $embeddings = (new Collection($data['data'] ?? []))->pluck('embedding');
-
-        if ($embeddings->count() !== $expectedCount) {
-            throw new AiException('OpenAI-compatible Error: [invalid_response] The response did not contain the expected number of embeddings.');
-        }
-
-        return $embeddings->map(function (mixed $embedding): array {
+        return array_map(static function (mixed $embedding): array {
             if (! is_array($embedding) || $embedding === [] || array_filter($embedding, 'is_numeric') !== $embedding) {
                 throw new AiException('OpenAI-compatible Error: [invalid_response] The response contained an invalid embedding vector.');
             }
 
             return array_map(floatval(...), $embedding);
-        })->all();
+        }, $this->parseIndexedEmbeddings($data['data'] ?? [], $expectedCount, 'OpenAI-compatible'));
     }
 
     /**
@@ -141,7 +136,7 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
 
         $data = $response->json();
 
-        return new TranscriptionResponse(
+        return (new TranscriptionResponse(
             $data['text'] ?? '',
             collect($data['segments'] ?? [])->map(fn (array $segment): TranscriptionSegment => new TranscriptionSegment(
                 $segment['text'] ?? '',
@@ -155,7 +150,7 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
                 audioSeconds: Arr::get($data, 'usage.seconds') ?? Arr::get($data, 'duration'),
             ),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**

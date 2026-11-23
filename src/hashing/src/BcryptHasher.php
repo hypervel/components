@@ -6,6 +6,7 @@ namespace Hypervel\Hashing;
 
 use Error;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use RuntimeException;
 use SensitiveParameter;
@@ -134,11 +135,12 @@ class BcryptHasher extends AbstractHasher implements HasherContract
     /**
      * Set the default password work factor.
      *
-     * Boot-only. Mutates the shared hasher instance held by the HashManager;
+     * Mutates the shared hasher instance held by the HashManager;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setRounds(int $rounds): static
     {
         $this->rounds = (int) $rounds;

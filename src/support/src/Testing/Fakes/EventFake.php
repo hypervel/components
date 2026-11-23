@@ -55,6 +55,8 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Specify the events that should be dispatched instead of faked.
+     *
+     * @return $this
      */
     public function except(array|string $eventsToDispatch): static
     {
@@ -231,6 +233,8 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Register an event listener with the dispatcher.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      */
     public function listen(
         array|Closure|QueuedClosure|string $events,
@@ -241,6 +245,8 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Register a passive event observer with the dispatcher.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      */
     public function observe(array|string $events, array|object|string $observer): void
     {
@@ -292,6 +298,8 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Register an event subscriber with the dispatcher.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      */
     public function subscribe(object|string $subscriber): void
     {

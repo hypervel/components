@@ -189,7 +189,7 @@ class Middleware
         // Back redirects must read the previous location before this visit replaces it.
         $this->storeCurrentUrl($request, $originalResponse);
 
-        if ($response->getStatusCode() === 302 && in_array($request->method(), ['PUT', 'PATCH', 'DELETE'], true)) {
+        if ($response->getStatusCode() === 302 && in_array($request->method(), ['PUT', 'PATCH', 'DELETE', 'QUERY'], true)) {
             $response->setStatusCode(303);
         }
 
@@ -258,13 +258,11 @@ class Middleware
      */
     protected function addInertiaVaryHeader(Response $response): void
     {
-        foreach ($response->getVary() as $header) {
-            if (strcasecmp($header, Header::INERTIA) === 0) {
-                return;
-            }
-        }
+        // Keep case-insensitive matching without allocating a Collection on every response.
+        $vary = array_unique(array_filter($response->getVary()));
+        $present = array_any($vary, static fn (string $header): bool => strcasecmp($header, Header::INERTIA) === 0);
 
-        $response->setVary(Header::INERTIA, false);
+        $response->setVary(implode(', ', $present ? $vary : [...$vary, Header::INERTIA]));
     }
 
     /**
@@ -335,7 +333,7 @@ class Middleware
         return (object) collect($bags)->map(function ($bag) {
             return (object) collect($bag->messages())->map(function ($errors) {
                 return $this->withAllErrors ? $errors : $errors[0];
-            })->toArray();
+            })->all();
         })->pipe(function ($bags) use ($request) {
             $errorBag = $request->header(Header::ERROR_BAG);
 

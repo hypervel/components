@@ -12,6 +12,8 @@ trait Debugging
 
     /**
      * Dump the given props.
+     *
+     * @return $this
      */
     public function dump(?string $prop = null): static
     {

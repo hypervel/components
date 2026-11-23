@@ -22,11 +22,15 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDO;
 
 class DatabaseManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: Laravel's ::direct parsing, PDO selection and refresh tests.
     // Hypervel uses a separate named connection for that endpoint.
 
@@ -50,7 +54,7 @@ class DatabaseManagerTest extends TestCase
         $config = new Repository(['database' => ['default' => 'sqlite']]);
         $container->instance('config', $config);
 
-        $manager = new DatabaseManager($container, m::mock(ConnectionFactory::class));
+        $manager = new DatabaseManager($container, Double::for(ConnectionFactory::class)->strict());
 
         $manager->setDefaultConnection(DatabaseManagerTestBackedConnection::Reporting);
 
@@ -72,12 +76,25 @@ class DatabaseManagerTest extends TestCase
         $container = new Container;
         $container->instance('config', new Repository(['database' => ['default' => 'sqlite']]));
 
-        $manager = new DatabaseManager($container, m::mock(ConnectionFactory::class));
+        $manager = new DatabaseManager($container, Double::for(ConnectionFactory::class)->strict());
 
         $default = $manager->usingConnection(DatabaseManagerTestBackedConnection::Reporting, fn (): ?string => $manager->getDefaultConnection());
 
         $this->assertSame('reporting', $default);
         $this->assertSame('sqlite', $manager->getDefaultConnection());
+    }
+
+    public function testHeldConnectionFallsBackToTheResolverAndNormalizesEnumNames(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'analytics');
+
+        $manager = $this->db->getDatabaseManager();
+
+        $this->assertSame($manager->connection(), $manager->getHeldConnection());
+        $this->assertSame($manager->connection('analytics'), $manager->getHeldConnection(DatabaseManagerTestUnitConnection::analytics));
     }
 
     public function testReconnectorAcceptsArrayCallable(): void
@@ -222,10 +239,9 @@ class DatabaseManagerTest extends TestCase
     {
         $manager = $this->db->getDatabaseManager();
 
-        // Should not throw — no connection has been resolved yet
         $manager->disconnect();
 
-        $this->assertTrue(true);
+        $this->assertSame([], $manager->getConnections());
     }
 
     public function testReconnectAfterDisconnectOnNonPooledConnection(): void
@@ -507,8 +523,11 @@ class DatabaseManagerTest extends TestCase
         $manager->extend('http', static function (array $config) use (&$receivedConfigurations): Connection {
             $receivedConfigurations[] = $config;
 
-            return m::mock(Connection::class . '[replaceDriverResources]', [$config['database'], $config['prefix'], $config])
-                ->shouldAllowMockingProtectedMethods();
+            $connection = Double::for(Connection::class)->passthru();
+            // Initialize the abstract driver's real configuration; Double skips constructors.
+            $connection->__construct($config['database'], $config['prefix'], $config);
+
+            return $connection;
         });
         $expected = $config + [
             'prefix' => '',
@@ -520,7 +539,7 @@ class DatabaseManagerTest extends TestCase
 
         $this->assertSame([$expected], $receivedConfigurations);
         $this->assertSame($expected + ['mask_bindings_in_exception_messages' => false], $connection->getConfig());
-        $connection->shouldReceive('replaceDriverResources')->once()->with(m::type(Connection::class));
+        $connection->expects('replaceDriverResources')->with(Argument::type(Connection::class));
 
         $this->assertSame($connection, $manager->reconnect('read-extension::read'));
         $this->assertSame([$expected, $expected], $receivedConfigurations);

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Facades\Gate;
 
-class Can implements Rule, ValidatorAwareRule
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
+class Can implements Rule, ValidatorAwareRule, Transient
 {
     /**
      * The current validator instance.
@@ -30,11 +32,8 @@ class Can implements Rule, ValidatorAwareRule
      */
     public function passes(string $attribute, mixed $value): bool
     {
-        $arguments = $this->arguments;
-
-        $model = array_shift($arguments);
-
-        return Gate::allows($this->ability, array_filter([$model, ...$arguments, $value]));
+        // Keep falsey authorization data, and drop argument names so Gate receives positional values.
+        return Gate::allows($this->ability, [...array_values($this->arguments), $value]);
     }
 
     /**
@@ -51,6 +50,8 @@ class Can implements Rule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {

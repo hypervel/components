@@ -13,10 +13,14 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class RedisPoolTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPoolConnectTimeoutConfiguresTheNativeRedisTimeout(): void
     {
         $connectionConfig = [
@@ -35,7 +39,7 @@ class RedisPoolTest extends TestCase
         ];
 
         $container = $this->mockContainerWithRedisConfig($connectionConfig);
-        $pool = new RedisPool($container, 'default');
+        $pool = new RedisPool($container->instance(), 'default');
         $expectedConfig = $connectionConfig;
         $expectedConfig['timeout'] = 1.25;
 
@@ -60,7 +64,7 @@ class RedisPoolTest extends TestCase
         ];
 
         $container = $this->mockContainerWithRedisConfig($connectionConfig);
-        $pool = new RedisPool($container, 'default');
+        $pool = new RedisPool($container->instance(), 'default');
 
         $this->assertSame($connectionConfig, $pool->getConfig());
     }
@@ -90,10 +94,10 @@ class RedisPoolTest extends TestCase
                 ],
             ],
         ]));
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->with(RedisConfig::class)->once()->andReturn($redisConfig);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
-        $pool = new RedisPool($container, 'default');
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(RedisConfig::class)->returns($redisConfig);
+        $container->allows('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $pool = new RedisPool($container->instance(), 'default');
 
         $redisConfig->enableEvents();
 
@@ -121,10 +125,10 @@ class RedisPoolTest extends TestCase
         ];
 
         $container = $this->mockContainerWithRedisConfig($connectionConfig);
-        $container->shouldReceive('has')->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container->allows('has')->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
 
-        $pool = new TestRedisPool($container, 'default');
+        $pool = new TestRedisPool($container->instance(), 'default');
 
         $connection1 = $pool->borrow();
         $connection2 = $pool->borrow();
@@ -155,14 +159,14 @@ class RedisPoolTest extends TestCase
      *
      * @param array<string, mixed> $connectionConfig
      */
-    private function mockContainerWithRedisConfig(array $connectionConfig): m\MockInterface|Container
+    private function mockContainerWithRedisConfig(array $connectionConfig): DoubleInterface
     {
-        $redisConfig = m::mock(RedisConfig::class);
-        $redisConfig->shouldReceive('connectionConfig')->once()->with('default')->andReturn($connectionConfig);
+        $redisConfig = Double::for(RedisConfig::class)->strict();
+        $redisConfig->expects('connectionConfig')->with('default')->returns($connectionConfig);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->with(RedisConfig::class)->once()->andReturn($redisConfig);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(RedisConfig::class)->returns($redisConfig);
+        $container->allows('has')->with(StdoutLoggerInterface::class)->returns(false);
 
         return $container;
     }
@@ -170,12 +174,18 @@ class RedisPoolTest extends TestCase
 
 class TestRedisPool extends RedisPool
 {
+    /**
+     * Set the usage tracker for the test.
+     */
     public function setUsageTrackerForTest(UsageTracker $tracker): void
     {
         $this->usageTracker = $tracker;
         $this->usageTrackerInitialized = true;
     }
 
+    /**
+     * Create a tracked test connection.
+     */
     protected function createConnection(): PoolConnection
     {
         return new TestPoolConnection($this->container, $this);
@@ -186,11 +196,17 @@ class TestPoolConnection extends Connection
 {
     public static int $closeCount = 0;
 
+    /**
+     * Reset the close count.
+     */
     public static function reset(): void
     {
         self::$closeCount = 0;
     }
 
+    /**
+     * Record closing the connection.
+     */
     public function close(): bool
     {
         ++self::$closeCount;
@@ -198,11 +214,17 @@ class TestPoolConnection extends Connection
         return true;
     }
 
+    /**
+     * Report a successful test reconnection.
+     */
     public function reconnect(): bool
     {
         return true;
     }
 
+    /**
+     * Return the test connection.
+     */
     public function getActiveConnection(): static
     {
         return $this;
@@ -211,10 +233,16 @@ class TestPoolConnection extends Connection
 
 class AlwaysTrimIdle implements UsageTracker
 {
+    /**
+     * Leave the test policy unchanged on borrow.
+     */
     public function recordBorrow(): void
     {
     }
 
+    /**
+     * Always request trimming excess idle connections.
+     */
     public function shouldTrimExcessIdle(): bool
     {
         return true;

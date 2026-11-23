@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Closure;
+use Hypervel\Contracts\Container\Transient;
 use Stringable;
 
-class ExcludeIf implements Stringable
+class ExcludeIf implements Stringable, Transient
 {
     /**
      * The condition that validates the attribute.

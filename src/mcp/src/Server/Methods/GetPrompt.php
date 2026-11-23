@@ -42,7 +42,6 @@ class GetPrompt implements Method
             throw new JsonRpcException($invalidArgumentException->getMessage(), -32602, $request->id);
         }
 
-        // @phpstan-ignore-next-line
         $response = $this->callHandler(fn (): mixed => Container::getInstance()->call([$prompt, 'handle']), $request);
 
         return is_iterable($response)

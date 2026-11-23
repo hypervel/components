@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Support;
 
 use Carbon\CarbonInterval;
 use DateInterval;
-use Exception;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
@@ -82,6 +82,26 @@ class SleepTest extends TestCase
         $elapsed = microtime(true) - $start;
 
         $this->assertGreaterThanOrEqual(2.9, $elapsed);
+    }
+
+    #[TestWith([1.5])]
+    #[TestWith([0.2])]
+    public function testCancelingTheCoroutineEndsTheSleep(float $seconds): void
+    {
+        $coroutine = Coroutine::id();
+        Coroutine::create(static function () use ($coroutine): void {
+            usleep(50000);
+            Coroutine::cancelById($coroutine);
+        });
+        $checks = 0;
+
+        Sleep::for($seconds)->seconds()->while(function () use (&$checks): bool {
+            return ++$checks <= 3;
+        });
+
+        // Sleeping the remainder or the next iteration would have reset the coroutine's cancellation state.
+        $this->assertSame(1, $checks);
+        $this->assertTrue(Coroutine::isCanceled());
     }
 
     #[TestWith([0])]
@@ -641,13 +661,14 @@ class SleepTest extends TestCase
 
     public function testItDoesntRunCallbacksWhenNotFaking(): void
     {
-        Sleep::whenFakingSleep(function (): never {
-            throw new Exception('Should not run without faking.');
+        $called = false;
+        Sleep::whenFakingSleep(function () use (&$called): void {
+            $called = true;
         });
 
         Sleep::for(1)->millisecond();
 
-        $this->assertTrue(true);
+        $this->assertFalse($called);
     }
 
     public function testItDoesNotSyncCarbon(): void

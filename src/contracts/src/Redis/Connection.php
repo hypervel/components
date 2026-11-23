@@ -5,17 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Redis;
 
 use Closure;
+use Hypervel\Support\Attributes\BootOnly;
 
 interface Connection
 {
     /**
      * Register a Redis command listener with the connection.
      */
+    #[BootOnly]
     public function listen(Closure $callback): void;
 
     /**
      * Register a Redis command failure listener with the connection.
      */
+    #[BootOnly]
     public function listenForFailures(Closure $callback): void;
 
     /**

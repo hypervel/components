@@ -15,6 +15,7 @@ use Hypervel\Permission\Events\RoleAttachedEvent;
 use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\Relations\DisabledTeamsMorphToMany;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Permission\Support\PermissionPartition;
 use Hypervel\Permission\Support\PermissionRelationContext;
@@ -200,6 +201,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeRole(
         Builder $query,
         array|Collection|int|Role|string|UnitEnum $roles,
@@ -251,6 +253,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeWithoutRole(Builder $query, array|Collection|int|Role|string|UnitEnum $roles, ?string $guard = null): Builder
     {
         return $this->scopeRole($query, $roles, $guard, true);
@@ -261,16 +264,25 @@ trait HasRoles
      *
      * When the teams feature is disabled this returns an empty BelongsToMany so
      * tooling that introspects model relations (e.g. ide-helper:models) does not
-     * break. Querying it is a no-op and produces no rows.
+     * break. Querying it is a no-op and produces no rows, and attaching, detaching,
+     * syncing, saving or creating through it throws.
      */
     public function teams(): BelongsToMany
     {
         if (! Config::teamsEnabled()) {
-            $relation = $this->permissionMorphToMany(
-                Config::permissionModel(),
-                Config::modelHasRolesTable(),
+            // Unlike upstream's permissions()->whereRaw('1 = 0'), writes through this relation can't change the
+            // model's direct permissions, and loading it doesn't mark them as loaded.
+            $permission = $this->newRelatedInstance(Config::permissionModel());
+
+            $relation = new DisabledTeamsMorphToMany(
+                $permission->newQuery(),
+                $this,
+                Config::MORPH_NAME,
+                Config::modelHasPermissionsTable(),
                 Config::morphKey(),
-                Config::teamForeignKey(),
+                $this->permissionRegistrar()->pivotPermission,
+                $this->getKeyName(),
+                $permission->getKeyName(),
                 'teams',
             );
 
@@ -298,6 +310,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeTeam(Builder $query, array|Collection|int|Model|string $teams, bool $without = false): Builder
     {
         $teamModel = Config::teamModel();
@@ -338,6 +351,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeWithoutTeam(Builder $query, array|Collection|int|Model|string $teams): Builder
     {
         return $this->scopeTeam($query, $teams, true);

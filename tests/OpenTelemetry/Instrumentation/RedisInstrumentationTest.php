@@ -19,7 +19,8 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -42,11 +43,15 @@ use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class RedisInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Dispatcher $events;
@@ -263,24 +268,36 @@ class RedisInstrumentationTest extends TestCase
         $this->assertCount(1, $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints);
     }
 
-    public function testResolverCancellationPropagatesWithoutCompletionTelemetry(): void
+    #[TestWith([false, false], 'direct cancellation after a successful command')]
+    #[TestWith([true, false], 'wrapped cancellation after a successful command')]
+    #[TestWith([false, true], 'direct cancellation after a failed command')]
+    public function testResolverCancellationPropagatesAndKeepsTheCommandOutcome(bool $wrapped, bool $commandFails): void
     {
-        $cancellation = new CanceledException;
+        $cancellation = $wrapped ? new RuntimeException('Resolver cleanup failed.', previous: new CanceledException) : new CanceledException;
         $resolver = static function () use ($cancellation): never {
             throw $cancellation;
         };
         $this->instrumentation(resolver: $resolver)->register($this->options());
+        $exception = new RuntimeException('connection lost');
+        $caught = null;
 
         try {
-            $this->events->dispatch(new CommandExecuted('GET', ['customer:1'], 1, $this->connection()));
-            $this->fail('Expected the resolver cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            $this->events->dispatch($commandFails
+                ? new CommandFailed('GET', ['customer:1'], $exception, $this->connection(), 50)
+                : new CommandExecuted('GET', ['customer:1'], 1, $this->connection()));
+        } catch (Throwable $throwable) {
+            $caught = $throwable;
         }
 
-        $this->assertCount(0, $this->spanExporter->getSpans());
+        $this->assertSame($cancellation, $caught);
+        $span = $this->spanExporter->getSpans()[0];
+        $this->assertSame($commandFails ? StatusCode::STATUS_ERROR : StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertSame($commandFails ? RuntimeException::class : null, $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertNull($span->getAttributes()->get(DbAttributes::DB_QUERY_TEXT));
+        $this->assertCount($commandFails ? 1 : 0, $span->getEvents());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints);
+        $point = $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints[0];
+        $this->assertSame($commandFails ? RuntimeException::class : null, $point->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
     public function testQueryTextCanBeDisabledWithoutFormatterOrResolverWork(): void
@@ -358,17 +375,11 @@ class RedisInstrumentationTest extends TestCase
         int $resolverCalls = 1,
         int $enableEventCalls = 1,
     ): RedisInstrumentation {
-        $openTelemetryManager = m::mock(OpenTelemetryManager::class);
-        $expectation = $openTelemetryManager->shouldReceive('redisQueryTextResolver');
+        $openTelemetryManager = Double::for(OpenTelemetryManager::class)->strict();
+        $openTelemetryManager->expects('redisQueryTextResolver')->times($resolverCalls)->returns($resolver);
 
-        if ($resolverCalls === 0) {
-            $expectation->never();
-        } else {
-            $expectation->times($resolverCalls)->andReturn($resolver);
-        }
-
-        $redisManager = m::mock(RedisManager::class);
-        $redisManager->shouldReceive('enableEvents')->times($enableEventCalls);
+        $redisManager = Double::for(RedisManager::class)->strict();
+        $redisManager->expects('enableEvents')->times($enableEventCalls);
 
         return new RedisInstrumentation(
             $this->events,
@@ -389,8 +400,8 @@ class RedisInstrumentationTest extends TestCase
      */
     private function connection(string $name = 'primary'): RedisConnection
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('getName')->once()->andReturn($name);
+        $connection = Double::for(RedisConnection::class)->strict();
+        $connection->expects('getName')->returns($name);
 
         return $connection;
     }

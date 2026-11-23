@@ -55,7 +55,7 @@ class NewPasswordController extends Controller
 
         $request->validate([
             'token' => 'required',
-            Fortify::email() => 'required|email',
+            Fortify::email() => ['required', 'email'],
             'password' => 'required',
         ]);
 

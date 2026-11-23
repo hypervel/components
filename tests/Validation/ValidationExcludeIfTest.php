@@ -42,11 +42,11 @@ class ValidationExcludeIfTest extends TestCase
 
     public function testItAcceptsCallableAndBooleanArguments(): void
     {
+        $this->expectNotToPerformAssertions();
+
         new ExcludeIf(false);
         new ExcludeIf(true);
         new ExcludeIf(fn (): bool => true);
-
-        $this->addToAssertionCount(1);
     }
 
     #[DataProvider('dataProviderItRejectsNonCallableNonBooleanArguments')]

@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Benchmark;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Js;
@@ -28,6 +32,11 @@ use Throwable;
 abstract class Facade
 {
     /**
+     * The context key for the coroutine-local facade roots.
+     */
+    protected const string STATE_CONTEXT_KEY = '__support.facade_state';
+
+    /**
      * The application instance being facaded.
      */
     protected static ?ContainerContract $app = null;
@@ -38,27 +47,42 @@ abstract class Facade
     protected static array $resolvedInstance;
 
     /**
+     * Accessors whose resolved objects belong to a coroutine scope.
+     *
+     * @var array<string, true>
+     */
+    protected static array $scopedAccessors = [];
+
+    /**
+     * Accessors with coroutine-local roots, and their current generation.
+     *
+     * @var array<string, int>
+     */
+    protected static array $coroutineAccessors = [];
+
+    /**
      * Indicates if the resolved instance should be cached.
      *
      * When false, the facade resolves from the container on every access
      * instead of caching in $resolvedInstance. Useful for stateful services
      * like Pipeline where each usage needs a fresh instance.
      *
-     * Important: for $cached = false to produce fresh instances, the
-     * underlying class must be explicitly bound with bind(), not singleton().
-     * Our container auto-singletons unbound classes, so an unbound class
-     * would still return the same instance from the container regardless
-     * of this setting. This differs from Laravel where unbound classes
-     * always resolve fresh.
+     * When caching is enabled, the facade keeps an instance for as long as
+     * the container shares it: worker-shared instances for the worker lifetime,
+     * and other bindings for the current coroutine. Scoped bindings always
+     * resolve through the container, preserving the current coroutine's instance.
+     * The container's lifetime still applies: disabling this cache does not
+     * make singletons or auto-singletons fresh.
      */
     protected static bool $cached = true;
 
     /**
      * Run a Closure when the facade has been resolved.
      *
-     * Boot-only. The callback is registered on the worker-global container
-     * and runs for every subsequent resolution of the facade accessor.
+     * The callback is registered on the worker-global container and runs
+     * for every subsequent resolution of the facade accessor.
      */
+    #[BootOnly]
     public static function resolved(Closure $callback): void
     {
         $accessor = static::getFacadeAccessor();
@@ -77,8 +101,9 @@ abstract class Facade
     /**
      * Convert the facade into a Mockery spy.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function spy(): ?MockInterface
     {
         if (static::isMock()) {
@@ -95,8 +120,9 @@ abstract class Facade
     /**
      * Initiate a partial mock on the facade.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function partialMock(): MockInterface
     {
         $name = static::getFacadeAccessor();
@@ -111,8 +137,9 @@ abstract class Facade
     /**
      * Initiate a mock expectation on the facade.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function shouldReceive(): CompositeExpectation|Expectation|HigherOrderMessage
     {
         $name = static::getFacadeAccessor();
@@ -127,8 +154,9 @@ abstract class Facade
     /**
      * Initiate a mock expectation on the facade.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function expects(): CompositeExpectation|Expectation|ExpectsHigherOrderMessage
     {
         $name = static::getFacadeAccessor();
@@ -142,7 +170,10 @@ abstract class Facade
 
     /**
      * Create a fresh mock instance for the given class.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     protected static function createFreshMockInstance(): MockInterface
     {
         return tap(static::createMock(), function ($mock) {
@@ -188,10 +219,11 @@ abstract class Facade
     /**
      * Hotswap the underlying instance behind the facade.
      *
-     * Tests only. Replaces the worker-wide resolved facade instance and
-     * container binding; runtime use races across coroutines and changes every
-     * subsequent facade call.
+     * Replaces the worker-wide resolved facade instance and container binding;
+     * runtime use races across coroutines and changes every subsequent facade
+     * call.
      */
+    #[TestsOnly]
     public static function swap(mixed $instance): void
     {
         static::$resolvedInstance[static::getFacadeAccessor()] = $instance;
@@ -237,37 +269,73 @@ abstract class Facade
             return static::$resolvedInstance[$name];
         }
 
-        if (static::$app) {
-            if (static::$cached) {
-                return static::$resolvedInstance[$name] = static::$app->make($name);
-            }
-
-            return static::$app->make($name);
+        if (! static::$app) {
+            return null;
         }
 
-        return null;
+        if (static::$cached && isset(static::$coroutineAccessors[$name])) {
+            $root = CoroutineContext::get(self::STATE_CONTEXT_KEY)?->roots[$name] ?? null;
+
+            if ($root !== null && $root[0] === static::$coroutineAccessors[$name]) {
+                return $root[1];
+            }
+        }
+
+        $instance = static::$app->make($name);
+
+        if (! static::$cached || isset(static::$scopedAccessors[$name]) || static::$app->isScoped($name)) {
+            return $instance;
+        }
+
+        if (static::$app->resolvedShared($name)) {
+            static::$resolvedInstance[$name] = $instance;
+        } elseif (static::$app->isScopedInstance($instance)) {
+            // A transient factory can return a scoped service. Remember its lifetime
+            // so later calls neither retain the object nor repeat the scoped-store scan.
+            static::$scopedAccessors[$name] = true;
+        } else {
+            $state = CoroutineContext::get(self::STATE_CONTEXT_KEY)
+                ?? CoroutineContext::set(self::STATE_CONTEXT_KEY, new FacadeState);
+
+            $state->roots[$name] = [static::$coroutineAccessors[$name] ??= 0, $instance];
+        }
+
+        return $instance;
     }
 
     /**
      * Clear a resolved facade instance.
      *
-     * Boot or tests only. Clears a worker-wide facade cache entry; concurrent
-     * coroutines may still hold the previous resolved instance.
+     * Later facade calls everywhere resolve again; only references
+     * already held keep the previous instance.
      */
+    #[BootOrTestsOnly]
     public static function clearResolvedInstance(?string $name = null): void
     {
-        unset(static::$resolvedInstance[$name ?? static::getFacadeAccessor()]);
+        $name ??= static::getFacadeAccessor();
+
+        unset(static::$resolvedInstance[$name], static::$scopedAccessors[$name]);
+
+        if (isset(static::$coroutineAccessors[$name])) {
+            ++static::$coroutineAccessors[$name];
+        }
     }
 
     /**
      * Clear all of the resolved instances.
      *
-     * Boot or tests only. Clears the worker-wide facade cache; concurrent
-     * coroutines may still hold previously resolved instances.
+     * Later facade calls everywhere resolve again; only references
+     * already held keep the previous instances.
      */
+    #[BootOrTestsOnly]
     public static function clearResolvedInstances(): void
     {
         static::$resolvedInstance = [];
+        static::$scopedAccessors = [];
+
+        foreach (static::$coroutineAccessors as $name => $generation) {
+            static::$coroutineAccessors[$name] = $generation + 1;
+        }
     }
 
     /**
@@ -341,9 +409,10 @@ abstract class Facade
     /**
      * Set the application instance.
      *
-     * Boot or tests only. Replaces the worker-wide facade application reference;
-     * runtime use races across coroutines and breaks every facade lookup.
+     * Replaces the worker-wide facade application reference; runtime use races
+     * across coroutines and breaks every facade lookup.
      */
+    #[BootOrTestsOnly]
     public static function setFacadeApplication(?ContainerContract $app): void
     {
         static::$app = $app;

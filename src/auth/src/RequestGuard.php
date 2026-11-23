@@ -33,10 +33,6 @@ class RequestGuard implements Guard
 
     /**
      * Create a new authentication guard.
-     *
-     * The $name parameter is a Hypervel addition for coroutine-safe Context
-     * keying. Each named guard needs a unique Context key so multiple
-     * RequestGuard instances don't collide.
      */
     public function __construct(
         protected string $name,
@@ -116,6 +112,8 @@ class RequestGuard implements Guard
 
     /**
      * Set the current user.
+     *
+     * @return $this
      */
     public function setUser(AuthenticatableContract $user): static
     {
@@ -126,6 +124,8 @@ class RequestGuard implements Guard
 
     /**
      * Forget the current user.
+     *
+     * @return $this
      */
     public function forgetUser(): static
     {
@@ -152,7 +152,7 @@ class RequestGuard implements Guard
      */
     protected function getExplicitUserContextKey(): string
     {
-        return "__auth.guards.{$this->name}.user.explicit";
+        return $this->contextKey('user.explicit');
     }
 
     /**
@@ -160,7 +160,7 @@ class RequestGuard implements Guard
      */
     protected function getResolvedUserContextKey(): string
     {
-        return "__auth.guards.{$this->name}.user.resolved";
+        return $this->contextKey('user.resolved');
     }
 
     /**

@@ -62,6 +62,8 @@ class User extends AbstractUser
 
     /**
      * Set the token on the user.
+     *
+     * @return $this
      */
     public function setToken(#[SensitiveParameter] ?string $token): static
     {
@@ -72,6 +74,8 @@ class User extends AbstractUser
 
     /**
      * Set the refresh token required to obtain a new access token.
+     *
+     * @return $this
      */
     public function setRefreshToken(#[SensitiveParameter] ?string $refreshToken): static
     {
@@ -82,6 +86,8 @@ class User extends AbstractUser
 
     /**
      * Set the number of seconds the access token is valid for.
+     *
+     * @return $this
      */
     public function setExpiresIn(?int $expiresIn): static
     {
@@ -92,6 +98,8 @@ class User extends AbstractUser
 
     /**
      * Set the scopes that were approved by the user during authentication.
+     *
+     * @return $this
      */
     public function setApprovedScopes(array $approvedScopes): static
     {
@@ -102,6 +110,8 @@ class User extends AbstractUser
 
     /**
      * Set the complete access token response on the user.
+     *
+     * @return $this
      */
     public function setAccessTokenResponseBody(#[SensitiveParameter] array $accessTokenResponseBody): static
     {

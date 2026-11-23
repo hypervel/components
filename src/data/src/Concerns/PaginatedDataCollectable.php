@@ -6,6 +6,7 @@ namespace Hypervel\Data\Concerns;
 
 use Closure;
 use Hypervel\Data\Exceptions\PaginatedCollectionIsAlwaysWrapped;
+use Hypervel\Support\Attributes\Unsupported;
 
 /**
  * @template TKey of array-key
@@ -40,6 +41,7 @@ trait PaginatedDataCollectable
     /**
      * Disable wrapping for the collection.
      */
+    #[Unsupported]
     public function withoutWrapping(): static
     {
         throw PaginatedCollectionIsAlwaysWrapped::create();

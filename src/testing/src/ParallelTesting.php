@@ -6,6 +6,7 @@ namespace Hypervel\Testing;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Str;
 use Throwable;
 
@@ -220,7 +221,7 @@ class ParallelTesting
     }
 
     /**
-     * Call every teardown callback and preserve the first failure.
+     * Call every teardown callback, then throw any failure.
      *
      * @param list<callable> $callbacks
      * @param array<string, mixed> $parameters
@@ -233,7 +234,7 @@ class ParallelTesting
             try {
                 $this->container->call($callback, $parameters);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

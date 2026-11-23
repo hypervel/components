@@ -16,7 +16,8 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Scout\Console\ConcurrentImportRunner;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -24,6 +25,8 @@ use Throwable;
 
 class ConcurrentImportRunnerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testChildrenPreserveTheScopedDefaultDatabaseConnection(): void
     {
         $container = new Container;
@@ -124,8 +127,8 @@ class ConcurrentImportRunnerTest extends TestCase
     public function testCancellationWhileReleasingTheParentConnectionCancelsActiveImports(bool $cleanupThrows): void
     {
         $failure = $cleanupThrows ? new RuntimeException('Release cleanup failed.', previous: new CanceledException) : new CanceledException;
-        $lease = m::mock(ConnectionLease::class);
-        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        $lease = Double::for(ConnectionLease::class)->strict();
+        $lease->expects('releaseIfIdle')->throws($failure);
         $runner = new ConcurrentImportRunner(1);
         $blocker = new Channel(1);
         $childCanceled = false;

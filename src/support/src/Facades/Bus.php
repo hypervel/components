@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Foundation\Bus\PendingChain;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Testing\Fakes\BusFake;
 
 /**
@@ -66,7 +67,10 @@ class Bus extends Facade
 {
     /**
      * Replace the bound instance with a fake.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(array|string $jobsToFake = [], ?BatchRepository $batchRepository = null): BusFake
     {
         $actualDispatcher = static::isFake()

@@ -404,7 +404,9 @@ use Hypervel\Contracts\Container\Container;
 
 #[BindWhen(
     RedisEventPusher::class,
-    static fn (Container $container): bool => $container->bound('redis'),
+    static function (Container $container): bool {
+        return $container->bound('redis');
+    },
 )]
 interface EventPusher
 {
@@ -438,6 +440,8 @@ $this->app->when([VideoController::class, UploadController::class])
         return Storage::disk('s3');
     });
 ```
+
+When `call()` invokes an inherited method, contextual bindings belong to the concrete class being called. For example, a binding registered with `when(ChildJob::class)` applies to its inherited `handle()` method.
 
 <a name="contextual-attributes"></a>
 ### Contextual Attributes

@@ -11,6 +11,7 @@ use Hypervel\Database\LazyLoadingViolationException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class EloquentStrictLoadingTest extends DatabaseTestCase
@@ -165,6 +166,34 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
     {
         $model1 = EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading::create();
         $this->assertInstanceOf(Collection::class, $model1->modelTwos);
+    }
+
+    public function testStrictModeThrowsAnExceptionOnLazyLoadingWithCursor(): void
+    {
+        $this->expectException(LazyLoadingViolationException::class);
+        $this->expectExceptionMessageIsOrContains('Attempted to lazy load');
+
+        EloquentStrictLoadingTestModel1::create();
+
+        foreach (EloquentStrictLoadingTestModel1::cursor() as $model) {
+            $model->modelTwos;
+        }
+    }
+
+    #[TestWith(['get'])]
+    #[TestWith(['cursor'])]
+    public function testModelPreventsLazyLoadingWhenGlobalPreventionIsDisabled(string $method): void
+    {
+        Model::preventLazyLoading(false);
+
+        EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading::create();
+        EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading::create();
+
+        $this->expectException(LazyLoadingViolationException::class);
+
+        foreach (EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading::{$method}() as $model) {
+            $model->modelTwos;
+        }
     }
 }
 

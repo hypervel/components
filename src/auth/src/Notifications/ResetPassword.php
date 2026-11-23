@@ -13,6 +13,7 @@ use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Lang;
 use Hypervel\Support\Facades\Password;
 use InvalidArgumentException;
@@ -117,11 +118,12 @@ class ResetPassword extends Notification
     /**
      * Set a callback that should be used when creating the reset password button URL.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every reset-password notification.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every reset-password notification.
      *
      * @param Closure(mixed, string): string $callback
      */
+    #[BootOnly]
     public static function createUrlUsing(Closure $callback): void
     {
         static::$createUrlCallback = $callback;
@@ -130,11 +132,12 @@ class ResetPassword extends Notification
     /**
      * Set a callback that should be used when building the notification mail message.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every reset-password notification.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every reset-password notification.
      *
      * @param Closure(mixed, string): (Mailable|MailMessage) $callback
      */
+    #[BootOnly]
     public static function toMailUsing(Closure $callback): void
     {
         static::$toMailCallback = $callback;

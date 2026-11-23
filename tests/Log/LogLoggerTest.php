@@ -14,7 +14,8 @@ use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Log\Logger;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Monolog\Handler\AbstractHandler;
 use Monolog\Handler\TestHandler;
 use Monolog\Level;
@@ -28,6 +29,8 @@ use function Hypervel\Coroutine\parallel;
 
 class LogLoggerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMethodsPassErrorAdditionsToMonolog(): void
     {
         $monolog = new Monolog('test');
@@ -326,7 +329,7 @@ class LogLoggerTest extends TestCase
     {
         $this->expectExceptionObject(new RuntimeException('Named loggers are only supported by Monolog drivers.'));
 
-        (new Logger(m::mock(LoggerInterface::class)))->withName('tenant');
+        (new Logger(Double::for(LoggerInterface::class)->strict()))->withName('tenant');
     }
 
     // -- Hypervel-specific tests --
@@ -338,7 +341,7 @@ class LogLoggerTest extends TestCase
         $writer->withContext(['foo' => 'bar']);
         $writer->withContext(['baz' => 'qux']);
 
-        $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
+        $monolog->allows('isHandling')->with('error')->returns(true);
         $monolog->expects('error')->with('test message', ['foo' => 'bar', 'baz' => 'qux']);
 
         $writer->error('test message');
@@ -346,11 +349,11 @@ class LogLoggerTest extends TestCase
 
     public function testLoggerSkipsEventDispatchWhenNoListenersAreRegistered(): void
     {
-        $writer = new Logger($monolog = $this->mockMonolog(), $events = m::mock(DispatcherContract::class));
-        $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
+        $writer = new Logger($monolog = $this->mockMonolog(), $events = Double::for(DispatcherContract::class)->strict());
+        $monolog->allows('isHandling')->with('error')->returns(true);
         $monolog->expects('error')->with('foo', []);
-        $events->expects('hasListeners')->with(MessageLogged::class)->andReturn(false);
-        $events->shouldNotReceive('dispatch');
+        $events->expects('hasListeners')->with(MessageLogged::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $writer->error('foo');
     }
@@ -364,7 +367,7 @@ class LogLoggerTest extends TestCase
         CoroutineContext::set(ContextRepository::CONTEXT_KEY, $repository);
 
         $writer = new Logger($monolog = $this->mockMonolog(), $events);
-        $monolog->shouldReceive('isHandling')->with('info')->andReturn(true);
+        $monolog->allows('isHandling')->with('info')->returns(true);
         $monolog->expects('info')->with('test', []);
 
         $captured = null;
@@ -386,7 +389,7 @@ class LogLoggerTest extends TestCase
 
         $events = new Dispatcher;
         $writer = new Logger($monolog = $this->mockMonolog(), $events);
-        $monolog->shouldReceive('isHandling')->with('info')->andReturn(true);
+        $monolog->allows('isHandling')->with('info')->returns(true);
         $monolog->expects('info')->with('test', []);
 
         $captured = null;
@@ -404,7 +407,7 @@ class LogLoggerTest extends TestCase
      */
     private function mockMonolog(): Monolog
     {
-        $monolog = m::mock(Monolog::class);
+        $monolog = Double::for(Monolog::class)->strict();
         $monolog->expects('useLoggingLoopDetection')->with(false);
 
         return $monolog;

@@ -7,8 +7,9 @@ namespace Hypervel\Support\Aws;
 use Closure;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Locker;
-use Hypervel\Engine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -56,7 +57,7 @@ class SerializedCredentialProvider
     public function __invoke(mixed ...$arguments): PromiseInterface
     {
         // Waiting drains Guzzle callbacks, which may request credentials again.
-        $coroutine = Coroutine::id();
+        $coroutine = EngineCoroutine::id();
         $acquiresLock = (static::$owners[$this->lockKey] ?? null) !== $coroutine;
 
         if ($acquiresLock) {
@@ -67,13 +68,20 @@ class SerializedCredentialProvider
             static::$owners[$this->lockKey] = $coroutine;
         }
 
+        // An earlier, handled cancellation must not make this provider's failure look canceled.
+        swoole_clear_error();
+
         try {
             return Create::promiseFor(($this->provider)(...$arguments)->wait());
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            // SDK providers can wrap an interrupted fetch in CredentialsException.
-            if (Coroutine::isCanceled()) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
+            // SDK providers can rethrow an interrupted fetch without its cause.
+            if (EngineCoroutine::isCanceled()
+                && in_array(swoole_last_error(), [SWOOLE_ERROR_CO_CANCELED, SOCKET_ECANCELED], true)
+            ) {
                 throw new CanceledException('Resolving AWS credentials was canceled.', previous: $exception);
             }
 

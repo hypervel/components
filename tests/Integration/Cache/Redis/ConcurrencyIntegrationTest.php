@@ -14,7 +14,8 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\LazyCollection;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Swoole\Coroutine\CanceledException;
 
 /**
@@ -25,6 +26,8 @@ use Swoole\Coroutine\CanceledException;
  */
 class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
 {
+    use VerifiesDoubles;
+
     // =========================================================================
     // CONCURRENT WRITES - BOTH MODES
     // =========================================================================
@@ -215,8 +218,8 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
         $context = $this->store()->getContext();
 
         if ($this->getTagMode()->isAnyMode()) {
-            $reader = m::mock(GetTaggedKeys::class);
-            $reader->expects('execute')->with('race-flush')->andReturnUsing(function () use ($cache): Generator {
+            $reader = Double::for(GetTaggedKeys::class)->strict();
+            $reader->expects('execute')->with('race-flush')->resolves(function () use ($cache): Generator {
                 yield 'early';
                 // Publish after the scan snapshot, before its deletion chunk.
                 $cache->forever('late', 'late-value');
@@ -225,9 +228,9 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
             $this->assertTrue($this->anyModeRegistryHasTag('race-flush'));
         } else {
             $members = array_keys($this->getAllModeTagEntries('race-flush'));
-            $reader = m::mock(GetEntries::class);
+            $reader = Double::for(GetEntries::class)->strict();
             $reader->expects('execute')->with([$context->tagId('race-flush')])
-                ->andReturn(new LazyCollection(function () use ($members, $cache): Generator {
+                ->returns(new LazyCollection(function () use ($members, $cache): Generator {
                     yield from $members;
                     $cache->forever('late', 'late-value');
                 }));
@@ -252,8 +255,8 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
         }
 
         $exception = new CanceledException('Flush canceled between chunks');
-        $reader = m::mock(GetTaggedKeys::class);
-        $reader->expects('execute')->with('interrupted')->andReturnUsing(function () use ($exception): Generator {
+        $reader = Double::for(GetTaggedKeys::class)->strict();
+        $reader->expects('execute')->with('interrupted')->resolves(function () use ($exception): Generator {
             for ($index = 0; $index < 1000; ++$index) {
                 yield 'key-' . $index;
             }
@@ -279,6 +282,41 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
 
         $this->assertFalse($this->anyModeTagHasEntry('interrupted', 'key-1000'));
         $this->assertFalse($this->anyModeRegistryHasTag('interrupted'));
+    }
+
+    public function testAnyModeFlushingTagsWhileASharedKeyIsRewrittenLeavesNoLiveValueUnindexed(): void
+    {
+        $this->setTagMode(TagMode::Any);
+        $cache = Cache::tags(['people', 'artist']);
+        $cache->forever('person', 'Sally');
+
+        $context = $this->store()->getContext();
+        $scanner = new GetTaggedKeys($context);
+        $reader = Double::for(GetTaggedKeys::class)->strict();
+        $reader->expects('execute')->with('people')->resolves(fn (): Generator => $scanner->execute('people'));
+        $reader->expects('execute')->with('artist')->resolves(function () use ($cache, $scanner): Generator {
+            // Rewrite the shared key after the first tag's pass, before the second tag is scanned.
+            $cache->forever('person', 'John');
+
+            yield from $scanner->execute('artist');
+        });
+
+        (new AnyTagFlush($context, $reader, new RemoveEmptyTags($context)))->execute(['people', 'artist']);
+
+        // The second tag's pass deletes the rewritten value with its reverse index. Only the
+        // rewrite's membership in the already-flushed first tag remains until it is flushed again.
+        $this->assertNull(Cache::get('person'));
+        $this->assertSame([], $this->getAnyModeReverseIndex('person'));
+        $this->assertTrue($this->anyModeTagHasEntry('people', 'person'));
+
+        Cache::tags(['people'])->flush();
+        Cache::tags(['artist'])->flush();
+
+        $this->assertNull(Cache::get('person'));
+        $this->assertSame([], $this->getAnyModeTagEntries('people'));
+        $this->assertSame([], $this->getAnyModeTagEntries('artist'));
+        $this->assertFalse($this->anyModeRegistryHasTag('people'));
+        $this->assertFalse($this->anyModeRegistryHasTag('artist'));
     }
 
     // =========================================================================

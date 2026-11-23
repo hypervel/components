@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Foundation;
 
+use Hypervel\Support\UndefinedValue;
+
 /**
  * @api
  */
@@ -14,6 +16,7 @@ class Env extends \Hypervel\Support\Env
      */
     public static function has(string $key): bool
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (has() is an Env reader built on get())
         return static::get($key, new UndefinedValue) instanceof UndefinedValue === false;
     }
 
@@ -38,6 +41,7 @@ class Env extends \Hypervel\Support\Env
      */
     public static function forward(string $key, mixed $default = new UndefinedValue): mixed
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (forward() is an Env reader built on get())
         $value = static::get($key, $default);
 
         if ($value instanceof UndefinedValue) {

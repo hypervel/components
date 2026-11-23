@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\Database;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * Do not use constructor property promotion here.
@@ -77,6 +78,7 @@ class ModelIdentifier
      * Specify the collection class that should be used when serializing / restoring collections.
      *
      * @param null|class-string<Collection> $collectionClass
+     * @return $this
      */
     public function useCollectionClass(?string $collectionClass): static
     {
@@ -103,9 +105,10 @@ class ModelIdentifier
     /**
      * Indicate whether to use the relational morph-map when serializing Models.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every model identifier serialization across all coroutines.
+     * The flag persists in a static property for the worker lifetime and applies
+     * to every model identifier serialization across all coroutines.
      */
+    #[BootOnly]
     public static function useMorphMap(bool $useMorphMap = true): void
     {
         static::$useMorphMap = $useMorphMap;

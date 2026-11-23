@@ -11,6 +11,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Builder;
@@ -23,19 +24,25 @@ use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 
 class DatabaseEloquentFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
@@ -47,9 +54,9 @@ class DatabaseEloquentFactoryTest extends TestCase
         $container->singleton(Generator::class, function (Container $app, array $parameters): Generator {
             return FakerFactory::create('en_US');
         });
-        $app = m::mock(Application::class);
-        $app->shouldReceive('getNamespace')->andReturn('App\\');
-        $container->instance(Application::class, $app);
+        $app = Double::for(Application::class, override: true)->strict();
+        $app->allows('getNamespace')->returns('App\\');
+        $container->instance(Application::class, $app->instance());
 
         $db = new DB;
 
@@ -246,6 +253,62 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(0, User::all());
     }
 
+    public function testCreateManyAndMakeManyReturnTheModelCollection(): void
+    {
+        $users = CollectedUserFactory::new()->createMany(2);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(2, $users);
+
+        $users = CollectedUserFactory::new()->createMany([]);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(0, $users);
+
+        $users = CollectedUserFactory::new()->makeMany(2);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(2, $users);
+
+        $users = CollectedUserFactory::new()->makeMany([]);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(0, $users);
+
+        $this->assertCount(2, CollectedUser::all());
+    }
+
+    public function testCreateManyQuietlyReturnsTheModelCollectionWithoutEvents(): void
+    {
+        Eloquent::setEventDispatcher(new Dispatcher);
+
+        $created = 0;
+        CollectedUser::created(function () use (&$created) {
+            ++$created;
+        });
+
+        $users = CollectedUserFactory::new()->createManyQuietly(2);
+
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(2, $users);
+        $this->assertSame(0, $created);
+    }
+
+    public function testCreateManyAndMakeManyDoNotAutomaticallyEagerLoadRelationships(): void
+    {
+        Eloquent::automaticallyEagerLoadRelationships();
+
+        try {
+            foreach ([CollectedUserFactory::new()->createMany(2), CollectedUserFactory::new()->makeMany(2)] as $users) {
+                $this->assertInstanceOf(CollectedUserCollection::class, $users);
+
+                foreach ($users as $user) {
+                    $this->assertFalse($user->hasRelationAutoloadCallback());
+                }
+            }
+
+            $this->assertTrue(Eloquent::isAutomaticallyEagerLoadingRelationships());
+        } finally {
+            Eloquent::automaticallyEagerLoadRelationships(false);
+        }
+    }
+
     public function testBasicModelAttributesCanBeCreated(): void
     {
         $user = UserFactory::new()->raw();
@@ -359,6 +422,19 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertArrayNotHasKey('__test.user.creating', $_SERVER);
 
         unset($_SERVER['__test.user.making']);
+    }
+
+    public function testPrependingStatePreservesExplicitStateAndTheOriginalFactory(): void
+    {
+        $factory = UserFactory::new()->state(['name' => 'explicit']);
+
+        $derived = $factory->prependState(['name' => 'prepended', 'options' => 'derived'])->make();
+        $original = $factory->make();
+
+        $this->assertSame('explicit', $derived->name);
+        $this->assertSame('derived', $derived->options);
+        $this->assertSame('explicit', $original->name);
+        $this->assertNull($original->options);
     }
 
     public function testHasManyRelationship(): void
@@ -770,9 +846,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testResolveNestedModelNameFromFactory(): void
     {
-        $app = m::mock(Application::class);
-        $app->shouldReceive('getNamespace')->andReturn('Hypervel\Tests\Database\Fixtures\\');
-        Container::getInstance()->instance(Application::class, $app);
+        $app = Double::for(Application::class, override: true)->strict();
+        $app->expects('getNamespace')->returns('Hypervel\Tests\Database\Fixtures\\');
+        Container::getInstance()->instance(Application::class, $app->instance());
 
         Factory::useNamespace('Hypervel\Tests\Database\Fixtures\Factories\\');
 
@@ -783,9 +859,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testResolveNonAppNestedModelFactories(): void
     {
-        $app = m::mock(Application::class);
-        $app->shouldReceive('getNamespace')->andReturn('Foo\\');
-        Container::getInstance()->instance(Application::class, $app);
+        $app = Double::for(Application::class, override: true)->strict();
+        $app->allows('getNamespace')->returns('Foo\\');
+        Container::getInstance()->instance(Application::class, $app->instance());
 
         Factory::useNamespace('Factories\\');
 
@@ -854,19 +930,13 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryCanConditionallyExecuteCode(): void
     {
-        UserFactory::new()
-            ->when(true, function () {
-                $this->assertTrue(true);
-            })
-            ->when(false, function () {
-                $this->fail('Unreachable code that has somehow been reached.');
-            })
-            ->unless(false, function () {
-                $this->assertTrue(true);
-            })
-            ->unless(true, function () {
-                $this->fail('Unreachable code that has somehow been reached.');
-            });
+        $factory = UserFactory::new();
+        $callback = static fn () => 'called';
+
+        $this->assertSame('called', $factory->when(true, $callback));
+        $this->assertSame($factory, $factory->when(false, $callback));
+        $this->assertSame('called', $factory->unless(false, $callback));
+        $this->assertSame($factory, $factory->unless(true, $callback));
     }
 
     public function testDynamicTrashedStateForSoftdeletesModels(): void
@@ -996,6 +1066,70 @@ class DatabaseEloquentFactoryTest extends TestCase
 
         $this->assertSame(3, User::count());
         $this->assertSame(3, Post::count());
+    }
+
+    public function testRecycledModelsDoNotLeakIntoLaterCallsOnTheSameFactory(): void
+    {
+        Factory::guessFactoryNamesUsing(function (string $model): string {
+            return $model . 'Factory';
+        });
+
+        $user = UserFactory::new()->create();
+
+        $factory = PostFactory::new()
+            ->has(CommentFactory::new()->count(2), 'comments');
+
+        $factory->recycle($user)->create();
+        $post = $factory->create();
+
+        $this->assertCount(2, $post->comments);
+        $this->assertNotContains($user->id, $post->comments->pluck('user_id'));
+    }
+
+    public function testRecyclingKeepsParentAndChildDefinitionsOnTheDerivedFactory(): void
+    {
+        $first = UserFactory::new()->create();
+        $second = UserFactory::new()->create();
+        $factory = PostFactory::new()
+            ->for(UserFactory::new(), 'user')
+            ->has(CommentFactory::new()->count(2), 'comments')
+            ->count(2);
+
+        foreach ([$first, $second] as $user) {
+            $posts = $factory->recycle($user)->create();
+
+            $this->assertSame([$user->id, $user->id], $posts->pluck('user_id')->all());
+            foreach ($posts as $post) {
+                $this->assertSame([$user->id, $user->id], $post->comments->pluck('user_id')->all());
+            }
+        }
+
+        $posts = $factory->create();
+        $userIds = $posts->pluck('user_id')
+            ->merge($posts->flatMap(fn (Post $post): Collection => $post->comments)->pluck('user_id'));
+
+        $this->assertNotContains($first->id, $userIds);
+        $this->assertNotContains($second->id, $userIds);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNestedFactoriesShareTheirExplicitParentAcrossTheGroup(bool $recycle): void
+    {
+        $factory = PostFactory::new()->count(3)->has(
+            CommentFactory::new()->count(2)->for(UserFactory::new(), 'user'),
+            'comments'
+        );
+
+        if ($recycle) {
+            $factory = $factory->recycle(RoleFactory::new()->create());
+        }
+
+        $posts = $factory->create();
+        $comments = $posts->flatMap(fn (Post $post): Collection => $post->comments);
+
+        $this->assertCount(6, $comments);
+        $this->assertCount(1, $comments->pluck('user_id')->unique());
     }
 
     public function testNoModelsCanBeProvidedToRecycle(): void
@@ -1540,6 +1674,16 @@ class Comment extends Eloquent
     {
         return $this->morphTo();
     }
+
+    /**
+     * Get the comment's author.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }
 
 class RoleFactory extends Factory
@@ -1699,6 +1843,29 @@ class UserWithArrayFactory extends Factory
         return [
             'name' => 'killer mike',
             'options' => ['rtj'],
+        ];
+    }
+}
+
+#[CollectedBy(CollectedUserCollection::class)]
+class CollectedUser extends Eloquent
+{
+    protected ?string $table = 'users';
+}
+
+/** @extends Collection<int, CollectedUser> */
+class CollectedUserCollection extends Collection
+{
+}
+
+class CollectedUserFactory extends Factory
+{
+    protected ?string $model = CollectedUser::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => 'Taylor Otwell',
         ];
     }
 }

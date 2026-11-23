@@ -14,13 +14,16 @@ use Hypervel\Server\ServerConfig;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Server\ServerManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Psr\Log\LoggerInterface;
 use Swoole\Exception as SwooleException;
 
 class ServerNativeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     // A real Swoole\Server owns process-global native lifecycle state that a reusable
@@ -34,21 +37,21 @@ class ServerNativeTest extends TestCase
         }
 
         $events = [];
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeMainServerStart::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeServerStart::class)->andReturnTrue();
-        $dispatcher->expects('dispatch')->twice()->andReturnUsing(
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeMainServerStart::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(BeforeServerStart::class)->returns(true);
+        $dispatcher->expects('dispatch')->times(2)->resolves(
             static function (object $event) use (&$events): null {
                 $events[] = $event;
 
                 return null;
             },
         );
-        $container = m::mock(Container::class);
-        $container->shouldNotReceive('has');
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('has')->never();
         $server = new ServerNativeTestServer(
-            $container,
-            m::mock(LoggerInterface::class),
+            $container->instance(),
+            Double::for(LoggerInterface::class)->strict(),
             $dispatcher,
         );
 
@@ -95,6 +98,9 @@ class ServerNativeTest extends TestCase
 
 class ServerNativeTestServer extends Server
 {
+    /**
+     * Keep unrelated native callbacks out of the configuration test.
+     */
     protected function defaultCallbacks(): array
     {
         return [];
@@ -103,6 +109,9 @@ class ServerNativeTestServer extends Server
 
 class ServerNativeBeforeStartCallback
 {
+    /**
+     * Accept the secondary server startup callback.
+     */
     public function handle(): void
     {
     }

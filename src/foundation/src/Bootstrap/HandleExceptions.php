@@ -9,14 +9,15 @@ use ErrorException;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Log\LogManager;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Env;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
 use Psr\Log\LoggerInterface;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\ErrorHandler\Error\FatalError;
 use Throwable;
@@ -108,15 +109,25 @@ class HandleExceptions
     /**
      * Report PHP deprecations, or convert PHP errors to ErrorException instances.
      *
+     * Deprecations are handled here even when silenced with @. Other errors excluded by
+     * error_reporting() are passed on to PHP's standard handler so error_get_last() still
+     * reports them.
+     *
      * @throws ErrorException
      */
-    public function handleError(int $level, string $message, string $file = '', int $line = 0): void
+    public function handleError(int $level, string $message, string $file = '', int $line = 0): bool
     {
         if ($this->isDeprecation($level)) {
             $this->handleDeprecationError($message, $file, $line, $level);
-        } elseif (error_reporting() & $level) {
+
+            return true;
+        }
+
+        if (error_reporting() & $level) {
             throw new ErrorException($message, 0, $level, $file, $line);
         }
+
+        return false;
     }
 
     /**
@@ -135,8 +146,7 @@ class HandleExceptions
         try {
             $logger = static::$app->make(LogManager::class);
         } catch (Throwable $exception) {
-            // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
-            if ($exception instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 
@@ -165,9 +175,11 @@ class HandleExceptions
                     ));
                 }
             });
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return;
         }
     }
@@ -180,6 +192,7 @@ class HandleExceptions
         return ! class_exists(LogManager::class)
             || static::$app === null
             || ! static::$app->hasBeenBootstrapped()
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the test runner sets this for the test process)
             || (static::$app->runningUnitTests() && ! Env::get('LOG_DEPRECATIONS_WHILE_TESTING'));
     }
 
@@ -339,11 +352,12 @@ class HandleExceptions
     /**
      * Release the handlers installed for an application that is being discarded.
      *
-     * Boot or tests only. Restores the handlers, display_errors setting and
-     * application that were active before the application was bootstrapped, so
-     * later errors are reported without its flushed container. Handlers and
-     * settings changed by other code stay in place.
+     * Restores the handlers, display_errors setting and application that were
+     * active before the application was bootstrapped, so later errors are
+     * reported without its flushed container. Handlers and settings changed by
+     * other code stay in place.
      */
+    #[BootOrTestsOnly]
     public static function release(Application $app): void
     {
         $owner = static::$owner;

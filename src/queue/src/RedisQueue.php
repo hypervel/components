@@ -13,7 +13,7 @@ use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Queue\Concerns\EnqueuesPreparedBatches;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
@@ -28,6 +28,8 @@ use UnitEnum;
 
 class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAwareQueue, PublishesOutboxMessages
 {
+    use EnqueuesPreparedBatches;
+
     public const int DEFAULT_RETRY_AFTER = 60;
 
     public const int DEFAULT_MIGRATION_BATCH_SIZE = -1;
@@ -342,49 +344,6 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
         return $data['createdAt'] ?? null;
     }
 
-    /**
-     * Push an array of jobs onto the queue.
-     */
-    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
-    {
-        $queue = $this->normalizeQueue($queue);
-        $jobs = array_values($this->stageOutboxJobs($jobs, $data, $queue));
-
-        if ($jobs === []) {
-            return null;
-        }
-
-        $transactions = null;
-
-        if ($this->container->has('db.transactions')) {
-            /** @var DatabaseTransactionsManager $transactions */
-            $transactions = $this->container->make('db.transactions');
-        }
-
-        [$afterCommit, $immediate] = $this->partitionJobsByAfterCommit($jobs, $transactions);
-
-        if ($immediate !== []) {
-            $this->enqueueBatch($this->prepareBatchJobs($immediate, $data, $queue), $queue);
-        }
-
-        if ($afterCommit === []) {
-            return null;
-        }
-
-        $preparedJobs = $this->prepareBatchJobs($afterCommit, $data, $queue);
-        /** @var DatabaseTransactionsManager $transactions */
-        $this->deferBatchEnqueueAfterCommit(
-            $transactions,
-            $afterCommit,
-            static function (Queue $owner) use ($preparedJobs, $queue): void {
-                /** @var RedisQueue $owner */
-                $owner->enqueueBatch($preparedJobs, $queue);
-            },
-        );
-
-        return null;
-    }
-
     // REMOVED: Laravel's bulkOnClusterConnection(). enqueueBatch() owns Lua
     // bulk dispatch for both standalone Redis and Cluster.
 
@@ -403,6 +362,32 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function enqueueBatch(array $jobs, ?string $queue): void
     {
+        $this->writePreparedJobs($jobs, $queue, null);
+    }
+
+    /**
+     * Publish the group using the configured Redis writer.
+     */
+    protected function publishPreparedBatch(array $jobs, ?string $queue, ?BatchEnqueueAttempt $attempt): mixed
+    {
+        if ($attempt === null || $this->usesCustomBatchWriter(self::class, 'enqueueBatch')) {
+            $attempt?->attempting(array_keys($jobs));
+            $this->enqueueBatch(array_values($jobs), $queue);
+            $attempt?->accepted(array_keys($jobs));
+        } else {
+            $this->writePreparedJobs($jobs, $queue, $attempt);
+        }
+
+        return null;
+    }
+
+    /**
+     * Distinguish Redis acknowledgement from payload preparation and listener failures.
+     */
+    protected function writePreparedJobs(array $jobs, ?string $queue, ?BatchEnqueueAttempt $attempt): void
+    {
+        $sendAttempted = false;
+
         try {
             foreach ($jobs as $index => $job) {
                 $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
@@ -432,15 +417,14 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
             $connection = $this->getConnection();
             $this->isCluster ??= $connection->isCluster();
             $queueKey = $this->getQueueRedisKey($queue);
+            $sendAttempted = true;
+            $attempt?->attempting(array_keys($jobs));
             $this->pushRawBatch($connection, $queueKey, $arguments);
+            $attempt?->accepted(array_keys($jobs));
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
             $this->notifyBatchMembersOfFailure(
                 $jobs,
-                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
+                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception, $sendAttempted),
             );
 
             throw $exception;

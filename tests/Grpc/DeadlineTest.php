@@ -34,14 +34,18 @@ class DeadlineTest extends TestCase
 
     public function testRejectsInvalidAndOverflowingLocalTimeouts(): void
     {
-        foreach ([0.0, -0.1, INF, NAN, (float) PHP_INT_MAX] as $seconds) {
+        foreach ([0.0, -0.1, INF, NAN] as $seconds) {
             try {
                 Deadline::fromTimeout($seconds);
                 $this->fail('Expected the local deadline to be rejected.');
-            } catch (InvalidArgumentException) {
-                $this->addToAssertionCount(1);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('The gRPC timeout must be a positive finite number of seconds.', $exception->getMessage());
             }
         }
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('The gRPC timeout exceeds the monotonic clock range.');
+        Deadline::fromTimeout((float) PHP_INT_MAX);
     }
 
     public function testSaturatesHugeValidPeerTimeouts(): void

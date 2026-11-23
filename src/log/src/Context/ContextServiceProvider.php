@@ -37,7 +37,6 @@ class ContextServiceProvider extends ServiceProvider
                 return [];
             }
 
-            /** @phpstan-ignore staticMethod.notFound */
             $context = Context::dehydrate();
 
             // IMPORTANT: Uses Laravel's payload key for cross-framework queue interoperability.
@@ -51,7 +50,6 @@ class ContextServiceProvider extends ServiceProvider
             $context = $event->job->payload()['illuminate:log:context'] ?? null;
 
             if ($context !== null || Repository::hasInstance() || $events->hasListeners(ContextHydrated::class)) {
-                /* @phpstan-ignore staticMethod.notFound */
                 Context::hydrate($context);
             }
         });

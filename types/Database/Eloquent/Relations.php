@@ -39,10 +39,11 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->getResults());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->fetchUsing(PDO::FETCH_ASSOC)->get());
     assertType('Hypervel\Types\Relations\Post|null', $user->posts()->useWritePdo()->first());
-    assertType("Hypervel\\Database\\Query\\Builder<int, Hypervel\\Types\\Relations\\Post, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $user->posts()->dump());
-    assertType("Hypervel\\Database\\Query\\Builder<int, Hypervel\\Types\\Relations\\Post, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $user->posts()->dumpRawSql());
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Post>', $user->posts()->clone());
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Post>', $user->posts()->applyScopes());
+    assertType('Hypervel\Database\Query\Builder', $user->posts()->dump());
+    assertType('stdClass|null', $user->posts()->dumpRawSql()->first());
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->posts()->clone());
+    // applyScopes() returns the same builder when there are no scopes, which the relation returns as itself.
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Post>|Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->posts()->applyScopes());
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->posts()->whereIn('id', [1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->whereIn('id', [1])->get());
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->posts()->whereCan('edit'));
@@ -87,6 +88,8 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Types\Relations\Role', $user->roles()->firstOrCreate());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->create());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->createQuietly());
+    assertType('Hypervel\Types\Relations\Role', $user->roles()->forceCreate());
+    assertType('Hypervel\Types\Relations\Role', $user->roles()->forceCreateQuietly());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->createOrFirst());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->updateOrCreate([]));
     assertType('Hypervel\Types\Relations\Role', $user->roles()->save(new Role));
@@ -105,9 +108,17 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->lazy());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->lazyById());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->cursor());
-    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->paginate());
+    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}, Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>>', $user->roles()->paginate());
     assertType('Hypervel\Contracts\Pagination\Paginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->simplePaginate());
     assertType('Hypervel\Contracts\Pagination\CursorPaginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->cursorPaginate(cursor: new Cursor(['id' => 1])));
+    $user->roles()->chunk(1, function ($roles, $page) {
+        assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $roles);
+        assertType('int', $page);
+    });
+    $user->roles()->each(function ($role, $key) {
+        assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $role);
+        assertType('int', $key);
+    });
 
     assertType("Hypervel\\Database\\Eloquent\\Relations\\BelongsToMany<Hypervel\\Types\\Relations\\Role, Hypervel\\Types\\Relations\\User, Hypervel\\Types\\Relations\\Tenant, 'pivot'>", $user->tenantRoles());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Types\Relations\Tenant}>', $user->tenantRoles()->getResults());
@@ -133,9 +144,22 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
 
     assertType('Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->parts());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Part>', $user->parts()->getResults());
-    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Part>', $user->parts()->paginate());
+    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Part, Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Part>>', $user->parts()->paginate());
     assertType('Hypervel\Contracts\Pagination\Paginator<int, Hypervel\Types\Relations\Part>', $user->parts()->simplePaginate());
     assertType('Hypervel\Contracts\Pagination\CursorPaginator<int, Hypervel\Types\Relations\Part>', $user->parts()->cursorPaginate(cursor: new Cursor(['id' => 1])));
+    // The parent query of a through relation's existence query is the declaring model's, not the intermediate's.
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Part>', $user->parts()->getRelationExistenceQuery(Part::query(), User::query()));
+
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\User>', $user->resolveRouteBindingQuery($user, 1));
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->resolveRouteBindingQuery($user->posts(), 1));
+    $user->parts()->chunk(1, function ($parts, $page) {
+        assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Part>', $parts);
+        assertType('int', $page);
+    });
+    $user->parts()->each(function ($part, $key) {
+        assertType('Hypervel\Types\Relations\Part', $part);
+        assertType('int', $key);
+    });
     assertType('Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->firstPart());
 
     assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<Hypervel\Types\Relations\User, Hypervel\Types\Relations\Post>', $post->user());
@@ -167,6 +191,32 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Tag&object{pivot: Hypervel\Database\Eloquent\Relations\MorphPivot}>', $post->tags()->get());
 
     assertType('42', Relation::noConstraints(fn () => 42));
+}
+
+function customPivotAccessors(User $user, Post $post, string $accessor, bool $condition): void
+{
+    $roles = $user->customTenantRoles();
+
+    assertType("Hypervel\\Database\\Eloquent\\Relations\\BelongsToMany<Hypervel\\Types\\Relations\\Role, Hypervel\\Types\\Relations\\User, Hypervel\\Types\\Relations\\Tenant, 'tenant'>", $roles);
+    assertType('Hypervel\Types\Relations\Tenant', $roles->firstOrFail()->tenant);
+    assertType('(Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant})|null', $roles->first());
+    assertType('Hypervel\Types\Relations\Tenant', $roles->findOrFail(1)->tenant);
+    // These methods do not guarantee a hydrated pivot on the returned model.
+    assertType('Hypervel\Types\Relations\Role', $roles->firstOrNew());
+    assertType('Hypervel\Types\Relations\Role', $roles->create());
+    assertType('Hypervel\Types\Relations\Role', $roles->save(new Role));
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->get());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->getResults());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->findMany([1, 2]));
+    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}, Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>>', $roles->paginate());
+    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->cursor());
+    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->lazy());
+    assertType('Hypervel\Types\Relations\Tenant', $user->tenantRoles()->as('tenant')->firstOrFail()->tenant);
+    assertType('Hypervel\Database\Eloquent\Relations\MorphPivot', $post->tags()->as('tagging')->firstOrFail()->tagging);
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Tag&object{tagging: Hypervel\Database\Eloquent\Relations\MorphPivot}>', $post->tags()->as('tagging')->get());
+
+    assertType('Hypervel\Types\Relations\Role|null', $user->roles()->as($accessor)->first());
+    assertType('(Hypervel\Types\Relations\Role&object{one?: Hypervel\Database\Eloquent\Relations\Pivot, two?: Hypervel\Database\Eloquent\Relations\Pivot})|null', $user->roles()->as($condition ? 'one' : 'two')->first());
 }
 
 class User extends Model
@@ -222,6 +272,16 @@ class User extends Model
         assertType('Hypervel\Database\Eloquent\Relations\BelongsToMany<Hypervel\Types\Relations\Role, $this(Hypervel\Types\Relations\User), Hypervel\Types\Relations\Tenant, \'pivot\'>', $belongsToManyShorthand);
 
         return $belongsToMany;
+    }
+
+    /**
+     * Get the roles with a custom pivot accessor.
+     *
+     * @return BelongsToMany<Role, $this, Tenant, 'tenant'>
+     */
+    public function customTenantRoles(): BelongsToMany
+    {
+        return $this->tenantRoles()->as('tenant');
     }
 
     /** @return HasOne<Mechanic, $this> */

@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Concerns;
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Routing\Router;
@@ -121,7 +122,7 @@ trait HandlesRoutes
 
         if (
             $this->app instanceof HypervelApplication
-            && property_exists($this, 'setUpHasRun') /* @phpstan-ignore function.alreadyNarrowedType */
+            && property_exists($this, 'setUpHasRun') /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait declares the property) */
             && $this->setUpHasRun === true
         ) {
             $attribute->beforeEach($this->app);
@@ -134,6 +135,7 @@ trait HandlesRoutes
         if ($this->app instanceof HypervelApplication) {
             $cachedRoutesPath = $this->app->getCachedRoutesPath();
         } else {
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (cache paths are read before configuration loads, as Application::normalizeCachePath() does)
             $configuredCachedRoutesPath = Env::get('APP_ROUTES_CACHE');
 
             $cachedRoutesPath = $configuredCachedRoutesPath === null
@@ -247,7 +249,7 @@ trait HandlesRoutes
                     ));
                 }
             } catch (Throwable $throwable) {
-                $failure ??= $throwable;
+                $failure = Coroutine::preferCancellation($failure, $throwable);
             }
 
             if ($failure !== null) {

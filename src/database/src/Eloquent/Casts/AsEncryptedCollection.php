@@ -12,6 +12,8 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use JsonSerializable;
+use Traversable;
 
 class AsEncryptedCollection implements Castable
 {
@@ -75,7 +77,10 @@ class AsEncryptedCollection implements Castable
             public function set(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 if (! is_null($value)) {
-                    $encoded = Json::encode($value);
+                    // JSON encoding a plain Traversable such as a generator would discard its items.
+                    $encoded = Json::encode(
+                        $value instanceof Traversable && ! $value instanceof JsonSerializable ? iterator_to_array($value) : $value
+                    );
 
                     if ($encoded === false) {
                         throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
@@ -85,6 +90,27 @@ class AsEncryptedCollection implements Castable
                 }
 
                 return null;
+            }
+
+            /**
+             * Determine if the assigned object can be cached as the attribute value.
+             */
+            public function shouldCacheObject(Model $model, string $key, object $value): bool
+            {
+                $collectionClass = empty($this->arguments[0]) ? Collection::class : $this->arguments[0];
+
+                if (! $value instanceof Collection || ! $value instanceof $collectionClass) {
+                    return false;
+                }
+
+                if (! $this->arguments[1]) {
+                    return true;
+                }
+
+                $map = is_string($this->arguments[1]) ? Str::parseCallback($this->arguments[1]) : $this->arguments[1];
+
+                // A callable map's results cannot be checked, so the next read applies it instead.
+                return ! is_callable($map) && $value->every(fn ($item) => $item instanceof $map[0]);
             }
         };
     }

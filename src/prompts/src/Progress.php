@@ -6,6 +6,7 @@ namespace Hypervel\Prompts;
 
 use Closure;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -17,6 +18,13 @@ use WeakReference;
  */
 class Progress extends Prompt
 {
+    use Concerns\RendersAnimations;
+
+    /**
+     * The minimum time between automatic redraws, matching Symfony's 25 frames per second.
+     */
+    protected const int REDRAW_INTERVAL_NANOSECONDS = 40_000_000;
+
     /**
      * The current progress bar item count.
      */
@@ -26,6 +34,16 @@ class Progress extends Prompt
      * The total number of steps.
      */
     public int $total = 0;
+
+    /**
+     * Whether the progress bar is only rendered when it finishes.
+     */
+    protected bool $static = false;
+
+    /**
+     * When the progress bar was last rendered, in nanoseconds.
+     */
+    protected int $renderedAt = 0;
 
     /**
      * The original value of pcntl_async_signals.
@@ -89,6 +107,7 @@ class Progress extends Prompt
             if ($this->hint !== '') {
                 // Just pause for one moment to show the final hint
                 // so it doesn't look like it was skipped
+                // @phpstan-ignore hypervel.rawSleep (prompts does not depend on hypervel/support)
                 usleep(250_000);
             }
         } catch (Throwable $e) {
@@ -96,13 +115,11 @@ class Progress extends Prompt
 
             try {
                 $this->renderTerminalFrame();
-            } catch (Throwable) {
-                // The callback failure remains primary while settlement continues.
+            } catch (Throwable $renderFailure) {
+                $e = Coroutine::preferCancellation($e, $renderFailure);
             }
 
-            $this->settleOperation($e);
-
-            throw $e;
+            throw $this->settleOperation($e);
         }
 
         $this->finish();
@@ -121,6 +138,7 @@ class Progress extends Prompt
         $this->progress = 0;
         $this->state = 'initial';
         $this->prevFrame = '';
+        $this->static = $this->shouldRenderStatically();
         $this->capturePreviousNewLines();
 
         if (function_exists('pcntl_signal') && ! Coroutine::inCoroutine()) {
@@ -151,15 +169,13 @@ class Progress extends Prompt
         try {
             $this->hideCursor();
 
-            if (static::output()->isDecorated()) {
+            if (! $this->static) {
                 $this->render();
             }
 
             $this->state = 'active';
         } catch (Throwable $exception) {
-            $this->settleOperation($exception);
-
-            throw $exception;
+            throw $this->settleOperation($exception);
         }
     }
 
@@ -174,7 +190,8 @@ class Progress extends Prompt
             $this->progress = $this->total;
         }
 
-        if (static::output()->isDecorated()) {
+        // Unlike Laravel, automatic redraws are limited, because each one reads the terminal size through a subprocess.
+        if (! $this->static && ($this->progress === $this->total || hrtime(true) - $this->renderedAt >= self::REDRAW_INTERVAL_NANOSECONDS)) {
             $this->render();
         }
     }
@@ -202,6 +219,8 @@ class Progress extends Prompt
 
     /**
      * Restore signal and terminal state for one progress operation.
+     *
+     * @return ($failure is Throwable ? Throwable : null|Throwable)
      */
     private function settleOperation(?Throwable $failure = null): ?Throwable
     {
@@ -210,7 +229,7 @@ class Progress extends Prompt
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;
@@ -222,6 +241,8 @@ class Progress extends Prompt
     public function render(): void
     {
         parent::render();
+
+        $this->renderedAt = hrtime(true);
     }
 
     /**
@@ -229,7 +250,7 @@ class Progress extends Prompt
      */
     protected function renderTerminalFrame(): void
     {
-        if (static::output()->isDecorated()) {
+        if (! $this->static) {
             $this->render();
 
             return;
@@ -274,6 +295,7 @@ class Progress extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use map(), or start(), advance() and finish().')]
     public function prompt(): never
     {
         throw new RuntimeException('Progress Bar cannot be prompted.');

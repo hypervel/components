@@ -14,7 +14,6 @@ use Hypervel\Ai\Contracts\Providers\ImageProvider;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
 use Hypervel\Ai\Files\Image as ImageFile;
-use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\Concerns\WrapsPcmAudio;
 use Hypervel\Ai\Gateway\StepContext;
@@ -39,13 +38,13 @@ class GeminiGateway implements Gateway, StepTextGateway
 {
     use Concerns\BuildsTextRequests;
     use Concerns\CreatesGeminiClient;
+    use Concerns\HandlesGeminiErrors;
     use Concerns\HandlesTextStreaming;
     use Concerns\MapsAttachments;
     use Concerns\MapsEmbeddingInputs;
     use Concerns\MapsMessages;
     use Concerns\MapsTools;
     use Concerns\ParsesTextResponses;
-    use HandlesFailoverErrors;
     use ParsesServerSentEvents;
     use WrapsPcmAudio;
 
@@ -82,7 +81,7 @@ class GeminiGateway implements Gateway, StepTextGateway
 
         $this->validateTextResponse($data);
 
-        return $this->parseTextResponse($data, $provider, $model, filled($schema))->withRawResponse($response);
+        return $this->parseTextResponse($data, $provider, $model, filled($schema), $this->storesInteraction($body))->withRawResponse($response);
     }
 
     /**
@@ -110,7 +109,7 @@ class GeminiGateway implements Gateway, StepTextGateway
                 ->post('interactions?alt=sse', array_merge($body, ['stream' => true])),
         );
 
-        return yield from $this->processTextStream($invocationId, $provider, $model, $response->getBody());
+        return yield from $this->processTextStream($invocationId, $provider, $model, $response->getBody(), $this->storesInteraction($body));
     }
 
     /**
@@ -165,11 +164,11 @@ class GeminiGateway implements Gateway, StepTextGateway
                 $block['mime_type'] ?? 'image/png',
             ));
 
-        return new ImageResponse(
+        return (new ImageResponse(
             $images,
             $this->extractImageUsage($data),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -213,11 +212,11 @@ class GeminiGateway implements Gateway, StepTextGateway
 
         $data = $response->json();
 
-        return new EmbeddingsResponse(
+        return (new EmbeddingsResponse(
             (new Collection($data['embeddings'] ?? []))->pluck('values')->all(),
             new Usage($data['usageMetadata']['promptTokenCount'] ?? 0),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -357,12 +356,12 @@ class GeminiGateway implements Gateway, StepTextGateway
 
         $steps = $data['steps'] ?? [];
 
-        return new TranscriptionResponse(
+        return (new TranscriptionResponse(
             trim($this->extractText($steps)),
             $this->speakerSegments($steps),
             TranscriptionUsage::from($this->extractUsage($data)),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -504,12 +503,12 @@ class GeminiGateway implements Gateway, StepTextGateway
             $segments = new Collection;
         }
 
-        return new TranscriptionResponse(
+        return (new TranscriptionResponse(
             trim((string) $text),
             $segments,
             TranscriptionUsage::from($this->extractUsage($payload)),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**

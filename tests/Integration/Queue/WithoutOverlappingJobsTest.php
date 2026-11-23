@@ -16,10 +16,13 @@ use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Middleware\WithoutOverlapping;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class WithoutOverlappingJobsTest extends QueueTestCase
 {
+    use VerifiesDoubles;
+
     public function testNonOverlappingJobsAreExecuted(): void
     {
         OverlappingTestJob::$handled = false;
@@ -127,11 +130,11 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $this->app->get(Cache::class)->lock($lockKey, 10)->acquire();
         StoreOverlappingTestJob::$handled = false;
 
-        $job = m::mock(Job::class);
+        $job = Double::for(Job::class)->strict();
 
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('hasFailed')->returns(false);
+        $job->expects('isReleased')->times(2)->returns(false);
+        $job->expects('isDeletedOrReleased')->returns(false);
         $job->expects('delete');
 
         $instance->call($job, [
@@ -144,12 +147,12 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $this->app->get(CacheFactory::class)->store('overlaps')->lock($lockKey, 10)->acquire();
         StoreOverlappingTestJob::$handled = false;
 
-        $job = m::mock(Job::class);
+        $job = Double::for(Job::class)->strict();
 
         $job->expects('release');
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(true);
-        $job->expects('isDeletedOrReleased')->andReturn(true);
+        $job->expects('hasFailed')->returns(false);
+        $job->expects('isReleased')->times(2)->returns(true);
+        $job->expects('isDeletedOrReleased')->returns(true);
 
         $instance->call($job, [
             'command' => serialize($command),

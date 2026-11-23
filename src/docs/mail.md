@@ -952,6 +952,9 @@ Thanks,<br>
 > [!NOTE]
 > Do not use excess indentation when writing Markdown emails. Per Markdown standards, Markdown parsers will render indented content as code blocks.
 
+> [!WARNING]
+> Blade's `{{ }}` echo statements escape HTML but not Markdown, so Markdown syntax within user-supplied data, such as links and images, will be rendered in the email. To escape link and image syntax, invoke `Hypervel\Mail\Markdown::withSecuredEncoding()` in the `boot` method of your `AppServiceProvider`.
+
 <a name="button-component"></a>
 #### Button Component
 
@@ -1614,9 +1617,9 @@ The `array` mail driver keeps sent messages in memory for the current execution.
 Instead of sending your emails, the `log` mail driver will write all email messages to your log files for inspection. Typically, this driver would only be used during local development. For more information on configuring your application per environment, check out the [configuration documentation](/docs/{{version}}/configuration#environment-configuration).
 
 <a name="mailtrap"></a>
-#### HELO / Mailtrap / Mailpit
+#### HELO / Mailtrap Email Sandbox / Mailpit
 
-Alternatively, you may use a service like [HELO](https://usehelo.com) or [Mailtrap](https://mailtrap.io) and the `smtp` driver to send your email messages to a "dummy" mailbox where you may view them in a true email client. This approach has the benefit of allowing you to actually inspect the final emails in Mailtrap's message viewer.
+Alternatively, you may use a service like [HELO](https://usehelo.com) or [Mailtrap Email Sandbox](https://mailtrap.io/email-sandbox/) and the `smtp` driver to send your email messages to a "dummy" mailbox where you may view them in a true email client. This approach has the benefit of allowing you to actually inspect the final emails in Mailtrap Email Sandbox's message viewer.
 
 You may also use [Mailpit](https://github.com/axllent/mailpit) to preview your messages locally. By default, Mailpit's web interface is available at `http://localhost:8025`.
 

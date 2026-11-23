@@ -27,8 +27,8 @@ trait ResolvesRouteDependencies
     /**
      * Flush the static enum cache.
      *
-     * Boot or tests only. Clears the process-wide enum lookup cache shared by
-     * every coroutine; next resolution re-resolves.
+     * Clears the process-wide enum lookup cache shared by every coroutine;
+     * next resolution re-resolves.
      */
     public static function flushEnumCache(): void
     {

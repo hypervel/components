@@ -7,6 +7,7 @@ namespace Hypervel\Console\Scheduling;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Support\Attributes\BootOnly;
 
 class CacheEventMutex implements EventMutex, CacheAware
 {
@@ -55,9 +56,9 @@ class CacheEventMutex implements EventMutex, CacheAware
         $store = $repository->getStore();
 
         if ($this->shouldUseLocks($store)) {
-            return ! $store
+            return $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
-                ->get(fn () => true);
+                ->isLocked();
         }
 
         return $repository->has($event->mutexName());
@@ -95,9 +96,12 @@ class CacheEventMutex implements EventMutex, CacheAware
     /**
      * Specify the cache store that should be used.
      *
-     * Boot-only. Mutates the shared mutex instance for the worker lifetime;
+     * Mutates the shared mutex instance for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useStore(?string $store): static
     {
         $this->store = $store;

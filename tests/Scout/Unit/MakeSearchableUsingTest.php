@@ -11,13 +11,17 @@ use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Tests\Scout\Fixtures\Models\FilteringSearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for makeSearchableUsing() behavior.
  */
 class MakeSearchableUsingTest extends ScoutTestCase
 {
+    use VerifiesDoubles;
+
     public function testSyncMakeSearchablePassesFilteredCollectionToEngine(): void
     {
         // Create models - one published, one draft
@@ -30,10 +34,9 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$published, $draft]);
 
         // Mock the engine to verify what gets passed to update()
-        $engine = m::mock(Engine::class);
-        $engine->shouldReceive('runUpdate')
-            ->once()
-            ->with(m::on(function ($models) {
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')
+            ->with(Argument::satisfies(function ($models) {
                 // Should only contain the published model, not the draft
                 return $models->count() === 1
                     && $models->first()->id === 1
@@ -41,16 +44,9 @@ class MakeSearchableUsingTest extends ScoutTestCase
             }));
 
         // Replace the engine
-        $this->app->instance(EngineManager::class, new class($engine) {
-            public function __construct(private Engine $engine)
-            {
-            }
-
-            public function engine(): Engine
-            {
-                return $this->engine;
-            }
-        });
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
 
         $published->syncMakeSearchable($collection);
     }
@@ -67,25 +63,15 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$draft1, $draft2]);
 
         // Mock the engine - update should NOT be called
-        $engine = m::mock(Engine::class);
-        $engine->shouldNotReceive('runUpdate');
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')->never();
 
-        $this->app->instance(EngineManager::class, new class($engine) {
-            public function __construct(private Engine $engine)
-            {
-            }
-
-            public function engine(): Engine
-            {
-                return $this->engine;
-            }
-        });
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
 
         // This should not throw, even though all models are filtered out
         $draft1->syncMakeSearchable($collection);
-
-        // If we get here without exception, the test passes
-        $this->assertTrue(true);
     }
 
     public function testMakeSearchableJobPassesFilteredCollectionToEngine(): void
@@ -100,26 +86,18 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$published, $draft]);
 
         // Mock the engine to verify what gets passed to update()
-        $engine = m::mock(Engine::class);
-        $engine->shouldReceive('runUpdate')
-            ->once()
-            ->with(m::on(function ($models) {
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')
+            ->with(Argument::satisfies(function ($models) {
                 // Should only contain the published model, not the draft
                 return $models->count() === 1
                     && $models->first()->id === 1
                     && $models->first()->title === 'Published Post';
             }));
 
-        $this->app->instance(EngineManager::class, new class($engine) {
-            public function __construct(private Engine $engine)
-            {
-            }
-
-            public function engine(): Engine
-            {
-                return $this->engine;
-            }
-        });
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
 
         $job = new MakeSearchable($collection);
         $job->handle();
@@ -137,27 +115,17 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$draft1, $draft2]);
 
         // Mock the engine - update should NOT be called
-        $engine = m::mock(Engine::class);
-        $engine->shouldNotReceive('runUpdate');
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')->never();
 
-        $this->app->instance(EngineManager::class, new class($engine) {
-            public function __construct(private Engine $engine)
-            {
-            }
-
-            public function engine(): Engine
-            {
-                return $this->engine;
-            }
-        });
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
 
         $job = new MakeSearchable($collection);
 
         // This should not throw, even though all models are filtered out
         $job->handle();
-
-        // If we get here without exception, the test passes
-        $this->assertTrue(true);
     }
 
     public function testMakeSearchableUsingDefaultBehaviorPassesThroughUnchanged(): void
@@ -172,23 +140,15 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$model1, $model2]);
 
         // Mock the engine to verify all models are passed
-        $engine = m::mock(Engine::class);
-        $engine->shouldReceive('runUpdate')
-            ->once()
-            ->with(m::on(function ($models) {
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')
+            ->with(Argument::satisfies(function ($models) {
                 return $models->count() === 2;
             }));
 
-        $this->app->instance(EngineManager::class, new class($engine) {
-            public function __construct(private Engine $engine)
-            {
-            }
-
-            public function engine(): Engine
-            {
-                return $this->engine;
-            }
-        });
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
 
         $model1->syncMakeSearchable($collection);
     }

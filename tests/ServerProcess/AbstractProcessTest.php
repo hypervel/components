@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ServerProcess;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
@@ -16,7 +17,9 @@ use Hypervel\ServerProcess\ProcessCollector;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\ServerProcess\Fixtures\FooProcess;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use RuntimeException;
 use Swoole\Event as SwooleEvent;
@@ -27,6 +30,8 @@ use Throwable;
 
 class AbstractProcessTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var SwooleProcess[] */
     private array $nativeProcesses = [];
 
@@ -36,6 +41,9 @@ class AbstractProcessTest extends TestCase
     // not coroutine behavior, so opting out is safe.
     protected bool $runTestsInCoroutine = false;
 
+    /**
+     * Close native process pipes and drain their reactor cleanup.
+     */
     protected function tearDown(): void
     {
         foreach ($this->nativeProcesses as $process) {
@@ -52,21 +60,17 @@ class AbstractProcessTest extends TestCase
 
     public function testIsEnabledReturnsTrueByDefault(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = new Container;
 
         $process = new FooProcess($container);
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         $this->assertTrue($process->isEnabled($server));
     }
 
     public function testDefaultPropertyValues(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = new Container;
 
         $process = new FooProcess($container);
 
@@ -78,13 +82,12 @@ class AbstractProcessTest extends TestCase
 
     public function testBindCreatesProcessAndAddsToServer(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = new Container;
 
         $process = new FooProcess($container);
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->once()->andReturnUsing(function (SwooleProcess $swooleProcess) {
+        $server = Double::for(Server::class)->strict();
+        $server->expects('addProcess')->resolves(function (SwooleProcess $swooleProcess) {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $property = $reflection->getProperty('callback');
@@ -100,15 +103,14 @@ class AbstractProcessTest extends TestCase
 
     public function testBindCreatesMultipleProcessesWhenProcessCountGreaterThanOne(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = new Container;
 
         $process = new FooProcess($container);
         $process->processCount = 3;
 
         $addCount = 0;
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->times(3)->andReturnUsing(function (SwooleProcess $swooleProcess) use (&$addCount) {
+        $server = Double::for(Server::class)->strict();
+        $server->expects('addProcess')->times(3)->resolves(function (SwooleProcess $swooleProcess) use (&$addCount) {
             $this->nativeProcesses[] = $swooleProcess;
             return ++$addCount;
         });
@@ -121,21 +123,20 @@ class AbstractProcessTest extends TestCase
     public function testBindDispatchesBeforeAndAfterEvents(): void
     {
         $dispatched = [];
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->times(2)->andReturnUsing(function ($event) use (&$dispatched) {
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeProcessHandle::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(AfterProcessHandle::class)->returns(true);
+        $dispatcher->expects('dispatch')->times(2)->resolves(function ($event) use (&$dispatched) {
             $dispatched[] = $event;
         });
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
+        $container = new Container;
+        $container->instance('events', $dispatcher);
 
         $process = new FooProcess($container);
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->andReturnUsing(function (SwooleProcess $swooleProcess) {
+        $server = Double::for(Server::class)->strict();
+        $server->allows('addProcess')->resolves(function (SwooleProcess $swooleProcess) {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $callback = $reflection->getProperty('callback')->getValue($swooleProcess);
@@ -154,18 +155,17 @@ class AbstractProcessTest extends TestCase
 
     public function testBindHandlesProcessWithoutLifecycleListeners(): void
     {
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnFalse();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeProcessHandle::class)->returns(false);
+        $dispatcher->expects('hasListeners')->with(AfterProcessHandle::class)->returns(false);
+        $dispatcher->expects('dispatch')->never();
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
+        $container = new Container;
+        $container->instance('events', $dispatcher);
 
         $process = new FooProcess($container);
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->once()->andReturnUsing(function (SwooleProcess $swooleProcess): int {
+        $server = Double::for(Server::class)->strict();
+        $server->expects('addProcess')->resolves(function (SwooleProcess $swooleProcess): int {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $callback = $reflection->getProperty('callback')->getValue($swooleProcess);
@@ -182,22 +182,21 @@ class AbstractProcessTest extends TestCase
     public function testBindDispatchesEventsWithCorrectIndices(): void
     {
         $dispatched = [];
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->twice()->with(BeforeProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->twice()->with(AfterProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->times(4)->andReturnUsing(function ($event) use (&$dispatched) {
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->times(2)->with(BeforeProcessHandle::class)->returns(true);
+        $dispatcher->expects('hasListeners')->times(2)->with(AfterProcessHandle::class)->returns(true);
+        $dispatcher->expects('dispatch')->times(4)->resolves(function ($event) use (&$dispatched) {
             $dispatched[] = $event;
         });
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
+        $container = new Container;
+        $container->instance('events', $dispatcher);
 
         $process = new FooProcess($container);
         $process->processCount = 2;
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->andReturnUsing(function (SwooleProcess $swooleProcess) {
+        $server = Double::for(Server::class)->strict();
+        $server->allows('addProcess')->resolves(function (SwooleProcess $swooleProcess) {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $callback = $reflection->getProperty('callback')->getValue($swooleProcess);
@@ -217,27 +216,28 @@ class AbstractProcessTest extends TestCase
 
     public function testLogThrowableReportsViaExceptionHandler(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report');
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container = new Container;
+        $container->instance(ExceptionHandlerContract::class, $handler);
 
         $process = new class($container) extends AbstractProcess {
             public bool $enableCoroutine = false;
 
             public int $restartInterval = 0;
 
+            /**
+             * Throw the process failure under test.
+             */
             public function handle(): void
             {
                 throw new RuntimeException('test error');
             }
         };
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->andReturnUsing(function (SwooleProcess $swooleProcess) {
+        $server = Double::for(Server::class)->strict();
+        $server->allows('addProcess')->resolves(function (SwooleProcess $swooleProcess) {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $callback = $reflection->getProperty('callback')->getValue($swooleProcess);
@@ -250,23 +250,24 @@ class AbstractProcessTest extends TestCase
 
     public function testLogThrowableSilentlyIgnoresWhenNoExceptionHandler(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturn(false);
+        $container = new Container;
 
         $process = new class($container) extends AbstractProcess {
             public bool $enableCoroutine = false;
 
             public int $restartInterval = 0;
 
+            /**
+             * Throw the process failure under test.
+             */
             public function handle(): void
             {
                 throw new RuntimeException('test error');
             }
         };
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->andReturnUsing(function (SwooleProcess $swooleProcess) {
+        $server = Double::for(Server::class)->strict();
+        $server->expects('addProcess')->resolves(function (SwooleProcess $swooleProcess) {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $callback = $reflection->getProperty('callback')->getValue($swooleProcess);
@@ -276,15 +277,13 @@ class AbstractProcessTest extends TestCase
 
         // Should not throw — the exception is caught and silently ignored
         $process->bind($server);
-        $this->assertTrue(true);
     }
 
     public function testConstructorResolvesEventDispatcherIfAvailable(): void
     {
-        $dispatcher = m::mock(DispatcherContract::class);
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $container = new Container;
+        $container->instance('events', $dispatcher);
 
         $process = new FooProcess($container);
 
@@ -295,8 +294,7 @@ class AbstractProcessTest extends TestCase
 
     public function testConstructorSetsEventToNullWhenNotAvailable(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = new Container;
 
         $process = new FooProcess($container);
 
@@ -307,13 +305,12 @@ class AbstractProcessTest extends TestCase
 
     public function testBindRejectsFailedNativeProcessRegistration(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = new Container;
 
         $process = new FooProcess($container);
         $process->enableCoroutine = true;
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->once()->andReturnUsing(function (SwooleProcess $swooleProcess): false {
+        $server = Double::for(Server::class)->strict();
+        $server->expects('addProcess')->resolves(function (SwooleProcess $swooleProcess): false {
             $this->nativeProcesses[] = $swooleProcess;
 
             return false;
@@ -337,19 +334,18 @@ class AbstractProcessTest extends TestCase
         $timerId = Timer::after(60_000, static fn (): null => null);
         $afterFailure = new RuntimeException('after event failed');
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->with(m::type(BeforeProcessHandle::class))->once();
-        $dispatcher->shouldReceive('dispatch')->with(m::type(AfterProcessHandle::class))->once()->andThrow($afterFailure);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeProcessHandle::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(AfterProcessHandle::class)->returns(true);
+        $dispatcher->expects('dispatch')->with(Argument::type(BeforeProcessHandle::class));
+        $dispatcher->expects('dispatch')->with(Argument::type(AfterProcessHandle::class))->throws($afterFailure);
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
+        $container = new Container;
+        $container->instance('events', $dispatcher);
 
         $process = new FooProcess($container);
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->once()->andReturnUsing(function (SwooleProcess $swooleProcess): int {
+        $server = Double::for(Server::class)->strict();
+        $server->expects('addProcess')->resolves(function (SwooleProcess $swooleProcess): int {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $callback = $reflection->getProperty('callback')->getValue($swooleProcess);
@@ -384,39 +380,43 @@ class AbstractProcessTest extends TestCase
         $operationFailure = new RuntimeException('operation failed');
         $reporterFailure = new RuntimeException('reporter failed');
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->with(m::type(BeforeProcessHandle::class))->once();
-        $dispatcher->shouldReceive('dispatch')->with(m::type(AfterProcessHandle::class))->once();
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->with(BeforeProcessHandle::class)->returns(true);
+        $dispatcher->expects('hasListeners')->with(AfterProcessHandle::class)->returns(true);
+        $dispatcher->expects('dispatch')->with(Argument::type(BeforeProcessHandle::class));
+        $dispatcher->expects('dispatch')->with(Argument::type(AfterProcessHandle::class));
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->with($operationFailure)->once()->andThrow($reporterFailure);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($operationFailure))->throws($reporterFailure);
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturn(true);
-        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container = new Container;
+        $container->instance('events', $dispatcher);
+        $container->instance(ExceptionHandlerContract::class, $handler);
 
         $process = new class($container, $operationFailure) extends AbstractProcess {
             public bool $enableCoroutine = false;
 
             public int $restartInterval = 1;
 
+            /**
+             * Create a process with the configured operation failure.
+             */
             public function __construct(ContainerContract $container, private Throwable $failure)
             {
                 parent::__construct($container);
             }
 
+            /**
+             * Throw the process failure under test.
+             */
             public function handle(): void
             {
                 throw $this->failure;
             }
         };
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('addProcess')->once()->andReturnUsing(function (SwooleProcess $swooleProcess): int {
+        $server = Double::for(Server::class)->strict();
+        $server->expects('addProcess')->resolves(function (SwooleProcess $swooleProcess): int {
             $this->nativeProcesses[] = $swooleProcess;
             $reflection = new ReflectionClass($swooleProcess);
             $callback = $reflection->getProperty('callback')->getValue($swooleProcess);

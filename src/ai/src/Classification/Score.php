@@ -12,8 +12,8 @@ final readonly class Score implements Question
     /**
      * Create a new ordinal question whose answer is the expected position on the given levels.
      *
-     * @param array<string, mixed>|string $instructions
-     * @param list<array<string, mixed>|string> $levels level descriptions ordered from lowest to highest
+     * @param array<array-key, mixed>|string $instructions
+     * @param list<array<array-key, mixed>|string> $levels level descriptions ordered from lowest to highest
      *
      * @throws InvalidArgumentException if the levels are not a list of at least two entries
      */

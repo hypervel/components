@@ -20,23 +20,27 @@ class TextDelta extends StreamEvent
     }
 
     /**
-     * Combine the text deltas in the given collection of events into a single string.
-     *
-     * Each step of a multi-step generation is a self-contained utterance
-     * (typically narration around a tool call), so steps are joined with a blank
-     * line instead of being run together mid-sentence. The boundary is the step's
-     * own `StreamStart` rather than a change of message ID, which Anthropic rotates
-     * per content block — web search splits one answer across several, mid-sentence.
+     * Combine the text deltas, starting a new paragraph only after a step that ran tools.
      */
     public static function combine(Collection|array $events): string
     {
-        return Collection::wrap($events)
-            ->chunkWhile(fn (StreamEvent $event): bool => ! $event instanceof StreamStart)
+        return static::join(Collection::wrap($events)
+            ->chunkWhile(fn (StreamEvent $event, int|string $key, Collection $step): bool => ! $event instanceof StreamStart
+                || $step->doesntContain(fn (StreamEvent $previous): bool => $previous instanceof ToolResult))
             ->map(fn (Collection $step): string => $step->whereInstanceOf(TextDelta::class)
                 ->map(fn (TextDelta $event): string => $event->delta)
-                ->join(''))
+                ->join('')));
+    }
+
+    /**
+     * Join the text of each step, separating the steps with a blank line.
+     *
+     * @param array<array-key, string>|Collection<array-key, string> $texts
+     */
+    public static function join(Collection|array $texts): string
+    {
+        return Collection::wrap($texts)
             ->filter(fn (string $text): bool => trim($text) !== '')
-            ->values()
             ->join("\n\n");
     }
 

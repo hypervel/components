@@ -9,6 +9,8 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Tests\TestCase;
 use JsonSerializable;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ExtractPropertiesTest extends TestCase
 {
@@ -54,6 +56,31 @@ class ExtractPropertiesTest extends TestCase
         ], $properties['value']);
     }
 
+    public function testParentPrivatePropertiesAreExtractedUnderTheirDeclaringClassWhenTheirNameIsTaken(): void
+    {
+        $properties = ExtractProperties::from(new PrivatePropertyChildTarget);
+
+        $this->assertSame([
+            'value' => 'child',
+            PrivatePropertyParentTarget::class . '::$value' => 'parent',
+            'parentOnly' => 'parent only',
+        ], $properties);
+    }
+
+    public function testSerializationCancellationEscapesInsteadOfPurgingTheValue(): void
+    {
+        $failure = new RuntimeException('Serialization cleanup failed.', previous: new CanceledException);
+        $caught = null;
+
+        try {
+            ExtractProperties::from(new PropertyTarget(new ThrowingJsonSerializable($failure)));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+    }
+
     private function nestedValue(int $depth): array
     {
         $value = 'leaf';
@@ -73,10 +100,29 @@ class PropertyTarget
     }
 }
 
+class PrivatePropertyParentTarget
+{
+    private string $value = 'parent';
+
+    private string $parentOnly = 'parent only';
+}
+
+class PrivatePropertyChildTarget extends PrivatePropertyParentTarget
+{
+    private string $value = 'child';
+}
+
 class ThrowingJsonSerializable implements JsonSerializable
 {
+    /**
+     * Supply a failure from an application's serializer.
+     */
+    public function __construct(private ?Throwable $failure = null)
+    {
+    }
+
     public function jsonSerialize(): mixed
     {
-        throw new RuntimeException('Serialization failed.');
+        throw $this->failure ?? new RuntimeException('Serialization failed.');
     }
 }

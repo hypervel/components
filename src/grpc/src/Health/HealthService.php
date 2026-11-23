@@ -10,6 +10,7 @@ use Hypervel\Grpc\Health\V1\HealthCheckResponse;
 use Hypervel\Grpc\Health\V1\HealthListRequest;
 use Hypervel\Grpc\Health\V1\HealthListResponse;
 use Hypervel\Grpc\StatusCode;
+use Hypervel\Support\Attributes\Unsupported;
 
 readonly class HealthService
 {
@@ -50,6 +51,7 @@ readonly class HealthService
      *
      * @return iterable<HealthCheckResponse>
      */
+    #[Unsupported('Use check() to poll the health status.')]
     public function watch(HealthCheckRequest $request): iterable
     {
         throw new RpcException(

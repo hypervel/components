@@ -11,7 +11,8 @@ use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
@@ -23,6 +24,8 @@ use function Hypervel\Coroutine\parallel;
 
 class PoolManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected PoolManager $manager;
 
     protected function setUp(): void
@@ -309,8 +312,8 @@ class PoolManagerTest extends TestCase
 
         foreach ([$firstFailure, $secondFailure, null] as $index => $failure) {
             $identity = 'pool:' . $index;
-            $pool = m::mock(ObjectPool::class);
-            $pool->shouldReceive('close')->once()->andReturnUsing(function () use (
+            $pool = Double::for(ObjectPool::class)->strict();
+            $pool->expects('close')->resolves(function () use (
                 $identity,
                 $failure,
                 &$observedRegistries,
@@ -357,8 +360,8 @@ class PoolManagerTest extends TestCase
     public function testPurgeAllPreservesPoolsRegisteredDuringDetachedCleanup(): void
     {
         $replacement = null;
-        $pool = m::mock(ObjectPool::class);
-        $pool->shouldReceive('close')->once()->andReturnUsing(function () use (&$replacement): void {
+        $pool = Double::for(ObjectPool::class)->strict();
+        $pool->expects('close')->resolves(function () use (&$replacement): void {
             $replacement = $this->manager->pool('reports', static fn () => new stdClass);
         });
         (new ReflectionProperty(PoolManager::class, 'pools'))->setValue($this->manager, ['reports' => $pool]);

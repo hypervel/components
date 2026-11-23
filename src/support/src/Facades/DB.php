@@ -9,12 +9,13 @@ use Hypervel\Database\Console\Migrations\RefreshCommand;
 use Hypervel\Database\Console\Migrations\ResetCommand;
 use Hypervel\Database\Console\Migrations\RollbackCommand;
 use Hypervel\Database\Console\WipeCommand;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * @method static void allowQueryDurationHandlersToRunAgain()
  * @method static string[] availableDrivers()
  * @method static never build(array $config)
- * @method static \Hypervel\Database\ConnectionInterface connection(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Database\Connection connection(\UnitEnum|string|null $name = null)
  * @method static string connectionDateFormat(\UnitEnum|string|null $name = null)
  * @method static never connectUsing(string $name, array $config, bool $force = false)
  * @method static void disconnect(\UnitEnum|string|null $name = null)
@@ -24,6 +25,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static void forgetExtension(string $name)
  * @method static array<string, \Hypervel\Database\Connection> getConnections()
  * @method static string|null getDefaultConnection()
+ * @method static \Hypervel\Database\Connection|null getHeldConnection(\UnitEnum|string|null $name = null)
  * @method static bool hasApplicableTransaction(\UnitEnum|string|null $name = null)
  * @method static bool hasMacro(string $name)
  * @method static void macro(string $name, callable|object $macro)
@@ -61,6 +63,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static string getDriverTitle()
  * @method static int getErrorCount()
  * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
+ * @method static string getLastCommitId()
  * @method static string|int getLastInsertId(string|null $sequence = null)
  * @method static string|null getName()
  * @method static string|null getNameWithReadWriteType()
@@ -76,6 +79,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static string getTablePrefix()
  * @method static \Hypervel\Database\DatabaseTransactionsManager|null getTransactionManager()
  * @method static string|null getWritableName()
+ * @method static bool hasCommitId(string $value, int $wait = 0)
  * @method static bool hasModifiedRecords()
  * @method static bool hasPinnedSession()
  * @method static bool insert(string $query, array $bindings = [])
@@ -83,6 +87,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static void listen(\Closure $callback)
  * @method static bool logging()
  * @method static void logQuery(string $query, array $bindings, float|null $time = null)
+ * @method static string mergeCommitIds(string[] $values)
  * @method static array prepareBindings(array $bindings)
  * @method static array[] pretend(\Closure $callback)
  * @method static bool pretending()
@@ -109,6 +114,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static \Hypervel\Database\Connection setTablePrefix(string $prefix)
  * @method static \Hypervel\Database\Connection setTransactionManager(\Hypervel\Database\DatabaseTransactionsManager $manager)
  * @method static bool statement(string $query, array $bindings = [])
+ * @method static bool supportsSkipLocked()
  * @method static \Hypervel\Database\Query\Builder table(\Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|\UnitEnum|string $table, string|null $as = null)
  * @method static int|null threadCount()
  * @method static float totalQueryDuration()
@@ -121,6 +127,8 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static void useDefaultQueryGrammar()
  * @method static void useDefaultSchemaGrammar()
  * @method static \Hypervel\Database\Connection useWriteConnectionWhenReading(bool $value = true)
+ * @method static mixed usingWritePdo(\Closure $callback)
+ * @method static mixed withoutAffectingStickiness(\Closure $callback)
  * @method static mixed withoutPretending(\Closure $callback)
  * @method static mixed withoutTablePrefix(\Closure $callback)
  * @method static mixed withPinnedSession(\Closure $callback)
@@ -146,9 +154,10 @@ class DB extends Facade
      *
      * Prohibits: db:wipe, migrate:fresh, migrate:refresh, migrate:reset, and migrate:rollback
      *
-     * Boot-only. The prohibition flags persist in static command state for the
-     * worker lifetime and affect every subsequent destructive database command.
+     * The prohibition flags persist in static command state for the worker
+     * lifetime and affect every subsequent destructive database command.
      */
+    #[BootOnly]
     public static function prohibitDestructiveCommands(bool $prohibit = true): void
     {
         FreshCommand::prohibit($prohibit);

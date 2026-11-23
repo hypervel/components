@@ -7,6 +7,7 @@ namespace Hypervel\Prompts\Concerns;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use RuntimeException;
 
 trait Fallback
@@ -100,10 +101,10 @@ trait Fallback
     /**
      * Reset fallback state to defaults.
      *
-     * Boot or tests only. Clears worker-wide prompt fallback configuration;
-     * concurrent prompts may render with different fallback behavior depending
-     * on timing.
+     * Clears worker-wide prompt fallback configuration; concurrent prompts may
+     * render with different fallback behavior depending on timing.
      */
+    #[BootOrTestsOnly]
     public static function resetFallback(): void
     {
         static::$shouldFallback = false;

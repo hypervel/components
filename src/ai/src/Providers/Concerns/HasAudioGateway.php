@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\AudioGateway;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasAudioGateway
 {
@@ -21,8 +22,9 @@ trait HasAudioGateway
     /**
      * Set the provider's audio gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useAudioGateway(AudioGateway $gateway): self
     {
         $this->audioGateway = $gateway;

@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Console\Scheduling;
 use DateTimeImmutable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Console\Command;
+use Hypervel\Console\Events\ScheduledTaskFailed;
+use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Scheduling\CacheAware;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
@@ -16,8 +18,10 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
@@ -25,10 +29,15 @@ use Hypervel\Tests\Console\Fixtures\FakeCacheFactory;
 use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use Hypervel\Tests\Queue\Fixtures\JobToTestWithSchedule;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+
+use function Hypervel\Coroutine\parallel;
 
 enum ScheduleTestQueueStringEnum: string
 {
@@ -62,11 +71,13 @@ enum ScheduleTestCacheStoreIntEnum: int
 
 class ScheduleTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Container $container;
 
     protected EventMutex $eventMutex;
 
-    protected MockInterface&SchedulingMutex $schedulingMutex;
+    protected DoubleInterface&SchedulingMutex $schedulingMutex;
 
     protected function setUp(): void
     {
@@ -76,7 +87,7 @@ class ScheduleTest extends TestCase
         Container::setInstance($this->container);
         $this->eventMutex = new FakeEventMutex;
         $this->container->instance(EventMutex::class, $this->eventMutex);
-        $this->schedulingMutex = m::mock(SchedulingMutex::class);
+        $this->schedulingMutex = Double::for(SchedulingMutex::class)->strict();
         $this->container->instance(SchedulingMutex::class, $this->schedulingMutex);
     }
 
@@ -115,10 +126,9 @@ class ScheduleTest extends TestCase
     public function testSynchronousJobResolvesToAFreshInstanceForEachFiring(): void
     {
         $dispatched = [];
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatchNow')
-            ->twice()
-            ->andReturnUsing(function (ScheduleTestMutableJob $job) use (&$dispatched): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatchNow')->times(2)
+            ->resolves(function (ScheduleTestMutableJob $job) use (&$dispatched): void {
                 self::assertFalse($job->handled);
 
                 $dispatched[] = $job;
@@ -150,10 +160,9 @@ class ScheduleTest extends TestCase
     {
         $job = new ScheduleTestMutableJob;
         ScheduleTestMutableJob::$constructions = 0;
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatchNow')
-            ->once()
-            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatchNow')
+            ->resolves(static function (object $dispatched) use ($job): void {
                 self::assertSame($job, $dispatched);
             });
 
@@ -167,10 +176,9 @@ class ScheduleTest extends TestCase
     public function testSuppliedQueuedJobIsDispatchedAsProvided(): void
     {
         $job = new ScheduleTestQueuedJob;
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')
+            ->resolves(static function (object $dispatched) use ($job): void {
                 self::assertSame($job, $dispatched);
                 self::assertSame('connection-name', $dispatched->connection);
                 self::assertSame('queue-name', $dispatched->queue);
@@ -185,10 +193,9 @@ class ScheduleTest extends TestCase
     public function testQueuedClassStringDoesNotRetainQueueStateAcrossEvents(): void
     {
         $dispatched = [];
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')
-            ->twice()
-            ->andReturnUsing(static function (object $job) use (&$dispatched): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->times(2)
+            ->resolves(static function (object $job) use (&$dispatched): void {
                 $dispatched[] = $job;
             });
 
@@ -237,9 +244,10 @@ class ScheduleTest extends TestCase
     public function testDueEventsAtUsesGivenTime(bool $alwaysOnOneServer): void
     {
         Schedule::alwaysOnOneServer($alwaysOnOneServer);
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
+        $appDouble = Double::for(ApplicationContract::class, override: true)->strict();
+        $app = $appDouble->instance();
+        $appDouble->allows('isDownForMaintenance')->returns(false);
+        $appDouble->allows('environment')->returns('production');
 
         try {
             CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-29 13:00:00'));
@@ -298,11 +306,11 @@ class ScheduleTest extends TestCase
 
     public function testUseCacheAcceptsStringBackedEnum(): void
     {
-        $eventMutex = m::mock(EventMutex::class, CacheAware::class);
-        $eventMutex->shouldReceive('useStore')->once()->with('redis');
+        $eventMutex = Double::for(EventMutex::class, CacheAware::class)->strict();
+        $eventMutex->expects('useStore')->with('redis');
 
-        $schedulingMutex = m::mock(SchedulingMutex::class, CacheAware::class);
-        $schedulingMutex->shouldReceive('useStore')->once()->with('redis');
+        $schedulingMutex = Double::for(SchedulingMutex::class, CacheAware::class)->strict();
+        $schedulingMutex->expects('useStore')->with('redis');
 
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
@@ -313,11 +321,11 @@ class ScheduleTest extends TestCase
 
     public function testUseCacheAcceptsIntegerBackedEnum(): void
     {
-        $eventMutex = m::mock(EventMutex::class, CacheAware::class);
-        $eventMutex->shouldReceive('useStore')->once()->with('1');
+        $eventMutex = Double::for(EventMutex::class, CacheAware::class)->strict();
+        $eventMutex->expects('useStore')->with('1');
 
-        $schedulingMutex = m::mock(SchedulingMutex::class, CacheAware::class);
-        $schedulingMutex->shouldReceive('useStore')->once()->with('1');
+        $schedulingMutex = Double::for(SchedulingMutex::class, CacheAware::class)->strict();
+        $schedulingMutex->expects('useStore')->with('1');
 
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
@@ -349,16 +357,14 @@ class ScheduleTest extends TestCase
         $sameNextMinute = new DateTimeImmutable('2024-01-01 12:31:30');
 
         $this->schedulingMutex
-            ->shouldReceive('create')
-            ->once()
-            ->with($event, $firstMinute)
-            ->andReturnTrue();
+            ->expects('create')
+            ->with(Argument::same($event), Argument::same($firstMinute))
+            ->returns(true);
 
         $this->schedulingMutex
-            ->shouldReceive('create')
-            ->once()
-            ->with($event, $nextMinute)
-            ->andReturnFalse();
+            ->expects('create')
+            ->with(Argument::same($event), Argument::same($nextMinute))
+            ->returns(false);
 
         $this->assertTrue($schedule->serverShouldRun($event, $firstMinute));
         $this->assertTrue($schedule->serverShouldRun($event, $sameMinute));
@@ -576,6 +582,75 @@ class ScheduleTest extends TestCase
         $this->assertTrue($job->onOneServer);
         $this->assertTrue($closure->onOneServer);
         $this->assertFalse($unnamedClosure->onOneServer);
+    }
+
+    public function testWhenTaskRunsLongerThan(): void
+    {
+        $this->container->instance(DispatcherContract::class, $events = new EventDispatcher($this->container));
+
+        $schedule = new Schedule;
+        $task = $schedule->command('inspire');
+
+        $called = false;
+
+        $schedule->whenTaskRunsLongerThan(5, function () use (&$called) {
+            $called = true;
+        });
+
+        $events->dispatch(new ScheduledTaskFinished($task, 1.0));
+
+        $this->assertFalse($called);
+
+        $events->dispatch(new ScheduledTaskFinished($task, 10.0));
+
+        $this->assertTrue($called);
+    }
+
+    public function testWhenTaskRunsLongerThanHandlesFailedTasks(): void
+    {
+        $this->container->instance(DispatcherContract::class, $events = new EventDispatcher($this->container));
+
+        $schedule = new Schedule;
+        $task = $schedule->command('inspire');
+
+        $called = false;
+
+        $schedule->whenTaskRunsLongerThan(5, function () use (&$called) {
+            $called = true;
+        });
+
+        $events->dispatch(new ScheduledTaskFailed($task, new RuntimeException));
+
+        $this->assertFalse($called);
+
+        $events->dispatch(new ScheduledTaskFailed($task, new RuntimeException, 10.0));
+
+        $this->assertTrue($called);
+    }
+
+    public function testWhenTaskRunsLongerThanReportsEachConcurrentRunOnce(): void
+    {
+        $this->container->instance(DispatcherContract::class, $events = new EventDispatcher($this->container));
+
+        $schedule = new Schedule;
+        $task = $schedule->command('inspire');
+
+        $calls = 0;
+
+        $schedule->whenTaskRunsLongerThan(5, function () use (&$calls): void {
+            ++$calls;
+        });
+
+        // A failing run dispatches ScheduledTaskFailed after ScheduledTaskFinished.
+        $run = function () use ($events, $task): void {
+            $events->dispatch(new ScheduledTaskFinished($task, 10.0));
+            usleep(5000);
+            $events->dispatch(new ScheduledTaskFailed($task, new RuntimeException, 10.0));
+        };
+
+        parallel([$run, $run]);
+
+        $this->assertSame(2, $calls);
     }
 
     public function testWithoutInterruptionPollingDisablesPauseAndInterruptChecks(): void

@@ -12,6 +12,7 @@ use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
@@ -278,9 +279,10 @@ class MercureBroadcaster extends Broadcaster
     /**
      * Set the Mercure hub instance.
      *
-     * Boot or tests only. Replaces the hub on this worker-cached broadcaster
-     * and updates the worker-wide cookie encryption exemptions.
+     * Replaces the hub on this worker-cached broadcaster and updates the
+     * worker-wide cookie encryption exemptions.
      */
+    #[BootOrTestsOnly]
     public function setHub(HubInterface $hub): void
     {
         $this->hub = $hub;

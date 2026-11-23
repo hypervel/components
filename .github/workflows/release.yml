@@ -25,9 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc2
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: Install dependencies
@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           # Version commits and framework tag pushes authenticate through origin.
@@ -75,7 +75,7 @@ jobs:
 
       - name: Fail if branch and release tag do not match
         if: ${{ steps.guard.outputs.VERSION_MISMATCH == 'true' }}
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@v9.0.0
         with:
           script: |
               core.setFailed('Workflow failed. Release version does not match with selected target branch. Did you select the correct branch?')
@@ -100,7 +100,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
 
       - name: Commit version change
-        uses: stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1
+        uses: stefanzweifel/git-auto-commit-action@v7.2.1
         with:
           commit_message: "Update version to v${{ steps.version.outputs.version }}"
 
@@ -118,7 +118,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
 
       - name: Create release notes
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@v3.0.3
         with:
           generate_release_notes: true
           name: v${{ steps.version.outputs.version }}

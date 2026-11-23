@@ -6,12 +6,13 @@ namespace Hypervel\Filesystem;
 
 use Aws\S3\S3Client;
 use DateTimeInterface;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\StreamWrapper;
 use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\UnableToReadFile;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class AwsS3V3Adapter extends FilesystemAdapter
@@ -204,21 +205,15 @@ class AwsS3V3Adapter extends FilesystemAdapter
             }
 
             $command = $this->client->getCommand('GetObject', $options);
-            $stream = $this->client->execute($command)->get('Body')->detach();
-        } catch (CanceledException $exception) {
-            throw $exception;
+            // Decoder streams must retain cancellation and close their body with the resource.
+            return StreamWrapper::detach($this->client->execute($command)->get('Body'));
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
         }
-
-        if (! is_resource($stream)) {
-            throw UnableToReadFile::fromLocation(
-                $path,
-                'Downloaded object does not contain a file resource.',
-            );
-        }
-
-        return $stream;
     }
 
     /**

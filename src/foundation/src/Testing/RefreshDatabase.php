@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
@@ -57,11 +56,18 @@ trait RefreshDatabase
     protected function restoreInMemoryDatabase(): void
     {
         $database = $this->app->make('db');
+        $resolver = $this->app->bound('db.resolver') ? $this->app->make('db.resolver') : null;
 
         foreach ($this->connectionsToTransact() as $name) {
             $connectionName = $name ?? $this->getRefreshConnection();
 
             if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                // A lease loses setPdo() on release; restore the pool's shared database instead.
+                if ($resolver instanceof DatabaseConnectionResolver
+                    && $resolver->restoreInMemoryPdoIfPooled($name, RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                    continue;
+                }
+
                 $connection = $database->connection($name);
 
                 if (! $connection instanceof PdoConnection) {
@@ -127,7 +133,11 @@ trait RefreshDatabase
             ) {
                 RefreshDatabaseState::$migrated = false;
 
-                $this->migrateDatabases();
+                if ($this->shouldDispatchMigrationEvents()) {
+                    $this->migrateDatabases();
+                } else {
+                    $this->migrateDatabasesWithoutEvents();
+                }
 
                 $this->app->make(Kernel::class)->setArtisan(null);
 
@@ -205,6 +215,34 @@ trait RefreshDatabase
     }
 
     /**
+     * Migrate the database without dispatching database events.
+     */
+    protected function migrateDatabasesWithoutEvents(): void
+    {
+        $database = $this->app->make('db');
+
+        $dispatchers = [];
+
+        foreach ($this->connectionsToTransact() as $name) {
+            $connection = $database->connection($name);
+
+            $dispatchers[] = [$connection, $connection->getEventDispatcher()];
+
+            $connection->unsetEventDispatcher();
+        }
+
+        try {
+            $this->migrateDatabases();
+        } finally {
+            foreach ($dispatchers as [$connection, $dispatcher]) {
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
+            }
+        }
+    }
+
+    /**
      * Start database transaction in the test coroutine.
      *
      * Called by RunTestsInCoroutine before the test runs. Maintains correct
@@ -265,11 +303,8 @@ trait RefreshDatabase
                     RefreshDatabaseState::$migrated = false;
                 }
 
-                if ($connection instanceof DatabaseConnection) {
-                    $connection->forgetRecordModificationState();
-                }
-
-                $connection->rollBack();
+                $connection->forgetRecordModificationState();
+                $connection->rollBack(0);
             } finally {
                 if ($dispatcher !== null) {
                     $connection->setEventDispatcher($dispatcher);

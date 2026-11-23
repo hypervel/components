@@ -123,5 +123,5 @@ class ComparesRelatedModelsStub extends Model
 {
     protected array $guarded = [];
 
-    protected string $primaryKey = 'uuid';
+    protected ?string $primaryKey = 'uuid';
 }

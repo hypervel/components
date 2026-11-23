@@ -9,6 +9,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest as FoundationPackageManifest;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Testbench\Bootstrapper;
 use Override;
 use UnexpectedValueException;
 
@@ -33,6 +34,13 @@ class PackageManifest extends FoundationPackageManifest
     protected array $requiredPackages = [];
 
     /**
+     * The package's own manifest entry, keyed by its package name.
+     *
+     * @var null|array<string, array<string, mixed>>
+     */
+    protected ?array $rootManifest = null;
+
+    /**
      * Create a new package manifest instance.
      */
     public function __construct(
@@ -42,6 +50,11 @@ class PackageManifest extends FoundationPackageManifest
         ?object $testbench = null
     ) {
         parent::__construct($files, $basePath, $manifestPath);
+
+        // The base path is a disposable copy or a configured skeleton whose vendor link
+        // already points at the package's install. Resolving COMPOSER_VENDOR_DIR
+        // against the copy would miss it.
+        $this->vendorPath = $basePath . '/vendor';
 
         $this->setTestbench($testbench);
     }
@@ -96,6 +109,39 @@ class PackageManifest extends FoundationPackageManifest
     }
 
     /**
+     * Determine if the manifest includes the package's own Composer metadata.
+     */
+    public function discoversRootPackage(): bool
+    {
+        return static::discoversRootPackageAt(
+            $this->basePath,
+            $this->testbench !== null
+                && method_exists($this->testbench, 'discoversRootPackage')
+                && $this->testbench->discoversRootPackage() === true,
+        );
+    }
+
+    /**
+     * Determine if a manifest for the given base path includes the package's own Composer metadata.
+     *
+     * Remote commands can start before an application exists, so the decision is also
+     * available without a manifest instance.
+     */
+    public static function discoversRootPackageAt(string $basePath, bool $optedIn = false): bool
+    {
+        // A child sharing its parent's runtime follows the parent's decision, so its own
+        // CLI identity cannot change the manifest the parent and its subprocesses read.
+        if (Bootstrapper::isRuntimeCopy($basePath) && ! Bootstrapper::ownsRuntimePath($basePath)) {
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parent process passes its decision to child processes through the environment)
+            return Env::get('TESTBENCH_DISCOVERS_ROOT_PACKAGE') === true;
+        }
+
+        // PHPUnit workers are not Testbench CLI processes, but package:test workers
+        // still need the package root metadata.
+        return is_testbench_cli() || Env::has('TESTBENCH_PACKAGE_TESTER') || $optedIn;
+    }
+
+    /**
      * Get the current package manifest.
      */
     #[Override]
@@ -141,17 +187,28 @@ class PackageManifest extends FoundationPackageManifest
      */
     protected function providersFromRoot(): array
     {
+        if ($this->rootManifest !== null) {
+            return $this->rootManifest;
+        }
+
         $package = $this->providersFromTestbench();
 
         if ($package === null) {
-            return [];
+            return $this->rootManifest = [];
         }
 
         $composerFile = package_path('composer.json');
         $location = "root package in [{$composerFile}]";
+        $extra = static::hypervelExtra($package, $location);
 
-        return [
-            static::packageName($package, $location, $this->vendorPath) => static::hypervelExtra($package, $location),
+        // Composer only requires names for published packages. An unnamed root has no
+        // manifest entry to replace, so it needs a name only when its metadata is discovered.
+        if (! array_key_exists('name', $package) && ($extra === [] || ! $this->discoversRootPackage())) {
+            return $this->rootManifest = [];
+        }
+
+        return $this->rootManifest = [
+            static::packageName($package, $location, $this->vendorPath) => $extra,
         ];
     }
 
@@ -162,11 +219,7 @@ class PackageManifest extends FoundationPackageManifest
      */
     protected function providersFromTestbench(): ?array
     {
-        // PHPUnit workers are not Testbench CLI processes, but package:test
-        // workers still need the package root metadata when they build a fresh
-        // clone manifest.
-        if ((is_testbench_cli() || Env::has('TESTBENCH_PACKAGE_TESTER'))
-            && is_file($composerFile = package_path('composer.json'))) {
+        if (is_file($composerFile = package_path('composer.json'))) {
             $package = $this->files->json($composerFile, JSON_THROW_ON_ERROR);
 
             if (! is_array($package)) {
@@ -180,16 +233,19 @@ class PackageManifest extends FoundationPackageManifest
     }
 
     /**
-     * Write the given manifest array to disk.
+     * Prepare a built or cached manifest before it is stored or used.
      */
     #[Override]
-    protected function write(array $manifest): void
+    protected function prepareManifest(array $manifest): array
     {
-        parent::write(
-            (new Collection($manifest))
-                ->merge($this->providersFromRoot())
-                ->filter()
-                ->all()
-        );
+        $root = $this->providersFromRoot();
+
+        // Replace any cached root entry, so the manifest follows the current discovery
+        // decision rather than whichever process last wrote the file.
+        $manifest = array_diff_key($manifest, $root);
+
+        return $this->discoversRootPackage()
+            ? array_merge($manifest, array_filter($root))
+            : $manifest;
     }
 }

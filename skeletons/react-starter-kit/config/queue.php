@@ -182,15 +182,18 @@ return [
     | Job Batching
     |--------------------------------------------------------------------------
     |
-    | The following options configure the database and table that store job
-    | batching information. These options can be updated to any database
-    | connection and table which has been defined by your application.
+    | Batches are stored in the database. Choose the database or Redis
+    | driver to record the results of individual jobs in each batch.
     |
     */
 
     'batching' => [
+        'driver' => env('QUEUE_BATCHING_DRIVER', 'database'),
+        'redis_connection' => env('REDIS_QUEUE_BATCHING_CONNECTION', env('REDIS_QUEUE_CONNECTION', 'queue')),
         'database' => env('DB_CONNECTION', 'sqlite'),
         'table' => 'job_batches',
+        'results_table' => 'job_batch_results',
+        'deletions_table' => 'job_batch_deletions',
     ],
 
     /*

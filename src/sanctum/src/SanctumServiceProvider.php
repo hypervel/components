@@ -45,7 +45,7 @@ class SanctumServiceProvider extends ServiceProvider
         $config = $this->app->make(ConfigRepository::class);
 
         $cache->allowSerializableClassesUsing(function () use ($config): array {
-            if (! $config->boolean('sanctum.cache.enabled', false)) {
+            if (! Sanctum::cacheEnabled($config)) {
                 return [];
             }
 
@@ -119,7 +119,7 @@ class SanctumServiceProvider extends ServiceProvider
      */
     private function validateCacheConfiguration(CacheManager $cache, ConfigRepository $config): void
     {
-        if (! $config->boolean('sanctum.cache.enabled', false)) {
+        if (! Sanctum::cacheEnabled($config)) {
             return;
         }
 

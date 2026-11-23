@@ -8,6 +8,7 @@ use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Database\ConfigurationUrlParser;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\SQLiteDatabase;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use InvalidArgumentException;
@@ -45,7 +46,8 @@ trait InteractsWithParallelDatabase
             return;
         }
 
-        $token = env('TEST_TOKEN');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parallel test runner sets each process's token in its environment)
+        $token = Env::get('TEST_TOKEN');
 
         if ($token === null) {
             return;
@@ -98,7 +100,8 @@ trait InteractsWithParallelDatabase
             return;
         }
 
-        $token = env('TEST_TOKEN');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parallel test runner sets each process's token in its environment)
+        $token = Env::get('TEST_TOKEN');
 
         if ($token === null) {
             return;

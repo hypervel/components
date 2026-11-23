@@ -8,6 +8,7 @@ use Carbon\CarbonInterface;
 use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
+use Hypervel\Console\Events\ScheduledTaskCanceled;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskSkipped;
@@ -15,6 +16,7 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Console\Scheduling\ScheduledTaskSkipReason;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -29,6 +31,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use RuntimeException;
@@ -120,9 +123,9 @@ class ScheduleRunCommand extends Command
     protected ?Concurrent $concurrent = null;
 
     /**
-     * The minute currently represented by the evaluated event cache.
+     * The minute since the Unix epoch currently represented by the evaluated event cache.
      */
-    protected ?string $evaluatedEventsMinute = null;
+    protected ?int $evaluatedEventsMinute = null;
 
     /**
      * The non-repeatable events already evaluated for the current minute.
@@ -263,13 +266,13 @@ class ScheduleRunCommand extends Command
                 $this->runTaskInCoroutine(function () use ($event, $paused): void {
                     if ($paused && ! $event->runsWhenPaused()) {
                         $event->lastChecked = Date::now();
-                        $this->dispatchTaskSkipped($event);
+                        $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::Paused);
 
                         return;
                     }
 
                     if (! $event->filtersPass($this->hypervel)) {
-                        $this->dispatchTaskSkipped($event);
+                        $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::ConditionNotMet);
 
                         return;
                     }
@@ -290,30 +293,46 @@ class ScheduleRunCommand extends Command
     protected function runEvents(Collection $events, CarbonInterface $startedAt): void
     {
         $paused = $this->isPaused();
+        $minute = intdiv($startedAt->getTimestamp(), 60);
+
+        // A clock set back into the previous minute doesn't run its events again, while a longer
+        // correction evaluates the earlier minutes again, as a fresh scheduler would. Every poll
+        // records its minute, so minutes without due events don't hide a longer correction.
+        $isPreviousMinute = $this->evaluatedEventsMinute !== null && $minute === $this->evaluatedEventsMinute - 1;
+
+        if (! $isPreviousMinute && $minute !== $this->evaluatedEventsMinute) {
+            $this->evaluatedEventsMinute = $minute;
+            $this->evaluatedEvents = [];
+        }
 
         foreach ($events as $event) {
             if ($this->shouldQuit) {
                 break;
             }
 
-            if ($event->isRepeatable() && $event->lastChecked && ! $event->shouldRepeatNow()) {
+            // Laravel starts a fresh scheduler each minute, so a repeatable event's first check in a later
+            // minute runs regardless of the last check. Otherwise a late check would delay later minutes too.
+            if ($event->isRepeatable()
+                && $event->lastChecked
+                && intdiv($event->lastChecked->getTimestamp(), 60) >= $minute
+                && ! $event->shouldRepeatNow()) {
                 continue;
             }
 
-            if ($this->hasAlreadyEvaluatedNonRepeatableEvent($event, $startedAt)) {
+            if ($this->hasAlreadyEvaluatedNonRepeatableEvent($event, $isPreviousMinute)) {
                 continue;
             }
 
             $this->runTaskInCoroutine(function () use ($event, $startedAt, $paused): void {
                 if ($paused && ! $event->runsWhenPaused()) {
                     $event->lastChecked = Date::now();
-                    $this->dispatchTaskSkipped($event);
+                    $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::Paused);
 
                     return;
                 }
 
                 if (! $event->filtersPass($this->hypervel)) {
-                    $this->dispatchTaskSkipped($event);
+                    $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::ConditionNotMet);
 
                     return;
                 }
@@ -416,17 +435,14 @@ class ScheduleRunCommand extends Command
     /**
      * Determine if the non-repeatable event was already evaluated this minute.
      */
-    protected function hasAlreadyEvaluatedNonRepeatableEvent(Event $event, CarbonInterface $startedAt): bool
+    protected function hasAlreadyEvaluatedNonRepeatableEvent(Event $event, bool $isPreviousMinute): bool
     {
         if ($event->isRepeatable()) {
             return false;
         }
 
-        $minute = $startedAt->format('YmdHi');
-
-        if ($this->evaluatedEventsMinute !== $minute) {
-            $this->evaluatedEventsMinute = $minute;
-            $this->evaluatedEvents = [];
+        if ($isPreviousMinute) {
+            return true;
         }
 
         $eventId = spl_object_id($event);
@@ -448,8 +464,10 @@ class ScheduleRunCommand extends Command
         if ($this->schedule->serverShouldRun($event, $startedAt)) {
             $this->runEvent($event);
         } else {
+            $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::RanOnAnotherServer);
+
             $this->components->info(sprintf(
-                'Skipping [%s], as command already run on another server.',
+                'Skipping [%s] because the command already ran on another server.',
                 $event->getSummaryForDisplay()
             ));
         }
@@ -478,62 +496,108 @@ class ScheduleRunCommand extends Command
         // Tasks can overlap, so write complete lines instead of leaving a task row open.
         $this->line($description);
 
-        if ($this->dispatcher->hasListeners(ScheduledTaskStarting::class)) {
-            $this->dispatcher->dispatch(new ScheduledTaskStarting($event));
-        }
-
-        $start = microtime(true);
-
-        $this->registerRunningEvent($event);
-
-        $failed = false;
+        $runtime = null;
+        $failure = null;
+        $running = false;
         $skippedBecauseOverlapping = false;
 
+        // Starting listeners can begin task telemetry, so every exit from here on publishes
+        // an outcome: cancellation publishes ScheduledTaskCanceled in place of the one it prevented.
         try {
-            $event->run($this->hypervel);
-            $skippedBecauseOverlapping = $event->wasSkippedDueToOverlapping();
-
-            if ($this->dispatcher->hasListeners(ScheduledTaskFinished::class)) {
-                $this->dispatcher->dispatch(new ScheduledTaskFinished(
-                    $event,
-                    round(microtime(true) - $start, 2)
-                ));
+            if ($this->dispatcher->hasListeners(ScheduledTaskStarting::class)) {
+                $this->dispatcher->dispatch(new ScheduledTaskStarting($event));
             }
 
-            $this->eventsRan = true;
+            $start = microtime(true);
 
-            $exitCode = $event->exitCode();
+            $this->registerRunningEvent($event);
+            $running = true;
 
-            if (
-                ! $skippedBecauseOverlapping
-                && $exitCode !== null
-                && $exitCode !== 0
-            ) {
-                throw new RuntimeException(
-                    "Scheduled command [{$command}] failed with exit code [{$exitCode}]."
-                );
+            try {
+                $event->run($this->hypervel);
+                $runtime = round(microtime(true) - $start, 2);
+                $skippedBecauseOverlapping = $event->wasSkippedDueToOverlapping();
+
+                if ($this->dispatcher->hasListeners(ScheduledTaskFinished::class)) {
+                    $this->dispatcher->dispatch(new ScheduledTaskFinished($event, $runtime));
+                }
+
+                $this->eventsRan = true;
+
+                $exitCode = $event->exitCode();
+
+                if (
+                    ! $skippedBecauseOverlapping
+                    && $exitCode !== null
+                    && $exitCode !== 0
+                ) {
+                    throw new RuntimeException(
+                        "Scheduled command [{$command}] failed with exit code [{$exitCode}]."
+                    );
+                }
+            } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
+                $failure = $e;
+                // runEvent reports ordinary failures instead of throwing them to
+                // runTask; keep that outcome local to this task's deferred work.
+                CoroutineContext::set(self::TASK_FAILED_CONTEXT_KEY, true);
+
+                if ($this->dispatcher->hasListeners(ScheduledTaskFailed::class)) {
+                    // Unlike upstream, a run that fails after the task finished (a failing exit code or a throwing
+                    // Finished listener) reports the task's own runtime, without the time its Finished listeners took.
+                    $this->dispatcher->dispatch(new ScheduledTaskFailed(
+                        $event,
+                        $e,
+                        $runtime ?? round(microtime(true) - $start, 2)
+                    ));
+                }
+
+                $this->handler->report($e);
+            } finally {
+                $this->forgetRunningEvent($event);
             }
-        } catch (Throwable $e) {
-            if (Coroutine::causedByCancellation($e)) {
-                throw $e;
+        } catch (Throwable $throwable) {
+            // A failure before the task ran still aborts the run, as upstream.
+            if (! $running && ! Coroutine::causedByCancellation($throwable)) {
+                $failure = $throwable;
+
+                try {
+                    if ($this->dispatcher->hasListeners(ScheduledTaskFailed::class)) {
+                        $this->dispatcher->dispatch(new ScheduledTaskFailed($event, $throwable));
+                    }
+                } catch (Throwable $listenerFailure) {
+                    if (Coroutine::causedByCancellation($listenerFailure)) {
+                        $throwable = $listenerFailure;
+                    } else {
+                        FailureReporter::report($listenerFailure);
+                    }
+                }
             }
 
-            $failed = true;
-            // runEvent reports ordinary failures instead of throwing them to
-            // runTask; keep that outcome local to this task's deferred work.
-            CoroutineContext::set(self::TASK_FAILED_CONTEXT_KEY, true);
-
-            if ($this->dispatcher->hasListeners(ScheduledTaskFailed::class)) {
-                $this->dispatcher->dispatch(new ScheduledTaskFailed($event, $e));
+            if (Coroutine::causedByCancellation($throwable)) {
+                try {
+                    if ($this->dispatcher->hasListeners(ScheduledTaskCanceled::class)) {
+                        $this->dispatcher->dispatch(new ScheduledTaskCanceled(
+                            $event,
+                            $throwable,
+                            $runtime,
+                            $failure,
+                        ));
+                    }
+                } catch (Throwable $listenerFailure) {
+                    // The cancellation keeps precedence; the listener failure is still reported.
+                    FailureReporter::report($listenerFailure);
+                }
             }
 
-            $this->handler->report($e);
-        } finally {
-            $this->forgetRunningEvent($event);
+            throw $throwable;
         }
 
         $status = match (true) {
-            $failed => '<error>Failed</error>',
+            $failure !== null => '<error>Failed</error>',
             $skippedBecauseOverlapping => '<comment>Skipped</comment>',
             $event->exitCode() === 0 => '<info>Finished</info>',
             default => '<error>Failed</error>',
@@ -668,10 +732,10 @@ class ScheduleRunCommand extends Command
     /**
      * Dispatch the scheduled task skipped event when listeners are registered.
      */
-    protected function dispatchTaskSkipped(Event $event): void
+    protected function dispatchTaskSkipped(Event $event, ScheduledTaskSkipReason $reason): void
     {
         if ($this->dispatcher->hasListeners(ScheduledTaskSkipped::class)) {
-            $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
+            $this->dispatcher->dispatch(new ScheduledTaskSkipped($event, $reason));
         }
     }
 }

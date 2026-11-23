@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Webhooks;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\FailureReporter;
@@ -12,7 +13,6 @@ use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Support\Str;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class HttpWebhookDispatcher implements WebhookDispatcher
@@ -67,10 +67,8 @@ class HttpWebhookDispatcher implements WebhookDispatcher
                         try {
                             // The append is durable; release only the lock acquired by this call.
                             $buffer->clearFlushLock($application->id());
-                        } catch (CanceledException $cancellation) {
-                            throw $cancellation;
-                        } catch (Throwable) {
-                            // Preserve the queue dispatch failure.
+                        } catch (Throwable $cleanupFailure) {
+                            $exception = Coroutine::preferCancellation($exception, $cleanupFailure);
                         }
 
                         throw $exception;
@@ -85,9 +83,11 @@ class HttpWebhookDispatcher implements WebhookDispatcher
 
                 app(WebhookSender::class)->send($application, $webhooks, $payload);
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             // A delivery failure must not interrupt the WebSocket operation that triggered it.
             FailureReporter::report($exception);
         }

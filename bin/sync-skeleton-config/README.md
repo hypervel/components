@@ -57,7 +57,7 @@ The replacement above illustrates the syntax; it is not a required React setting
 
 `omit` lists existing keys to remove. `replace` maps existing keys to PHP source expressions, represented as strings. Dotted keys address nested literal arrays. Rules cannot traverse a function call or other computed value. Missing keys, missing source files, unknown operations, and unregistered directory names in rules fail rather than silently doing nothing. Register a new skeleton by creating its directory and adding its name under `skeletons`; its `config/` directory is created by sync.
 
-The tool parses PHP without executing it, preserving environment expressions, comments, and formatting. Omitting an entry removes its attached comments and any imports no longer used by the remaining config. The exact framework-only `// @phpstan-ignore class.notFound` comment is stripped from generated files; other comments and string contents are retained.
+The tool parses PHP without executing it, preserving environment expressions, comments, and formatting. Omitting an entry removes its attached comments and any imports no longer used by the remaining config. The framework-only `// @phpstan-ignore class.notFound (...)` comment is stripped from generated files; other comments and string contents are retained.
 
 Both sync and check reject unexpected skeleton config files before writing anything. When removing or renaming a framework config, remove its old skeleton copies too; the error lists any that remain.
 

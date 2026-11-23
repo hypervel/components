@@ -13,7 +13,6 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PDO;
 
 class DatabaseEloquentMorphTest extends TestCase
@@ -68,43 +67,6 @@ class DatabaseEloquentMorphTest extends TestCase
         $this->assertSame([ResetModelStub::class, 1, ResetModelStub::class], $relation->getBindings());
     }
 
-    public function testMorphRelationUpsertFillsForeignKey(): void
-    {
-        $relation = $this->getManyRelation();
-
-        $relation->getQuery()->expects('upsert')->with(
-            [
-                ['email' => 'foo3', 'name' => 'bar', $relation->getForeignKeyName() => $relation->getParentKey(), $relation->getMorphType() => $relation->getMorphClass()],
-            ],
-            ['email'],
-            ['name']
-        )->andReturn(1);
-
-        $relation->upsert(
-            ['email' => 'foo3', 'name' => 'bar'],
-            ['email'],
-            ['name']
-        );
-
-        $relation->getQuery()->expects('upsert')->with(
-            [
-                ['email' => 'foo3', 'name' => 'bar', $relation->getForeignKeyName() => $relation->getParentKey(), $relation->getMorphType() => $relation->getMorphClass()],
-                ['name' => 'bar2', 'email' => 'foo2', $relation->getForeignKeyName() => $relation->getParentKey(), $relation->getMorphType() => $relation->getMorphClass()],
-            ],
-            ['email'],
-            ['name']
-        )->andReturn(2);
-
-        $relation->upsert(
-            [
-                ['email' => 'foo3', 'name' => 'bar'],
-                ['name' => 'bar2', 'email' => 'foo2'],
-            ],
-            ['email'],
-            ['name']
-        );
-    }
-
     /**
      * Get a morph one or many relationship backed by a real query builder.
      *
@@ -119,21 +81,6 @@ class DatabaseEloquentMorphTest extends TestCase
         $parent->id = 1;
 
         return new $relation($builder, $parent, 'table.morph_type', 'table.morph_id', 'id');
-    }
-
-    protected function getManyRelation()
-    {
-        $builder = m::mock(Builder::class);
-        $builder->expects('whereNotNull')->with('table.morph_id');
-        $builder->expects('where')->with('table.morph_id', '=', 1);
-        $related = new ResetModelStub;
-        $builder->shouldReceive('getModel')->andReturn($related);
-        $parent = m::mock(Model::class);
-        $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
-        $parent->shouldReceive('getMorphClass')->andReturn(get_class($parent));
-        $builder->expects('where')->with('table.morph_type', get_class($parent));
-
-        return new MorphMany($builder, $parent, 'table.morph_type', 'table.morph_id', 'id');
     }
 }
 

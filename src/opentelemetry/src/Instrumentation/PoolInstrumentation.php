@@ -12,14 +12,28 @@ use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
 use OpenTelemetry\API\Metrics\ObservableUpDownCounterInterface;
 use OpenTelemetry\API\Metrics\ObserverInterface;
-use OpenTelemetry\SemConv\Incubating\Attributes\DbIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Metrics\DbIncubatingMetrics;
 
 class PoolInstrumentation extends AbstractInstrumentation
 {
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string CONNECTION_COUNT_METRIC = 'db.client.connection.count';
+
+    protected const string CONNECTION_LIMIT_METRIC = 'db.client.connection.limit';
+
+    protected const string CONNECTION_PENDING_REQUESTS_METRIC = 'db.client.connection.pending_requests';
+
+    protected const string CONNECTION_POOL_NAME_ATTRIBUTE = 'db.client.connection.pool.name';
+
+    protected const string CONNECTION_STATE_ATTRIBUTE = 'db.client.connection.state';
+
+    protected const string STATE_IDLE = 'idle';
+
+    protected const string STATE_USED = 'used';
+
     protected const string OBJECTS_METRIC = 'hypervel.object_pool.objects';
 
-    protected const string OBJECTS_MAX_METRIC = 'hypervel.object_pool.max';
+    protected const string OBJECTS_LIMIT_METRIC = 'hypervel.object_pool.limit';
 
     protected const string OBJECTS_PENDING_REQUESTS_METRIC = 'hypervel.object_pool.pending_requests';
 
@@ -44,13 +58,13 @@ class PoolInstrumentation extends AbstractInstrumentation
     protected function registerInstrumentation(): void
     {
         $connectionMetrics = array_values(array_filter([
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT,
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX,
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS,
+            self::CONNECTION_COUNT_METRIC,
+            self::CONNECTION_LIMIT_METRIC,
+            self::CONNECTION_PENDING_REQUESTS_METRIC,
         ], fn (string $name): bool => $this->metricEnabled($name)));
         $objectMetrics = array_values(array_filter([
             self::OBJECTS_METRIC,
-            self::OBJECTS_MAX_METRIC,
+            self::OBJECTS_LIMIT_METRIC,
             self::OBJECTS_PENDING_REQUESTS_METRIC,
         ], fn (string $name): bool => $this->metricEnabled($name)));
 
@@ -58,7 +72,7 @@ class PoolInstrumentation extends AbstractInstrumentation
             return;
         }
 
-        $meter = $this->meterProvider->getMeter('hypervel.pools');
+        $meter = $this->meterProvider->getMeter('hypervel.pools', schemaUrl: $this->schemaUrl());
 
         if ($connectionMetrics !== []) {
             $instruments = array_map(
@@ -94,20 +108,20 @@ class PoolInstrumentation extends AbstractInstrumentation
     /**
      * Create one observable pool instrument.
      *
-     * @param DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT|DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX|DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS|self::OBJECTS_MAX_METRIC|self::OBJECTS_METRIC|self::OBJECTS_PENDING_REQUESTS_METRIC $name
+     * @param self::CONNECTION_COUNT_METRIC|self::CONNECTION_LIMIT_METRIC|self::CONNECTION_PENDING_REQUESTS_METRIC|self::OBJECTS_LIMIT_METRIC|self::OBJECTS_METRIC|self::OBJECTS_PENDING_REQUESTS_METRIC $name
      */
     protected function createInstrument(MeterInterface $meter, string $name): ObservableUpDownCounterInterface
     {
         [$unit, $description] = match ($name) {
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT => [
+            self::CONNECTION_COUNT_METRIC => [
                 '{connection}',
                 'The number of connections that are currently in each state.',
             ],
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX => [
+            self::CONNECTION_LIMIT_METRIC => [
                 '{connection}',
                 'The maximum number of open connections allowed.',
             ],
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS => [
+            self::CONNECTION_PENDING_REQUESTS_METRIC => [
                 '{request}',
                 'The number of requests waiting for an open connection.',
             ],
@@ -115,7 +129,7 @@ class PoolInstrumentation extends AbstractInstrumentation
                 '{object}',
                 'The number of pooled objects that are currently in each state.',
             ],
-            self::OBJECTS_MAX_METRIC => [
+            self::OBJECTS_LIMIT_METRIC => [
                 '{object}',
                 'The maximum number of objects allowed in the pool.',
             ],
@@ -151,29 +165,29 @@ class PoolInstrumentation extends AbstractInstrumentation
      */
     protected function observeConnectionPool(array $observers, ConnectionPool $pool, string $name): void
     {
-        $attributes = [DbIncubatingAttributes::DB_CLIENT_CONNECTION_POOL_NAME => $name];
+        $attributes = [self::CONNECTION_POOL_NAME_ATTRIBUTE => $name];
 
-        if (isset($observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT])) {
+        if (isset($observers[self::CONNECTION_COUNT_METRIC])) {
             $idle = $pool->getIdleCount();
             $used = $pool->getManagedCount() - $idle;
-            $observer = $observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT];
+            $observer = $observers[self::CONNECTION_COUNT_METRIC];
             $observer->observe($idle, $attributes + [
-                DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE => DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE_VALUE_IDLE,
+                self::CONNECTION_STATE_ATTRIBUTE => self::STATE_IDLE,
             ]);
             $observer->observe($used, $attributes + [
-                DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE => DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE_VALUE_USED,
+                self::CONNECTION_STATE_ATTRIBUTE => self::STATE_USED,
             ]);
         }
 
-        if (isset($observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX])) {
-            $observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX]->observe(
+        if (isset($observers[self::CONNECTION_LIMIT_METRIC])) {
+            $observers[self::CONNECTION_LIMIT_METRIC]->observe(
                 $pool->getOptions()->maxConnections,
                 $attributes,
             );
         }
 
-        if (isset($observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS])) {
-            $observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS]->observe(
+        if (isset($observers[self::CONNECTION_PENDING_REQUESTS_METRIC])) {
+            $observers[self::CONNECTION_PENDING_REQUESTS_METRIC]->observe(
                 $pool->getWaitingCount(),
                 $attributes,
             );
@@ -195,15 +209,15 @@ class PoolInstrumentation extends AbstractInstrumentation
                 $stats = $pool->getStats();
                 $observer = $observers[self::OBJECTS_METRIC];
                 $observer->observe($stats['idle'], $attributes + [
-                    self::OBJECT_POOL_STATE_ATTRIBUTE => DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE_VALUE_IDLE,
+                    self::OBJECT_POOL_STATE_ATTRIBUTE => self::STATE_IDLE,
                 ]);
                 $observer->observe($stats['managed'] - $stats['idle'], $attributes + [
-                    self::OBJECT_POOL_STATE_ATTRIBUTE => DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE_VALUE_USED,
+                    self::OBJECT_POOL_STATE_ATTRIBUTE => self::STATE_USED,
                 ]);
             }
 
-            if (isset($observers[self::OBJECTS_MAX_METRIC])) {
-                $observers[self::OBJECTS_MAX_METRIC]->observe(
+            if (isset($observers[self::OBJECTS_LIMIT_METRIC])) {
+                $observers[self::OBJECTS_LIMIT_METRIC]->observe(
                     $pool->getOptions()->maxObjects,
                     $attributes,
                 );

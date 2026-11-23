@@ -10,7 +10,8 @@ use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
 use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Sentry\ClientInterface;
 use Sentry\Options;
 use Sentry\SentrySdk;
@@ -22,17 +23,18 @@ use Symfony\Component\HttpFoundation\Response;
 
 class FlushEventsMiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFlushIsDeferredUntilTheRequestCoroutineExits(): void
     {
         $handled = new Channel(1);
         $flushed = new Channel(1);
         $storage = new CoroutineRuntimeContextStorage;
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->once()->andReturn(new Options);
-        $client->shouldReceive('flush')
-            ->once()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')->returns(new Options);
+        $client->expects('flush')
             ->with(null)
-            ->andReturnUsing(static function () use ($flushed): Result {
+            ->resolves(static function () use ($flushed): Result {
                 $flushed->push(true);
 
                 return new Result(ResultStatus::success());

@@ -13,13 +13,16 @@ use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabasePostgresSchemaGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBasicCreateTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -48,7 +51,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     {
         $blueprint = new Blueprint($this->getConnection(), 'embeddings');
         $blueprint->vector('embedding', 384);
-        $statements = $blueprint->toSql($this->getConnection(), $this->getGrammar());
+        $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter table "embeddings" add column "embedding" vector(384) not null', $statements[0]);
@@ -183,8 +186,8 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCreateRangePartition(): void
     {
         $connection = $this->getConnection(prefix: 'prefix_');
-        $connection->expects('escape')->with(1, false)->twice()->andReturn('1');
-        $connection->expects('escape')->with("0190'a", false)->andReturn("'0190''a'");
+        $connection->expects('escape')->with(1, false)->times(2)->returns('1');
+        $connection->expects('escape')->with("0190'a", false)->returns("'0190''a'");
 
         $this->assertSame(
             'create table "prefix_attempts_1" partition of "prefix_attempts" for values from (1, \'0190\'\'a\') to (1, maxvalue)',
@@ -251,7 +254,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testDropPrimary(): void
     {
         $connection = $this->getConnection();
-        $connection->getSchemaBuilder()->shouldReceive('parseSchemaAndTable')->andReturn([null, 'users']);
+        $connection->getSchemaBuilder()->expects('parseSchemaAndTable')->returns([null, 'users']);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->dropPrimary();
@@ -279,6 +282,25 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('drop index "foo"', $statements[0]);
+    }
+
+    public function testDropIndexOnSchemaQualifiedTable(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'tenant.users');
+        $blueprint->dropIndex(['email']);
+        $blueprint->dropIndex('foo');
+        $blueprint->dropIndex('other.bar');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(3, $statements);
+        $this->assertSame('drop index "tenant"."tenant_users_email_index"', $statements[0]);
+        $this->assertSame('drop index "tenant"."foo"', $statements[1]);
+        $this->assertSame('drop index "other"."bar"', $statements[2]);
+
+        $blueprint = new Blueprint($this->getConnection(), '0.users');
+        $blueprint->dropIndex('foo');
+
+        $this->assertSame(['drop index "0"."foo"'], $blueprint->toSql());
     }
 
     public function testDropSpatialIndex(): void
@@ -372,6 +394,21 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('alter index "foo" rename to "bar"', $statements[0]);
     }
 
+    public function testRenameIndexOnSchemaQualifiedTable(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'tenant.users');
+        $blueprint->renameIndex('foo', 'bar');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter index "tenant"."foo" rename to "bar"', $statements[0]);
+
+        $blueprint = new Blueprint($this->getConnection(), '0.users');
+        $blueprint->renameIndex('foo', 'bar');
+
+        $this->assertSame(['alter index "0"."foo" rename to "bar"'], $blueprint->toSql());
+    }
+
     public function testAddingPrimaryKey(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -421,6 +458,29 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertCount(2, $statements);
         $this->assertSame('create unique index concurrently "users_foo_unique" on "users" ("foo")', $statements[0]);
         $this->assertSame('alter table "users" add constraint "users_foo_unique" unique using index "users_foo_unique"', $statements[1]);
+    }
+
+    #[TestWith([true, null, true, ' concurrently', '', 'not distinct'])]
+    #[TestWith([false, 'btree', false, '', ' using btree', 'distinct'])]
+    public function testUniqueIndexCreationPreservesNullSemanticsAndDeferral(
+        bool $online,
+        ?string $algorithm,
+        bool $nullsNotDistinct,
+        string $onlineSql,
+        string $algorithmSql,
+        string $nullsSql,
+    ): void {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->unique('foo', 'bar', $algorithm)
+            ->online($online)
+            ->nullsNotDistinct($nullsNotDistinct)
+            ->deferrable()
+            ->initiallyImmediate(false);
+
+        $this->assertSame([
+            'create unique index' . $onlineSql . ' "bar" on "users"' . $algorithmSql . ' ("foo") nulls ' . $nullsSql,
+            'alter table "users" add constraint "bar" unique using index "bar" deferrable initially deferred',
+        ], $blueprint->toSql());
     }
 
     public function testAddingIndex(): void
@@ -479,10 +539,14 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testCompileIndexesIncludesPartialMetadata(): void
+    #[TestWith(['10.23', 'true'])]
+    #[TestWith(['11.22', 'indseq.ord <= i.indnkeyatts'])]
+    public function testCompileIndexesIncludesOnlyKeysAndPartialMetadata(string $version, string $keyCondition): void
     {
+        $connection = $this->getConnection();
+        $connection->expects('getServerVersion')->returns($version);
         $this->assertSame(
-            'select ic.relname as name, string_agg(a.attname, \',\' order by indseq.ord) as columns, '
+            'select ic.relname as name, a.attname as column_name, '
             . 'am.amname as "type", i.indisunique as "unique", i.indisprimary as "primary", '
             . 'i.indpred is not null as "partial" '
             . 'from pg_index i '
@@ -490,11 +554,11 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             . 'join pg_namespace tn on tn.oid = tc.relnamespace '
             . 'join pg_class ic on ic.oid = i.indexrelid '
             . 'join pg_am am on am.oid = ic.relam '
-            . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on true '
+            . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on ' . $keyCondition . ' '
             . 'left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = indseq.num '
             . 'where tc.relname = \'users\' and tn.nspname = \'public\' '
-            . 'group by ic.relname, am.amname, i.indisunique, i.indisprimary, i.indpred is not null',
-            $this->getGrammar()->compileIndexes('public', 'users'),
+            . 'order by ic.relname, indseq.ord',
+            $connection->getSchemaGrammar()->compileIndexes('public', 'users'),
         );
     }
 
@@ -515,7 +579,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);
-        $this->assertSame('create index "users_body_title_fulltext" on "users" using gin ((to_tsvector(\'english\', "body") || to_tsvector(\'english\', "title")))', $statements[0]);
+        $this->assertSame('create index "users_body_title_fulltext" on "users" using gin ((coalesce(to_tsvector(\'english\', "body"), \'\'::tsvector) || coalesce(to_tsvector(\'english\', "title"), \'\'::tsvector)))', $statements[0]);
     }
 
     public function testAddingFulltextIndexWithLanguage(): void
@@ -740,7 +804,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $foreignId = $blueprint->foreignId('foo');
         $blueprint->foreignId('company_id')->constrained();
-        $blueprint->foreignId('laravel_idea_id')->constrained();
+        $blueprint->foreignId('hypervel_idea_id')->constrained();
         $blueprint->foreignId('team_id')->references('id')->on('teams');
         $blueprint->foreignId('team_column_id')->constrained('teams');
 
@@ -751,8 +815,8 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             'alter table "users" add column "foo" bigint not null',
             'alter table "users" add column "company_id" bigint not null',
             'alter table "users" add constraint "users_company_id_foreign" foreign key ("company_id") references "companies" ("id")',
-            'alter table "users" add column "laravel_idea_id" bigint not null',
-            'alter table "users" add constraint "users_laravel_idea_id_foreign" foreign key ("laravel_idea_id") references "laravel_ideas" ("id")',
+            'alter table "users" add column "hypervel_idea_id" bigint not null',
+            'alter table "users" add constraint "users_hypervel_idea_id_foreign" foreign key ("hypervel_idea_id") references "hypervel_ideas" ("id")',
             'alter table "users" add column "team_id" bigint not null',
             'alter table "users" add constraint "users_team_id_foreign" foreign key ("team_id") references "teams" ("id")',
             'alter table "users" add column "team_column_id" bigint not null',
@@ -1160,7 +1224,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $foreignUuid = $blueprint->foreignUuid('foo');
         $blueprint->foreignUuid('company_id')->constrained();
-        $blueprint->foreignUuid('laravel_idea_id')->constrained();
+        $blueprint->foreignUuid('hypervel_idea_id')->constrained();
         $blueprint->foreignUuid('team_id')->references('id')->on('teams');
         $blueprint->foreignUuid('team_column_id')->constrained('teams');
 
@@ -1171,8 +1235,8 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             'alter table "users" add column "foo" uuid not null',
             'alter table "users" add column "company_id" uuid not null',
             'alter table "users" add constraint "users_company_id_foreign" foreign key ("company_id") references "companies" ("id")',
-            'alter table "users" add column "laravel_idea_id" uuid not null',
-            'alter table "users" add constraint "users_laravel_idea_id_foreign" foreign key ("laravel_idea_id") references "laravel_ideas" ("id")',
+            'alter table "users" add column "hypervel_idea_id" uuid not null',
+            'alter table "users" add constraint "users_hypervel_idea_id_foreign" foreign key ("hypervel_idea_id") references "hypervel_ideas" ("id")',
             'alter table "users" add column "team_id" uuid not null',
             'alter table "users" add constraint "users_team_id_foreign" foreign key ("team_id") references "teams" ("id")',
             'alter table "users" add column "team_column_id" uuid not null',
@@ -1487,7 +1551,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCreateDatabase(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getConfig')->with('charset')->andReturn('utf8_foo');
+        $connection->expects('getConfig')->with('charset')->returns('utf8_foo');
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_a');
 
         $this->assertSame(
@@ -1496,7 +1560,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         );
 
         $connection = $this->getConnection();
-        $connection->expects('getConfig')->with('charset')->andReturn('utf8_bar');
+        $connection->expects('getConfig')->with('charset')->returns('utf8_bar');
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_b');
 
         $this->assertSame(
@@ -1578,27 +1642,43 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCompileColumns(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->andReturn('12.0.0');
+        $connection->expects('getServerVersion')->returns('12.0.0');
 
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
         $this->assertStringContainsString("where c.relname = 'table' and n.nspname = 'public'", $statement);
         $this->assertStringContainsString('pg_catalog.pg_collation', $statement);
         $this->assertStringContainsString('a.attgenerated as generated', $statement);
+        $this->assertStringContainsString('a.attidentity as identity', $statement);
     }
 
-    public function testCompileColumnsOnLegacyServer(): void
+    // REMOVED: Laravel's PostgreSQL 8 metadata case; Hypervel requires PostgreSQL 10+.
+    public function testCompileColumnsOnPostgresTen(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->andReturn('8.0.2');
+        $connection->expects('getServerVersion')->returns('10.23');
 
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
         $this->assertStringContainsString("where c.relname = 'table' and n.nspname = 'public'", $statement);
-        $this->assertStringContainsString('null as collation', $statement);
+        $this->assertStringContainsString('pg_catalog.pg_collation', $statement);
+        $this->assertStringContainsString('a.attidentity as identity', $statement);
         $this->assertStringContainsString("'' as generated", $statement);
-        $this->assertStringNotContainsString('pg_catalog.pg_collation', $statement);
         $this->assertStringNotContainsString('a.attgenerated', $statement);
+    }
+
+    public function testCompileMetadataQueriesForSchemaNamedZero(): void
+    {
+        $connection = $this->getConnection();
+        $connection->expects('getServerVersion')->times(2)->returns('12.0.0');
+        $grammar = $connection->getSchemaGrammar();
+
+        $this->assertStringContainsString("n.nspname = '0' and", $grammar->compileTableExists('0', 'users'));
+        $this->assertStringEndsWith("n.nspname = '0' order by n.nspname, c.relname", $grammar->compileTables('0'));
+        $this->assertStringContainsString("n.nspname = '0' and", $grammar->compileColumns('0', 'users'));
+        $this->assertStringContainsString("tn.nspname = '0' order", $grammar->compileIndexes('0', 'users'));
+        $this->assertStringContainsString("tn.nspname = '0' order", $grammar->compileForeignKeys('0', 'users'));
+        $this->assertStringContainsString("pn.nspname = '0' order", $grammar->compilePartitions('0', 'users'));
     }
 
     public function testAddUsingKeywordToColumnOnChange(): void
@@ -1633,16 +1713,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         ?PostgresGrammar $grammar = null,
         ?PostgresBuilder $builder = null,
         string $prefix = ''
-    ): Connection&MockInterface {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
-        $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null);
+    ): Connection&DoubleInterface {
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getTablePrefix')->returns($prefix);
+        $connection->allows('getConfig')->with('prefix_indexes')->returns(null);
 
         $grammar ??= $this->getGrammar($connection);
         $builder ??= $this->getBuilder();
 
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getSchemaBuilder')->andReturn($builder);
+        $connection->allows('getSchemaGrammar')->returns($grammar);
+        $connection->allows('getSchemaBuilder')->returns($builder);
 
         return $connection;
     }
@@ -1660,7 +1740,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
      */
     public function getBuilder(): PostgresBuilder
     {
-        return mock(PostgresBuilder::class);
+        return Double::for(PostgresBuilder::class)->passthru();
     }
 
     public function testGrammarsAreMacroable(): void

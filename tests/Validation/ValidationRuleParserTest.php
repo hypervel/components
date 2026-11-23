@@ -4,17 +4,46 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\NestedRules;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationRuleParserTest extends TestCase
 {
+    public function testParameterizedRulesAreNotStringified(): void
+    {
+        $rule = new class implements ParameterizedRule {
+            /**
+             * Get the rule name followed by its parameters.
+             */
+            public function toArray(): array
+            {
+                return ['accepted_if', 'other', 'foo\",bar'];
+            }
+
+            /**
+             * Reject serialization to verify the structured parsing path.
+             */
+            public function __toString(): string
+            {
+                throw new LogicException('This rule must not be stringified.');
+            }
+        };
+
+        $parser = new ValidationRuleParser([]);
+
+        $this->assertSame(['field' => [$rule]], $parser->explode(['field' => $rule])->rules);
+        $this->assertSame(['field' => [$rule]], $parser->explode(['field' => [$rule]])->rules);
+        $this->assertSame(['AcceptedIf', ['other', 'foo\",bar']], ValidationRuleParser::parse($rule));
+    }
+
     public function testConditionalRulesAreProperlyExpandedAndFiltered(): void
     {
         $isAdmin = true;
@@ -167,6 +196,15 @@ class ValidationRuleParserTest extends TestCase
             'email' => [],
             'password' => ['string', 'max:10'],
         ], $rules);
+    }
+
+    public function testExplodedClosureRulesExposeTheirCallback(): void
+    {
+        $callback = static function (): void {};
+
+        $exploded = (new ValidationRuleParser([]))->explode(['name' => [$callback]]);
+
+        $this->assertSame($callback, $exploded->rules['name'][0]->callback);
     }
 
     public function testExplodeFailsParsingSingleRegexRuleContainingPipe(): void
@@ -559,6 +597,90 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
+    public function testExplodeHandlesArrayRuleWithAdditionalRules(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['foo'],
+        ]));
+
+        $rules = [
+            'items' => Rule::array()->min(1)->max(5),
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'array',
+                'min:1',
+                'max:5',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesArrayRuleWithAdditionalRulesInAnArray(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['key_1' => 'foo'],
+        ]));
+
+        $rules = [
+            'items' => ['required', Rule::array(['key_1', 'key_2'])->between(1, 2)],
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'required',
+                'array:"key_1","key_2"',
+                'between:1,2',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesListRuleWithAdditionalRules(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['foo'],
+        ]));
+
+        $rules = [
+            'items' => Rule::list()->min(1)->max(5),
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'list',
+                'min:1',
+                'max:5',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesListRuleWithAdditionalRulesInAnArray(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['foo', 'bar'],
+        ]));
+
+        $rules = [
+            'items' => ['required', Rule::list()->between(1, 2)],
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'required',
+                'list',
+                'between:1,2',
+            ],
+        ], $results->rules);
+    }
+
     public function testExplodeHandlesStringRule(): void
     {
         $parser = (new ValidationRuleParser([
@@ -623,20 +745,12 @@ class ValidationRuleParserTest extends TestCase
     {
         $results = (new ValidationRuleParser(['value' => 'allowed']))->explode([
             'value' => [
-                Rule::in(['allowed', 'other']),
-                Rule::notIn(['blocked']),
                 Rule::dimensions()->maxWidth(100),
-                Rule::exists('users', 'email'),
-                Rule::unique('users', 'email')->ignore(0),
             ],
         ]);
 
         $this->assertSame([
-            'in:"allowed","other"',
-            'not_in:"blocked"',
             'dimensions:max_width=100',
-            'exists:users,email',
-            'unique:users,email,"0",id',
         ], $results->rules['value']);
     }
 
@@ -687,10 +801,10 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame(['NotRegex', [$pattern]], ValidationRuleParser::parse('not_regex:' . $pattern));
     }
 
-    public function testExplodePreservesCallbackBearingPresenceRules(): void
+    public function testExplodePreservesDatabaseRuleObjects(): void
     {
-        $exists = Rule::exists('users', 'email')->where(static fn ($query) => $query);
-        $unique = Rule::unique('users', 'email')->where(static fn ($query) => $query);
+        $exists = Rule::exists('users', 'email');
+        $unique = Rule::unique('users', 'email');
 
         $results = (new ValidationRuleParser(['email' => 'user@example.com']))->explode([
             'email' => [$exists, $unique],
@@ -701,9 +815,6 @@ class ValidationRuleParserTest extends TestCase
 
     public function testIdentifiesRulesReducedToStringsByTheParser(): void
     {
-        $callbackExists = Rule::exists('users', 'email')->where(
-            static fn ($query) => $query,
-        );
         $contractRule = new class implements RuleContract {
             public function passes(string $attribute, mixed $value): bool
             {
@@ -716,11 +827,13 @@ class ValidationRuleParserTest extends TestCase
             }
         };
 
-        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
             Rule::exists('users', 'email'),
         ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            Rule::unique('users', 'email'),
+        ));
         $this->assertTrue(ValidationRuleParser::ruleReducesToString(Rule::date()));
-        $this->assertFalse(ValidationRuleParser::ruleReducesToString($callbackExists));
         $this->assertFalse(ValidationRuleParser::ruleReducesToString(
             Rule::forEach(static fn (): array => []),
         ));

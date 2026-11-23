@@ -26,7 +26,7 @@ use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
 use Hypervel\Tests\Support\Fixtures\TestTraversableAndJsonSerializableObject;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use ReflectionMethod;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use SortDirection;
 use stdClass;
@@ -112,12 +112,55 @@ class SupportArrTest extends TestCase
         Arr::push($array, 'foo.bar', 'baz');
     }
 
-    public function testPushTruthfullyDeclaresItsArrayOnlyMutationBoundary(): void
+    public function testPushWorksWithArrayObject(): void
     {
-        // Laravel declares ArrayAccess here, but dot notation requires nested array references.
-        $parameter = (new ReflectionMethod(Arr::class, 'push'))->getParameters()[0];
+        $array = new ArrayObject(['tags' => ['php']]);
 
-        $this->assertSame('array', (string) $parameter->getType());
+        $this->assertSame($array, Arr::push($array, 'tags', 'hypervel', 'symfony'));
+        $this->assertSame(['php', 'hypervel', 'symfony'], $array['tags']);
+
+        $this->assertSame($array, Arr::push($array, 'missing', 'first'));
+        $this->assertSame(['first'], $array['missing']);
+    }
+
+    public function testPushWritesNestedArraysBackToArrayAccess(): void
+    {
+        $array = new Collection(['profile' => ['tags' => ['php'], 'name' => 'Taylor']]);
+
+        $this->assertSame(['tags' => ['php', 'hypervel'], 'name' => 'Taylor'], Arr::push($array, 'profile.tags', 'hypervel'));
+        $this->assertSame(['tags' => ['php', 'hypervel'], 'name' => 'Taylor'], $array['profile']);
+
+        $this->assertSame(['tags' => ['first']], Arr::push($array, 'missing.tags', 'first'));
+        $this->assertSame(['tags' => ['first']], $array['missing']);
+    }
+
+    #[TestWith([false, Collection::class])]
+    #[TestWith([true, Collection::class])]
+    #[TestWith([false, ArrayObject::class])]
+    #[TestWith([true, ArrayObject::class])]
+    public function testPushPreservesNestedArrayAccess(bool $objectRoot, string $container): void
+    {
+        $profile = new $container(['tags' => ['php'], 'name' => 'Taylor']);
+        $array = ['profile' => $profile];
+
+        if ($objectRoot) {
+            $array = new $container($array);
+        }
+
+        $this->assertSame($profile, Arr::push($array, 'profile.tags', 'hypervel'));
+        $this->assertSame($profile, $array['profile']);
+        $this->assertSame(['php', 'hypervel'], $profile['tags']);
+        $this->assertSame('Taylor', $profile['name']);
+    }
+
+    #[TestWith([Collection::class])]
+    #[TestWith([ArrayObject::class])]
+    public function testPushAppendsToArrayAccessRoot(string $container): void
+    {
+        $array = new $container(['php']);
+
+        $this->assertSame($array, Arr::push($array, null, 'hypervel', 'symfony'));
+        $this->assertSame(['php', 'hypervel', 'symfony'], iterator_to_array($array));
     }
 
     public function testCollapse(): void
@@ -1894,6 +1937,22 @@ class SupportArrTest extends TestCase
         $array = ['a' => ['b' => ['c' => 1, 'e.d' => 'literal']], 'e' => ['d' => 3]];
         Arr::forget($array, ['a.b.c', 'e.d']);
         $this->assertEquals(['a' => ['b' => ['e.d' => 'literal']], 'e' => []], $array);
+    }
+
+    public function testForgetWritesNestedArraysBackWithoutChangingLiteralKeyPrecedence(): void
+    {
+        $profile = new Collection(['name' => 'Taylor', 'a.b' => 'literal', 'a' => ['b' => 'nested']]);
+        $array = new Collection(['profile' => $profile, 'profile.a.b' => 'root literal', 'id' => 42]);
+
+        Arr::forget($array, ['profile.a.b', 'profile.name']);
+
+        $this->assertSame(['a.b' => 'literal', 'a' => ['b' => 'nested']], $profile->all());
+        $this->assertFalse($array->has('profile.a.b'));
+
+        Arr::forget($array, ['profile.a.b', 'id', 'missing.child']);
+
+        $this->assertSame(['a.b' => 'literal', 'a' => []], $profile->all());
+        $this->assertSame(['profile' => $profile], $array->all());
     }
 
     public function testFrom(): void

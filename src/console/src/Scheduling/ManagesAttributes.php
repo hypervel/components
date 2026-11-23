@@ -91,6 +91,8 @@ trait ManagesAttributes
 
     /**
      * Limit the environments the command should run in.
+     *
+     * @return $this
      */
     public function environments(UnitEnum|array|string $environments): static
     {
@@ -104,6 +106,8 @@ trait ManagesAttributes
 
     /**
      * State that the command should run even in maintenance mode.
+     *
+     * @return $this
      */
     public function evenInMaintenanceMode(): static
     {
@@ -114,6 +118,8 @@ trait ManagesAttributes
 
     /**
      * State that the command should run even when the scheduler is paused.
+     *
+     * @return $this
      */
     public function evenWhenPaused(): static
     {
@@ -126,6 +132,8 @@ trait ManagesAttributes
      * Do not allow the event to overlap each other.
      *
      * The expiration time of the underlying cache lock may be specified in minutes.
+     *
+     * @return $this
      */
     public function withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true): static
     {
@@ -142,6 +150,8 @@ trait ManagesAttributes
 
     /**
      * Allow the event to only run on one server for each cron expression.
+     *
+     * @return $this
      */
     public function onOneServer(): static
     {
@@ -152,6 +162,8 @@ trait ManagesAttributes
 
     /**
      * State that the command should run in the background.
+     *
+     * @return $this
      */
     public function runInBackground(): static
     {
@@ -162,6 +174,8 @@ trait ManagesAttributes
 
     /**
      * Register a callback to further filter the schedule.
+     *
+     * @return $this
      */
     public function when(bool|callable $callback): static
     {
@@ -174,6 +188,8 @@ trait ManagesAttributes
 
     /**
      * Register a callback to further filter the schedule.
+     *
+     * @return $this
      */
     public function skip(bool|callable $callback): static
     {
@@ -186,6 +202,8 @@ trait ManagesAttributes
 
     /**
      * Set the human-friendly description of the event.
+     *
+     * @return $this
      */
     public function name(string $description): static
     {
@@ -194,6 +212,8 @@ trait ManagesAttributes
 
     /**
      * Set the human-friendly description of the event.
+     *
+     * @return $this
      */
     public function description(string $description): static
     {
@@ -204,6 +224,8 @@ trait ManagesAttributes
 
     /**
      * Set arbitrary attributes to store with the event.
+     *
+     * @return $this
      */
     public function withAttributes(array $attributes): static
     {

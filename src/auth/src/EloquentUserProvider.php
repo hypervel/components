@@ -13,8 +13,11 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use SensitiveParameter;
 use Throwable;
@@ -144,7 +147,7 @@ class EloquentUserProvider implements UserProvider
      */
     protected function fetchUserById(mixed $identifier): ?UserContract
     {
-        return $this->newUserByIdQuery($identifier)->first(); // @phpstan-ignore return.type
+        return $this->newUserByIdQuery($identifier)->first();
     }
 
     /**
@@ -152,11 +155,13 @@ class EloquentUserProvider implements UserProvider
      */
     protected function fetchUserByIdForCache(mixed $identifier): ?UserContract
     {
-        return $this->newUserByIdQuery($identifier)->useWritePdo()->first(); // @phpstan-ignore return.type
+        return $this->newUserByIdQuery($identifier)->useWritePdo()->first();
     }
 
     /**
      * Get the query for retrieving a user by ID.
+     *
+     * @return Builder<Model&UserContract>
      */
     protected function newUserByIdQuery(mixed $identifier): Builder
     {
@@ -241,7 +246,7 @@ class EloquentUserProvider implements UserProvider
             }
         }
 
-        return $query->first(); /* @phpstan-ignore return.type */
+        return $query->first();
     }
 
     /**
@@ -291,13 +296,17 @@ class EloquentUserProvider implements UserProvider
      * rejected store leaves the provider's existing cache configuration unchanged and
      * does not register a descriptor or model event listeners.
      *
-     * Boot-only. User providers are held by cached guards; runtime use mutates
-     * the provider used by every subsequent authentication lookup.
+     * User providers are held by cached guards; runtime use on a provider a
+     * guard already holds changes every subsequent authentication lookup. The
+     * model's worker-wide cache invalidation is registered once, so enabling
+     * the cache on a newly created provider is safe.
      *
      * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires any-mode tag support
+     * @return $this
      *
      * @throws InvalidArgumentException when the TTL, tags, or resolved store are not supported
      */
+    #[BootOnly(whenShared: true)]
     public function enableCache(
         ?string $storeName,
         int $ttl = self::DEFAULT_CACHE_TTL,
@@ -384,11 +393,12 @@ class EloquentUserProvider implements UserProvider
      * The fully qualified model class name is always included in the key
      * automatically. The resolver only controls the identifier segment.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every cached user lookup and invalidation.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every cached user lookup and invalidation.
      *
      * @param Closure(mixed, class-string<Model&UserContract>, null|(Model&UserContract)): string $callback
      */
+    #[BootOnly]
     public static function resolveUserCacheKeyUsing(Closure $callback): void
     {
         static::$cacheKeyResolver = $callback;
@@ -405,11 +415,12 @@ class EloquentUserProvider implements UserProvider
      * (per-provider, from auth.providers.*.cache.tags) unioned with the
      * resolver's return value.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every cached user write.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every cached user write.
      *
      * @param Closure(): list<string> $callback
      */
+    #[BootOnly]
     public static function resolveUserCacheTagsUsing(Closure $callback): void
     {
         static::$cacheTagsResolver = $callback;
@@ -562,7 +573,7 @@ class EloquentUserProvider implements UserProvider
                 $coordinator = $container->make(ModelCacheCoordinator::class);
                 $exception = null;
 
-                // Every configured store must be attempted even if another store is unavailable.
+                // Ordinary store failures must not prevent invalidation of the remaining stores.
                 foreach (static::$cachedProviders[$modelClass] ?? [] as $descriptor) {
                     try {
                         $coordinator->invalidate(
@@ -570,6 +581,10 @@ class EloquentUserProvider implements UserProvider
                             $descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment,
                         );
                     } catch (Throwable $throwable) {
+                        if (Coroutine::causedByCancellation($throwable)) {
+                            throw $throwable;
+                        }
+
                         $exception ??= $throwable;
                     }
                 }
@@ -594,7 +609,7 @@ class EloquentUserProvider implements UserProvider
      * @template TModel of Model
      *
      * @param null|TModel $model
-     * @return Builder<TModel>
+     * @return ($model is null ? Builder<Model&UserContract> : Builder<TModel>)
      */
     protected function newModelQuery(?Model $model = null): Builder
     {
@@ -630,9 +645,12 @@ class EloquentUserProvider implements UserProvider
     /**
      * Set the hasher implementation.
      *
-     * Boot or tests only. User providers are held by cached guards; runtime use
-     * mutates password verification for every subsequent authentication lookup.
+     * User providers are held by cached guards; runtime use mutates password
+     * verification for every subsequent authentication lookup.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setHasher(HasherContract $hasher): static
     {
         $this->hasher = $hasher;
@@ -653,11 +671,13 @@ class EloquentUserProvider implements UserProvider
     /**
      * Set the name of the Eloquent user model.
      *
-     * Boot or tests only. User providers are held by cached guards; runtime use
-     * changes the model used by every subsequent authentication lookup.
+     * User providers are held by cached guards; runtime use changes the model
+     * used by every subsequent authentication lookup.
      *
      * @param class-string<Model&UserContract> $model
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setModel(string $model): static
     {
         $this->model = $model;
@@ -682,11 +702,13 @@ class EloquentUserProvider implements UserProvider
     /**
      * Set the callback to modify the query before retrieving users.
      *
-     * Boot or tests only. User providers are held by cached guards; runtime use
-     * mutates the query applied to every subsequent authentication lookup.
+     * User providers are held by cached guards; runtime use mutates the query
+     * applied to every subsequent authentication lookup.
      *
      * @param null|(Closure(Builder<*>):mixed) $queryCallback
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function withQuery(?Closure $queryCallback = null): static
     {
         $this->queryCallback = $queryCallback;

@@ -14,6 +14,8 @@ use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\ProcessUtils;
@@ -190,11 +192,12 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Register a console "starting" bootstrapper.
      *
-     * Boot-only. The bootstrapper persists in a static property for the worker
-     * lifetime and runs for every subsequent console application instance.
+     * The bootstrapper persists in a static property for the worker lifetime
+     * and runs for every subsequent console application instance.
      *
      * @param Closure(static): mixed $callback
      */
+    #[BootOnly]
     public static function starting(Closure $callback): void
     {
         static::$bootstrappers[] = $callback;
@@ -213,9 +216,10 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Clear the console application bootstrappers.
      *
-     * Boot or tests only. Clears worker-wide console bootstrappers; concurrent
-     * console application creation may observe different startup hooks.
+     * Clears worker-wide console bootstrappers; concurrent console application
+     * creation may observe different startup hooks.
      */
+    #[BootOrTestsOnly]
     public static function forgetBootstrappers(): void
     {
         static::$bootstrappers = [];

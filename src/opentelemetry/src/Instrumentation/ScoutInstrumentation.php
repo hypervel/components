@@ -20,7 +20,6 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ScoutInstrumentation extends AbstractInstrumentation implements EngineOperationObserver
@@ -61,12 +60,12 @@ class ScoutInstrumentation extends AbstractInstrumentation implements EngineOper
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.scout');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.scout', schemaUrl: $this->schemaUrl());
         }
 
         if ($this->metricEnabled(DbMetrics::DB_CLIENT_OPERATION_DURATION)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.scout')
+                ->getMeter('hypervel.scout', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     DbMetrics::DB_CLIENT_OPERATION_DURATION,
                     's',
@@ -130,12 +129,14 @@ class ScoutInstrumentation extends AbstractInstrumentation implements EngineOper
         mixed $token,
         ?Throwable $exception
     ): void {
-        if ($exception instanceof CanceledException) {
-            return;
-        }
-
         /** @var ScoutTelemetryState $state */
         $state = $token;
+
+        // A directly canceled operation did not fail.
+        if ($this->isDirectCancellation($exception)) {
+            $exception = null;
+        }
+
         $finishedAt = $this->clock->now();
         $metricAttributes = $state->metricAttributes;
 

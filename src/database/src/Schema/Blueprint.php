@@ -176,7 +176,7 @@ class Blueprint
         $this->addFluentCommands();
 
         if ($this->creating()) {
-            $this->promoteCreateIndexesBeforeForeignKeys();
+            $this->placeForeignKeysAfterTheirTargets();
         } else {
             $this->commands = array_map(
                 fn ($command) => $command instanceof ColumnDefinition
@@ -303,37 +303,35 @@ class Blueprint
     }
 
     /**
-     * Promote CREATE indexes before foreign keys.
+     * Move CREATE foreign keys after the indexes they may reference.
      *
      * Target indexes must exist before referencing foreign keys on supported server databases.
-     * CREATE is declarative, so moving only targets preserves later non-target commands.
+     * Moving the foreign keys, rather than the targets, keeps every other command in its written
+     * order, so a command a target index depends on, such as creating an extension, still runs first.
      */
-    private function promoteCreateIndexesBeforeForeignKeys(): void
+    private function placeForeignKeysAfterTheirTargets(): void
     {
-        $foreignKeyOffset = array_find_key(
-            $this->commands,
-            static fn (Fluent $command): bool => $command->name === 'foreign',
+        $lastTargetOffset = array_find_key(
+            array_reverse($this->commands, true),
+            static fn (Fluent $command): bool => in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true),
         );
 
-        if (is_null($foreignKeyOffset)) {
+        if (is_null($lastTargetOffset)) {
             return;
         }
 
-        $prefix = array_slice($this->commands, 0, $foreignKeyOffset);
-        $targets = [];
-        $remainder = [];
+        $foreignKeys = [];
+        $commands = [];
 
-        for ($offset = $foreignKeyOffset, $count = count($this->commands); $offset < $count; ++$offset) {
-            $command = $this->commands[$offset];
-
-            if (in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true)) {
-                $targets[] = $command;
+        foreach (array_slice($this->commands, 0, $lastTargetOffset + 1) as $command) {
+            if ($command->name === 'foreign') {
+                $foreignKeys[] = $command;
             } else {
-                $remainder[] = $command;
+                $commands[] = $command;
             }
         }
 
-        $this->commands = [...$prefix, ...$targets, ...$remainder];
+        $this->commands = [...$commands, ...$foreignKeys, ...array_slice($this->commands, $lastTargetOffset + 1)];
     }
 
     /**
@@ -994,7 +992,7 @@ class Blueprint
 
         $column = $column ?: $model->getForeignKey();
 
-        if ($model->getKeyType() === 'int') {
+        if (in_array($model->getKeyType(), ['int', 'integer'], true)) {
             return $this->foreignId($column)
                 ->table($model->getTable())
                 ->referencesModelColumn($model->getKeyName());
@@ -1707,6 +1705,8 @@ class Blueprint
 
     /**
      * Remove a column from the schema blueprint.
+     *
+     * @return $this
      */
     public function removeColumn(string $name): static
     {

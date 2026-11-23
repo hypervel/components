@@ -9,6 +9,7 @@ use Hypervel\Ai\Gateway\TextGenerationLoop;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface TextProvider extends Provider
 {
@@ -25,6 +26,7 @@ interface TextProvider extends Provider
     /**
      * Set the provider's text gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useTextGateway(StepTextGateway $gateway): self;
 
     /**

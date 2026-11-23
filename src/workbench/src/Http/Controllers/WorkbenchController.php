@@ -57,7 +57,7 @@ class WorkbenchController extends Controller
         $guard = $guard ?: config()->string('auth.defaults.guard');
 
         /** @var UserProvider $provider */
-        $provider = Auth::guard($guard)->getProvider(); // @phpstan-ignore method.notFound
+        $provider = Auth::guard($guard)->getProvider();
 
         $user = Str::contains($userId, '@')
             ? $provider->retrieveByCredentials(['email' => $userId])
@@ -69,7 +69,6 @@ class WorkbenchController extends Controller
         // user, such as a password confirmation, carries over.
         Session::flush();
 
-        /* @phpstan-ignore method.notFound */
         Auth::guard($guard)->login($user);
 
         return redirect(Workbench::config('start'));
@@ -82,7 +81,6 @@ class WorkbenchController extends Controller
     {
         $guard = $guard ?: config()->string('auth.defaults.guard');
 
-        /* @phpstan-ignore method.notFound */
         Auth::guard($guard)->logout();
 
         Session::invalidate();

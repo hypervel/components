@@ -15,23 +15,20 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('decrby')
-            ->once()
+        $connection->client()->expects('decrby')
             ->with('prefix:counter', 1)
-            ->andReturn($connection)
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection)
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([5, 1]);
+        $connection->client()->expects('exec')
+            ->returns([5, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -47,21 +44,18 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('decrby')
-            ->once()
+        $connection->client()->expects('decrby')
             ->with('prefix:counter', 10)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([-5, 0]); // 0 means tag membership already existed
+        $connection->client()->expects('exec')
+            ->returns([-5, 0]); // 0 means tag membership already existed
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -77,26 +71,22 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // ZADD NX for each tag
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
+            ->returns($connection->client());
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:posts:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('decrby')
-            ->once()
+        $connection->client()->expects('decrby')
             ->with('prefix:counter', 1)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([9, 1, 1]);
+        $connection->client()->expects('exec')
+            ->returns([9, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -112,17 +102,15 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // No ZADD calls expected
-        $connection->shouldReceive('decrby')
-            ->once()
+        $connection->client()->expects('decrby')
             ->with('prefix:counter', 1)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([-1]);
+        $connection->client()->expects('exec')
+            ->returns([-1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -136,18 +124,15 @@ class DecrementTest extends RedisCacheTestCase
 
     public function testDecrementInClusterModeUsesSequentialCommands(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->expects('decrby')
+        $client->expects('decrby')
             ->with('prefix:counter', 1)
-            ->andReturn(0)
+            ->returns(0)
             ->ordered();
-        $connection->expects('zadd')
-            ->once()
+        $client->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn(1)
+            ->returns(1)
             ->ordered();
 
         $result = $store->allTagOps()->decrement()->execute(
@@ -161,10 +146,10 @@ class DecrementTest extends RedisCacheTestCase
 
     public function testDecrementInClusterModeDoesNotPublishTagsWhenTheCounterFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        $connection->expects('decrby')->with('prefix:counter', 1)->andReturnFalse();
-        $connection->shouldNotReceive('zadd');
+        $client->expects('decrby')->with('prefix:counter', 1)->returns(false);
+        $client->expects('zadd')->never();
 
         $this->assertFalse($store->allTagOps()->decrement()->execute(
             'counter',
@@ -177,14 +162,13 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
-        $connection->shouldReceive('decrby')->andReturn($connection);
+        $connection->client()->allows('zadd')->returns($connection->client());
+        $connection->client()->allows('decrby')->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn(false);
+        $connection->client()->expects('exec')
+            ->returns(false);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(

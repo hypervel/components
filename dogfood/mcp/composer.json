@@ -30,6 +30,11 @@
         "allow-plugins": {
             "php-http/discovery": true,
             "tbachert/spi": true
+        },
+        "policy": {
+            "cooldown": {
+                "period": "3 days"
+            }
         }
     },
     "scripts": {

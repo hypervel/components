@@ -5,17 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Watcher\Fixtures;
 
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
 
 class ContainerStub
 {
-    public static function getLogger(): StdoutLoggerInterface|MockInterface
+    /**
+     * Create a logger that accepts routine watcher messages.
+     */
+    public static function getLogger(): StdoutLoggerInterface
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('debug')->andReturn(null);
-        $logger->shouldReceive('warning')->andReturn(null);
-        $logger->shouldReceive('log')->andReturn(null);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('debug');
+        $logger->allows('warning');
+        $logger->allows('log');
 
         return $logger;
     }

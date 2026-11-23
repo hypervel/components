@@ -195,6 +195,8 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Set the user fields to request from Facebook.
+     *
+     * @return $this
      */
     public function fields(array $fields): static
     {
@@ -213,6 +215,8 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Set the dialog to be displayed as a popup.
+     *
+     * @return $this
      */
     public function asPopup(): static
     {
@@ -231,6 +235,8 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Re-request permissions which were previously declined.
+     *
+     * @return $this
      */
     public function reRequest(): static
     {
@@ -257,6 +263,8 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Set the last access token used.
+     *
+     * @return $this
      */
     protected function setLastToken(#[SensitiveParameter] string $token): static
     {
@@ -267,6 +275,8 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Specify the nonce expected when using Facebook Limited Login OIDC tokens.
+     *
+     * @return $this
      */
     public function withNonce(string $nonce): static
     {
@@ -285,6 +295,8 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Specify which graph version should be used.
+     *
+     * @return $this
      */
     public function usingGraphVersion(string $version): static
     {

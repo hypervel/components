@@ -9,13 +9,15 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\Reverb\Servers\Hypervel\HttpServer;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -26,6 +28,9 @@ use Throwable;
 
 class HttpServerTest extends ReverbTestCase
 {
+    /**
+     * Clean up the worker-start coordinator.
+     */
     protected function tearDown(): void
     {
         parent::tearDown();
@@ -134,29 +139,28 @@ class HttpServerTest extends ReverbTestCase
         $this->assertSame([], $dispatchedEvents);
     }
 
-    public function testCancellationSkipsFallbackAndCompletionEvents(): void
+    public function testCancellationSkipsFallbackAndCompletionEventsButPublishesTheCancellation(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
         $cancellation = new CanceledException;
-        $router = m::mock(ReverbRouter::class);
-        $router->shouldReceive('compileAndWarm')->once();
-        $router->shouldReceive('dispatch')->once()->andThrow($cancellation);
+        $router = Double::for(ReverbRouter::class)->strict();
+        $router->expects('compileAndWarm');
+        $router->expects('dispatch')->throws($cancellation);
         $this->app->instance(ReverbRouter::class, $router);
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
-        $handler->shouldNotReceive('render');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
+        $handler->expects('render')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $dispatchedEvents = [];
         $events = $this->app->make('events');
-        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class, RequestCanceled::class] as $eventClass) {
             $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
-                $dispatchedEvents[] = $event::class;
+                $dispatchedEvents[$event::class] = $event;
             });
         }
 
-        $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status', 'header', 'end')->never();
+        $swooleResponse = Double::for(SwooleResponse::class)->strict();
 
         try {
             $this->makeHttpServer()->onRequest(
@@ -168,7 +172,51 @@ class HttpServerTest extends ReverbTestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $this->assertSame([RequestReceived::class], $dispatchedEvents);
+        $swooleResponse->unused();
+
+        $this->assertSame([RequestReceived::class, RequestCanceled::class], array_keys($dispatchedEvents));
+        $this->assertSame($cancellation, $dispatchedEvents[RequestCanceled::class]->cancellation);
+        $this->assertNull($dispatchedEvents[RequestCanceled::class]->response);
+        $this->assertNull($dispatchedEvents[RequestCanceled::class]->exception);
+    }
+
+    public function testCancellationAfterAHeldFailurePublishesItAndReportsTheFailures(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $heldFailure = new RuntimeException('Handled listener failed.');
+        $listenerFailure = new RuntimeException('Canceled listener failed.');
+        $cancellation = new CanceledException;
+        $router = Double::for(ReverbRouter::class)->strict();
+        $router->expects('compileAndWarm');
+        $router->expects('dispatch')->returns(new Response('OK'));
+        $this->app->instance(ReverbRouter::class, $router);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($heldFailure))->ordered();
+        $handler->expects('report')->with(Argument::same($listenerFailure))->ordered();
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        $canceled = null;
+        $events = $this->app->make('events');
+        $events->listen(RequestHandled::class, static fn () => throw $heldFailure);
+        $events->listen(ResponseSent::class, static fn () => throw $cancellation);
+        $events->listen(RequestCanceled::class, static function (RequestCanceled $event) use (&$canceled, $listenerFailure): never {
+            $canceled = $event;
+
+            throw $listenerFailure;
+        });
+
+        try {
+            $this->makeHttpServer()->onRequest(
+                $this->makeSwooleRequest('/up'),
+                $this->makeSwooleResponse(200, 'OK'),
+            );
+            $this->fail('Expected request cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame($heldFailure, $canceled->exception);
+        $this->assertNotNull($canceled->response);
     }
 
     public function testRejectsRequestsOverMaxRequestSizeWithoutContentLength(): void
@@ -207,6 +255,9 @@ class HttpServerTest extends ReverbTestCase
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
+    /**
+     * Provide invalid content-length headers.
+     */
     public static function invalidContentLengthProvider(): array
     {
         return [
@@ -222,9 +273,9 @@ class HttpServerTest extends ReverbTestCase
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
         $original = new RuntimeException('Request body failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($original);
-        $handler->shouldNotReceive('render');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($original));
+        $handler->expects('render')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->makeHttpServer()->onRequest(
@@ -239,15 +290,15 @@ class HttpServerTest extends ReverbTestCase
 
         $original = new RuntimeException('Request failed');
         $reportingFailure = new RuntimeException('Reporting failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($original)->andThrow($reportingFailure);
-        $handler->shouldNotReceive('render');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($original))->throws($reportingFailure);
+        $handler->expects('render')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
 
         try {
             $this->makeFailingHttpServer($original)->onRequest(
                 $this->makeSwooleRequest('/up'),
-                m::mock(SwooleResponse::class),
+                Double::for(SwooleResponse::class)->strict(),
             );
             $this->fail('Expected exception reporting to fail.');
         } catch (RuntimeException $exception) {
@@ -261,12 +312,11 @@ class HttpServerTest extends ReverbTestCase
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
         $original = new RuntimeException('Request failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($original);
-        $handler->shouldReceive('render')
-            ->once()
-            ->with(m::type(Request::class), $original)
-            ->andReturn(new Response('Internal Server Error', 500));
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($original));
+        $handler->expects('render')
+            ->with(Argument::type(Request::class), Argument::same($original))
+            ->returns(new Response('Internal Server Error', 500));
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $observedEvents = [];
@@ -292,12 +342,12 @@ class HttpServerTest extends ReverbTestCase
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
         $cancellation = new CanceledException;
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report', 'render');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
+        $handler->expects('render')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
 
-        $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldNotReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end');
+        $swooleResponse = Double::for(SwooleResponse::class)->strict();
 
         try {
             $this->makeFailingHttpServer($cancellation)->onRequest(
@@ -308,6 +358,8 @@ class HttpServerTest extends ReverbTestCase
         } catch (CanceledException $exception) {
             $this->assertSame($cancellation, $exception);
         }
+
+        $swooleResponse->unused();
     }
 
     public function testRetainsRequestFailureWhenResponseEmissionFails(): void
@@ -316,16 +368,15 @@ class HttpServerTest extends ReverbTestCase
 
         $original = new RuntimeException('Request failed');
         $emissionFailure = new RuntimeException('Response emission failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($original);
-        $handler->shouldReceive('render')
-            ->once()
-            ->with(m::type(Request::class), $original)
-            ->andReturn(new Response('Internal Server Error', 500));
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($original));
+        $handler->expects('render')
+            ->with(Argument::type(Request::class), Argument::same($original))
+            ->returns(new Response('Internal Server Error', 500));
         $this->app->instance(ExceptionHandler::class, $handler);
 
-        $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with(500)->andThrow($emissionFailure);
+        $swooleResponse = Double::for(SwooleResponse::class)->strict();
+        $swooleResponse->expects('status')->with(500)->throws($emissionFailure);
 
         try {
             $this->makeFailingHttpServer($original)->onRequest(
@@ -351,8 +402,8 @@ class HttpServerTest extends ReverbTestCase
                 $sentEvent = $event;
             },
         );
-        $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with(200)->andThrow($emissionFailure);
+        $swooleResponse = Double::for(SwooleResponse::class)->strict();
+        $swooleResponse->expects('status')->with(200)->throws($emissionFailure);
 
         try {
             $this->makeHttpServer()->onRequest(
@@ -368,6 +419,9 @@ class HttpServerTest extends ReverbTestCase
         $this->assertSame($emissionFailure, $sentEvent->exception);
     }
 
+    /**
+     * Create a bootstrapped Reverb HTTP server.
+     */
     protected function makeHttpServer(): HttpServer
     {
         $server = new HttpServer($this->app);
@@ -376,23 +430,29 @@ class HttpServerTest extends ReverbTestCase
         return $server;
     }
 
+    /**
+     * Create a Reverb HTTP server whose router throws.
+     */
     protected function makeFailingHttpServer(Throwable $exception): HttpServer
     {
-        $router = m::mock(ReverbRouter::class);
-        $router->shouldReceive('compileAndWarm')->once();
-        $router->shouldReceive('dispatch')->once()->andThrow($exception);
+        $router = Double::for(ReverbRouter::class)->strict();
+        $router->expects('compileAndWarm');
+        $router->expects('dispatch')->throws($exception);
         $this->app->instance(ReverbRouter::class, $router);
 
         return $this->makeHttpServer();
     }
 
+    /**
+     * Create a native request with the given body and headers.
+     */
     protected function makeSwooleRequest(
         string $uri,
         string $method = 'get',
         array $headers = [],
         string|false|Throwable $rawContent = false,
     ): SwooleRequest {
-        $swooleRequest = m::mock(SwooleRequest::class);
+        $swooleRequest = Double::for(SwooleRequest::class)->strict();
         $swooleRequest->server = [
             'request_method' => $method,
             'request_uri' => $uri,
@@ -403,25 +463,28 @@ class HttpServerTest extends ReverbTestCase
         $swooleRequest->cookie = [];
         $swooleRequest->files = [];
         if ($rawContent instanceof Throwable) {
-            $swooleRequest->shouldReceive('rawContent')->andThrow($rawContent);
+            $swooleRequest->allows('rawContent')->throws($rawContent);
         } else {
-            $swooleRequest->shouldReceive('rawContent')->andReturn($rawContent);
+            $swooleRequest->allows('rawContent')->returns($rawContent);
         }
 
         return $swooleRequest;
     }
 
+    /**
+     * Expect the response status and body to be sent.
+     */
     protected function makeSwooleResponse(int $status, string $body, ?Closure $onEnd = null): SwooleResponse
     {
-        $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with($status)->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $expectation = $swooleResponse->shouldReceive('end')->once()->with($body);
+        $swooleResponse = Double::for(SwooleResponse::class)->strict();
+        $swooleResponse->expects('status')->with($status)->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $expectation = $swooleResponse->expects('end')->with($body);
 
         if ($onEnd === null) {
-            $expectation->andReturnTrue();
+            $expectation->returns(true);
         } else {
-            $expectation->andReturnUsing(function () use ($onEnd): bool {
+            $expectation->resolves(function () use ($onEnd): bool {
                 $onEnd();
 
                 return true;

@@ -43,8 +43,10 @@ trait HasUniqueStringIds
     /**
      * Retrieve the model for a bound value.
      *
-     * @param  Model|Builder<static>|Relation<*, *, *>  $query
-     * @return Builder<static>|Relation<*, *, *>
+     * @template TQuery of Builder<*>|Relation<*, *, *>
+     *
+     * @param Model|TQuery $query
+     * @return ($query is Model ? Builder<static> : TQuery)
      *
      * @throws ModelNotFoundException
      */

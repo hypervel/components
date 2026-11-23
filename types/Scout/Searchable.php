@@ -13,13 +13,13 @@ use function PHPStan\Testing\assertType;
 
 function test(User $user): void
 {
-    /* @phpstan-ignore method.void */
+    /* @phpstan-ignore method.void (asserts the void result) */
     assertType('null', Order::query()->where('price', '>', 100)->searchable());
-    /* @phpstan-ignore method.void */
+    /* @phpstan-ignore method.void (asserts the void result) */
     assertType('null', Order::query()->unsearchable(500));
-    /* @phpstan-ignore method.void */
+    /* @phpstan-ignore method.void (asserts the void result) */
     assertType('null', $user->orders()->searchable());
-    /* @phpstan-ignore method.void */
+    /* @phpstan-ignore method.void (asserts the void result) */
     assertType('null', $user->storeOrders()->unsearchable());
 }
 

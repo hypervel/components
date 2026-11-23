@@ -59,6 +59,8 @@ $config->set('server.settings.' . Constant::OPTION_ENABLE_STATIC_HANDLER, false)
 $config->set('server.settings.' . Constant::OPTION_HTTP_COMPRESSION, false);
 $config->set('server.settings.' . Constant::OPTION_PACKAGE_MAX_LENGTH, 64 * 1024);
 $config->set('server.settings.' . Constant::OPTION_UPLOAD_MAX_FILESIZE, 1024 * 1024);
+// The HTTP/2 PING test needs its large response to fill the output buffer while the client isn't reading.
+$config->set('server.settings.' . Constant::OPTION_SOCKET_BUFFER_SIZE, 64 * 1024);
 
 $app->make(KernelContract::class)->pushMiddleware(HttpServerIntegrationMiddleware::class);
 
@@ -236,6 +238,8 @@ $router->get('/delete-binary', function () use ($filesystem, $state): Response {
 $router->get('/delete-state', fn (): JsonResponse => new JsonResponse([
     'exists' => $state->deletePath !== null && file_exists($state->deletePath),
 ]));
+$router->get('/large-response', fn (): string => str_repeat('a', 16 * 1024 * 1024));
+$router->get('/pid', fn (): string => (string) getmypid());
 $router->get('/disconnect-stream', function () use ($state): Response {
     $state->streamReleased = false;
 

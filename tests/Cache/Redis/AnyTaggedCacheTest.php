@@ -28,10 +28,13 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Redis\Exceptions\LuaScriptException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Tests for AnyTaggedCache behavior.
@@ -41,9 +44,6 @@ use Swoole\Coroutine\CanceledException;
  */
 class AnyTaggedCacheTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testIsInstanceOfTaggedCache(): void
     {
         $connection = $this->mockConnection();
@@ -54,9 +54,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertInstanceOf(AnyTaggedCache::class, $cache);
     }
 
-    /**
-     * @test
-     */
     public function testGetThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -81,9 +78,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->getAuthoritativeRaw('key');
     }
 
-    /**
-     * @test
-     */
     public function testManyThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -96,9 +90,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->many(['key1', 'key2']);
     }
 
-    /**
-     * @test
-     */
     public function testGetMultipleThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -111,9 +102,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->getMultiple(['key1', 'key2']);
     }
 
-    /**
-     * @test
-     */
     public function testHasThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -126,9 +114,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->has('key');
     }
 
-    /**
-     * @test
-     */
     public function testPullThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -141,9 +126,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->pull('key');
     }
 
-    /**
-     * @test
-     */
     public function testForgetThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -156,9 +138,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->forget('key');
     }
 
-    /**
-     * @test
-     */
     public function testTouchThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -171,9 +150,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->touch('key', 60);
     }
 
-    /**
-     * @test
-     */
     public function testDeleteThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -186,9 +162,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->delete('key');
     }
 
-    /**
-     * @test
-     */
     public function testDeleteMultipleThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -201,9 +174,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->deleteMultiple(['key1', 'key2']);
     }
 
-    /**
-     * @test
-     */
     public function testArrayAccessReadOperationsThrowBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -225,9 +195,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         }
     }
 
-    /**
-     * @test
-     */
     public function testArrayAccessUnsetThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -240,17 +207,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         unset($cache['key']);
     }
 
-    /**
-     * @test
-     */
     public function testPutStoresValueWithTags(): void
     {
         $connection = $this->mockConnection();
 
         // Union mode uses Lua script via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users', 'posts'])->put('mykey', 'myvalue', 60);
@@ -258,17 +221,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutWithNullTtlCallsForever(): void
     {
         $connection = $this->mockConnection();
 
         // Forever operation uses Lua script via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users', 'posts'])->put('mykey', 'myvalue', null);
@@ -276,21 +235,17 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutWithZeroTtlDeletesPlainKey(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(1);
+        $connection->expects('evalWithShaCache')
+            ->returns(1);
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 
@@ -309,22 +264,19 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         }
     }
 
-    /**
-     * @test
-     */
     public function testPutWithArrayCallsPutMany(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->andReturn($connection);
-        $connection->shouldReceive('smembers')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([[], []]);
-        $connection->shouldReceive('setex')->andReturn($connection);
-        $connection->shouldReceive('del')->andReturn($connection);
-        $connection->shouldReceive('sadd')->andReturn($connection);
-        $connection->shouldReceive('expire')->andReturn($connection);
-        $connection->shouldReceive('hsetex')->andReturn($connection);
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->client()->allows('pipeline')->returns($connection->client());
+        $connection->client()->allows('smembers')->returns($connection->client());
+        $connection->client()->allows('exec')->returns([[], []]);
+        $connection->client()->allows('setex')->returns($connection->client());
+        $connection->client()->allows('del')->returns($connection->client());
+        $connection->client()->allows('sadd')->returns($connection->client());
+        $connection->client()->allows('expire')->returns($connection->client());
+        $connection->client()->allows('hsetex')->returns($connection->client());
+        $connection->client()->allows('zadd')->returns($connection->client());
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->put(['key1' => 'value1', 'key2' => 'value2'], 60);
@@ -332,22 +284,19 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyStoresMultipleValues(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->andReturn($connection);
-        $connection->shouldReceive('smembers')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([[], []]);
-        $connection->shouldReceive('setex')->andReturn($connection);
-        $connection->shouldReceive('del')->andReturn($connection);
-        $connection->shouldReceive('sadd')->andReturn($connection);
-        $connection->shouldReceive('expire')->andReturn($connection);
-        $connection->shouldReceive('hsetex')->andReturn($connection);
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->client()->allows('pipeline')->returns($connection->client());
+        $connection->client()->allows('smembers')->returns($connection->client());
+        $connection->client()->allows('exec')->returns([[], []]);
+        $connection->client()->allows('setex')->returns($connection->client());
+        $connection->client()->allows('del')->returns($connection->client());
+        $connection->client()->allows('sadd')->returns($connection->client());
+        $connection->client()->allows('expire')->returns($connection->client());
+        $connection->client()->allows('hsetex')->returns($connection->client());
+        $connection->client()->allows('zadd')->returns($connection->client());
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->putMany(['key1' => 'value1', 'key2' => 'value2'], 120);
@@ -355,17 +304,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithNullTtlCallsForeverForEach(): void
     {
         $connection = $this->mockConnection();
 
         // Forever for each key - called twice for 2 keys
-        $connection->shouldReceive('evalWithShaCache')
-            ->twice()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->times(2)
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->putMany(['key1' => 'value1', 'key2' => 'value2'], null);
@@ -373,15 +319,11 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithZeroTtlDeletesPlainKeys(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(1);
+        $connection->expects('evalWithShaCache')
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $cache = $store->setTagMode('any')->tags(['users']);
@@ -391,22 +333,19 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testSetMultipleWritesThroughTaggedPath(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->andReturn($connection);
-        $connection->shouldReceive('smembers')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([[], []]);
-        $connection->shouldReceive('setex')->andReturn($connection);
-        $connection->shouldReceive('del')->andReturn($connection);
-        $connection->shouldReceive('sadd')->andReturn($connection);
-        $connection->shouldReceive('expire')->andReturn($connection);
-        $connection->shouldReceive('hsetex')->andReturn($connection);
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->client()->allows('pipeline')->returns($connection->client());
+        $connection->client()->allows('smembers')->returns($connection->client());
+        $connection->client()->allows('exec')->returns([[], []]);
+        $connection->client()->allows('setex')->returns($connection->client());
+        $connection->client()->allows('del')->returns($connection->client());
+        $connection->client()->allows('sadd')->returns($connection->client());
+        $connection->client()->allows('expire')->returns($connection->client());
+        $connection->client()->allows('hsetex')->returns($connection->client());
+        $connection->client()->allows('zadd')->returns($connection->client());
 
         $store = $this->createStore($connection);
         $cache = $store->setTagMode('any')->tags(['users']);
@@ -414,39 +353,29 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($cache->setMultiple(['key1' => 'value1', 'key2' => 'value2'], 60));
     }
 
-    /**
-     * @test
-     */
     public function testArrayAccessSetWritesThroughTaggedPath(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $cache = $store->setTagMode('any')->tags(['users']);
 
         $cache['mykey'] = 'myvalue';
-
-        $this->assertTrue(true);
     }
 
-    /**
-     * @test
-     */
     public function testAddStoresValueIfNotExists(): void
     {
         $connection = $this->mockConnection();
 
         // Add uses Lua script with SET NX via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldNotReceive('hasListeners');
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->never();
+        $events->expects('dispatch')->never();
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
@@ -456,31 +385,21 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($cache->add('mykey', 'myvalue', 60));
     }
 
-    /**
-     * @test
-     */
     public function testAddWithNullTtlStoresPermanently(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function ($script, $keys, $args): bool {
-                $this->assertSame(0, $args[1]);
-
-                return true;
-            })
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::any(), Argument::any(), Argument::capture($args))
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->add('mykey', 'myvalue', null);
 
         $this->assertTrue($result);
+        $this->assertSame(0, $args[1]);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithZeroTtlReturnsFalse(): void
     {
         $connection = $this->mockConnection();
@@ -492,17 +411,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverStoresValueIndefinitely(): void
     {
         $connection = $this->mockConnection();
 
         // Forever uses Lua script without expiration via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->forever('mykey', 'myvalue');
@@ -510,17 +425,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementReturnsNewValue(): void
     {
         $connection = $this->mockConnection();
 
         // Increment uses Lua script with INCRBY via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(5);
+        $connection->expects('evalWithShaCache')
+            ->returns(5);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->increment('counter');
@@ -528,16 +439,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(5, $result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(15);
+        $connection->expects('evalWithShaCache')
+            ->returns(15);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->increment('counter', 10);
@@ -545,17 +452,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(15, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementReturnsNewValue(): void
     {
         $connection = $this->mockConnection();
 
         // Decrement uses Lua script with DECRBY via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(3);
+        $connection->expects('evalWithShaCache')
+            ->returns(3);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->decrement('counter');
@@ -563,16 +466,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(3, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(0);
+        $connection->expects('evalWithShaCache')
+            ->returns(0);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->decrement('counter', 5);
@@ -580,27 +479,25 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(0, $result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushDeletesAllTaggedItems(): void
     {
         $connection = $this->mockConnection();
 
         // GetTaggedKeys uses hlen to check size
         // When small (< threshold), it uses hkeys directly instead of scan
-        $connection->shouldReceive('hlen')
-            ->andReturn(2);
-        $connection->shouldReceive('hkeys')
-            ->once()
-            ->andReturn(['key1', 'key2']);
+        $connection->client()->expects('hlen')
+            ->with('prefix:_any:tag:users:entries')
+            ->returns(2);
+        $connection->client()->expects('hkeys')
+            ->with('prefix:_any:tag:users:entries')
+            ->returns(['key1', 'key2']);
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 'key1', 'key2'])
+            ->returns(1);
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1]);
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->flush();
@@ -608,24 +505,22 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testClearFlushesTaggedItems(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('hlen')
-            ->andReturn(2);
-        $connection->shouldReceive('hkeys')
-            ->once()
-            ->andReturn(['key1', 'key2']);
+        $connection->client()->expects('hlen')
+            ->with('prefix:_any:tag:users:entries')
+            ->returns(2);
+        $connection->client()->expects('hkeys')
+            ->with('prefix:_any:tag:users:entries')
+            ->returns(['key1', 'key2']);
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 'key1', 'key2'])
+            ->returns(1);
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1]);
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->clear();
@@ -633,17 +528,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testRememberRetrievesExistingValueFromStore(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize('cached_value'));
+            ->returns(serialize('cached_value'));
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->remember('mykey', 60, fn () => 'new_value');
@@ -653,8 +544,8 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
     public function testRememberHandlesIncompleteClassBeforeDispatchingHitEvent(): void
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('get')->once()->with('mykey')->andReturn(
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('get')->with('mykey')->returns(
             unserialize(serialize(new stdClass), ['allowed_classes' => false])
         );
 
@@ -664,10 +555,10 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             $sequence[] = ['handler', $key, $class];
         });
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$sequence): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$sequence): void {
                 $sequence[] = $event::class;
             });
 
@@ -686,22 +577,17 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         ], $sequence);
     }
 
-    /**
-     * @test
-     */
     public function testRememberCallsCallbackAndStoresValueWhenMiss(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturnNull();
+            ->returns(null);
 
         // Should store the value with tags via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
         $callCount = 0;
         $store = $this->createStore($connection);
@@ -719,26 +605,19 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:0')
-            ->andReturnNull();
+            ->returns(null);
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function (string $script, array $keys, array $args): bool {
-                $this->assertSame('prefix:0', $keys[0]);
-                $this->assertSame('0', $args[5]);
-
-                return true;
-            })
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::type('string'), Argument::capture($keys), Argument::capture($args))
+            ->returns(true);
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 
@@ -748,6 +627,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $tagged->setEventDispatcher($events);
 
         $result = $tagged->remember(AnyTaggedCacheTestKey::Profile, 60, fn () => 'computed_value');
+
+        $this->assertSame('prefix:0', $keys[0]);
+        $this->assertSame('0', $args[5]);
 
         $this->assertSame('computed_value', $result);
 
@@ -765,29 +647,28 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
     public function testPutDispatchesTheRepositoryFailureEvent(): void
     {
-        $put = m::mock(Put::class);
-        $put->shouldReceive('execute')
-            ->once()
+        $put = Double::for(Put::class)->strict();
+        $put->expects('execute')
             ->with('mykey', 'myvalue', 60, ['users'])
-            ->andReturnFalse();
+            ->returns(false);
 
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('put')->once()->andReturn($put);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('put')->returns($put);
 
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('anyTagOps')->once()->andReturn($operations);
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('anyTagOps')->returns($operations);
 
-        $tags = m::mock(AnyTagSet::class);
-        $tags->shouldReceive('getNames')->andReturn(['users']);
+        $tags = Double::for(AnyTagSet::class)->strict();
+        $tags->allows('getNames')->returns(['users']);
 
         $cache = new AnyTaggedCache($store, $tags);
-        $store->shouldReceive('tags')->once()->with(['users'])->andReturn($cache);
+        $store->expects('tags')->with(['users'])->returns($cache);
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 
@@ -805,14 +686,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
     public function testAnyTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
     {
-        $put = m::mock(Put::class);
-        $put->shouldReceive('execute')->twice()->andReturnTrue();
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('put')->twice()->andReturn($put);
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('anyTagOps')->twice()->andReturn($operations);
-        $tags = m::mock(AnyTagSet::class);
-        $tags->shouldReceive('getNames')->andReturn(['users']);
+        $put = Double::for(Put::class)->strict();
+        $put->expects('execute')->times(2)->returns(true);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('put')->times(2)->returns($put);
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('anyTagOps')->times(2)->returns($operations);
+        $tags = Double::for(AnyTagSet::class)->strict();
+        $tags->allows('getNames')->returns(['users']);
 
         $cache = new class($store, $tags) extends AnyTaggedCache {
             public int $eventCalls = 0;
@@ -824,18 +705,18 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
                 parent::event($event);
             }
         };
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(false);
+        $events->expects('dispatch')->never();
         $cache->setEventDispatcher($events);
 
         $this->assertTrue($cache->put('first', 'value', 60));
         $this->assertSame(0, $cache->eventCalls);
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $events->shouldReceive('dispatch')->twice()->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->expects('dispatch')->times(2)->resolves(function (object $event) use (&$captured): void {
             $captured[] = $event;
         });
         $cache->setEventDispatcher($events);
@@ -852,14 +733,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testPutDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
     {
         $exception = new RuntimeException('write failed');
-        $put = m::mock(Put::class);
-        $put->shouldReceive('execute')
-            ->once()
+        $put = Double::for(Put::class)->strict();
+        $put->expects('execute')
             ->with('mykey', 'myvalue', 60, ['users'])
-            ->andThrow($exception);
+            ->throws($exception);
 
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('put')->once()->andReturn($put);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('put')->returns($put);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -875,24 +755,28 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testPutDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutDoesNotDispatchFailureEventWhenTheOperationIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('write canceled');
-        $put = m::mock(Put::class);
-        $put->shouldReceive('execute')
-            ->once()
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
+        $put = Double::for(Put::class)->strict();
+        $put->expects('execute')
             ->with('mykey', 'myvalue', 60, ['users'])
-            ->andThrow($cancellation);
+            ->throws($cancellation);
 
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('put')->once()->andReturn($put);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('put')->returns($put);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
         try {
             $tagged->put('mykey', 'myvalue', 60);
             $this->fail('Expected the tagged cache write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -903,14 +787,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $exception = new RuntimeException('batch write failed');
         $values = ['first' => 'one', 'second' => 'two'];
-        $putMany = m::mock(PutMany::class);
-        $putMany->shouldReceive('execute')
-            ->once()
+        $putMany = Double::for(PutMany::class)->strict();
+        $putMany->expects('execute')
             ->with($values, 60, ['users'])
-            ->andThrow($exception);
+            ->throws($exception);
 
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('putMany')->once()->andReturn($putMany);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('putMany')->returns($putMany);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -929,25 +812,29 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame([$exception, $exception], array_map(static fn (KeyWriteFailed $event): RuntimeException => $event->exception, array_slice($captured, 1)));
     }
 
-    public function testPutManyDoesNotDispatchFailureEventsWhenTheOperationIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutManyDoesNotDispatchFailureEventsWhenTheOperationIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('batch write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $values = ['first' => 'one', 'second' => 'two'];
-        $putMany = m::mock(PutMany::class);
-        $putMany->shouldReceive('execute')
-            ->once()
+        $putMany = Double::for(PutMany::class)->strict();
+        $putMany->expects('execute')
             ->with($values, 60, ['users'])
-            ->andThrow($cancellation);
+            ->throws($cancellation);
 
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('putMany')->once()->andReturn($putMany);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('putMany')->returns($putMany);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
         try {
             $tagged->putMany($values, 60);
             $this->fail('Expected the tagged cache batch write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -956,12 +843,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
     public function testEmptyPutManyReturnsTrueWithoutOperationOrEvents(): void
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldNotReceive('anyTagOps');
-        $tags = m::mock(AnyTagSet::class);
-        $events = m::mock(Dispatcher::class);
-        $events->shouldNotReceive('hasListeners');
-        $events->shouldNotReceive('dispatch');
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('anyTagOps')->never();
+        $tags = Double::for(AnyTagSet::class)->strict();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->never();
+        $events->expects('dispatch')->never();
         $tagged = new AnyTaggedCache($store, $tags);
         $tagged->setEventDispatcher($events);
 
@@ -971,14 +858,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testForeverDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
     {
         $exception = new RuntimeException('forever write failed');
-        $forever = m::mock(Forever::class);
-        $forever->shouldReceive('execute')
-            ->once()
+        $forever = Double::for(Forever::class)->strict();
+        $forever->expects('execute')
             ->with('mykey', 'myvalue', ['users'])
-            ->andThrow($exception);
+            ->throws($exception);
 
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('forever')->once()->andReturn($forever);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('forever')->returns($forever);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -994,24 +880,28 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testForeverDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testForeverDoesNotDispatchFailureEventWhenTheOperationIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('forever write canceled');
-        $forever = m::mock(Forever::class);
-        $forever->shouldReceive('execute')
-            ->once()
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
+        $forever = Double::for(Forever::class)->strict();
+        $forever->expects('execute')
             ->with('mykey', 'myvalue', ['users'])
-            ->andThrow($cancellation);
+            ->throws($cancellation);
 
-        $operations = m::mock(AnyTagOperations::class);
-        $operations->shouldReceive('forever')->once()->andReturn($forever);
+        $operations = Double::for(AnyTagOperations::class)->strict();
+        $operations->expects('forever')->returns($forever);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
         try {
             $tagged->forever('mykey', 'myvalue');
             $this->fail('Expected the tagged forever cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1022,8 +912,8 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')->once()->with('prefix:mykey')->andReturnNull();
-        $connection->shouldReceive('evalWithShaCache')->once()->andReturn(true);
+        $connection->client()->expects('get')->with('prefix:mykey')->returns(null);
+        $connection->expects('evalWithShaCache')->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->rememberNullable('mykey', 60, fn () => 'computed');
@@ -1035,19 +925,18 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')->once()->with('prefix:mykey')->andReturnNull();
+        $connection->client()->expects('get')->with('prefix:mykey')->returns(null);
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function ($script, $keys, $args): bool {
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::all(function ($script, $keys, $args): bool {
                 foreach (array_merge((array) $keys, (array) $args) as $arg) {
                     if (is_string($arg) && @unserialize($arg) === NullSentinel::VALUE) {
                         return true;
                     }
                 }
                 return false;
-            })
-            ->andReturn(true);
+            }))
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->rememberNullable('mykey', 60, fn () => null);
@@ -1059,10 +948,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $invoked = false;
         $store = $this->createStore($connection);
@@ -1079,16 +967,15 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function ($event) use (&$captured) {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function ($event) use (&$captured) {
                 $captured[] = $event;
             });
 
@@ -1108,14 +995,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')->once()->with('prefix:mykey')->andReturnNull();
-        $connection->shouldReceive('evalWithShaCache')->once()->andReturn(true);
+        $connection->client()->expects('get')->with('prefix:mykey')->returns(null);
+        $connection->expects('evalWithShaCache')->returns(true);
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function ($event) use (&$captured) {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function ($event) use (&$captured) {
                 $captured[] = $event;
             });
 
@@ -1140,10 +1027,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $invoked = false;
         $store = $this->createStore($connection);
@@ -1156,17 +1042,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertFalse($invoked);
     }
 
-    /**
-     * @test
-     */
     public function testRememberForeverRetrievesExistingValueFromStore(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize('cached_value'));
+            ->returns(serialize('cached_value'));
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->rememberForever('mykey', fn () => 'new_value');
@@ -1178,16 +1060,15 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:1')
-            ->andReturn(serialize('cached_settings'));
+            ->returns(serialize('cached_settings'));
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 
@@ -1204,22 +1085,17 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame('1', $cacheHit->key);
     }
 
-    /**
-     * @test
-     */
     public function testRememberForeverCallsCallbackAndStoresValueWhenMiss(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturnNull();
+            ->returns(null);
 
         // Should store the value forever with tags using evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->rememberForever('mykey', fn () => 'computed_value');
@@ -1231,18 +1107,17 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')->once()->with('prefix:mykey')->andReturnNull();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function ($script, $keys, $args): bool {
+        $connection->client()->expects('get')->with('prefix:mykey')->returns(null);
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::all(function ($script, $keys, $args): bool {
                 foreach (array_merge((array) $keys, (array) $args) as $arg) {
                     if (is_string($arg) && @unserialize($arg) === NullSentinel::VALUE) {
                         return true;
                     }
                 }
                 return false;
-            })
-            ->andReturn(true);
+            }))
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->rememberForeverNullable('mykey', fn () => null);
@@ -1254,10 +1129,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->searNullable('mykey', fn () => 'should-not-run');
@@ -1269,10 +1143,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $invoked = false;
         $store = $this->createStore($connection);
@@ -1285,9 +1158,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertFalse($invoked);
     }
 
-    /**
-     * @test
-     */
     public function testGetTagsReturnsTagSet(): void
     {
         $connection = $this->mockConnection();
@@ -1297,33 +1167,25 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertInstanceOf(AnyTagSet::class, $cache->getTags());
     }
 
-    /**
-     * @test
-     */
     public function testItemKeyReturnsKeyUnchanged(): void
     {
         $connection = $this->mockConnection();
 
         // In any mode, keys are NOT namespaced by tags
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey') // Should NOT have tag namespace prefix
-            ->andReturn(serialize('value'));
+            ->returns(serialize('value'));
 
         $store = $this->createStore($connection);
         $store->setTagMode('any')->tags(['users'])->remember('mykey', 60, fn () => 'fallback');
     }
 
-    /**
-     * @test
-     */
     public function testIncrementThrowsOnLuaFailure(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andThrow(new LuaScriptException('Lua script execution failed'));
+        $connection->expects('evalWithShaCache')
+            ->throws(new LuaScriptException('Lua script execution failed'));
 
         $this->expectException(LuaScriptException::class);
 
@@ -1331,16 +1193,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $store->setTagMode('any')->tags(['users'])->increment('counter');
     }
 
-    /**
-     * @test
-     */
     public function testDecrementThrowsOnLuaFailure(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andThrow(new LuaScriptException('Lua script execution failed'));
+        $connection->expects('evalWithShaCache')
+            ->throws(new LuaScriptException('Lua script execution failed'));
 
         $this->expectException(LuaScriptException::class);
 
@@ -1348,18 +1206,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $store->setTagMode('any')->tags(['users'])->decrement('counter');
     }
 
-    /**
-     * @test
-     */
     public function testRememberPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
 
         // Client returns null (cache miss) - callback will be executed
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturnNull();
+            ->returns(null);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Callback failed');
@@ -1370,18 +1224,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         });
     }
 
-    /**
-     * @test
-     */
     public function testRememberForeverPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
 
         // Client returns null (cache miss) - callback will be executed
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturnNull();
+            ->returns(null);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Forever callback failed');
@@ -1392,18 +1242,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         });
     }
 
-    /**
-     * @test
-     */
     public function testRememberDoesNotCallCallbackWhenValueExists(): void
     {
         $connection = $this->mockConnection();
 
         // Client returns existing value (cache hit)
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with('prefix:mykey')
-            ->andReturn(serialize('cached_value'));
+            ->returns(serialize('cached_value'));
 
         $callCount = 0;
         $store = $this->createStore($connection);
@@ -1417,27 +1263,24 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(0, $callCount, 'Callback should not be called when cache hit');
     }
 
-    /**
-     * @test
-     */
     public function testItemsReturnsGenerator(): void
     {
         $connection = $this->mockConnection();
 
         // GetTaggedKeys uses hlen to check size first
-        $connection->shouldReceive('hlen')
-            ->andReturn(2);
+        $connection->client()->expects('hlen')
+            ->with('prefix:_any:tag:users:entries')
+            ->returns(2);
 
         // When small (< threshold), it uses hkeys directly
-        $connection->shouldReceive('hkeys')
-            ->once()
-            ->andReturn(['key1', 'key2']);
+        $connection->client()->expects('hkeys')
+            ->with('prefix:_any:tag:users:entries')
+            ->returns(['key1', 'key2']);
 
         // Get values for found keys (mget receives array)
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with(['prefix:key1', 'prefix:key2'])
-            ->andReturn([serialize('value1'), serialize('value2')]);
+            ->returns([serialize('value1'), serialize('value2')]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->items();
@@ -1463,18 +1306,18 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
     private function taggedCacheWithOperations(AnyTagOperations $operations, array &$captured): AnyTaggedCache
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('anyTagOps')->once()->andReturn($operations);
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('anyTagOps')->returns($operations);
 
-        $tags = m::mock(AnyTagSet::class);
-        $tags->shouldReceive('getNames')->andReturn(['users']);
+        $tags = Double::for(AnyTagSet::class)->strict();
+        $tags->allows('getNames')->returns(['users']);
 
         $cache = new AnyTaggedCache($store, $tags);
-        $store->shouldReceive('tags')->once()->with(['users'])->andReturn($cache);
+        $store->expects('tags')->with(['users'])->returns($cache);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $events->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')->resolves(function (object $event) use (&$captured): void {
             $captured[] = $event;
         });
 

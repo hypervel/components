@@ -18,15 +18,15 @@ assertType('mixed', Cache::pull('cache', 28));
 assertType('mixed', Cache::pull('cache', function (): int {
     return 30;
 }));
-assertType('mixed', Cache::sear('cache', function (): int {
+assertType('33', Cache::sear('cache', function (): int {
     return 33;
 }));
-assertType('mixed', Cache::remember('cache', CarbonImmutable::now(), function (): int {
+assertType('36', Cache::remember('cache', CarbonImmutable::now(), function (): int {
     return 36;
 }));
-assertType('array', Cache::rememberWithWarmth('cache', CarbonImmutable::now(), function (): int {
+assertType('array{36, bool}', Cache::rememberWithWarmth('cache', CarbonImmutable::now(), function (): int {
     return 36;
 }));
-assertType('mixed', Cache::rememberForever('cache', function (): int {
+assertType('36', Cache::rememberForever('cache', function (): int {
     return 36;
 }));

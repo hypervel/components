@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\Profile;
 
+use Hypervel\Contracts\Process\ProcessResult;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
-use Symfony\Component\Process\Process;
 
 class ProfileScriptTest extends TestCase
 {
@@ -37,9 +38,9 @@ class ProfileScriptTest extends TestCase
             $this->writeProfileFixture($filesystem, $fixturePath, 'Fast', 10000, true);
 
             [$process, $processId] = $this->runProfiler($fixturePath);
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertSame(0, $process->getExitCode(), $output);
+            $this->assertSame(0, $process->exitCode(), $output);
             $this->assertStringContainsString('Tests taking at least 0.300 seconds (11)', $output);
             $this->assertStringContainsString('ProfileScriptSlow10FixtureTest', $output);
             $this->assertStringNotContainsString('ProfileScriptFastFixtureTest', $output);
@@ -71,9 +72,9 @@ class ProfileScriptTest extends TestCase
             $this->writeProfileFixture($filesystem, $fixturePath, 'Failure', 310000, false);
 
             [$process, $processId] = $this->runProfiler($fixturePath);
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertSame(1, $process->getExitCode(), $output);
+            $this->assertSame(1, $process->exitCode(), $output);
             $this->assertStringContainsString('ProfileScriptFailureFixtureTest', $output);
             $this->assertStringContainsString('Tests taking at least 0.300 seconds (1)', $output);
             $this->assertSame([], $this->profilePaths($processId));
@@ -92,9 +93,9 @@ class ProfileScriptTest extends TestCase
             $filesystem->deleteDirectory($fixturePath);
 
             [$process, $processId] = $this->runProfiler($fixturePath);
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertSame(1, $process->getExitCode(), $output);
+            $this->assertSame(1, $process->exitCode(), $output);
             $this->assertStringNotContainsString('Unable to find PHPUnit profile', $output);
             $this->assertSame([], $this->profilePaths($processId));
         } finally {
@@ -116,9 +117,9 @@ class ProfileScriptTest extends TestCase
                 $fixturePath,
                 scriptPath: $this->writeProfilerWrapper($filesystem, $fixturePath),
             );
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertSame(1, $process->getExitCode(), $output);
+            $this->assertSame(1, $process->exitCode(), $output);
             $this->assertStringContainsString(
                 'Install the brianium/paratest package to profile tests.',
                 $output,
@@ -143,9 +144,9 @@ class ProfileScriptTest extends TestCase
                 $fixturePath,
                 scriptPath: $this->writeProfilerWrapper($filesystem, $fixturePath),
             );
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertSame(1, $process->getExitCode(), $output);
+            $this->assertSame(1, $process->exitCode(), $output);
             $this->assertStringContainsString('Synthetic runner output.', $output);
             $this->assertStringNotContainsString('Unable to read PHPUnit profile', $output);
             $this->assertSame([], $this->profilePaths($processId));
@@ -168,9 +169,9 @@ class ProfileScriptTest extends TestCase
                 $fixturePath,
                 scriptPath: $this->writeProfilerWrapper($filesystem, $fixturePath),
             );
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertNotSame(0, $process->getExitCode(), $output);
+            $this->assertNotSame(0, $process->exitCode(), $output);
             $this->assertStringContainsString('Unable to read PHPUnit profile', $output);
             $this->assertSame([], $this->profilePaths($processId));
         } finally {
@@ -190,9 +191,9 @@ class ProfileScriptTest extends TestCase
             $this->writeProfileFixture($filesystem, $fixturePath, 'Fast', 10000, true);
 
             [$process, $processId] = $this->runProfiler($fixturePath);
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertSame(0, $process->getExitCode(), $output);
+            $this->assertSame(0, $process->exitCode(), $output);
             $this->assertStringContainsString('No tests took at least 0.300 seconds.', $output);
             $this->assertStringNotContainsString('ProfileScriptFastFixtureTest::', $output);
             $this->assertSame([], $this->profilePaths($processId));
@@ -216,9 +217,9 @@ class ProfileScriptTest extends TestCase
                 '--filter=ProfileScriptMissingFixtureTest',
                 '--do-not-fail-on-empty-test-suite',
             ]);
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertSame(0, $process->getExitCode(), $output);
+            $this->assertSame(0, $process->exitCode(), $output);
             $this->assertStringContainsString('No tests executed!', $output);
             $this->assertStringNotContainsString('Unable to find PHPUnit profile', $output);
             $this->assertSame([], $this->profilePaths($processId));
@@ -227,9 +228,9 @@ class ProfileScriptTest extends TestCase
                 $fixturePath,
                 ['--filter=ProfileScriptMissingFixtureTest'],
             );
-            $output = $process->getOutput() . $process->getErrorOutput();
+            $output = $process->output() . $process->errorOutput();
 
-            $this->assertNotSame(0, $process->getExitCode(), $output);
+            $this->assertNotSame(0, $process->exitCode(), $output);
             $this->assertStringContainsString('No tests executed!', $output);
             $this->assertStringNotContainsString('Unable to find PHPUnit profile', $output);
             $this->assertSame([], $this->profilePaths($processId));
@@ -254,10 +255,10 @@ class ProfileScriptTest extends TestCase
                 [['-hV'], 'Usage:'],
             ] as [$arguments, $expectedOutput]) {
                 [$process, $processId] = $this->runProfiler($fixturePath, $arguments);
-                $output = $process->getOutput() . $process->getErrorOutput();
+                $output = $process->output() . $process->errorOutput();
                 $message = sprintf('Failed for arguments [%s].%s%s', implode(' ', $arguments), PHP_EOL, $output);
 
-                $this->assertSame(0, $process->getExitCode(), $message);
+                $this->assertSame(0, $process->exitCode(), $message);
                 $this->assertStringContainsString($expectedOutput, $output, $message);
                 $this->assertStringNotContainsString('Unable to find PHPUnit profile', $output, $message);
                 $this->assertSame([], $this->profilePaths($processId), $message);
@@ -285,10 +286,10 @@ class ProfileScriptTest extends TestCase
                     : ['--log-junit', $customReportPath];
 
                 [$process, $processId] = $this->runProfiler($fixturePath, $arguments);
-                $output = $process->getOutput() . $process->getErrorOutput();
+                $output = $process->output() . $process->errorOutput();
                 $message = sprintf('Failed for syntax [%s].%s%s', $syntax, PHP_EOL, $output);
 
-                $this->assertSame(1, $process->getExitCode(), $message);
+                $this->assertSame(1, $process->exitCode(), $message);
                 $this->assertStringContainsString(
                     'The profiler manages the --log-junit option.',
                     $output,
@@ -402,31 +403,27 @@ PHP,
      * Run the Components profile script.
      *
      * @param array<int, string> $arguments
-     * @return array{Process, int}
+     * @return array{ProcessResult, int}
      */
     private function runProfiler(
         string $fixturePath,
         array $arguments = [],
         ?string $scriptPath = null,
     ): array {
-        $process = new Process([
+        $process = (new ProcessFactory)->timeout(30)->start([
             PHP_BINARY,
             $scriptPath ?? dirname(__DIR__, 3) . '/src/testing/bin/hypervel-test-profile',
             '--processes=4',
             ...$arguments,
             $fixturePath,
         ]);
-        $process->setTimeout(30);
-        $process->start();
-        $processId = $process->getPid();
+        $processId = $process->id();
 
         if ($processId === null) {
             throw new RuntimeException('Unable to start the Components profile script.');
         }
 
-        $process->wait();
-
-        return [$process, $processId];
+        return [$process->wait(), $processId];
     }
 
     /**

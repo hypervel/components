@@ -8,12 +8,14 @@ use BadMethodCallException;
 use Closure;
 use Exception;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
+use Hypervel\Contracts\Database\Eloquent\SupportsPartialRelations;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
@@ -25,6 +27,7 @@ use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -196,6 +199,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a new global scope.
+     *
+     * @return $this
      */
     public function withGlobalScope(int|string $identifier, Closure|Scope $scope): static
     {
@@ -210,6 +215,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove a registered global scope.
+     *
+     * @return $this
      */
     public function withoutGlobalScope(Scope|int|string $scope): static
     {
@@ -226,6 +233,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove all or passed registered global scopes.
+     *
+     * @return $this
      */
     public function withoutGlobalScopes(?array $scopes = null): static
     {
@@ -242,6 +251,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove all global scopes except the given scopes.
+     *
+     * @return $this
      */
     public function withoutGlobalScopesExcept(array $scopes = []): static
     {
@@ -278,6 +289,8 @@ class Builder implements BuilderContract
         }
 
         if (is_array($id) || $id instanceof Arrayable) {
+            $id = $this->normalizeFindIds($id);
+
             if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
                 $this->query->whereIntegerInRaw($this->model->getQualifiedKeyName(), $id, $boolean, $not);
             } else {
@@ -339,7 +352,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      * @return $this
      */
     public function where(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
@@ -364,7 +377,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      * @return null|TModel
      */
     public function firstWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
@@ -375,7 +388,11 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * A null operator passed as the second of two arguments becomes a comparison with null, which
+     * makes a callback a subquery, so the callback type cannot follow the operator here.
+     *
+     * @param array|(Closure(__benevolent<static|QueryBuilder>): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function orWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -391,7 +408,8 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function whereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -407,7 +425,8 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function orWhereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -416,11 +435,17 @@ class Builder implements BuilderContract
 
     /**
      * Add an "order by" clause for a timestamp to the query.
+     *
+     * @return $this
      */
     public function latest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
+
+            if (! empty($this->query->joins) && empty($this->query->unions) && is_string($this->query->from)) {
+                $column = $this->qualifyColumn($column);
+            }
         }
 
         $this->query->latest($column);
@@ -430,11 +455,17 @@ class Builder implements BuilderContract
 
     /**
      * Add an "order by" clause for a timestamp to the query.
+     *
+     * @return $this
      */
     public function oldest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
+
+            if (! empty($this->query->joins) && empty($this->query->unions) && is_string($this->query->from)) {
+                $column = $this->qualifyColumn($column);
+            }
         }
 
         $this->query->oldest($column);
@@ -450,12 +481,14 @@ class Builder implements BuilderContract
     public function hydrate(array $items): Collection
     {
         $instance = $this->newModelInstance();
+        $preventsLazyLoading = count($items) > 1 && Model::preventsLazyLoading();
 
-        return $instance->newCollection(array_map(function ($item) use ($items, $instance) {
+        return $instance->newCollection(array_map(function ($item) use ($instance, $preventsLazyLoading) {
             $model = $instance->newFromBuilder($item);
 
-            if (count($items) > 1) {
-                $model->preventsLazyLoading = Model::preventsLazyLoading();
+            // Preserve a model's own lazy-loading opt-in when the global default is off.
+            if ($preventsLazyLoading) {
+                $model->preventsLazyLoading = true;
             }
 
             return $model;
@@ -566,7 +599,12 @@ class Builder implements BuilderContract
      */
     public function findMany(Arrayable|array $ids, array|string $columns = ['*']): Collection
     {
-        $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
+        // Keep a collection's models so whereKey() queries their keys rather than their attributes.
+        $ids = match (true) {
+            $ids instanceof Enumerable => $ids->all(),
+            $ids instanceof Arrayable => $ids->toArray(),
+            default => $ids,
+        };
 
         if (empty($ids)) {
             return $this->model->newCollection();
@@ -586,15 +624,16 @@ class Builder implements BuilderContract
     {
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->normalizeFindIds($id);
 
         if (is_array($id)) {
-            $id = array_map(enum_value(...), $id);
-
             if (count($result) !== count(array_unique($id))) {
                 throw (new ModelNotFoundException)->setModel(
                     get_class($this->model),
@@ -654,15 +693,16 @@ class Builder implements BuilderContract
 
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->normalizeFindIds($id);
 
         if (is_array($id)) {
-            $id = array_map(enum_value(...), $id);
-
             if (count($result) === count(array_unique($id))) {
                 return $result;
             }
@@ -671,6 +711,29 @@ class Builder implements BuilderContract
         }
 
         return $callback();
+    }
+
+    /**
+     * Normalize the given identifiers into a comparable list of keys.
+     *
+     * Enumerable keeps the models of any collection, including a lazy one, instead of converting them to attribute arrays.
+     */
+    protected function normalizeFindIds(mixed $id): mixed
+    {
+        $id = match (true) {
+            $id instanceof Enumerable => $id->all(),
+            $id instanceof Arrayable => $id->toArray(),
+            default => $id,
+        };
+
+        if (! is_array($id)) {
+            return $id;
+        }
+
+        return array_map(
+            fn (mixed $id): mixed => $id instanceof Model ? $id->getKey() : enum_value($id),
+            $id
+        );
     }
 
     /**
@@ -755,9 +818,9 @@ class Builder implements BuilderContract
      */
     public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
     {
-        return tap($this->firstOrCreate($attributes, [$column => $default]), function ($instance) use ($column, $step, $extra) {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function ($instance) use ($column, $step, $extra) {
             if (! $instance->wasRecentlyCreated) {
-                $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
+                $instance->increment($column, $step, $extra);
             }
         });
     }
@@ -1002,6 +1065,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a closure to be invoked after the query is executed.
+     *
+     * @return $this
      */
     public function afterQuery(Closure $callback): static
     {
@@ -1036,10 +1101,20 @@ class Builder implements BuilderContract
      */
     public function cursor(): LazyCollection
     {
-        return $this->applyScopes()->query->cursor()->map(function ($record) {
-            $model = $this->newModelInstance()->newFromBuilder($record);
+        $builder = $this->applyScopes();
+        // Scopes can replace the model when adding query-time casts.
+        $instance = $builder->newModelInstance();
+        $preventsLazyLoading = Model::preventsLazyLoading();
 
-            return $this->applyAfterQueryCallbacks($this->newModelInstance()->newCollection([$model]))->first();
+        return $builder->query->cursor()->map(function ($record) use ($instance, $preventsLazyLoading) {
+            $model = $instance->newFromBuilder($record);
+
+            // Preserve a model's own lazy-loading opt-in when the global default is off.
+            if ($preventsLazyLoading) {
+                $model->preventsLazyLoading = true;
+            }
+
+            return $this->applyAfterQueryCallbacks($instance->newCollection([$model]))->first();
         })->reject(fn ($model) => is_null($model));
     }
 
@@ -1048,8 +1123,12 @@ class Builder implements BuilderContract
      */
     protected function enforceOrderBy(): void
     {
-        if (empty($this->query->orders) && empty($this->query->unionOrders)) {
-            $this->orderBy($this->model->getQualifiedKeyName(), SortDirection::Ascending);
+        // A union's outer order uses the selected key output. Qualify its source
+        // so a joined table's ID cannot match first.
+        if (empty($this->query->unions ? $this->query->unionOrders : $this->query->orders)) {
+            $this->orderBy($this->query->unions
+                ? $this->query->getKeysetOutputColumn($this->qualifyColumn($this->model->getKeyName()))
+                : $this->model->getQualifiedKeyName(), SortDirection::Ascending);
         }
     }
 
@@ -1060,28 +1139,31 @@ class Builder implements BuilderContract
      */
     public function pluck(Expression|string $column, ?string $key = null): BaseCollection
     {
+        $builder = $this->applyScopes();
+        $model = $builder->getModel();
+
         if ($column instanceof Expression) {
             // Casts and accessors use the returned field name, which cannot be
             // recovered from the values alone or reliably inferred from raw SQL.
-            [$results, $column] = $this->toBase()->pluckWithColumn($column, $key);
+            [$results, $column] = $builder->query->pluckWithColumn($column, $key);
         } else {
-            $results = $this->toBase()->pluck($column, $key);
+            $results = $builder->query->pluck($column, $key);
 
-            $column = Str::after($column, "{$this->model->getTable()}.");
+            $column = Str::after($column, "{$model->getTable()}.");
         }
 
         // If the model has a mutator for the requested column, we will spin through
         // the results and mutate the values so that the mutated version of these
         // columns are returned as you would expect from these Eloquent models.
-        if (is_null($column) || (! $this->model->hasAnyGetMutator($column)
-            && ! $this->model->hasCast($column)
-            && ! in_array($column, $this->model->getDates()))) {
+        if (is_null($column) || (! $model->hasAnyGetMutator($column)
+            && ! $model->hasCast($column)
+            && ! in_array($column, $model->getDates()))) {
             return $this->applyAfterQueryCallbacks($results);
         }
 
         return $this->applyAfterQueryCallbacks(
-            $results->map(function ($value) use ($column) {
-                return $this->model->newFromBuilder([$column => $value])->{$column};
+            $results->map(function ($value) use ($column, $model) {
+                return $model->newFromBuilder([$column => $value])->{$column};
             })
         );
     }
@@ -1099,7 +1181,9 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query.
      *
-     * @return LengthAwarePaginator<int, TModel>
+     * @param null|(Closure(int): ?int)|int $perPage
+     * @param null|(Closure(): ?int)|int $total
+     * @return LengthAwarePaginator<int, TModel, Collection<int, TModel>>
      *
      * @throws InvalidArgumentException
      */
@@ -1124,7 +1208,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return Paginator<int, TModel>
+     * @return Paginator<int, TModel, Collection<int, TModel>>
      */
     public function simplePaginate(?int $perPage = null, array|string $columns = ['*'], string $pageName = 'page', ?int $page = null): Paginator
     {
@@ -1146,7 +1230,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return CursorPaginator<int, TModel>
+     * @return CursorPaginator<int, TModel, Collection<int, TModel>>
      */
     public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginator
     {
@@ -1160,9 +1244,7 @@ class Builder implements BuilderContract
      */
     protected function ensureOrderForCursorPagination(bool $shouldReverse = false): BaseCollection
     {
-        if (empty($this->query->orders) && empty($this->query->unionOrders)) {
-            $this->enforceOrderBy();
-        }
+        $this->enforceOrderBy();
 
         $this->query->prepareCursorOrdering();
 
@@ -1185,11 +1267,26 @@ class Builder implements BuilderContract
             }
         }
 
-        $orders = ! empty($this->query->unionOrders) ? $this->query->unionOrders : $this->query->orders;
+        $orders = $this->query->unions ? $this->query->unionOrders : $this->query->orders;
 
         return (new BaseCollection($orders))
             ->filter(fn ($order) => Arr::has($order, 'direction'))
             ->values();
+    }
+
+    /**
+     * Get the builder that owns cursor binding and page execution.
+     */
+    protected function getBuilderForCursorPage(): static
+    {
+        $builder = $this->applyScopes();
+
+        // Scope-added casts must encode the cursor and hydrate the page together.
+        // Avoid a second scope pass in get(), preserving its original callback ownership.
+        $builder->scopes = [];
+        $builder->afterQueryCallbacks = $this->afterQueryCallbacks;
+
+        return $builder;
     }
 
     /**
@@ -1252,7 +1349,9 @@ class Builder implements BuilderContract
      */
     public function update(array $values): int
     {
-        return $this->toBase()->update($this->addUpdatedAtColumn($values));
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->update($builder->addUpdatedAtColumn($values));
     }
 
     /**
@@ -1308,7 +1407,15 @@ class Builder implements BuilderContract
             return false;
         }
 
-        return $this->toBase()->update([$column => $time]);
+        // Global scopes may add joins or alias the table, so qualify against the scoped builder.
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+        $query = $builder->toBase();
+
+        if (! empty($query->joins)) {
+            $column = $builder->qualifyColumn($column);
+        }
+
+        return $query->update([$column => $time]);
     }
 
     /**
@@ -1316,10 +1423,12 @@ class Builder implements BuilderContract
      */
     public function increment(Expression|string $column, mixed $amount = 1, array $extra = []): int
     {
-        return $this->toBase()->increment(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->increment(
             $column,
             $amount,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1328,10 +1437,12 @@ class Builder implements BuilderContract
      */
     public function decrement(Expression|string $column, mixed $amount = 1, array $extra = []): int
     {
-        return $this->toBase()->decrement(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->decrement(
             $column,
             $amount,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1343,9 +1454,11 @@ class Builder implements BuilderContract
      */
     public function incrementEach(array $columns, array $extra = []): int
     {
-        return $this->toBase()->incrementEach(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->incrementEach(
             $columns,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1357,9 +1470,11 @@ class Builder implements BuilderContract
      */
     public function decrementEach(array $columns, array $extra = []): int
     {
-        return $this->toBase()->decrementEach(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->decrementEach(
             $columns,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1375,6 +1490,7 @@ class Builder implements BuilderContract
 
         $column = $this->model->getUpdatedAtColumn();
 
+        // Scopes may alias the table; writes that retain this qualifier must prepare scopes first.
         $alias = $this->query->getFromAlias();
 
         // Opaque raw sources cannot safely qualify an automatic timestamp.
@@ -1577,6 +1693,9 @@ class Builder implements BuilderContract
             });
         }
 
+        // A replacement sort cannot change the ordering a cursor or ID page compares against.
+        $builder->query->restoreKeysetOrdersFrom($this->query);
+
         return $builder;
     }
 
@@ -1586,6 +1705,8 @@ class Builder implements BuilderContract
      * Keep existing and callback-added WHERE constraints logically separate
      * so conditions in either group cannot change the meaning of the other,
      * including when later constraints are added.
+     *
+     * @return $this
      */
     public function applyScopeCallback(callable $scope): static
     {
@@ -1682,8 +1803,9 @@ class Builder implements BuilderContract
     /**
      * Specify relationships that should be eager loaded.
      *
-     * @param  array<array-key, array|(Closure(Relation<*,*,*>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Relation<*,*,*>): mixed)|string>|string  $relations
      * @param  (Closure(Relation<*,*,*>): mixed)|string|null  $callback
+     * @return $this
      */
     public function with(array|string $relations, Closure|string|null $callback = null): static
     {
@@ -1700,6 +1822,8 @@ class Builder implements BuilderContract
 
     /**
      * Prevent the specified relations from being eager loaded.
+     *
+     * @return $this
      */
     public function without(mixed $relations): static
     {
@@ -1713,7 +1837,8 @@ class Builder implements BuilderContract
     /**
      * Set the relationships that should be eager loaded while removing any previously added eager loading specifications.
      *
-     * @param  array<array-key, array|(Closure(Relation<*,*,*>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Relation<*,*,*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function withOnly(array|string $relations): static
     {
@@ -1840,6 +1965,8 @@ class Builder implements BuilderContract
         return [explode(':', $name)[0], static function ($query) use ($name) {
             $query->select(array_map(static function ($column) use ($query) {
                 return $query instanceof BelongsToMany
+                    || $query instanceof HasOneOrManyThrough
+                    || ($query instanceof SupportsPartialRelations && $query->isOneOfMany())
                     ? $query->getRelated()->qualifyColumn($column)
                     : $column;
             }, explode(',', explode(':', $name)[1])));
@@ -1872,6 +1999,8 @@ class Builder implements BuilderContract
      * Specify attributes that should be added to any new models created by this builder.
      *
      * The given key / value pairs will also be added as where conditions to the query.
+     *
+     * @return $this
      */
     public function withAttributes(Expression|array|string $attributes, mixed $value = null, bool $asConditions = true): static
     {
@@ -1892,10 +2021,12 @@ class Builder implements BuilderContract
 
     /**
      * Apply query-time casts to the model instance.
+     *
+     * @return $this
      */
     public function withCasts(array $casts): static
     {
-        $this->model->mergeCasts($casts);
+        $this->model = (clone $this->model)->mergeCasts($casts);
 
         return $this;
     }
@@ -1935,6 +2066,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the underlying query builder instance.
+     *
+     * @return $this
      */
     public function setQuery(QueryBuilder $query): static
     {
@@ -1961,6 +2094,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the relationships being eagerly loaded.
+     *
+     * @return $this
      */
     public function setEagerLoads(array $eagerLoad): static
     {
@@ -1971,6 +2106,8 @@ class Builder implements BuilderContract
 
     /**
      * Indicate that the given relationships should not be eagerly loaded.
+     *
+     * @return $this
      */
     public function withoutEagerLoad(array $relations): static
     {
@@ -1981,6 +2118,8 @@ class Builder implements BuilderContract
 
     /**
      * Flush the relationships being eagerly loaded.
+     *
+     * @return $this
      */
     public function withoutEagerLoads(): static
     {
@@ -2271,6 +2410,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a closure to be invoked on a clone.
+     *
+     * @return $this
      */
     public function onClone(Closure $callback): static
     {

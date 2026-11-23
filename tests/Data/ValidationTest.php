@@ -1764,7 +1764,7 @@ class ValidationTest extends TestCase
             'email' => [
                 'required',
                 'string',
-                'unique:users,NULL,NULL,id,is_active,"1"',
+                (new HypervelUnique('users'))->where('is_active', true),
             ],
         ]);
     }
@@ -1782,7 +1782,7 @@ class ValidationTest extends TestCase
             'property' => [
                 'required',
                 'integer',
-                'unique:posts,NULL,"69",id',
+                (new HypervelUnique('posts'))->ignore('69'),
             ],
         ]);
     }
@@ -1800,7 +1800,7 @@ class ValidationTest extends TestCase
             'property' => [
                 'required',
                 'integer',
-                'unique:posts,NULL,"69",id',
+                (new HypervelUnique('posts'))->ignore(69),
             ],
         ]);
     }
@@ -2782,6 +2782,15 @@ class ValidationTest extends TestCase
             ]);
     }
 
+    public function testMergedBuilderRulesControlFieldPresence(): void
+    {
+        $this->assertSame([], TestDataWithMergedBuilderRules::validate([]));
+
+        $this->expectException(ValidationException::class);
+
+        TestDataWithMergedBuilderRules::validate(['otherProperty' => 'present']);
+    }
+
     public function testItWillMergeValidationRules(): void
     {
         DataValidationAsserter::for(TestDataWithMergedRuleset::class)
@@ -3704,6 +3713,20 @@ class TestNestedDataWithMergedRules extends SimpleData
         return [
             'string' => ['max:10', 'min:2'],
         ];
+    }
+}
+
+#[MergeValidationRules]
+class TestDataWithMergedBuilderRules extends Data
+{
+    public string $property;
+
+    /**
+     * Require the property only when the other input is present.
+     */
+    public static function rules(): array
+    {
+        return ['property' => [Rule::requiredWith('otherProperty')]];
     }
 }
 

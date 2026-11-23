@@ -46,13 +46,11 @@ trait AnswersQuestions
         array $attachments = [],
     ): ClassificationResponse {
         /** @var ClassificationProvider&Provider $provider */
+        $payload = $this->payload($model, $state, $questions, $attachments);
+
         $response = $this->withErrorHandling(
             $provider->name(),
-            fn (): Response => $this->client($provider, $timeout)->post($this->classificationEndpoint(), array_merge($providerOptions, [
-                'model' => $model,
-                'state' => $state,
-                'questions' => array_map($this->mapQuestion(...), $questions),
-            ])),
+            fn (): Response => $this->client($provider, $timeout)->post($this->classificationEndpoint(), array_merge($providerOptions, $payload)),
         );
 
         $data = $response->json();
@@ -65,13 +63,38 @@ trait AnswersQuestions
             }
         }
 
-        return new ClassificationResponse(
+        return (new ClassificationResponse(
             $answers,
-            new TextUsage(
-                inputTokens: $data['usage']['input_tokens'] ?? 0,
-                outputTokens: $data['usage']['output_tokens'] ?? 0,
-            ),
+            $this->usage($data),
             new Meta($provider->name(), $this->answeringModel($data, $model)),
+        ))->withRawResponse($response);
+    }
+
+    /**
+     * Build the request payload for the given questions about the state.
+     *
+     * @param array<array-key, mixed>|string $state
+     * @param array<string, Question> $questions
+     * @param array<int|string, File|UploadedFile> $attachments
+     */
+    protected function payload(string $model, string|array $state, array $questions, array $attachments): array
+    {
+        return [
+            'model' => $model,
+            'state' => $state,
+            // Numeric-string names become integer keys, so the cast keeps the questions a JSON object.
+            'questions' => (object) array_map($this->mapQuestion(...), $questions),
+        ];
+    }
+
+    /**
+     * Map the response usage to text usage.
+     */
+    protected function usage(array $data): TextUsage
+    {
+        return new TextUsage(
+            inputTokens: $data['usage']['input_tokens'] ?? 0,
+            outputTokens: $data['usage']['output_tokens'] ?? 0,
         );
     }
 
@@ -92,11 +115,13 @@ trait AnswersQuestions
             $question instanceof Boolean => array_filter([
                 'type' => 'noul',
                 'instructions' => $question->instructions,
-                'criteria' => $question->criteria,
+                // Empty criteria would encode as a JSON list, so they are omitted like null criteria.
+                'criteria' => $question->criteria ?: null,
             ], fn (mixed $value): bool => $value !== null),
             $question instanceof Choice => [
                 'type' => 'choice',
                 'instructions' => $question->instructions,
+                // Numeric-string labels become integer keys, so the cast keeps the criteria a JSON object.
                 'criteria' => (object) $question->options,
             ],
             $question instanceof Score => [
@@ -119,7 +144,7 @@ trait AnswersQuestions
             'score' => new ScoreAnswer(
                 $answer['score'],
                 $this->withIntegerKeys($answer['probabilities'] ?? []),
-                $this->withIntegerKeys($answer['legend'] ?? ($question instanceof Score ? $question->levels : [])),
+                $this->withIntegerKeys($question instanceof Score ? $question->levels : ($answer['legend'] ?? [])),
                 $answer['confidence'] ?? null,
             ),
             default => null,

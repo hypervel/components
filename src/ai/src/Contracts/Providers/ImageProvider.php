@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Contracts\Providers;
 use Hypervel\Ai\Contracts\Gateway\ImageGateway;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Responses\ImageResponse;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface ImageProvider extends Provider
 {
@@ -35,6 +36,7 @@ interface ImageProvider extends Provider
     /**
      * Set the provider's image gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useImageGateway(ImageGateway $gateway): self;
 
     /**

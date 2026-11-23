@@ -48,6 +48,8 @@ class DurationLimiterBuilder
 
     /**
      * Set the maximum number of locks that can be obtained per time window.
+     *
+     * @return $this
      */
     public function allow(int $maxLocks): static
     {
@@ -58,6 +60,8 @@ class DurationLimiterBuilder
 
     /**
      * Set the amount of time the lock window is maintained.
+     *
+     * @return $this
      */
     public function every(DateTimeInterface|DateInterval|int $decay): static
     {
@@ -68,6 +72,8 @@ class DurationLimiterBuilder
 
     /**
      * Set the amount of time to block until a lock is available.
+     *
+     * @return $this
      */
     public function block(int $timeout): static
     {
@@ -78,6 +84,8 @@ class DurationLimiterBuilder
 
     /**
      * Set the number of milliseconds to wait between lock acquisition attempts.
+     *
+     * @return $this
      */
     public function sleep(int $sleep): static
     {

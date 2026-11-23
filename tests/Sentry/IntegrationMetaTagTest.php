@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Sentry\Integration;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Sentry\State\Scope;
 use Sentry\Tracing\Span;
 
@@ -13,6 +14,8 @@ use function Sentry\configureScope;
 
 class IntegrationMetaTagTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string DANGEROUS_PAYLOAD = '</meta><script>alert("owned")</script>';
 
     /**
@@ -90,9 +93,9 @@ class IntegrationMetaTagTest extends TestCase
      */
     private function setDangerousSpanValues(string $traceparent, string $baggage): void
     {
-        $span = m::mock(Span::class);
-        $span->shouldReceive('toTraceparent')->andReturn($traceparent)->zeroOrMoreTimes();
-        $span->shouldReceive('toBaggage')->andReturn($baggage)->zeroOrMoreTimes();
+        $span = Double::for(Span::class)->strict();
+        $span->allows('toTraceparent')->returns($traceparent);
+        $span->allows('toBaggage')->returns($baggage);
 
         configureScope(static function (Scope $scope) use ($span): void {
             $scope->setSpan($span);

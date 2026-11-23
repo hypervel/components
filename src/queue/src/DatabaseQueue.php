@@ -7,19 +7,21 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\DetectsConcurrencyErrors;
 use Hypervel\Database\DetectsLostConnections;
-use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
+use Hypervel\Queue\Concerns\EnqueuesPreparedBatches;
 use Hypervel\Queue\Concerns\InsertsDatabaseRows;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
@@ -28,11 +30,13 @@ use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use LogicException;
 use Throwable;
 use UnitEnum;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, PublishesOutboxMessages
 {
+    use EnqueuesPreparedBatches;
     use DetectsConcurrencyErrors;
     use DetectsLostConnections;
     use InsertsDatabaseRows;
@@ -276,6 +280,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $this->ensureForwardedBatchCanBeStored($job);
         $queue = $this->normalizeQueue($queue);
 
         return $this->enqueueUsing(
@@ -305,6 +310,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $this->ensureForwardedBatchCanBeStored($job);
         $queue = $this->normalizeQueue($queue);
 
         return $this->enqueueUsing(
@@ -327,55 +333,6 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
     }
 
     /**
-     * Push an array of jobs onto the queue.
-     *
-     * Immediate and after-commit jobs use one bulk insert per attempted group.
-     * Deferred groups reacquire the queue through the after-commit dispatcher,
-     * and the return value remains null when every job is deferred.
-     */
-    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
-    {
-        $queue = $this->normalizeQueue($queue);
-        $jobs = array_values($this->stageOutboxJobs($jobs, $data, $queue));
-
-        if ($jobs === []) {
-            return null;
-        }
-
-        $transactions = null;
-
-        if ($this->container->has('db.transactions')) {
-            /** @var DatabaseTransactionsManager $transactions */
-            $transactions = $this->container->make('db.transactions');
-        }
-
-        [$afterCommit, $immediate] = $this->partitionJobsByAfterCommit($jobs, $transactions);
-
-        $result = null;
-
-        if ($immediate !== []) {
-            $result = $this->enqueueBatch($this->prepareBatchJobs($immediate, $data, $queue), $queue);
-        }
-
-        if ($afterCommit === []) {
-            return $result;
-        }
-
-        $preparedJobs = $this->prepareBatchJobs($afterCommit, $data, $queue);
-        /** @var DatabaseTransactionsManager $transactions */
-        $this->deferBatchEnqueueAfterCommit(
-            $transactions,
-            $afterCommit,
-            static function (Queue $owner) use ($preparedJobs, $queue): mixed {
-                /** @var DatabaseQueue $owner */
-                return $owner->enqueueBatch($preparedJobs, $queue);
-            },
-        );
-
-        return $result;
-    }
-
-    /**
      * Prepare the payload and delay for each of the given jobs.
      *
      * @return array<int, array{job: object|string, delay: null|DateInterval|DateTimeInterface|int, payload: string}>
@@ -390,6 +347,32 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     protected function enqueueBatch(array $jobs, ?string $queue): mixed
     {
+        return $this->writePreparedJobs($jobs, $queue, null);
+    }
+
+    /**
+     * Preserve custom bulk writers when their acknowledgement details are unavailable.
+     */
+    protected function publishPreparedBatch(array $jobs, ?string $queue, ?BatchEnqueueAttempt $attempt): mixed
+    {
+        if ($attempt === null || $this->usesCustomBatchWriter(self::class, 'enqueueBatch')) {
+            $attempt?->attempting(array_keys($jobs));
+            $result = $this->enqueueBatch(array_values($jobs), $queue);
+            $attempt?->accepted(array_keys($jobs));
+
+            return $result;
+        }
+
+        return $this->writePreparedJobs($jobs, $queue, $attempt);
+    }
+
+    /**
+     * Insert the group and confirm storage before notifying listeners.
+     */
+    protected function writePreparedJobs(array $jobs, ?string $queue, ?BatchEnqueueAttempt $attempt): mixed
+    {
+        $sendAttempted = false;
+
         try {
             foreach ($jobs as $index => $job) {
                 $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
@@ -409,31 +392,29 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
 
             $now = $this->availableAt();
             $connection = $this->getDatabase();
+            $rows = (new Collection($jobs))->map(fn (array $job): array => $this->buildDatabaseRecord(
+                $this->getQueue($queue),
+                $job['storedPayload'],
+                $job['delay'] !== null ? $this->availableAt($job['delay']) : $now,
+            ))->all();
 
-            $this->insertDatabaseRows(
-                $connection,
-                $this->table,
-                (new Collection($jobs))
-                    ->map(fn (array $job): array => $this->buildDatabaseRecord(
-                        $this->getQueue($queue),
-                        $job['storedPayload'],
-                        $job['delay'] !== null ? $this->availableAt($job['delay']) : $now,
-                    ))->all(),
-            );
+            $sendAttempted = true;
+            if ($attempt !== null && $attempt->batchTransactionConnection === null) {
+                // A query listener can throw after an independent insert has committed.
+                $attempt->attempting(array_keys($jobs));
+            }
+            $this->insertDatabaseRows($connection, $this->table, $rows);
 
+            $attempt?->accepted(array_keys($jobs));
             foreach ($jobs as $job) {
                 $this->addStoredJobRollbackCallback($job['job'], $connection);
             }
 
             $result = true;
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
             $this->notifyBatchMembersOfFailure(
                 $jobs,
-                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
+                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception, $sendAttempted),
             );
 
             throw $exception;
@@ -632,10 +613,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     protected function getLockForPopping(): bool|string
     {
-        $connection = $this->getDatabase();
-
-        return $connection instanceof PdoConnection
-            ? $connection->lockForPopping()
+        return $this->getDatabase()->supportsSkipLocked()
+            ? 'FOR UPDATE SKIP LOCKED'
             : true;
     }
 
@@ -764,6 +743,50 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
     }
 
     /**
+     * Refuse a failover attempt whose insert could still roll back after the batch has committed.
+     */
+    private function ensureForwardedBatchCanBeStored(object|string $job): void
+    {
+        if (! isset($job->batchId)) {
+            return;
+        }
+
+        $forwarded = CoroutineContext::get(self::OUTBOX_FORWARDED_CONTEXT_KEY);
+        if (($forwarded['job'] ?? null) === $job && isset($forwarded['onFailure']) && $forwarded['afterCommitHandled']) {
+            $connection = $this->getDatabase();
+            if ($connection->hasApplicableTransaction()) {
+                $this->reportForwardedFailure($job, false);
+                throw new LogicException("Cannot deliver a batched job through failover while queue database [{$connection->getNameWithReadWriteType()}] has an open transaction.");
+            }
+        }
+    }
+
+    /**
+     * Keep writes on a separate delivery connection outside its caller's transaction.
+     */
+    public function ensureBatchCanBeEnqueued(array $jobs, string $connection, bool $ownerHasTransaction): void
+    {
+        $delivery = $this->getDatabase();
+        if ($delivery->getNameWithReadWriteType() === $connection || ! $delivery->hasApplicableTransaction()) {
+            parent::ensureBatchCanBeEnqueued($jobs, $connection, $ownerHasTransaction);
+            return;
+        }
+
+        $customBulk = $this->usesCustomBatchDelivery();
+        if (array_any($jobs, fn ($job) => $customBulk || ! $this->shouldStageViaOutbox($job))) {
+            throw new LogicException("Dispatch after the transaction on the queue database [{$delivery->getNameWithReadWriteType()}] commits, or use the batch database [{$connection}].");
+        }
+    }
+
+    /**
+     * A jobs insert participates in enrollment only on its own connection.
+     */
+    protected function batchWaitsForOwner(string $connection): bool
+    {
+        return $this->getDatabase()->getNameWithReadWriteType() !== $connection;
+    }
+
+    /**
      * Avoid a second durable table when the jobs insert already belongs to its owner.
      */
     protected function shouldStageViaOutbox(object|string $job): bool
@@ -819,7 +842,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
     /**
      * Get the underlying database connection.
      */
-    public function getDatabase(): ConnectionInterface
+    public function getDatabase(): Connection
     {
         return $this->resolver->connection($this->connection);
     }

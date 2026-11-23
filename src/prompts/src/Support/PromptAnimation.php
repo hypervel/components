@@ -69,7 +69,7 @@ class PromptAnimation
         $this->coroutineId = null;
 
         $this->stop->push(true);
-        Coroutine::join([$coroutineId]);
+        Coroutine::joinUninterruptibly([$coroutineId]);
 
         return $this->renderFailure;
     }

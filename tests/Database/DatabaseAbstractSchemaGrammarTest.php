@@ -8,13 +8,16 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class DatabaseAbstractSchemaGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCreateDatabase(): void
     {
         $connection = new PdoConnection(new PDO('sqlite::memory:'));
@@ -38,7 +41,7 @@ class DatabaseAbstractSchemaGrammarTest extends TestCase
     #[TestWith(['compileCreateRangePartition', ['users', 'users_1', [1], [2]]])]
     public function testPartitioningIsUnsupportedByDefault(string $method, array $arguments): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
         };
 

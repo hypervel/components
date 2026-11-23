@@ -31,49 +31,43 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineCreate(): void
     {
-        $coroutine = new Coroutine(function () {
-            $this->assertTrue(true);
+        $id = null;
+        $coroutine = new Coroutine(static function () use (&$id): void {
+            $id = Coroutine::id();
         });
 
         $coroutine->execute();
 
         $this->assertInstanceOf(CoroutineInterface::class, $coroutine);
-        $this->assertIsInt($coroutine->getId());
+        $this->assertSame($coroutine->getId(), $id);
     }
 
     public function testCoroutineCreateStatic(): void
     {
-        $coroutine = Coroutine::create(function () {
-            $this->assertTrue(true);
+        $id = null;
+        $coroutine = Coroutine::create(static function () use (&$id): void {
+            $id = Coroutine::id();
         });
 
         $this->assertInstanceOf(CoroutineInterface::class, $coroutine);
-        $this->assertIsInt($coroutine->getId());
+        $this->assertSame($coroutine->getId(), $id);
     }
 
     public function testCreatedCoroutineKeepsErrorReportingEnabledAfterSuspension(): void
     {
-        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6305 is released.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '==')) {
-            $this->markTestSkipped('Swoole 6.3.0RC1 suppresses error reporting inside coroutines created by Hypervel.');
-        }
+        // Swoole captures the configured mask when the scheduler starts.
+        $mask = E_ALL & ~E_DEPRECATED;
+        $process = new Process([
+            PHP_BINARY,
+            '-d',
+            'error_reporting=' . $mask,
+            __DIR__ . '/Fixtures/coroutine-error-reporting.php',
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+        ]);
+        $process->setTimeout(2);
+        $process->mustRun();
 
-        $previousErrorReporting = error_reporting(E_ALL);
-        $levels = [];
-
-        try {
-            $coroutine = Coroutine::create(static function () use (&$levels): void {
-                $levels[] = error_reporting();
-                Coroutine::yield();
-                $levels[] = error_reporting();
-            });
-
-            Coroutine::resumeById($coroutine->getId());
-
-            $this->assertSame([E_ALL, E_ALL], $levels);
-        } finally {
-            error_reporting($previousErrorReporting);
-        }
+        $this->assertSame([$mask, $mask], json_decode($process->getOutput(), flags: JSON_THROW_ON_ERROR));
     }
 
     public function testCoroutineContext(): void
@@ -274,10 +268,6 @@ class CoroutineTest extends TestCase
 
     public function testCancellationEscapesDirectoryIteration(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires correct coroutine exception delivery from https://github.com/swoole/swoole-src/pull/6185.');
-        }
-
         $process = new Process([
             PHP_BINARY,
             __DIR__ . '/Fixtures/cancel-directory-iterator.php',
@@ -291,10 +281,6 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineTimeLimitOwnsOneFractionalTimer(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires fractional and owned coroutine time-limit timers from https://github.com/swoole/swoole-src/pull/6270.');
-        }
-
         $timerCount = Timer::stats()['num'];
         $counts = [];
 

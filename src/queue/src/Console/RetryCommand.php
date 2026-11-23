@@ -11,12 +11,19 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Events\CallQueuedListener;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\Jobs\JobName;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Enumerable;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\LazyCollection;
+use ReflectionClass;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -24,6 +31,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'queue:retry')]
 class RetryCommand extends Command
 {
+    use InteractsWithTime;
+    use ReadsQueueAttributes;
+
     /**
      * The console command signature.
      */
@@ -105,7 +115,10 @@ class RetryCommand extends Command
             return $failer->ids();
         }
 
-        if ($queue = $this->option('queue')) {
+        $queue = $this->option('queue');
+
+        // A queue named "0" is valid; only an omitted or empty option means no queue.
+        if ($queue !== null && $queue !== '') {
             return $this->getJobIdsByQueue($queue);
         }
 
@@ -113,7 +126,8 @@ class RetryCommand extends Command
             $ids = array_merge($ids, $this->getJobIdsByRanges($ranges));
         }
 
-        return array_values(array_filter(array_unique($ids)));
+        // Nonempty IDs, including "0", must reach the provider for a result or not-found message.
+        return array_values(array_filter(array_unique($ids), static fn (int|string $id): bool => $id !== ''));
     }
 
     /**
@@ -188,19 +202,40 @@ class RetryCommand extends Command
     {
         $payload = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
 
-        if (! isset($payload['data']['command'])) {
+        if (! JobName::hasJobObject($payload)) {
             return json_encode($payload, JSON_THROW_ON_ERROR);
         }
 
-        $instance = $this->getInstanceFromPayload($payload);
-
-        if (is_object($instance) && ! $instance instanceof __PHP_Incomplete_Class && method_exists($instance, 'retryUntil')) {
-            $retryUntil = $instance->retryUntil();
-
-            $payload['retryUntil'] = $retryUntil instanceof DateTimeInterface
-                ? $retryUntil->getTimestamp()
-                : $retryUntil;
+        try {
+            $instance = $this->getInstanceFromPayload($payload);
+        } catch (ModelNotFoundException) {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
         }
+
+        if (! is_object($instance) || $instance instanceof __PHP_Incomplete_Class) {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
+        }
+
+        if (method_exists($instance, 'retryUntil')) {
+            $retryUntil = $instance->retryUntil();
+        } elseif ($instance instanceof CallQueuedListener && method_exists($instance->class, 'retryUntil')) {
+            // Unlike Laravel, a queued listener's deadline is recalculated too, from its method as dispatch does.
+            $retryUntil = (new ReflectionClass($instance->class))
+                ->newInstanceWithoutConstructor()
+                ->retryUntil(...array_values($instance->data));
+        } elseif ($instance instanceof CallQueuedListener && ! is_null($instance->retryFor)) {
+            // Dispatch keeps the listener's RetryFor window on the job so it can be refreshed here.
+            $retryUntil = $this->availableAt($instance->retryFor);
+        } elseif (! isset($instance->retryUntil) && ! is_null($retryFor = $this->getAttributeValue($instance, RetryFor::class))) {
+            // Unlike Laravel, a retryUntil property keeps its absolute deadline, as it does at dispatch.
+            $retryUntil = $this->availableAt($retryFor);
+        } else {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
+        }
+
+        $payload['retryUntil'] = $retryUntil instanceof DateTimeInterface
+            ? $retryUntil->getTimestamp()
+            : $retryUntil;
 
         return json_encode($payload, JSON_THROW_ON_ERROR);
     }
@@ -218,12 +253,21 @@ class RetryCommand extends Command
 
         $payload = json_decode($job->payload, true, flags: JSON_THROW_ON_ERROR);
 
-        if (! isset($payload['data']['command'])) {
-            return [];
+        try {
+            $instance = JobName::hasJobObject($payload)
+                ? $this->getInstanceFromPayload($payload)
+                : $payload['job'];
+        } catch (ModelNotFoundException) {
+            $instance = null;
+        }
+
+        // Unrestorable jobs still need the driver's string-job defaults, including required FIFO message options.
+        if ($instance === null || $instance instanceof __PHP_Incomplete_Class) {
+            $instance = $payload['data']['commandName'] ?? $payload['job'];
         }
 
         $getOptions = fn (SqsQueue $queue) => $queue->getQueueableOptions(
-            $this->getInstanceFromPayload($payload),
+            $instance,
             $job->queue,
             $job->payload,
         );

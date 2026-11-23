@@ -13,11 +13,15 @@ use Hypervel\RateLimiter\Listeners\RegisterPruneTimer;
 use Hypervel\RateLimiter\RateLimiterServiceProvider;
 use Hypervel\Support\DefaultProviders;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Swoole\Server as SwooleServer;
 
 class RateLimiterServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRateLimiterIsARequiredFrameworkProvider(): void
     {
         $this->assertContains(
@@ -28,26 +32,26 @@ class RateLimiterServiceProviderTest extends TestCase
 
     public function testLifecycleListenersAreResolvedAtEventTime(): void
     {
-        $events = m::mock(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $listeners = [];
-        $events->shouldReceive('listen')
-            ->twice()
-            ->andReturnUsing(function (mixed $event, mixed $listener) use (&$listeners): void {
+        $events->expects('listen')
+            ->times(2)
+            ->resolves(function (mixed $event, mixed $listener) use (&$listeners): void {
                 $listeners[$event] = $listener;
             });
-        $tables = m::mock(InitializeSwooleTables::class);
-        $timers = m::mock(RegisterPruneTimer::class);
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->once()->with('events')->andReturn($events);
-        $application->shouldReceive('make')->once()->with(InitializeSwooleTables::class)->andReturn($tables);
-        $application->shouldReceive('make')->once()->with(RegisterPruneTimer::class)->andReturn($timers);
+        $tables = Double::for(InitializeSwooleTables::class)->strict();
+        $timers = Double::for(RegisterPruneTimer::class)->strict();
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')->with('events')->returns($events);
+        $application->expects('make')->with(InitializeSwooleTables::class)->returns($tables);
+        $application->expects('make')->with(RegisterPruneTimer::class)->returns($timers);
         $beforeServerStart = new BeforeServerStart('server');
-        $server = m::mock(SwooleServer::class);
+        $server = Double::for(SwooleServer::class)->strict();
         $afterWorkerStart = new AfterWorkerStart($server, 0);
-        $tables->shouldReceive('handle')->once()->with($beforeServerStart);
-        $timers->shouldReceive('handle')->once()->with($afterWorkerStart);
+        $tables->expects('handle')->with(Argument::same($beforeServerStart));
+        $timers->expects('handle')->with(Argument::same($afterWorkerStart));
 
-        (new RateLimiterServiceProvider($application))->boot();
+        (new RateLimiterServiceProvider($application->instance()))->boot();
 
         $listeners[BeforeServerStart::class]($beforeServerStart);
         $listeners[AfterWorkerStart::class]($afterWorkerStart);

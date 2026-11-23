@@ -10,6 +10,7 @@ use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
@@ -70,11 +71,28 @@ abstract class CoroutineQueue extends SyncQueue
     }
 
     /**
+     * Preserve per-job transport overrides in custom queues.
+     */
+    protected function usesCustomBatchDelivery(): bool
+    {
+        return ! in_array(static::class, [BackgroundQueue::class, DeferredQueue::class], true);
+    }
+
+    /**
+     * Schedule background work only after enrollment commits.
+     */
+    protected function batchWaitsForOwner(string $connection): bool
+    {
+        return true;
+    }
+
+    /**
      * Set the exception callback for the coroutine queue.
      *
-     * Boot-only. The callback persists on the cached queue connection for the
-     * worker lifetime and handles every subsequent coroutine queue exception.
+     * The callback persists on the cached queue connection for the worker
+     * lifetime and handles every subsequent coroutine queue exception.
      */
+    #[BootOnly(whenShared: true)]
     public function setExceptionCallback(?callable $callback): static
     {
         $this->exceptionCallback = $callback;
@@ -142,6 +160,7 @@ abstract class CoroutineQueue extends SyncQueue
             $this->withLogContext(null, function () use ($payload, $queue): void {
                 try {
                     $this->processPayload($payload, $queue);
+                    // @phpstan-ignore hypervel.cancellation.exactType (native cancellation ends the job silently; a cleanup failure carrying it is reported)
                 } catch (CanceledException $exception) {
                     throw $exception;
                 } catch (Throwable $e) {

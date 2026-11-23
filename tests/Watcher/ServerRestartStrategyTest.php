@@ -10,7 +10,9 @@ use Hypervel\Engine\Channel;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Watcher\ServerRestartStrategy;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -20,6 +22,8 @@ use Throwable;
 
 class ServerRestartStrategyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConstructorDefaultsMissingDaemonizeSettingToFalse(): void
     {
         $this->app->instance('config', new Repository([
@@ -355,10 +359,9 @@ class ServerRestartStrategyTest extends TestCase
 
     public function testOpenFailureClearsLifecycleOwnershipAndAllowsRetry(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')
-            ->once()
-            ->with(m::on(
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')
+            ->with(Argument::satisfies(
                 fn (mixed $exception): bool => $exception instanceof RuntimeException
                     && $exception->getMessage() === 'Unable to launch the watched server process.',
             ));
@@ -379,8 +382,8 @@ class ServerRestartStrategyTest extends TestCase
     public function testCloseFailureClearsLifecycleOwnershipAndAllowsRetry(): void
     {
         $failure = new RuntimeException('expected close failure');
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
         $strategy = $this->createProbeStrategy();
         $strategy->closeFailures = [$failure, null];
@@ -397,8 +400,8 @@ class ServerRestartStrategyTest extends TestCase
     public function testMalformedEnvironmentDuringRestartClearsOwnershipAndAllowsRetry(): void
     {
         $failure = new RuntimeException('malformed environment');
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
         $strategy = $this->createProbeStrategy();
         $strategy->reloadFailures = [null, $failure, null];
@@ -426,8 +429,8 @@ class ServerRestartStrategyTest extends TestCase
 
     public function testNormalServerExitClearsLifecycleOwnership(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->never();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
         $strategy = $this->createProbeStrategy();
 

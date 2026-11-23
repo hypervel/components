@@ -25,6 +25,7 @@ use Hypervel\Fortify\Contracts\UpdatesUserProfileInformation;
 use Hypervel\Fortify\Contracts\VerifyEmailViewResponse;
 use Hypervel\Fortify\Http\Responses\SimpleViewResponse;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 
 class Fortify
@@ -97,10 +98,11 @@ class Fortify
     /**
      * Register a request-aware redirect resolver.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent response for the named Fortify redirect.
+     * The callback persists in static state for the worker lifetime and affects every subsequent response for the named Fortify redirect.
      *
      * @param null|(callable(Request): (null|string)) $callback
      */
+    #[BootOnly]
     public static function redirectUsing(string $redirect, ?callable $callback): void
     {
         if ($callback === null) {
@@ -115,8 +117,9 @@ class Fortify
     /**
      * Register the views for Fortify using conventional names under the given namespace.
      *
-     * Boot-only. The response bindings persist in the container for the worker lifetime and affect every subsequent request.
+     * The response bindings persist in the container for the worker lifetime and affect every subsequent request.
      */
+    #[BootOnly]
     public static function viewNamespace(string $namespace): void
     {
         static::viewPrefix($namespace . '::');
@@ -125,8 +128,9 @@ class Fortify
     /**
      * Register the views for Fortify using conventional names under the given prefix.
      *
-     * Boot-only. The response bindings persist in the container for the worker lifetime and affect every subsequent request.
+     * The response bindings persist in the container for the worker lifetime and affect every subsequent request.
      */
+    #[BootOnly]
     public static function viewPrefix(string $prefix): void
     {
         static::loginView($prefix . 'login');
@@ -141,8 +145,9 @@ class Fortify
     /**
      * Specify which view should be used as the login view.
      *
-     * Boot-only. The response binding persists in the container for the worker lifetime and affects every subsequent request.
+     * The response binding persists in the container for the worker lifetime and affects every subsequent request.
      */
+    #[BootOnly]
     public static function loginView(callable|string $view): void
     {
         self::container()->singleton(LoginViewResponse::class, static fn (): SimpleViewResponse => new SimpleViewResponse($view));
@@ -151,8 +156,9 @@ class Fortify
     /**
      * Specify which view should be used as the two factor authentication challenge view.
      *
-     * Boot-only. The response binding persists in the container for the worker lifetime and affects every subsequent request.
+     * The response binding persists in the container for the worker lifetime and affects every subsequent request.
      */
+    #[BootOnly]
     public static function twoFactorChallengeView(callable|string $view): void
     {
         self::container()->singleton(TwoFactorChallengeViewResponse::class, static fn (): SimpleViewResponse => new SimpleViewResponse($view));
@@ -161,8 +167,9 @@ class Fortify
     /**
      * Specify which view should be used as the new password view.
      *
-     * Boot-only. The response binding persists in the container for the worker lifetime and affects every subsequent request.
+     * The response binding persists in the container for the worker lifetime and affects every subsequent request.
      */
+    #[BootOnly]
     public static function resetPasswordView(callable|string $view): void
     {
         self::container()->singleton(ResetPasswordViewResponse::class, static fn (): SimpleViewResponse => new SimpleViewResponse($view));
@@ -171,8 +178,9 @@ class Fortify
     /**
      * Specify which view should be used as the registration view.
      *
-     * Boot-only. The response binding persists in the container for the worker lifetime and affects every subsequent request.
+     * The response binding persists in the container for the worker lifetime and affects every subsequent request.
      */
+    #[BootOnly]
     public static function registerView(callable|string $view): void
     {
         self::container()->singleton(RegisterViewResponse::class, static fn (): SimpleViewResponse => new SimpleViewResponse($view));
@@ -181,8 +189,9 @@ class Fortify
     /**
      * Specify which view should be used as the email verification prompt.
      *
-     * Boot-only. The response binding persists in the container for the worker lifetime and affects every subsequent request.
+     * The response binding persists in the container for the worker lifetime and affects every subsequent request.
      */
+    #[BootOnly]
     public static function verifyEmailView(callable|string $view): void
     {
         self::container()->singleton(VerifyEmailViewResponse::class, static fn (): SimpleViewResponse => new SimpleViewResponse($view));
@@ -191,8 +200,9 @@ class Fortify
     /**
      * Specify which view should be used as the password confirmation prompt.
      *
-     * Boot-only. The response binding persists in the container for the worker lifetime and affects every subsequent request.
+     * The response binding persists in the container for the worker lifetime and affects every subsequent request.
      */
+    #[BootOnly]
     public static function confirmPasswordView(callable|string $view): void
     {
         self::container()->singleton(ConfirmPasswordViewResponse::class, static fn (): SimpleViewResponse => new SimpleViewResponse($view));
@@ -201,8 +211,9 @@ class Fortify
     /**
      * Specify which view should be used as the request password reset link view.
      *
-     * Boot-only. The response binding persists in the container for the worker lifetime and affects every subsequent request.
+     * The response binding persists in the container for the worker lifetime and affects every subsequent request.
      */
+    #[BootOnly]
     public static function requestPasswordResetLinkView(callable|string $view): void
     {
         self::container()->singleton(RequestPasswordResetLinkViewResponse::class, static fn (): SimpleViewResponse => new SimpleViewResponse($view));
@@ -211,8 +222,9 @@ class Fortify
     /**
      * Register a callback that is responsible for building the authentication pipeline array.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent login request.
+     * The callback persists in static state for the worker lifetime and affects every subsequent login request.
      */
+    #[BootOnly]
     public static function loginThrough(callable $callback): void
     {
         static::authenticateThrough($callback);
@@ -221,8 +233,9 @@ class Fortify
     /**
      * Register a callback that is responsible for building the authentication pipeline array.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent login request.
+     * The callback persists in static state for the worker lifetime and affects every subsequent login request.
      */
+    #[BootOnly]
     public static function authenticateThrough(callable $callback): void
     {
         self::$authenticateThroughCallback = Closure::fromCallable($callback);
@@ -239,8 +252,9 @@ class Fortify
     /**
      * Register a callback that is responsible for validating incoming authentication credentials.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent login request.
+     * The callback persists in static state for the worker lifetime and affects every subsequent login request.
      */
+    #[BootOnly]
     public static function authenticateUsing(callable $callback): void
     {
         self::$authenticateUsingCallback = Closure::fromCallable($callback);
@@ -257,8 +271,9 @@ class Fortify
     /**
      * Register a class / callback that should be used to redirect users for two factor authentication.
      *
-     * Boot-only. The scoped binding configuration persists for the worker lifetime and affects future requests.
+     * The scoped binding configuration persists for the worker lifetime and affects future requests.
      */
+    #[BootOnly]
     public static function redirectUserForTwoFactorAuthenticationUsing(callable|string $callback): void
     {
         self::container()->scoped(RedirectsIfTwoFactorAuthenticatable::class, self::bindingConcrete($callback));
@@ -267,8 +282,9 @@ class Fortify
     /**
      * Register a callback that is responsible for confirming existing user passwords as valid.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent password confirmation request.
+     * The callback persists in static state for the worker lifetime and affects every subsequent password confirmation request.
      */
+    #[BootOnly]
     public static function confirmPasswordsUsing(callable $callback): void
     {
         self::$confirmPasswordsUsingCallback = Closure::fromCallable($callback);
@@ -285,8 +301,9 @@ class Fortify
     /**
      * Register a class / callback that should be used to create new users.
      *
-     * Boot-only. The binding persists in the container for the worker lifetime and affects every subsequent registration request.
+     * The binding persists in the container for the worker lifetime and affects every subsequent registration request.
      */
+    #[BootOnly]
     public static function createUsersUsing(callable|string $callback): void
     {
         self::container()->singleton(CreatesNewUsers::class, self::bindingConcrete($callback));
@@ -295,8 +312,9 @@ class Fortify
     /**
      * Register a class / callback that should be used to update user profile information.
      *
-     * Boot-only. The binding persists in the container for the worker lifetime and affects every subsequent profile update request.
+     * The binding persists in the container for the worker lifetime and affects every subsequent profile update request.
      */
+    #[BootOnly]
     public static function updateUserProfileInformationUsing(callable|string $callback): void
     {
         self::container()->singleton(UpdatesUserProfileInformation::class, self::bindingConcrete($callback));
@@ -305,8 +323,9 @@ class Fortify
     /**
      * Register a class / callback that should be used to update user passwords.
      *
-     * Boot-only. The binding persists in the container for the worker lifetime and affects every subsequent password update request.
+     * The binding persists in the container for the worker lifetime and affects every subsequent password update request.
      */
+    #[BootOnly]
     public static function updateUserPasswordsUsing(callable|string $callback): void
     {
         self::container()->singleton(UpdatesUserPasswords::class, self::bindingConcrete($callback));
@@ -315,8 +334,9 @@ class Fortify
     /**
      * Register a class / callback that should be used to reset user passwords.
      *
-     * Boot-only. The binding persists in the container for the worker lifetime and affects every subsequent password reset request.
+     * The binding persists in the container for the worker lifetime and affects every subsequent password reset request.
      */
+    #[BootOnly]
     public static function resetUserPasswordsUsing(callable|string $callback): void
     {
         self::container()->singleton(ResetsUserPasswords::class, self::bindingConcrete($callback));
@@ -325,8 +345,9 @@ class Fortify
     /**
      * Register a callback that should be used to generate recovery codes.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent recovery code generation.
+     * The callback persists in static state for the worker lifetime and affects every subsequent recovery code generation.
      */
+    #[BootOnly]
     public static function generateRecoveryCodesUsing(callable $callback): void
     {
         self::$recoveryCodeGenerator = Closure::fromCallable($callback);
@@ -351,8 +372,9 @@ class Fortify
     /**
      * Set the encrypter instance that will be used to encrypt attributes.
      *
-     * Boot-only. The encrypter persists in static state for the worker lifetime and affects every subsequent encrypted Fortify attribute.
+     * The encrypter persists in static state for the worker lifetime and affects every subsequent encrypted Fortify attribute.
      */
+    #[BootOnly]
     public static function encryptUsing(?EncrypterContract $encrypter): static
     {
         self::$encrypter = $encrypter;
@@ -405,8 +427,9 @@ class Fortify
     /**
      * Configure Fortify to not register its routes.
      *
-     * Boot-only. The route registration flag persists in static state for the worker lifetime and affects route bootstrapping.
+     * The route registration flag persists in static state for the worker lifetime and affects route bootstrapping.
      */
+    #[BootOnly]
     public static function ignoreRoutes(): static
     {
         self::$registersRoutes = false;

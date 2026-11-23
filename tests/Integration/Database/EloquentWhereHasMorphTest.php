@@ -7,17 +7,21 @@ namespace Hypervel\Tests\Integration\Database\EloquentWhereHasMorphTest;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class EloquentWhereHasMorphTest extends DatabaseTestCase
 {
+    use VerifiesDoubles;
+
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -36,6 +40,11 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
             $table->string('title');
             $table->nullableMorphs('commentable');
             $table->softDeletes();
+        });
+
+        Schema::create('likes', function (Blueprint $table) {
+            $table->increments('id');
+            $table->morphs('likeable');
         });
 
         $models = [];
@@ -107,9 +116,9 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
         $this->assertSame($zeroIds, Comment::whereHasMorph('commentable', '*', null, $operator, new Expression('0'))
             ->orderBy('id')->pluck('id')->all());
 
-        $count = m::mock(ExpressionContract::class);
+        $count = Double::for(ExpressionContract::class)->strict();
         // Decimal subtraction avoids unsigned integer underflow on MySQL and MariaDB.
-        $count->shouldReceive('getValue')->andReturn('comments.id - 7.0');
+        $count->allows('getValue')->returns('comments.id - 7.0');
 
         $query = Comment::whereHasMorph('commentable', '*', null, $operator, $count)->orderBy('id');
 
@@ -233,6 +242,16 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
         })->orderBy('id')->get();
 
         $this->assertEquals([1], $comments->pluck('id')->all());
+    }
+
+    public function testWhereHasMorphWithTrashed(): void
+    {
+        Like::create(['likeable_type' => Post::class, 'likeable_id' => 1]);
+        Like::create(['likeable_type' => Post::class, 'likeable_id' => 3]);
+
+        $this->assertEquals([1, 2], Like::has('likeableWithTrashed')->orderBy('id')->pluck('id')->all());
+        $this->assertEquals([1, 2], Like::whereHasMorph('likeableWithTrashed', Post::class)->orderBy('id')->pluck('id')->all());
+        $this->assertEquals([1], Like::has('likeable')->pluck('id')->all());
     }
 
     public function testHasMorph(): void
@@ -369,6 +388,33 @@ class Comment extends Model
     public function commentableWithOwnerKey()
     {
         return $this->morphTo('commentable', null, null, 'slug');
+    }
+}
+
+class Like extends Model
+{
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    /**
+     * Get the liked model.
+     *
+     * @return MorphTo<Model, $this>
+     */
+    public function likeable(): MorphTo
+    {
+        return $this->morphTo();
+    }
+
+    /**
+     * Get the liked model, including soft deleted models.
+     *
+     * @return MorphTo<Model, $this>
+     */
+    public function likeableWithTrashed(): MorphTo
+    {
+        return $this->morphTo('likeable')->withTrashed();
     }
 }
 

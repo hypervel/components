@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation;
 
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\GenericUser;
+use Hypervel\Auth\SessionGuard;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
@@ -13,11 +14,14 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class FoundationAuthenticationTest extends TestCase
 {
     use InteractsWithAuthentication;
+    use VerifiesDoubles;
 
     protected Application $app;
 
@@ -31,16 +35,17 @@ class FoundationAuthenticationTest extends TestCase
      */
     protected function mockGuard(): Guard
     {
-        $guard = m::mock(Guard::class);
+        $guard = Double::for(SessionGuard::class)->strict();
 
-        $auth = m::mock(AuthManager::class);
+        $auth = Double::for(AuthManager::class)->strict();
         $auth->expects('guard')
-            ->andReturn($guard);
+            ->returns($guard);
 
-        $this->app = m::mock(Application::class);
-        $this->app->expects('make')
-            ->withArgs(['auth'])
-            ->andReturn($auth);
+        $app = Double::for(Application::class, override: true)->strict();
+        $app->expects('make')
+            ->with('auth')
+            ->returns($auth);
+        $this->app = $app->instance();
 
         return $guard;
     }
@@ -162,19 +167,19 @@ class FoundationAuthenticationTest extends TestCase
     {
         $user = new GenericUser([]);
 
-        $provider = m::mock(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
 
         $provider->expects('retrieveByCredentials')
             ->with($credentials)
-            ->andReturn($user);
+            ->returns($user);
 
         $provider->expects('validateCredentials')
-            ->with($user, $credentials)
-            ->andReturn($this->credentials === $credentials);
+            ->with(Argument::same($user), $credentials)
+            ->returns($this->credentials === $credentials);
 
         $this->mockGuard()
             ->expects('getProvider')
-            ->andReturn($provider);
+            ->returns($provider);
     }
 
     public function testAssertCredentials(): void

@@ -10,16 +10,19 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\Job;
+use Hypervel\Queue\SyncQueue;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -28,6 +31,8 @@ use Throwable;
 
 class QueueJobTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testValidPayloadIsDecodedOnceAcrossAccessors(): void
     {
         $job = new QueueJobPayloadStub(json_encode([
@@ -95,16 +100,15 @@ class QueueJobTest extends TestCase
     {
         $exception = new RuntimeException('Queue payload failed.');
         $job = new QueueJobPayloadStub('{invalid');
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->once()
-            ->withArgs(fn (JobFailed $event) => $event->job === $job && $event->exception === $exception);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('dispatch')
+            ->with(Argument::satisfies(fn (JobFailed $event) => $event->job === $job && $event->exception === $exception));
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(Dispatcher::class)->returns($events);
 
-        $job->setContainer($container);
+        $job->setContainer($container->instance());
         $job->setConnectionName('redis');
 
         $job->fail($exception);
@@ -117,14 +121,14 @@ class QueueJobTest extends TestCase
     {
         $exception = new RuntimeException('Queue payload failed.');
         $job = new QueueJobPayloadStub('{invalid');
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnFalse();
-        $events->shouldReceive('dispatch')->never();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(false);
+        $events->expects('dispatch')->never();
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(Dispatcher::class)->returns($events);
 
-        $job->setContainer($container);
+        $job->setContainer($container->instance());
         $job->setConnectionName('redis');
 
         $job->fail($exception);
@@ -142,20 +146,18 @@ class QueueJobTest extends TestCase
             'job' => QueueJobFailedHookStub::class,
             'data' => ['value' => true],
         ], JSON_THROW_ON_ERROR));
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->once()
-            ->withArgs(fn (JobFailed $event) => $event->job === $job && $event->exception === $failure);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('dispatch')
+            ->with(Argument::satisfies(fn (JobFailed $event) => $event->job === $job && $event->exception === $failure));
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')
-            ->once()
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')
             ->with(QueueJobFailedHookStub::class)
-            ->andReturn(new QueueJobFailedHookStub($hookException));
-        $container->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events);
+            ->returns(new QueueJobFailedHookStub($hookException));
+        $container->expects('make')->with(Dispatcher::class)->returns($events);
 
-        $job->setContainer($container);
+        $job->setContainer($container->instance());
         $job->setConnectionName('redis');
 
         try {
@@ -176,15 +178,17 @@ class QueueJobTest extends TestCase
         $job = new QueueJobPayloadStub(json_encode([
             'uuid' => 'job-uuid',
             'job' => QueueJobTimeoutBatchStub::class,
-            'data' => ['commandName' => QueueJobTimeoutBatchStub::class],
+            'data' => [
+                'commandName' => QueueJobTimeoutBatchStub::class,
+                'command' => serialize(new QueueJobTimeoutBatchStub),
+            ],
         ], JSON_THROW_ON_ERROR));
         $timeout = TimeoutExceededException::forJob($job);
         $gate = $this->armCurrentCoroutineCancellation();
         $cleanupException = new RuntimeException('Rollback cleanup failed.');
-        $batchRepository = m::mock(BatchRepository::class);
-        $batchRepository->shouldReceive('rollBack')
-            ->once()
-            ->andReturnUsing(static function () use ($gate, $cleanupThrows, $cleanupException): never {
+        $batchRepository = Double::for(BatchRepository::class)->strict();
+        $batchRepository->expects('rollBack')
+            ->resolves(static function () use ($gate, $cleanupThrows, $cleanupException): never {
                 try {
                     $gate->push(true);
 
@@ -196,9 +200,9 @@ class QueueJobTest extends TestCase
                     }
                 }
             });
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with(BatchRepository::class)->andReturn($batchRepository);
-        $job->setContainer($container);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(BatchRepository::class)->returns($batchRepository);
+        $job->setContainer($container->instance());
         $job->setConnectionName('redis');
 
         try {
@@ -228,13 +232,12 @@ class QueueJobTest extends TestCase
         ], JSON_THROW_ON_ERROR));
         $cleanupException = $cleanupThrows ? new RuntimeException('Failed-hook cleanup failed.') : null;
         $handler = new QueueJobCancelingFailedHookStub($this->armCurrentCoroutineCancellation(), $cleanupException);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')
-            ->once()
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')
             ->with(QueueJobCancelingFailedHookStub::class)
-            ->andReturn($handler);
-        $container->shouldNotReceive('make')->with(Dispatcher::class);
-        $job->setContainer($container);
+            ->returns($handler);
+        $container->expects('make')->never()->with(Dispatcher::class);
+        $job->setContainer($container->instance());
         $job->setConnectionName('redis');
 
         try {
@@ -258,14 +261,16 @@ class QueueJobTest extends TestCase
         $job = new QueueJobPayloadStub(json_encode([
             'uuid' => 'job-uuid',
             'job' => QueueJobTimeoutBatchStub::class,
-            'data' => ['commandName' => QueueJobTimeoutBatchStub::class],
+            'data' => [
+                'commandName' => QueueJobTimeoutBatchStub::class,
+                'command' => serialize(new QueueJobTimeoutBatchStub),
+            ],
         ], JSON_THROW_ON_ERROR));
         $timeout = TimeoutExceededException::forJob($job);
 
-        $batchRepository = m::mock(BatchRepository::class);
-        $batchRepository->shouldReceive('rollBack')
-            ->once()
-            ->andThrow(new RuntimeException('Batch rollback failed.'));
+        $batchRepository = Double::for(BatchRepository::class)->strict();
+        $batchRepository->expects('rollBack')
+            ->throws(new RuntimeException('Batch rollback failed.'));
 
         $config = new ConfigRepository([
             'queue' => [
@@ -275,29 +280,27 @@ class QueueJobTest extends TestCase
                 ],
             ],
         ]);
-        $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('rollBack')->once()->with(0);
-        $database = m::mock(ConnectionResolverInterface::class);
-        $database->shouldReceive('connection')->once()->with($databaseName)->andReturn($connection);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('rollBack')->with(0);
+        $database = Double::for(ConnectionResolverInterface::class)->strict();
+        $database->expects('connection')->with($databaseName)->returns($connection);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->once()
-            ->withArgs(fn (JobFailed $event) => $event->job === $job && $event->exception === $timeout);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('dispatch')
+            ->with(Argument::satisfies(fn (JobFailed $event) => $event->job === $job && $event->exception === $timeout));
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with(BatchRepository::class)->andReturn($batchRepository);
-        $container->shouldReceive('make')->with('config')->andReturn($config);
-        $container->shouldReceive('bound')->once()->with('db')->andReturnTrue();
-        $container->shouldReceive('make')->once()->with('db')->andReturn($database);
-        $container->shouldReceive('make')
-            ->once()
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with(BatchRepository::class)->returns($batchRepository);
+        $container->allows('make')->with('config')->returns($config);
+        $container->expects('bound')->with('db')->returns(true);
+        $container->expects('make')->with('db')->returns($database);
+        $container->expects('make')
             ->with(QueueJobTimeoutBatchStub::class)
-            ->andReturn(new QueueJobTimeoutBatchStub);
-        $container->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events);
+            ->returns(new QueueJobTimeoutBatchStub);
+        $container->expects('make')->with(Dispatcher::class)->returns($events);
 
-        $job->setContainer($container);
+        $job->setContainer($container->instance());
         $job->setConnectionName('redis');
 
         $job->fail($timeout);
@@ -309,6 +312,41 @@ class QueueJobTest extends TestCase
             'named connection' => ['sqlite'],
             'default connection' => [null],
         ];
+    }
+
+    public function testStringJobTimeoutDoesNotTreatCallerDataAsBatchMetadata(): void
+    {
+        $queue = new class extends SyncQueue {
+            /**
+             * Build a string-job payload through the real producer.
+             */
+            public function payloadFor(string $job, array $data): string
+            {
+                return $this->createPayload($job, 'default', $data);
+            }
+        };
+        $job = new QueueJobPayloadStub($queue->payloadFor(
+            QueueJobTimeoutBatchStub::class,
+            ['command' => 'backup:run', 'commandName' => 'backup:run'],
+        ));
+        $timeout = TimeoutExceededException::forJob($job);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('dispatch')
+            ->with(Argument::satisfies(fn (JobFailed $event): bool => $event->job === $job && $event->exception === $timeout));
+
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->never()->with(BatchRepository::class);
+        $container->allows('make')->with('config')->returns(new ConfigRepository(['queue' => ['failed' => ['driver' => null]]]));
+        $container->expects('make')->with(QueueJobTimeoutBatchStub::class)->returns(new QueueJobTimeoutBatchStub);
+        $container->expects('make')->with(Dispatcher::class)->returns($events);
+        $job->setContainer($container->instance());
+        $job->setConnectionName('redis');
+
+        $job->fail($timeout);
+
+        $this->assertTrue($job->hasFailed());
+        $this->assertTrue($job->isDeleted());
     }
 
     /**

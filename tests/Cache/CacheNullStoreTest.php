@@ -11,10 +11,13 @@ use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CacheNullStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItemsCanNotBeCached(): void
     {
         $store = new NullStore;
@@ -68,9 +71,9 @@ class CacheNullStoreTest extends TestCase
     public function testTaggedFlushReportsRejectedTagIdentifierWrites(): void
     {
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $events->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')->resolves(function (object $event) use (&$captured): void {
             $captured[] = $event;
         });
 

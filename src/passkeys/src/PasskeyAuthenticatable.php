@@ -61,7 +61,9 @@ trait PasskeyAuthenticatable
     /**
      * Get the unique user handle for WebAuthn.
      *
-     * This should be a stable identifier that does not reveal PII. The morph
+     * This should be a stable identifier that does not reveal PII. The
+     * handle is hex encoded because some platforms treat it as UTF-8 text
+     * and corrupt raw binary bytes, which breaks subsequent logins. The morph
      * class keeps polymorphic owners that share a table and key distinct.
      */
     public function getPasskeyUserHandle(): string
@@ -70,7 +72,6 @@ trait PasskeyAuthenticatable
             'sha256',
             $this->getMorphClass() . '|' . $this->getTable() . '|' . $this->getKey(),
             Passkeys::userHandleSecret(),
-            binary: true,
         );
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\EmbeddingGateway;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasEmbeddingGateway
 {
@@ -21,8 +22,9 @@ trait HasEmbeddingGateway
     /**
      * Set the provider's embedding gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useEmbeddingGateway(EmbeddingGateway $gateway): self
     {
         $this->embeddingGateway = $gateway;

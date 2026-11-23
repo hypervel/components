@@ -162,5 +162,5 @@ class PassportConnectionClient extends Client
 
 class PassportCustomKeyClient extends Client
 {
-    protected string $primaryKey = 'client_uuid';
+    protected ?string $primaryKey = 'client_uuid';
 }

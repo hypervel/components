@@ -14,7 +14,6 @@ use Hypervel\Engine\Channel;
 use Hypervel\Http\Request;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use RuntimeException;
 use stdClass;
 
@@ -183,7 +182,7 @@ class ContextCoroutineTest extends TestCase
 
     public function testRequestContextWithCoroutineId(): void
     {
-        $request = m::mock(Request::class);
+        $request = Request::create('/');
         RequestContext::set($request);
         $id = Coroutine::id();
         (new Waiter)->wait(function () use ($id, $request) {

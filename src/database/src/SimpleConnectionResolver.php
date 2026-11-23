@@ -38,7 +38,7 @@ class SimpleConnectionResolver implements ConnectionResolverInterface
      * Delegates to DatabaseManager::resolveConnectionDirectly() which manages
      * connections in a simple array without pooling.
      */
-    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): Connection
     {
         if ($name instanceof UnitEnum) {
             $name = (string) enum_value($name);

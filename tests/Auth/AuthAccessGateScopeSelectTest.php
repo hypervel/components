@@ -726,5 +726,5 @@ class QueryAwareSoftDeletingPost extends Model
 
 class QueryAwareEmptyKeyPost extends ScopablePost
 {
-    protected string $primaryKey = '';
+    protected ?string $primaryKey = '';
 }

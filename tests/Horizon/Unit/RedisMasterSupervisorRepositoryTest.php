@@ -8,19 +8,19 @@ use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Horizon\Repositories\RedisMasterSupervisorRepository;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class RedisMasterSupervisorRepositoryTest extends UnitTestCase
 {
     public function testFindIgnoresNonArrayHmgetResponses(): void
     {
         // Redis can answer pipelined commands with false while it is still starting.
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturn(false);
-        $connection->shouldReceive('pipeline')->once()->andReturn([false]);
+        $connection = Double::for(RedisProxy::class)->strict();
+        $connection->expects('isCluster')->returns(false);
+        $connection->expects('pipeline')->returns([false]);
 
-        $redis = m::mock(Factory::class);
-        $redis->shouldReceive('connection')->with('horizon')->andReturn($connection);
+        $redis = Double::for(Factory::class)->strict();
+        $redis->allows('connection')->with('horizon')->returns($connection);
 
         $this->assertNull((new RedisMasterSupervisorRepository($redis))->find('master'));
     }

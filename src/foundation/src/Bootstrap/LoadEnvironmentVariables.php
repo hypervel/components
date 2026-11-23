@@ -45,6 +45,7 @@ class LoadEnvironmentVariables
             return;
         }
 
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (selects the environment file before it loads)
         $environment = Env::get('APP_ENV');
 
         if (! $environment) {
@@ -81,8 +82,7 @@ class LoadEnvironmentVariables
         $output->writeln('The environment file is invalid!');
         $output->writeln($e->getMessage());
 
-        http_response_code(500);
-
+        // Laravel also sets an HTTP 500 status for FPM. Hypervel bootstraps from the CLI before any response exists.
         exit(1);
     }
 }

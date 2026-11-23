@@ -10,8 +10,10 @@ use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Encryption\Encrypter;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -19,14 +21,19 @@ use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
+use Hypervel\Routing\Router;
 use Hypervel\Session\Middleware\AuthenticateSession;
+use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionClass;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class MiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConvertEmptyStringsToNull(): void
     {
         $configuration = new Middleware;
@@ -340,6 +347,153 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($reflection->getStaticPropertyValue('allowSameSite'));
     }
 
+    public function testReplace(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replace('FirstMiddleware', 'ReplacedMiddleware');
+
+        $this->assertSame(['ReplacedMiddleware', 'SecondMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testReplaceWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware', 'ThirdMiddleware']);
+        $middleware->replace('FirstMiddleware', ['FirstMiddleware', 'AfterMiddleware']);
+        $middleware->replace('ThirdMiddleware', ['BeforeMiddleware', 'ThirdMiddleware']);
+
+        $this->assertSame([
+            'FirstMiddleware',
+            'AfterMiddleware',
+            'SecondMiddleware',
+            'BeforeMiddleware',
+            'ThirdMiddleware',
+        ], $middleware->getGlobalMiddleware());
+    }
+
+    public function testReplaceDefaultMiddlewareWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->replace(TrustProxies::class, [TrustProxies::class, 'AfterMiddleware']);
+
+        $global = $middleware->getGlobalMiddleware();
+
+        $this->assertSame('AfterMiddleware', $global[array_search(TrustProxies::class, $global) + 1]);
+    }
+
+    public function testReplaceMissingMiddlewareWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware']);
+        $middleware->replace('MissingMiddleware', ['MissingMiddleware', 'AfterMiddleware']);
+
+        $this->assertSame(['FirstMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testRemoveReplacedMiddleware(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replace('FirstMiddleware', ['FirstMiddleware', 'AfterMiddleware']);
+        $middleware->remove('FirstMiddleware');
+
+        $this->assertSame(['AfterMiddleware', 'SecondMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testReplaceInGroup(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replaceInGroup('custom', 'FirstMiddleware', 'ReplacedMiddleware');
+
+        $this->assertSame(['ReplacedMiddleware', 'SecondMiddleware'], $middleware->getMiddlewareGroups()['custom']);
+    }
+
+    public function testReplaceInGroupWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replaceInGroup('custom', 'FirstMiddleware', ['BeforeMiddleware', 'FirstMiddleware', 'AfterMiddleware']);
+
+        $this->assertSame([
+            'BeforeMiddleware',
+            'FirstMiddleware',
+            'AfterMiddleware',
+            'SecondMiddleware',
+        ], $middleware->getMiddlewareGroups()['custom']);
+    }
+
+    public function testReplaceInWebGroupWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->web(replace: [
+            StartSession::class => [StartSession::class, 'AfterMiddleware'],
+        ]);
+
+        $web = $middleware->getMiddlewareGroups()['web'];
+
+        $this->assertSame('AfterMiddleware', $web[array_search(StartSession::class, $web) + 1]);
+    }
+
+    public function testInsertBefore(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertBefore('SecondMiddleware', ['BeforeMiddleware', 'AnotherBeforeMiddleware']);
+
+        $this->assertSame([
+            'FirstMiddleware',
+            'BeforeMiddleware',
+            'AnotherBeforeMiddleware',
+            'SecondMiddleware',
+        ], $middleware->getGlobalMiddleware());
+    }
+
+    public function testInsertAfter(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertAfter('FirstMiddleware', 'AfterMiddleware');
+
+        $this->assertSame(['FirstMiddleware', 'AfterMiddleware', 'SecondMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testInsertBeforeInGroup(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertBeforeInGroup('custom', 'SecondMiddleware', ['BeforeMiddleware', 'AnotherBeforeMiddleware']);
+
+        $this->assertSame([
+            'FirstMiddleware',
+            'BeforeMiddleware',
+            'AnotherBeforeMiddleware',
+            'SecondMiddleware',
+        ], $middleware->getMiddlewareGroups()['custom']);
+    }
+
+    public function testInsertAfterInGroup(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertAfterInGroup('custom', 'FirstMiddleware', 'AfterMiddleware');
+
+        $this->assertSame(['FirstMiddleware', 'AfterMiddleware', 'SecondMiddleware'], $middleware->getMiddlewareGroups()['custom']);
+    }
+
     public function testDefaultGlobalMiddleware(): void
     {
         $middleware = new Middleware;
@@ -446,14 +600,9 @@ class MiddlewareTest extends TestCase
 
     public function testDefaultMiddlewarePriority(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)
-        );
+        $kernel = $this->makeKernel();
 
-        $reflection = new ReflectionClass($kernel);
-        $property = $reflection->getProperty('middlewarePriority');
-        $priority = $property->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         $this->assertSame([
             \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
@@ -472,10 +621,7 @@ class MiddlewareTest extends TestCase
 
     public function testWithMiddlewareAppliesPriorityToKernel(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->priority([
@@ -486,22 +632,16 @@ class MiddlewareTest extends TestCase
 
         $kernel->setMiddlewarePriority($middleware->getMiddlewarePriority());
 
-        $reflection = new ReflectionClass($kernel);
-        $property = $reflection->getProperty('middlewarePriority');
-
         $this->assertSame([
             'FirstMiddleware',
             'SecondMiddleware',
             'ThirdMiddleware',
-        ], $property->getValue($kernel));
+        ], $kernel->getMiddlewarePriority());
     }
 
     public function testWithMiddlewareAppliesAppendsToPriority(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->appendToPriorityList(
@@ -513,8 +653,7 @@ class MiddlewareTest extends TestCase
             $kernel->addToMiddlewarePriorityAfter($after, $newMiddleware);
         }
 
-        $reflection = new ReflectionClass($kernel);
-        $priority = $reflection->getProperty('middlewarePriority')->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         $bindingsIndex = array_search(\Hypervel\Routing\Middleware\SubstituteBindings::class, $priority);
         $appendedIndex = array_search('AppendedMiddleware', $priority);
@@ -525,10 +664,7 @@ class MiddlewareTest extends TestCase
 
     public function testWithMiddlewareAppliesPrependsToPriority(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->prependToPriorityList(
@@ -540,8 +676,7 @@ class MiddlewareTest extends TestCase
             $kernel->addToMiddlewarePriorityBefore($before, $newMiddleware);
         }
 
-        $reflection = new ReflectionClass($kernel);
-        $priority = $reflection->getProperty('middlewarePriority')->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         $bindingsIndex = array_search(\Hypervel\Routing\Middleware\SubstituteBindings::class, $priority);
         $prependedIndex = array_search('PrependedMiddleware', $priority);
@@ -552,10 +687,7 @@ class MiddlewareTest extends TestCase
 
     public function testWithMiddlewareAppliesGlobalGroupsAndAliasesToKernel(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->use(['CustomGlobalMiddleware']);
@@ -566,18 +698,13 @@ class MiddlewareTest extends TestCase
         $kernel->setMiddlewareGroups($middleware->getMiddlewareGroups());
         $kernel->setMiddlewareAliases($middleware->getMiddlewareAliases());
 
-        $reflection = new ReflectionClass($kernel);
+        $this->assertSame(['CustomGlobalMiddleware'], $kernel->getGlobalMiddleware());
 
-        $this->assertSame(
-            ['CustomGlobalMiddleware'],
-            $reflection->getProperty('middleware')->getValue($kernel)
-        );
-
-        $groups = $reflection->getProperty('middlewareGroups')->getValue($kernel);
+        $groups = $kernel->getMiddlewareGroups();
         $this->assertArrayHasKey('custom', $groups);
         $this->assertSame(['CustomGroupMiddleware'], $groups['custom']);
 
-        $aliases = $reflection->getProperty('middlewareAliases')->getValue($kernel);
+        $aliases = $kernel->getMiddlewareAliases();
         $this->assertSame('CustomAliasMiddleware', $aliases['custom-alias']);
     }
 
@@ -600,8 +727,7 @@ class MiddlewareTest extends TestCase
 
         $kernel = $app->make(\Hypervel\Contracts\Http\Kernel::class);
 
-        $reflection = new ReflectionClass($kernel);
-        $priority = $reflection->getProperty('middlewarePriority')->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         // Verify appended middleware is after SubstituteBindings
         $bindingsIndex = array_search(\Hypervel\Routing\Middleware\SubstituteBindings::class, $priority);
@@ -616,12 +742,23 @@ class MiddlewareTest extends TestCase
         $this->assertSame($encryptIndex - 1, $prependedIndex);
 
         // Verify custom group was applied
-        $groups = $reflection->getProperty('middlewareGroups')->getValue($kernel);
+        $groups = $kernel->getMiddlewareGroups();
         $this->assertArrayHasKey('custom', $groups);
         $this->assertSame(['CustomGroupMiddleware'], $groups['custom']);
 
         // Verify custom alias was applied
-        $aliases = $reflection->getProperty('middlewareAliases')->getValue($kernel);
+        $aliases = $kernel->getMiddlewareAliases();
         $this->assertSame('CustomAliasMiddleware', $aliases['custom-alias']);
+    }
+
+    /**
+     * Create a kernel with a router to receive its middleware configuration.
+     */
+    private function makeKernel(): Kernel
+    {
+        return new Kernel(
+            Double::for(Application::class, override: true)->strict()->instance(),
+            new Router(new Dispatcher),
+        );
     }
 }

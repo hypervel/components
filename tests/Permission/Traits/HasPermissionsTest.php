@@ -188,19 +188,22 @@ class HasPermissionsTest extends TestCase
         $this->assertCount(2, User::withoutPermission('edit-news')->get());
     }
 
-    public function testItCanScopeUsersUsingAInt(): void
+    public function testItCanScopeUsersUsingPermissionIds(): void
     {
+        // The inherited test covers both upstream's integer IDs and the custom permission model's UUIDs.
+        $articles = $this->testUserPermission->getKey();
+        $news = $this->testUserPermission::findByName('edit-news')->getKey();
         User::all()->each(fn ($item) => $item->delete());
         $user1 = User::create(['email' => 'user1@test.com']);
         $user2 = User::create(['email' => 'user2@test.com']);
         User::create(['email' => 'user3@test.com']);
-        $user1->givePermissionTo([1, 2]);
-        $this->testUserRole->givePermissionTo(1);
+        $user1->givePermissionTo([$articles, $news]);
+        $this->testUserRole->givePermissionTo($articles);
         $user2->assignRole('testRole');
 
-        $this->assertCount(2, User::permission(1)->get());
-        $this->assertCount(1, User::permission([2])->get());
-        $this->assertCount(2, User::withoutPermission([2])->get());
+        $this->assertCount(2, User::permission($articles)->get());
+        $this->assertCount(1, User::permission([$news])->get());
+        $this->assertCount(2, User::withoutPermission([$news])->get());
     }
 
     public function testItCanScopeUsersUsingAnArray(): void

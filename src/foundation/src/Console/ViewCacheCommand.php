@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
+use Hypervel\View\Engines\CompilerEngine;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Finder\Finder;
@@ -43,7 +44,10 @@ class ViewCacheCommand extends Command
      */
     protected function compileViews(Collection $views): void
     {
-        $compiler = $this->hypervel->make('view')->getEngineResolver()->resolve('blade')->getCompiler();
+        /** @var CompilerEngine $engine */
+        $engine = $this->hypervel->make('view')->getEngineResolver()->resolve('blade');
+
+        $compiler = $engine->getCompiler();
 
         $views->map(function (SplFileInfo $file) use ($compiler) {
             $this->components->task('    ' . $file->getRelativePathname(), null, OutputInterface::VERBOSITY_VERY_VERBOSE);

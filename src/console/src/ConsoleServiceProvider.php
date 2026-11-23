@@ -42,6 +42,7 @@ class ConsoleServiceProvider extends ServiceProvider
     public function boot(Dispatcher $events): void
     {
         if (! $this->app->runningInConsole()
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parent process passes its context to child commands through the environment)
             || ($encoded = Env::get('__HYPERVEL_CONTEXT')) === null) {
             return;
         }

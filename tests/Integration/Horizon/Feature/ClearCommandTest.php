@@ -16,13 +16,16 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class ClearCommandTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure separate and shared queue storage connections.
      */
@@ -56,17 +59,17 @@ class ClearCommandTest extends IntegrationTestCase
     ): void {
         config()->set('horizon.defaults', $defaults);
 
-        $jobRepository = m::mock(RedisJobRepository::class);
-        $jobRepository->shouldReceive('purge')->once()->with($expectedQueue, $expectedConnection);
+        $jobRepository = Double::for(RedisJobRepository::class)->strict();
+        $jobRepository->expects('purge')->with($expectedQueue, $expectedConnection);
         $this->app->instance(JobRepository::class, $jobRepository);
 
-        $resolvedQueue = m::mock(RedisQueue::class);
-        $resolvedQueue->shouldReceive('getQueue')->once()->with($expectedQueue)->andReturn('queues:' . $expectedQueue);
-        $resolvedQueue->shouldReceive('getConnectionName')->once()->andReturn($expectedConnection);
-        $resolvedQueue->shouldReceive('clear')->once()->with($expectedQueue)->andReturn(1);
+        $resolvedQueue = Double::for(RedisQueue::class)->strict();
+        $resolvedQueue->expects('getQueue')->with($expectedQueue)->returns('queues:' . $expectedQueue);
+        $resolvedQueue->expects('getConnectionName')->returns($expectedConnection);
+        $resolvedQueue->expects('clear')->with($expectedQueue)->returns(1);
 
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with($expectedConnection)->andReturn($resolvedQueue);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with($expectedConnection)->returns($resolvedQueue);
         $this->app->instance('queue', $manager);
 
         $command = new ClearCommand;
@@ -142,15 +145,15 @@ class ClearCommandTest extends IntegrationTestCase
 
     public function testClearingANonHorizonConnectionDoesNotPurgeHorizonJobs(): void
     {
-        $jobRepository = m::mock(JobRepository::class);
-        $jobRepository->shouldNotReceive('purge');
+        $jobRepository = Double::for(JobRepository::class)->strict();
+        $jobRepository->expects('purge')->never();
         $this->app->instance(JobRepository::class, $jobRepository);
 
-        $resolvedQueue = m::mock(QueueContract::class, ClearableQueue::class);
-        $resolvedQueue->shouldReceive('clear')->once()->with('default')->andReturn(1);
+        $resolvedQueue = Double::for(QueueContract::class, ClearableQueue::class)->strict();
+        $resolvedQueue->expects('clear')->with('default')->returns(1);
 
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with('redis')->andReturn($resolvedQueue);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('redis')->returns($resolvedQueue);
         $this->app->instance('queue', $manager);
 
         $this->artisan('horizon:clear', ['connection' => 'redis', '--force' => true])
@@ -159,8 +162,8 @@ class ClearCommandTest extends IntegrationTestCase
 
     public function testUnsupportedConnectionsFailBeforePurgingHorizonJobs(): void
     {
-        $jobRepository = m::mock(JobRepository::class);
-        $jobRepository->shouldNotReceive('purge');
+        $jobRepository = Double::for(JobRepository::class)->strict();
+        $jobRepository->expects('purge')->never();
         $this->app->instance(JobRepository::class, $jobRepository);
 
         $this->artisan('horizon:clear', ['connection' => 'sync', '--force' => true])

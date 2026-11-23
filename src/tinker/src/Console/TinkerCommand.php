@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tinker\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Support\Env;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Tinker\ClassAliasAutoloader;
 use Psy\Configuration;
 use Psy\Exception\BreakException;
@@ -68,9 +68,7 @@ class TinkerCommand extends Command
         $shell->addCommands($this->getCommands());
         $shell->setIncludes($this->argument('include'));
 
-        $path = Env::get('COMPOSER_VENDOR_DIR', $this->getHypervel()->basePath() . DIRECTORY_SEPARATOR . 'vendor');
-
-        $path .= '/composer/autoload_classmap.php';
+        $path = $this->getHypervel()->make(PackageManifest::class)->vendorPath . '/composer/autoload_classmap.php';
 
         $loader = ClassAliasAutoloader::register(
             $shell,

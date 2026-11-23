@@ -2395,7 +2395,7 @@ return [
                 'isArray' => false,
                 'acceptValue' => false,
                 'default' => false,
-                'description' => 'Display the key instead of modifying files',
+                'description' => 'Display a new key instead of modifying files',
             ],
             [
                 'name' => 'force',
@@ -3494,9 +3494,9 @@ return [
             [
                 'name' => 'id',
                 'mode' => 'required',
-                'isArray' => false,
-                'default' => null,
-                'description' => 'The ID of the failed job',
+                'isArray' => true,
+                'default' => [],
+                'description' => 'The IDs of the failed jobs',
             ],
         ],
     ],
@@ -4224,6 +4224,9 @@ return [
                 'description' => 'The name of the middleware',
             ],
         ],
+    ],
+    \Hypervel\Session\Console\SessionGarbageCollectCommand::class => [
+        'name' => 'session:garbage-collect',
     ],
     \Hypervel\Session\Console\SessionTableCommand::class => [
         'name' => 'make:session-table',

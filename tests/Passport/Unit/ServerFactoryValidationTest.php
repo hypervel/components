@@ -12,20 +12,23 @@ use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\BearerRequestFactory;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\ResourceServer;
-use Mockery as m;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use Psr\Http\Message\ServerRequestInterface;
 
 class ServerFactoryValidationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRepeatedValidationUsesOneResult(): void
     {
         $result = (new ServerRequest('GET', '/'))->withAttribute('oauth_access_token_id', 'token');
-        $server = m::mock(ResourceServer::class);
-        $server->shouldReceive('validateAuthenticatedRequest')->once()->andReturn($result);
+        $server = Double::for(ResourceServer::class)->strict();
+        $server->expects('validateAuthenticatedRequest')->returns($result);
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $server);
         $factory = $this->factory();
         $request = Request::create('/');
@@ -38,8 +41,8 @@ class ServerFactoryValidationTest extends TestCase
     public function testFailedValidationIsAlsoReused(): void
     {
         $failure = OAuthServerException::accessDenied('Invalid signature');
-        $server = m::mock(ResourceServer::class);
-        $server->shouldReceive('validateAuthenticatedRequest')->once()->andThrow($failure);
+        $server = Double::for(ResourceServer::class)->strict();
+        $server->expects('validateAuthenticatedRequest')->throws($failure);
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $server);
         $factory = $this->factory();
         $request = Request::create('/');
@@ -56,9 +59,9 @@ class ServerFactoryValidationTest extends TestCase
 
     public function testNewRequestsAndChangedCredentialsAreValidated(): void
     {
-        $server = m::mock(ResourceServer::class);
-        $server->shouldReceive('validateAuthenticatedRequest')->times(3)
-            ->andReturnUsing(static fn (ServerRequestInterface $request): ServerRequestInterface => $request);
+        $server = Double::for(ResourceServer::class)->strict();
+        $server->expects('validateAuthenticatedRequest')->times(3)
+            ->resolves(static fn (ServerRequestInterface $request): ServerRequestInterface => $request);
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $server);
         $factory = $this->factory();
         $first = Request::create('/');
@@ -76,10 +79,10 @@ class ServerFactoryValidationTest extends TestCase
     {
         $firstResult = (new ServerRequest('GET', '/'))->withAttribute('oauth_client_id', 'first');
         $secondResult = (new ServerRequest('GET', '/'))->withAttribute('oauth_client_id', 'second');
-        $first = m::mock(ResourceServer::class);
-        $first->shouldReceive('validateAuthenticatedRequest')->once()->andReturn($firstResult);
-        $second = m::mock(ResourceServer::class);
-        $second->shouldReceive('validateAuthenticatedRequest')->once()->andReturn($secondResult);
+        $first = Double::for(ResourceServer::class)->strict();
+        $first->expects('validateAuthenticatedRequest')->returns($firstResult);
+        $second = Double::for(ResourceServer::class)->strict();
+        $second->expects('validateAuthenticatedRequest')->returns($secondResult);
         $factory = $this->factory();
         $request = Request::create('/');
 
@@ -93,9 +96,12 @@ class ServerFactoryValidationTest extends TestCase
     {
         $result = new ServerRequest('GET', '/');
         $failure = OAuthServerException::accessDenied('Revoked');
-        $server = m::mock(ResourceServer::class);
-        $server->shouldReceive('validateAuthenticatedRequest')->once()->ordered()->andReturn($result);
-        $server->shouldReceive('validateAuthenticatedRequest')->once()->ordered()->andThrow($failure);
+        $server = Double::for(ResourceServer::class)->strict();
+        $calls = 0;
+        $server->expects('validateAuthenticatedRequest')->times(2)
+            ->resolves(static function () use (&$calls, $result, $failure): ServerRequestInterface {
+                return ++$calls === 1 ? $result : throw $failure;
+            });
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $server);
         $factory = $this->factory();
         $request = Request::create('/');
@@ -108,8 +114,8 @@ class ServerFactoryValidationTest extends TestCase
 
     public function testExplicitValidationDoesNotPopulateTheCache(): void
     {
-        $server = m::mock(ResourceServer::class);
-        $server->shouldReceive('validateAuthenticatedRequest')->twice()->andReturn(new ServerRequest('GET', '/'));
+        $server = Double::for(ResourceServer::class)->strict();
+        $server->expects('validateAuthenticatedRequest')->times(2)->returns(new ServerRequest('GET', '/'));
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $server);
         $factory = $this->factory();
         $request = Request::create('/');
@@ -120,9 +126,9 @@ class ServerFactoryValidationTest extends TestCase
 
     public function testBearerConversionDoesNotCopyTheRequestBody(): void
     {
-        $server = m::mock(ResourceServer::class);
-        $server->shouldReceive('validateAuthenticatedRequest')->once()
-            ->andReturnUsing(function (ServerRequestInterface $request): ServerRequestInterface {
+        $server = Double::for(ResourceServer::class)->strict();
+        $server->expects('validateAuthenticatedRequest')
+            ->resolves(function (ServerRequestInterface $request): ServerRequestInterface {
                 $this->assertSame('', (string) $request->getBody());
                 $this->assertNull($request->getParsedBody());
                 $this->assertSame([], $request->getUploadedFiles());
@@ -148,7 +154,7 @@ class ServerFactoryValidationTest extends TestCase
         return new ServerFactory(
             new Container,
             new Repository,
-            m::mock(Encrypter::class),
+            Double::for(Encrypter::class)->strict(),
             new BearerRequestFactory(new Psr17Factory),
         );
     }

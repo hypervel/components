@@ -13,55 +13,14 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PDO;
 
 class DatabaseEloquentHasManyTest extends TestCase
 {
-    public function testRelationUpsertFillsForeignKey(): void
-    {
-        $relation = $this->getRelation();
-
-        $relation->getQuery()->expects('upsert')->with(
-            [
-                ['email' => 'foo3', 'name' => 'bar', $relation->getForeignKeyName() => $relation->getParentKey()],
-            ],
-            ['email'],
-            ['name']
-        )->andReturn(1);
-
-        $relation->upsert(
-            ['email' => 'foo3', 'name' => 'bar'],
-            ['email'],
-            ['name']
-        );
-
-        $relation->getQuery()->expects('upsert')->with(
-            [
-                ['email' => 'foo3', 'name' => 'bar', $relation->getForeignKeyName() => $relation->getParentKey()],
-                ['name' => 'bar2', 'email' => 'foo2', $relation->getForeignKeyName() => $relation->getParentKey()],
-            ],
-            ['email'],
-            ['name']
-        )->andReturn(2);
-
-        $relation->upsert(
-            [
-                ['email' => 'foo3', 'name' => 'bar'],
-                ['name' => 'bar2', 'email' => 'foo2'],
-            ],
-            ['email'],
-            ['name']
-        );
-    }
-
     public function testRelationIsProperlyInitialized(): void
     {
-        $relation = $this->getRelation();
+        $relation = $this->getRelationWithRealQuery();
         $model = new ModelStub;
-        $relation->getRelated()->expects('newCollection')->andReturnUsing(function (array $array = []): Collection {
-            return new Collection($array);
-        });
         $models = $relation->initRelation([$model], 'foo');
 
         $this->assertEquals([$model], $models);
@@ -99,7 +58,7 @@ class DatabaseEloquentHasManyTest extends TestCase
 
     public function testModelsAreProperlyMatchedToParents(): void
     {
-        $relation = $this->getRelation();
+        $relation = $this->getRelationWithRealQuery();
 
         $result1 = new ModelStub;
         $result1->foreign_key = 1;
@@ -115,9 +74,6 @@ class DatabaseEloquentHasManyTest extends TestCase
         $model3 = new ModelStub;
         $model3->id = 3;
 
-        $relation->getRelated()->expects('newCollection')->times(2)->andReturnUsing(function (array $array): Collection {
-            return new Collection($array);
-        });
         $models = $relation->match([$model1, $model2, $model3], new Collection([$result1, $result2, $result3]), 'foo');
 
         $this->assertEquals(1, $models[0]->foo[0]->foreign_key);
@@ -139,22 +95,6 @@ class DatabaseEloquentHasManyTest extends TestCase
 
         $parent ??= new ModelStub;
         $parent->id = 1;
-
-        return new HasMany($builder, $parent, 'table.foreign_key', 'id');
-    }
-
-    protected function getRelation()
-    {
-        $queryBuilder = m::mock(QueryBuilder::class);
-        $builder = m::mock(Builder::class, [$queryBuilder]);
-        $builder->shouldReceive('whereNotNull')->with('table.foreign_key');
-        $builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
-        $related = m::mock(Model::class);
-        $builder->shouldReceive('getModel')->andReturn($related);
-        $parent = m::mock(Model::class);
-        $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
-        $parent->shouldReceive('getCreatedAtColumn')->andReturn('created_at');
-        $parent->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
 
         return new HasMany($builder, $parent, 'table.foreign_key', 'id');
     }

@@ -52,6 +52,8 @@ class WorkerProcess
 
     /**
      * Start the process.
+     *
+     * @return $this
      */
     public function start(Closure $callback): static
     {
@@ -212,6 +214,8 @@ class WorkerProcess
 
     /**
      * Set the output handler.
+     *
+     * @return $this
      */
     public function handleOutputUsing(Closure $callback): static
     {

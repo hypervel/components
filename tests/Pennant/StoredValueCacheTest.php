@@ -16,16 +16,21 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
 class StoredValueCacheTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected function defineEnvironment(Application $app): void
     {
@@ -233,9 +238,9 @@ class StoredValueCacheTest extends TestCase
 
     public function testValuesAreNotCachedWhenNewTokensCantBeStored(): void
     {
-        $cache = m::mock(Repository::class);
-        $cache->shouldReceive('get')->once()->andReturnUsing(fn (array $keys) => array_fill_keys($keys, null));
-        $cache->shouldReceive('put')->once()->andReturnFalse();
+        $cache = Double::for(Repository::class)->strict();
+        $cache->expects('get')->resolves(fn (array $keys) => array_fill_keys($keys, null));
+        $cache->expects('put')->returns(false);
         $this->app->make('cache')->extend('mocked', fn () => $cache);
         config([
             'cache.stores.mocked' => ['driver' => 'mocked'],
@@ -275,10 +280,10 @@ class StoredValueCacheTest extends TestCase
 
     public function testATargetThatCantStoreTokensDoesntStopTheOthers(): void
     {
-        $failing = m::mock(Repository::class);
-        $failing->shouldReceive('put')->once()->andReturnFalse();
-        $working = m::mock(Repository::class);
-        $working->shouldReceive('put')->once()->andReturnTrue();
+        $failing = Double::for(Repository::class)->strict();
+        $failing->expects('put')->returns(false);
+        $working = Double::for(Repository::class)->strict();
+        $working->expects('put')->returns(true);
 
         $this->expectExceptionObject(new RuntimeException('Unable to invalidate cached feature values. They may be stale until they expire.'));
 
@@ -288,10 +293,10 @@ class StoredValueCacheTest extends TestCase
     public function testATargetThatThrowsDoesntStopTheOthers(): void
     {
         $exception = new RuntimeException('The cache is unavailable.');
-        $failing = m::mock(Repository::class);
-        $failing->shouldReceive('put')->once()->andThrow($exception);
-        $working = m::mock(Repository::class);
-        $working->shouldReceive('put')->once()->andReturnTrue();
+        $failing = Double::for(Repository::class)->strict();
+        $failing->expects('put')->throws($exception);
+        $working = Double::for(Repository::class)->strict();
+        $working->expects('put')->returns(true);
 
         try {
             (new StoredValueCache('features', [[$failing, 60], [$working, 60]]))->rotatePartition('testing', null);
@@ -299,6 +304,34 @@ class StoredValueCacheTest extends TestCase
         } catch (RuntimeException $caught) {
             $this->assertSame($exception, $caught);
         }
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCancellationStopsInvalidationAfterAnOrdinaryFailure(bool $wrapped): void
+    {
+        $failure = new CanceledException('Invalidation canceled.');
+
+        if ($wrapped) {
+            $failure = new RuntimeException('Invalidation cleanup failed.', previous: $failure);
+        }
+
+        $failed = Double::for(Repository::class)->strict();
+        $failed->expects('put')->returns(false);
+        $canceled = Double::for(Repository::class)->strict();
+        $canceled->expects('put')->throws($failure);
+        $unvisited = Double::for(Repository::class)->strict();
+        $unvisited->expects('put')->never();
+        $caught = null;
+
+        try {
+            (new StoredValueCache('features', [[$failed, 60], [$canceled, 60], [$unvisited, 60]]))
+                ->rotatePartition('testing', null);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     #[DataProvider('invalidTtls')]

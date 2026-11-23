@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\PHPUnit;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Mockery;
 use PHPUnit\Event\Test\Finished;
@@ -81,19 +82,19 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         try {
             Mockery::close();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             DatabaseConnectionResolver::flushCachedConnections();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             $this->flushFrameworkState();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {
@@ -115,8 +116,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
 
         \Carbon\Carbon::resetMacros();
         \Carbon\Carbon::resetToStringFormat();
-        \Carbon\Carbon::serializeUsing(null);
-        \Carbon\Carbon::useStrictMode();
+        \Carbon\FactoryImmutable::getDefaultInstance()->serializeUsing(null);
+        \Carbon\FactoryImmutable::getDefaultInstance()->useStrictMode();
         \Carbon\Carbon::setTestNow();
 
         if (class_exists(\Laravel\SerializableClosure\SerializableClosure::class)) {
@@ -177,6 +178,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Database\Eloquent\Model::flushState();
         \Hypervel\Database\Eloquent\Relations\Relation::flushState();
         \Hypervel\Database\Grammar::flushState();
+        \Hypervel\Database\LostConnectionDetector::flushState();
         \Hypervel\Database\Migrations\Migrator::flushState();
         \Hypervel\Database\Query\Builder::flushState();
         \Hypervel\Database\Query\Grammars\PostgresGrammar::flushState();
@@ -242,6 +244,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Pipeline\Pipeline::flushState();
         \Hypervel\Process\Factory::flushState();
         \Hypervel\Process\InvokedProcess::flushState();
+        \Hypervel\Process\PendingProcess::flushState();
         \Hypervel\Prompts\Prompt::flushState();
         \Hypervel\Prompts\Terminal::flushState();
         \Hypervel\Queue\Capsule\Manager::flushState();
@@ -293,7 +296,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\LazyCollection::flushState();
         \Hypervel\Support\Lottery::flushState();
         \Hypervel\Support\Number::flushState();
-        \Hypervel\Support\Onceable::flushState();
         \Hypervel\Support\Optional::flushState();
         \Hypervel\Support\Pluralizer::flushState();
         \Hypervel\Support\ServiceProvider::flushState();
@@ -456,6 +458,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->callIfExists(\Hypervel\Mcp\Response::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\ResponseFactory::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Client\ClientManager::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Mcp\Client\OAuth\AuthServerDiscovery::class, 'flushState');
         $this->callIfExists(\Hypervel\Mcp\Server\Registrar::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestResponse::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestListResponse::class, 'flushMacros');

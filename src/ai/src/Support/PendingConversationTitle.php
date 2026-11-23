@@ -7,6 +7,8 @@ namespace Hypervel\Ai\Support;
 use Closure;
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Gateway\ParentInvocation;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Log\Context\Repository as ContextRepository;
@@ -34,7 +36,9 @@ class PendingConversationTitle
             try {
                 $this->title = $runner === null ? $generate() : $runner($generate);
             } catch (Throwable $exception) {
-                $this->failure = $exception;
+                $this->failure = Coroutine::causedByCancellation($exception)
+                    ? new ChildCancellationException('Conversation title generation was canceled while its owner remained active.', previous: $exception)
+                    : $exception;
             }
         }, [ParentInvocation::PARENT_INVOCATION_CONTEXT_KEY, AiManager::ON_DEMAND_PROVIDERS_CONTEXT_KEY, ContextRepository::CONTEXT_KEY, ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);
     }

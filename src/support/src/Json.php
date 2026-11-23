@@ -43,6 +43,58 @@ class Json
     }
 
     /**
+     * Decode JSON with every number preserved as its original string.
+     *
+     * @throws JsonException
+     */
+    public static function decodeNumbersAsStrings(string $json, bool $assoc = true, int $depth = self::MAXIMUM_NESTING_DEPTH): mixed
+    {
+        // Quoting numbers before validation could make malformed JSON valid, such as {1:2}.
+        if (! self::validate($json, $depth)) {
+            throw new JsonException(json_last_error_msg(), json_last_error());
+        }
+
+        $length = strlen($json);
+        $offset = 0;
+        $start = 0;
+        $quoted = '';
+
+        while ($offset < $length) {
+            $offset += strcspn($json, '"-0123456789', $offset);
+
+            if ($offset === $length) {
+                break;
+            }
+
+            if ($json[$offset] === '"') {
+                ++$offset;
+
+                while (true) {
+                    $offset += strcspn($json, '"\\', $offset);
+
+                    if ($json[$offset] === '"') {
+                        ++$offset;
+
+                        break;
+                    }
+
+                    $offset += 2;
+                }
+
+                continue;
+            }
+
+            $numberLength = strspn($json, '0123456789+-.eE', $offset);
+            $quoted .= substr($json, $start, $offset - $start)
+                . '"' . substr($json, $offset, $numberLength) . '"';
+            $offset += $numberLength;
+            $start = $offset;
+        }
+
+        return self::decode($quoted . substr($json, $start), $assoc, $depth);
+    }
+
+    /**
      * Validate a JSON string.
      *
      * @param int-mask<JSON_INVALID_UTF8_IGNORE> $flags

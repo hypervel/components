@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use BackedEnum;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
@@ -17,7 +18,8 @@ use UnitEnum;
 use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
 
-class Enum implements Rule, Stringable, ValidatorAwareRule
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
+class Enum implements Rule, Stringable, ValidatorAwareRule, Transient
 {
     use Conditionable;
 
@@ -68,6 +70,7 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
      * Specify the cases that should be considered valid.
      *
      * @param Arrayable<array<array-key, UnitEnum>>|UnitEnum|UnitEnum[] $values
+     * @return $this
      */
     public function only(mixed $values): static
     {
@@ -80,6 +83,7 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
      * Specify the cases that should be considered invalid.
      *
      * @param Arrayable<array<array-key, UnitEnum>>|UnitEnum|UnitEnum[] $values
+     * @return $this
      */
     public function except(mixed $values): static
     {
@@ -114,6 +118,8 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {

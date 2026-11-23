@@ -20,9 +20,11 @@ use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 function fakeCohereEmbedding(string $text): array
@@ -32,6 +34,8 @@ function fakeCohereEmbedding(string $text): array
 
 class EmbeddingsCacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure the embedding provider and cache.
      */
@@ -66,6 +70,19 @@ class EmbeddingsCacheTest extends TestCase
         Embeddings::for(['Hello'])->cache(3600)->generate(provider: 'cohere', model: 'embed-v4.0');
 
         $this->assertCount(1, Http::recorded());
+    }
+
+    #[DataProvider('cacheModes')]
+    public function testOnlyFreshlyGeneratedEmbeddingsExposeARawResponse(bool $individually): void
+    {
+        $fresh = Embeddings::for(['a'])->cache(3600, individually: $individually)->generate(provider: 'cohere', model: 'embed-v4.0');
+        $partial = Embeddings::for(['b', 'a'])->cache(3600, individually: $individually)->generate(provider: 'cohere', model: 'embed-v4.0');
+        $cached = Embeddings::for(['b', 'a'])->cache(3600, individually: $individually)->generate(provider: 'cohere', model: 'embed-v4.0');
+
+        $this->assertInstanceOf(Response::class, $fresh->raw);
+        $this->assertInstanceOf(Response::class, $partial->raw);
+        $this->assertSame($individually ? 1 : 2, $partial->raw->json('meta.billed_units.input_tokens'));
+        $this->assertNull($cached->raw);
     }
 
     public function testCacheIsUsedWhenEnabledGloballyViaConfig(): void
@@ -325,8 +342,8 @@ class EmbeddingsCacheTest extends TestCase
 
     public function testSameNameOnDemandProvidersRetainTheirOwnCacheIdentity(): void
     {
-        $gateway = m::mock(Gateway::class);
-        $gateway->shouldReceive('generateEmbeddings')->twice()->andReturnUsing(
+        $gateway = Double::for(Gateway::class)->strict();
+        $gateway->expects('generateEmbeddings')->times(2)->resolves(
             fn (EmbeddingProvider $provider): EmbeddingsResponse => new EmbeddingsResponse(
                 [[$provider->providerCredentials()['key'] === 'first-key' ? 1 : 2]],
                 new Usage(1),
@@ -361,15 +378,15 @@ class EmbeddingsCacheTest extends TestCase
     protected function useCustomProvider(Closure $generate): void
     {
         Ai::extend('cache-test', function (Application $app, array $config) use ($generate): EmbeddingProvider {
-            $provider = m::mock(EmbeddingProvider::class);
-            $provider->shouldReceive('name')->andReturn('cache-test');
-            $provider->shouldReceive('driver')->andReturn('cache-test');
-            $provider->shouldReceive('providerCredentials')->andReturn(['key' => $config['key']]);
-            $provider->shouldReceive('additionalConfiguration')->andReturn(array_diff_key($config, array_flip(['name', 'driver', 'key'])));
-            $provider->shouldReceive('defaultEmbeddingsModel')->andReturn('embedding-model');
-            $provider->shouldReceive('defaultEmbeddingsDimensions')->andReturn(1);
-            $provider->shouldReceive('withHeaders')->andReturnSelf();
-            $provider->shouldReceive('embeddings')->andReturnUsing($generate);
+            $provider = Double::for(EmbeddingProvider::class)->strict();
+            $provider->allows('name')->returns('cache-test');
+            $provider->allows('driver')->returns('cache-test');
+            $provider->allows('providerCredentials')->returns(['key' => $config['key']]);
+            $provider->allows('additionalConfiguration')->returns(array_diff_key($config, array_flip(['name', 'driver', 'key'])));
+            $provider->allows('defaultEmbeddingsModel')->returns('embedding-model');
+            $provider->allows('defaultEmbeddingsDimensions')->returns(1);
+            $provider->allows('withHeaders');
+            $provider->allows('embeddings')->resolves($generate);
 
             return $provider;
         });

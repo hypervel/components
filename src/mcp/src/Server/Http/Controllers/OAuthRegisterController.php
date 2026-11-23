@@ -7,6 +7,7 @@ namespace Hypervel\Mcp\Server\Http\Controllers;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Server\Registrar;
@@ -17,7 +18,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class OAuthRegisterController
@@ -31,8 +31,8 @@ class OAuthRegisterController
     {
         // Redirect errors take precedence, including errors in individual list members.
         $redirectValidator = Validator::make($request->only('redirect_uris'), [
-            'redirect_uris' => ['required', 'array', 'list', 'min:1'],
-            'redirect_uris.*' => ['bail', 'required', 'string', function (string $attribute, string $value, Closure $fail): void {
+            'redirect_uris' => ['required', 'array', 'list', 'min:1', 'max:10'],
+            'redirect_uris.*' => ['bail', 'required', 'string', 'max:1024', function (string $attribute, string $value, Closure $fail): void {
                 if (! $this->isValidRedirectUri($value)) {
                     $fail($attribute . ' is not a valid URL.');
 
@@ -104,9 +104,11 @@ class OAuthRegisterController
 
                 return [$client, $this->persistClientMetadata($client, $validated)];
             });
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             report($throwable);
 
             return response()->json([

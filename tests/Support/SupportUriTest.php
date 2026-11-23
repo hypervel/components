@@ -11,15 +11,21 @@ use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Uri;
+use Hypervel\Tests\Support\Concerns\TestsInteractsWithDataContract;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use League\Uri\Contracts\UriInterface;
 use League\Uri\Uri as LeagueUri;
-use Mockery as m;
 use stdClass;
 use Stringable;
 use TypeError;
 
 class SupportUriTest extends TestCase
 {
+    use TestsInteractsWithDataContract;
+    use VerifiesDoubles;
+
     public function testCanBuildSpecialUrls(): void
     {
         Uri::setUrlGeneratorResolver(fn () => new CustomUrlGeneratorResolver);
@@ -35,7 +41,7 @@ class SupportUriTest extends TestCase
     {
         Uri::setUrlGeneratorResolver(fn () => new CustomUrlGeneratorResolver);
 
-        $parameter = m::mock(UrlRoutable::class);
+        $parameter = Double::for(UrlRoutable::class)->strict();
 
         $this->assertSame('https://hypervel.org/route', Uri::route('', $parameter)->value());
         $this->assertSame('https://hypervel.org/signed-route', Uri::signedRoute('', $parameter)->value());
@@ -47,6 +53,7 @@ class SupportUriTest extends TestCase
     {
         $uri = Uri::of($originalUri = 'https://hypervel.org/docs/installation');
 
+        $this->assertSame('https://hypervel.org', $uri->origin());
         $this->assertSame('https', $uri->scheme());
         $this->assertNull($uri->user());
         $this->assertNull($uri->password());
@@ -61,6 +68,7 @@ class SupportUriTest extends TestCase
 
         $uri = Uri::of('https://taylor:password@hypervel.org/docs/installation?version=1#hello');
 
+        $this->assertSame('https://hypervel.org', $uri->origin());
         $this->assertSame('taylor', $uri->user());
         $this->assertSame('password', $uri->password());
         $this->assertSame('hello', $uri->fragment());
@@ -76,6 +84,24 @@ class SupportUriTest extends TestCase
 
         $this->assertFalse(Uri::of('https://hypervel.org')->isEmpty());
         $this->assertTrue(Uri::of('https://hypervel.org')->isNotEmpty());
+    }
+
+    public function testOrigin(): void
+    {
+        $this->assertSame('https://github.com:80', Uri::of('https://github.com:80/a/b#x')->origin());
+        $this->assertSame('https://a.com', Uri::of('https://A.com:443/x')->origin());
+        $this->assertSame('http://a.com', Uri::of('http://a.com:80')->origin());
+        $this->assertSame('wss://a.com:8080', Uri::of('wss://a.com:8080/socket')->origin());
+
+        $this->assertNull(Uri::of('/rel')->origin());
+        $this->assertNull(Uri::of('mailto:x@y.z')->origin());
+        $this->assertNull(Uri::of('file:///etc/hosts')->origin());
+        $this->assertNull(Uri::of('')->origin());
+
+        $customUri = Double::for(UriInterface::class)->strict();
+        $customUri->expects('toString')->returns('https://example.com:8443/path');
+
+        $this->assertSame('https://example.com:8443', Uri::of($customUri)->origin());
     }
 
     public function testWithoutFragment(): void
@@ -419,6 +445,167 @@ class SupportUriTest extends TestCase
         $uri = new Uri('https://hypervel.org/');
 
         $this->assertSame('https://hypervel.org/foobar', (string) $uri->myMacro());
+    }
+
+    public function testExistsMethod(): void
+    {
+        $this->assertDataExistsContract();
+        $this->assertDataExistsNestedContract();
+    }
+
+    public function testHasMethod(): void
+    {
+        $this->assertDataHasContract();
+        $this->assertDataHasNestedContract();
+    }
+
+    public function testHasAnyMethod(): void
+    {
+        $this->assertDataHasAnyContract();
+        $this->assertDataHasAnyNestedContract();
+    }
+
+    public function testWhenHasMethod(): void
+    {
+        $this->assertDataWhenHasContract();
+        $this->assertDataWhenHasNestedContract();
+    }
+
+    public function testFilledMethod(): void
+    {
+        $this->assertDataFilledContract();
+        $this->assertDataFilledNestedContract();
+    }
+
+    public function testIsNotFilledMethod(): void
+    {
+        $this->assertDataIsNotFilledContract();
+        $this->assertDataIsNotFilledNestedContract();
+    }
+
+    public function testAnyFilledMethod(): void
+    {
+        $this->assertDataAnyFilledContract();
+        $this->assertDataAnyFilledNestedContract();
+    }
+
+    public function testWhenFilledMethod(): void
+    {
+        $this->assertDataWhenFilledContract();
+        $this->assertDataWhenFilledNestedContract();
+    }
+
+    public function testWhenEnumMethod(): void
+    {
+        $this->assertDataWhenEnumContract();
+    }
+
+    public function testMissingMethod(): void
+    {
+        $this->assertDataMissingContract();
+        $this->assertDataMissingNestedContract();
+    }
+
+    public function testWhenMissingMethod(): void
+    {
+        $this->assertDataWhenMissingContract();
+        $this->assertDataWhenMissingNestedContract();
+    }
+
+    public function testStrMethod(): void
+    {
+        $this->assertDataStrContract();
+    }
+
+    public function testStringMethod(): void
+    {
+        $this->assertDataStringContract();
+        $this->assertDataStringStrictContract();
+    }
+
+    public function testBooleanMethod(): void
+    {
+        $this->assertDataBooleanContract();
+        $this->assertDataBooleanStrictContract();
+    }
+
+    public function testIntegerMethod(): void
+    {
+        $this->assertDataIntegerContract();
+        $this->assertDataIntegerStrictContract();
+    }
+
+    public function testFloatMethod(): void
+    {
+        $this->assertDataFloatContract();
+        $this->assertDataFloatStrictContract();
+    }
+
+    public function testClampMethod(): void
+    {
+        $this->assertDataClampContract();
+    }
+
+    public function testDateMethod(): void
+    {
+        $this->assertDataDateContract();
+    }
+
+    public function testIntervalMethod(): void
+    {
+        $this->assertDataIntervalContract();
+    }
+
+    public function testUuidMethod(): void
+    {
+        $this->assertDataUuidContract();
+    }
+
+    public function testUlidMethod(): void
+    {
+        $this->assertDataUlidContract();
+    }
+
+    public function testEnumMethod(): void
+    {
+        $this->assertDataEnumContract();
+        $this->assertDataEnumNestedContract();
+    }
+
+    public function testEnumsMethod(): void
+    {
+        $this->assertDataEnumsContract();
+    }
+
+    public function testArrayMethod(): void
+    {
+        $this->assertDataArrayContract();
+    }
+
+    public function testCollectMethod(): void
+    {
+        $this->assertDataCollectContract();
+        $this->assertDataCollectNestedContract();
+    }
+
+    public function testOnlyMethod(): void
+    {
+        $this->assertDataOnlyContract();
+        $this->assertDataOnlyNestedContract();
+    }
+
+    public function testExceptMethod(): void
+    {
+        $this->assertDataExceptContract();
+        $this->assertDataExceptNestedContract();
+    }
+
+    /**
+     * Create the data instance under test from the given array.
+     */
+    protected static function arrayToDataFactory(array $data): object
+    {
+        return Uri::of('https://hypervel.org')->withQuery($data)->query();
     }
 }
 

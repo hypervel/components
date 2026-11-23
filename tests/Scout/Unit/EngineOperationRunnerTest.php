@@ -5,11 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Unit;
 
 use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -17,6 +23,8 @@ use Throwable;
 
 class EngineOperationRunnerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRunsCallbackDirectlyWithoutObservers(): void
     {
         $runner = new EngineOperationRunner;
@@ -103,6 +111,7 @@ class EngineOperationRunnerTest extends TestCase
             fn (): null => null,
         ));
 
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($completionFailure));
         $caught = null;
 
         try {
@@ -118,7 +127,9 @@ class EngineOperationRunnerTest extends TestCase
         $this->assertFalse($callbackCalled);
     }
 
-    public function testOperationFailureFinishesEveryObserverAndRemainsPrimary(): void
+    #[TestWith([false])]
+    #[TestWith([true], 'second observer rethrows the operation failure')]
+    public function testOperationFailureFinishesEveryObserverAndRemainsPrimary(bool $rethrow): void
     {
         $runner = new EngineOperationRunner;
         $operationFailure = new RuntimeException('operation failed');
@@ -138,11 +149,19 @@ class EngineOperationRunnerTest extends TestCase
         ));
         $runner->observe($this->observer(
             fn (): string => 'second-token',
-            function (EngineOperation $operation, mixed $token, ?Throwable $exception) use (&$events): void {
+            function (EngineOperation $operation, mixed $token, ?Throwable $exception) use (&$events, $rethrow): void {
                 $events[] = [$token, $exception];
+
+                if ($rethrow && $exception !== null) {
+                    throw $exception;
+                }
             },
         ));
 
+        $reported = [];
+        $this->bindReportingHandler()->allows('report')->resolves(function (Throwable $throwable) use (&$reported): void {
+            $reported[] = $throwable;
+        });
         $caught = null;
 
         try {
@@ -154,13 +173,14 @@ class EngineOperationRunnerTest extends TestCase
         }
 
         $this->assertSame($operationFailure, $caught);
+        $this->assertSame([$completionFailure], $reported);
         $this->assertSame([
             ['first-token', $operationFailure],
             ['second-token', $operationFailure],
         ], $events);
     }
 
-    public function testSuccessfulOperationAttemptsEveryCompletionAndThrowsFirstFailure(): void
+    public function testSuccessfulOperationAttemptsEveryCompletionThrowsTheFirstFailureAndReportsTheRest(): void
     {
         $runner = new EngineOperationRunner;
         $firstFailure = new RuntimeException('first completion failed');
@@ -184,6 +204,7 @@ class EngineOperationRunnerTest extends TestCase
             },
         ));
 
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($secondFailure));
         $caught = null;
 
         try {
@@ -198,17 +219,17 @@ class EngineOperationRunnerTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testStartingCancellationSkipsAllCompletionAndOperationWork(bool $cleanupThrows): void
+    public function testStartingCancellationFinishesPreviouslyStartedObserversWithoutRunningTheOperation(bool $cleanupThrows): void
     {
         $runner = new EngineOperationRunner;
         $cancellation = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
-        $finished = false;
+        $receivedException = null;
         $callbackCalled = false;
 
         $runner->observe($this->observer(
             fn (): string => 'first-token',
-            function () use (&$finished): void {
-                $finished = true;
+            function (EngineOperation $operation, mixed $token, ?Throwable $exception) use (&$receivedException): void {
+                $receivedException = $exception;
             },
         ));
         $runner->observe($this->observer(
@@ -229,24 +250,26 @@ class EngineOperationRunnerTest extends TestCase
         }
 
         $this->assertSame($cancellation, $caught);
-        $this->assertFalse($finished);
+        $this->assertSame($cancellation, $receivedException);
         $this->assertFalse($callbackCalled);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testOperationCancellationSkipsAllCompletion(bool $cleanupThrows): void
+    public function testOperationCancellationIsPassedToEveryObserver(bool $cleanupThrows): void
     {
         $runner = new EngineOperationRunner;
         $cancellation = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
-        $finished = false;
+        $received = [];
 
-        $runner->observe($this->observer(
-            fn (): string => 'token',
-            function () use (&$finished): void {
-                $finished = true;
-            },
-        ));
+        foreach (['first', 'second'] as $name) {
+            $runner->observe($this->observer(
+                fn (): string => $name,
+                function (EngineOperation $operation, mixed $token, ?Throwable $exception) use (&$received): void {
+                    $received[$token] = $exception;
+                },
+            ));
+        }
 
         $caught = null;
 
@@ -259,12 +282,12 @@ class EngineOperationRunnerTest extends TestCase
         }
 
         $this->assertSame($cancellation, $caught);
-        $this->assertFalse($finished);
+        $this->assertSame(['first' => $cancellation, 'second' => $cancellation], $received);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testCompletionCancellationStopsLaterObserversAndSupersedesOperationFailure(bool $cleanupThrows): void
+    public function testCompletionCancellationNotifiesLaterObserversAndSupersedesTheReportedOperationFailure(bool $cleanupThrows): void
     {
         $runner = new EngineOperationRunner;
         $operationFailure = new RuntimeException('operation failed');
@@ -283,6 +306,7 @@ class EngineOperationRunnerTest extends TestCase
                 $secondFinished = true;
             },
         ));
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($operationFailure));
 
         $caught = null;
 
@@ -295,7 +319,7 @@ class EngineOperationRunnerTest extends TestCase
         }
 
         $this->assertSame($cancellation, $caught);
-        $this->assertFalse($secondFinished);
+        $this->assertTrue($secondFinished);
     }
 
     protected function operation(): EngineOperation
@@ -311,6 +335,19 @@ class EngineOperationRunnerTest extends TestCase
     protected function observer(Closure $starting, Closure $finished): EngineOperationObserver
     {
         return new ScoutEngineOperationObserverStub($starting, $finished);
+    }
+
+    /**
+     * Bind an exception handler double for displaced failure reports.
+     */
+    private function bindReportingHandler(): ExceptionHandler&DoubleInterface
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $container->instance(ExceptionHandler::class, $handler);
+
+        return $handler;
     }
 }
 

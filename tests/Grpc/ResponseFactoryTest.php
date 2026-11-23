@@ -25,7 +25,9 @@ use Hypervel\Routing\Route;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Iterator;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -34,6 +36,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ResponseFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBuildsUnaryResponseWithFramingCompressionAndMetadata(): void
     {
         [$factory] = $this->factory();
@@ -150,8 +154,8 @@ class ResponseFactoryTest extends TestCase
     #[DataProvider('throwingIteratorMethods')]
     public function testMapsCustomIteratorPrimingFailuresWithinTheGeneratorRewind(string $method): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with(m::type(RuntimeException::class));
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::type(RuntimeException::class));
         [$factory] = $this->factory($handler);
         $request = $this->request(serverStreaming: true);
         $value = GrpcResponse::stream(new ResponseFactoryThrowingIterator($method))
@@ -237,13 +241,13 @@ class ResponseFactoryTest extends TestCase
     #[TestWith([true, true])]
     public function testPreservesCancellationWhileAdvancingAStream(bool $deadlineExpired, bool $cleanupThrows): void
     {
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $cancellation = new CanceledException;
         $cleanupException = new RuntimeException('Stream cleanup failed.');
         if ($deadlineExpired && $cleanupThrows) {
-            $handler->shouldReceive('report')->once()->with($cleanupException);
+            $handler->expects('report')->with(Argument::same($cleanupException));
         } else {
-            $handler->shouldNotReceive('report');
+            $handler->expects('report')->never();
         }
         [$factory, $contexts] = $this->factory($handler);
         $now = 0;
@@ -282,8 +286,8 @@ class ResponseFactoryTest extends TestCase
 
     public function testReportsInvalidUnaryAndStreamedServiceValues(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->twice();
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->times(2);
         [$factory] = $this->factory($handler);
 
         $unary = $factory->make($this->request(serverStreaming: false), 'invalid');
@@ -300,8 +304,8 @@ class ResponseFactoryTest extends TestCase
 
     public function testFinalizationRejectsProtocolStateMutation(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once();
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report');
         [$factory] = $this->factory($handler);
         $response = $factory->make($this->request(serverStreaming: false), new GPBEmpty);
         $response->headers->set('x-injected', 'middleware');
@@ -315,8 +319,8 @@ class ResponseFactoryTest extends TestCase
 
     public function testFinalizationRejectsAReplacementHttpResponse(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once();
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report');
         [$factory] = $this->factory($handler);
 
         $final = $factory->finalizeForEmission(new Response('not grpc'));
@@ -408,7 +412,7 @@ class ResponseFactoryTest extends TestCase
         ?ExceptionHandler $handler = null,
         int $maxMetadataSize = 8192,
     ): array {
-        $handler ??= m::mock(ExceptionHandler::class);
+        $handler ??= Double::for(ExceptionHandler::class)->strict();
         $contexts = new CallContextStore;
         $contexts->set(new ServerCallContext(
             Metadata::make(),

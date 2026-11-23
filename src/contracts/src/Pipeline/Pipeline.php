@@ -10,16 +10,22 @@ interface Pipeline
 {
     /**
      * Set the object being sent through the pipeline.
+     *
+     * @return $this
      */
     public function send(mixed $passable): static;
 
     /**
      * Set the array of pipes.
+     *
+     * @return $this
      */
     public function through(mixed $pipes): static;
 
     /**
      * Set the method to call on the pipes.
+     *
+     * @return $this
      */
     public function via(string $method): static;
 

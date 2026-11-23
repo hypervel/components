@@ -255,7 +255,7 @@ The `casts` method should return an array where the key is the name of the attri
 
 </div>
 
-The `decimal` cast requires a non-negative integer precision, such as `decimal:2`.
+The `decimal` cast requires a non-negative integer precision, such as `decimal:2`. Scientific-notation inputs must have an exponent between -1000 and 1000; larger exponents throw a `Hypervel\Support\Exceptions\MathException` to prevent excessive memory allocation. This does not limit the length of an ordinary decimal string.
 
 To demonstrate attribute casting, let's cast the `is_admin` attribute, which is stored in our database as an integer (`0` or `1`) to a boolean value:
 
@@ -994,6 +994,18 @@ class AsAddress implements CastsAttributes
     public bool $withoutObjectCaching = true;
 
     // ...
+}
+```
+
+Objects you assign to the attribute are cached too, so the next read returns the same instance. If your cast accepts objects that it does not return, define a `shouldCacheObject` method on the cast class. When this method returns `false`, Eloquent builds the attribute from its stored value the next time it is read:
+
+```php
+/**
+ * Determine if the assigned object can be cached as the attribute value.
+ */
+public function shouldCacheObject(Model $model, string $key, object $value): bool
+{
+    return $value instanceof Address;
 }
 ```
 

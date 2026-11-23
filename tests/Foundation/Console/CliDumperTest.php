@@ -9,6 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
@@ -141,10 +142,10 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    public function testWhenIsFileViewIsNotViewCompiled(): void
+    #[TestWith(['/my-work-directory/routes/console.php'])]
+    #[TestWith(['/my-work-directory/storage/framework/views-other/example.php'])]
+    public function testWhenIsFileViewIsNotViewCompiled(string $file): void
     {
-        $file = '/my-work-directory/routes/console.php';
-
         $output = new BufferedOutput;
         $dumper = new CliDumper(
             $output,
@@ -159,9 +160,11 @@ class CliDumperTest extends TestCase
         $this->assertFalse($isCompiledViewFile);
     }
 
-    public function testWhenIsFileViewIsViewCompiled(): void
+    #[TestWith(['php'])]
+    #[TestWith(['cache'])]
+    public function testWhenIsFileViewIsViewCompiled(string $extension): void
     {
-        $file = '/my-work-directory/storage/framework/views/6687c33c38b71a8560.php';
+        $file = '/my-work-directory/storage/framework/views/6687c33c38b71a8560.' . $extension;
 
         $output = new BufferedOutput;
         $dumper = new CliDumper(

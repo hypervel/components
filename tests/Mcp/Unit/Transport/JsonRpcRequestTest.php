@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Mcp\Unit\Transport;
 
 use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Mcp\Transport\JsonRpcRequest;
-use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Mcp\TestCase;
 use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -322,6 +322,35 @@ class JsonRpcRequestTest extends TestCase
         $this->assertSame(['Mcp-Method' => 'tools/call'], $request->mirroredHeaders());
         $this->assertTrue($request->requiresName());
         $this->assertNull($request->name());
+    }
+
+    public function testValidatesParamsAndReturnsTheValidatedData(): void
+    {
+        $request = new JsonRpcRequest(1, 'tools/list', ['cursor' => 'abc']);
+
+        $this->assertSame(['cursor' => 'abc'], $request->validate(['cursor' => ['nullable', 'string']]));
+    }
+
+    public function testThrowsInvalidParamsCarryingTheRequestIdWhenValidationFails(): void
+    {
+        $request = new JsonRpcRequest(7, 'tools/list', ['cursor' => 1]);
+
+        try {
+            $request->validate(['cursor' => ['nullable', 'string']]);
+        } catch (JsonRpcException $jsonRpcException) {
+            $this->assertSame([
+                'jsonrpc' => '2.0',
+                'id' => 7,
+                'error' => [
+                    'code' => -32602,
+                    'message' => 'The cursor field must be a string.',
+                ],
+            ], $jsonRpcException->toJsonRpcResponse()->toArray());
+
+            return;
+        }
+
+        $this->fail('Expected a JsonRpcException.');
     }
 
     public function testPreservesNumericObjectPropertiesFromTheWire(): void

@@ -20,7 +20,7 @@ final class CollectionChoice
     /**
      * The option names mapped to their descriptions.
      *
-     * @var array<array-key, null|array<string, mixed>|string>
+     * @var array<array-key, null|array<array-key, mixed>|string>
      */
     private array $options = [];
 
@@ -65,7 +65,7 @@ final class CollectionChoice
     /**
      * Choose the item that best answers the question about the given text.
      *
-     * @param array<string, mixed>|string $text
+     * @param array<array-key, mixed>|string $text
      * @param null|float $threshold the minimum probability of the chosen option; below it, null is returned
      *
      * @throws InvalidArgumentException if fewer than two options are available
@@ -120,7 +120,7 @@ final class CollectionChoice
      * Resolve the option description for the given item.
      *
      * @param null|array<int, string>|Closure|string $describe
-     * @return null|array<string, mixed>|string
+     * @return null|array<array-key, mixed>|string
      */
     private function resolveDescription(mixed $item, Closure|array|string|null $describe): string|array|null
     {

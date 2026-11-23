@@ -12,6 +12,7 @@ use Generator;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Events\QueryExecuted;
@@ -27,7 +28,10 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use RuntimeException;
@@ -81,6 +85,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * @var null|(callable(Connection): mixed)
      */
     protected mixed $reconnector = null;
+
+    /**
+     * Indicates if the connection is reconnecting after a lost connection.
+     */
+    protected bool $reconnecting = false;
 
     /**
      * The owner notified when the current driver resources are forgotten.
@@ -566,14 +575,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                 $beforeExecutingCallback($query, $bindings, $this);
             }
 
-            $this->reconnectIfMissingConnection();
-
             $start = hrtime(true) / 1e9;
 
             // Here we will run this query. If an exception occurs we'll determine if it was
             // caused by a connection that has been lost. If that is the cause, we'll try
             // to re-establish connection and re-run the query with a fresh connection.
             try {
+                if (! $this->hasDriverResources()) {
+                    $this->reconnectForQuery($query, $bindings);
+                }
+
                 try {
                     $result = $this->runQueryCallback($query, $bindings, $callback);
                 } catch (QueryException $e) {
@@ -584,9 +595,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                         $callback
                     );
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $events = $this->events;
 
                 if ($events?->hasListeners(QueryFailed::class)) {
@@ -640,8 +653,6 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                 $beforeExecutingCallback($query, $bindings, $this);
             }
 
-            $this->reconnectIfMissingConnection();
-
             $start = hrtime(true) / 1e9;
             $hasYielded = false;
 
@@ -658,9 +669,13 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                             $this->latestReadWriteTypeRetrieved = $readWriteType;
                         }
                     }
-                } catch (CanceledException|StreamClosedException $exception) {
+                } catch (StreamClosedException $exception) {
                     throw $exception;
                 } catch (Exception $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     ++$this->errorCount;
 
                     throw $this->newQueryException($query, $bindings, $exception);
@@ -668,6 +683,10 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             };
 
             try {
+                if (! $this->hasDriverResources()) {
+                    $this->reconnectForQuery($query, $bindings);
+                }
+
                 try {
                     yield from $execute($query, $bindings);
                 } catch (QueryException $exception) {
@@ -677,9 +696,13 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
                     yield from $this->handleQueryException($exception, $query, $bindings, $execute);
                 }
-            } catch (CanceledException|StreamClosedException $exception) {
+            } catch (StreamClosedException $exception) {
                 throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $events = $this->events;
 
                 if ($events?->hasListeners(QueryFailed::class)) {
@@ -720,9 +743,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         // If an exception occurs when attempting to run a query, we'll format the error
         // message to include the SQL and, unless masked, its bindings. This provides
         // more context for the developer than just the database's original error.
-        catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception $e) {
+        catch (Exception $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             ++$this->errorCount;
 
             throw $this->newQueryException($query, $bindings, $e);
@@ -773,6 +798,14 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * Determine if the given database exception was caused by an invalid or out of range value.
      */
     protected function isDataTypeError(Exception $exception): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine if the given exception was thrown by the database driver.
+     */
+    protected function isDriverError(Exception $exception): bool
     {
         return false;
     }
@@ -910,8 +943,15 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function tryAgainIfCausedByLostConnection(QueryException $e, string $query, array $bindings, Closure $callback): mixed
     {
-        if ($this->causedByLostConnection($e->getPrevious())) {
-            $this->reconnect();
+        // Queries run while reconnecting (e.g. from ConnectionEstablished listeners) must not reconnect again...
+        if (! $this->reconnecting && $this->causedByLostConnection($e->getPrevious())) {
+            $this->reconnecting = true;
+
+            try {
+                $this->reconnectForQuery($query, $bindings);
+            } finally {
+                $this->reconnecting = false;
+            }
 
             return $this->runQueryCallback($query, $bindings, $callback);
         }
@@ -940,6 +980,32 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     {
         if (! $this->hasDriverResources()) {
             $this->reconnect();
+        }
+    }
+
+    /**
+     * Reconnect for the given query, reporting driver failures as query failures.
+     *
+     * Laravel reconnects lazily, so a failed connection surfaces from the query callback
+     * as a QueryException. Driver resources are established eagerly here instead.
+     *
+     * @throws QueryException
+     */
+    protected function reconnectForQuery(string $query, array $bindings): void
+    {
+        try {
+            $this->reconnect();
+        } catch (Exception $exception) {
+            // QueryException extends PDOException, so check it before the driver classification.
+            if ($exception instanceof QueryException
+                || Coroutine::causedByCancellation($exception)
+                || ! $this->isDriverError($exception)) {
+                throw $exception;
+            }
+
+            ++$this->errorCount;
+
+            throw $this->newQueryException($query, $bindings, $exception);
         }
     }
 
@@ -984,11 +1050,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         try {
             $this->resetTransactionState();
         } catch (Throwable $throwable) {
-            if ($exception === null
-                || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)
-            ) {
-                $exception = $throwable;
-            }
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {
@@ -1065,6 +1127,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Register a hook to be run just before a database transaction is started.
+     *
+     * @return $this
      */
     public function beforeStartingTransaction(Closure $callback): static
     {
@@ -1075,6 +1139,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Register a hook to be run just before a database query is executed.
+     *
+     * @return $this
      */
     public function beforeExecuting(Closure $callback): static
     {
@@ -1206,7 +1272,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Register a database query listener with the connection.
      *
-     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * When the dispatcher is the application's worker-shared dispatcher,
      * per-request registration persists and affects subsequent requests.
      *
      * @param Closure(QueryExecuted): mixed $callback
@@ -1279,7 +1345,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             return $this->escapeBinary($value);
         }
         if (is_int($value) || is_float($value)) {
-            return (string) $value;
+            // Unlike Laravel's string cast, retain float precision to match bound parameters.
+            return Number::toString($value);
         }
         if (is_bool($value)) {
             return $this->escapeBool($value);
@@ -1341,6 +1408,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the record modification state.
+     *
+     * @return $this
      */
     public function setRecordModificationState(bool $value): static
     {
@@ -1358,13 +1427,55 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
+     * Execute the given callback without affecting the connection's read / write stickiness.
+     *
+     * @template TReturn
+     *
+     * @param Closure($this): TReturn $callback
+     * @return TReturn
+     */
+    public function withoutAffectingStickiness(Closure $callback): mixed
+    {
+        $recordsModified = $this->recordsModified;
+
+        try {
+            return $callback($this);
+        } finally {
+            $this->recordsModified = $recordsModified;
+        }
+    }
+
+    /**
      * Indicate that the connection should use the write connection for reads.
+     *
+     * @return $this
      */
     public function useWriteConnectionWhenReading(bool $value = true): static
     {
         $this->readOnWriteConnection = $value;
 
         return $this;
+    }
+
+    /**
+     * Execute the given callback using the write connection for reads.
+     *
+     * @template TReturn
+     *
+     * @param Closure($this): TReturn $callback
+     * @return TReturn
+     */
+    public function usingWritePdo(Closure $callback): mixed
+    {
+        $readOnWriteConnection = $this->readOnWriteConnection;
+
+        $this->useWriteConnectionWhenReading();
+
+        try {
+            return $callback($this);
+        } finally {
+            $this->useWriteConnectionWhenReading($readOnWriteConnection);
+        }
     }
 
     /**
@@ -1408,6 +1519,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the reconnect instance on the connection.
+     *
+     * @return $this
      */
     public function setReconnector(callable $reconnector): static
     {
@@ -1530,6 +1643,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the query grammar used by the connection.
+     *
+     * @return $this
      */
     public function setQueryGrammar(Query\Grammars\Grammar $grammar): static
     {
@@ -1548,6 +1663,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the schema grammar used by the connection.
+     *
+     * @return $this
      */
     public function setSchemaGrammar(Schema\Grammars\Grammar $grammar): static
     {
@@ -1566,6 +1683,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the query post processor used by the connection.
+     *
+     * @return $this
      */
     public function setPostProcessor(Processor $processor): static
     {
@@ -1584,7 +1703,14 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the event dispatcher instance on the connection.
+     *
+     * A reusable physical connection keeps the dispatcher after release, so
+     * every later coroutine that borrows it dispatches query and transaction
+     * events to it.
+     *
+     * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setEventDispatcher(Dispatcher $events): static
     {
         $this->events = $events;
@@ -1594,7 +1720,12 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Unset the event dispatcher for this connection.
+     *
+     * A reusable physical connection keeps the null dispatcher after release,
+     * so every later coroutine that borrows it fires no query or transaction
+     * events.
      */
+    #[TestsOnly(whenShared: true)]
     public function unsetEventDispatcher(): void
     {
         $this->events = null;
@@ -1664,7 +1795,14 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the transaction manager instance on the connection.
+     *
+     * A reusable physical connection keeps the manager after release, so
+     * every later coroutine that borrows it schedules after-commit callbacks
+     * on it.
+     *
+     * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setTransactionManager(DatabaseTransactionsManager $manager): static
     {
         $this->transactionsManager = $manager;
@@ -1683,9 +1821,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Unset the transaction manager for this connection.
      *
-     * Tests only. A pooled connection keeps the null manager after release, so every
-     * later coroutine that borrows it fails when scheduling after-commit callbacks.
+     * A reusable physical connection keeps the null manager after release, so
+     * every later coroutine that borrows it fails when scheduling after-commit
+     * callbacks.
      */
+    #[TestsOnly(whenShared: true)]
     public function unsetTransactionManager(): void
     {
         $this->transactionsManager = null;
@@ -1765,6 +1905,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the name of the connected database.
+     *
+     * @return $this
      */
     public function setDatabaseName(string $database): static
     {
@@ -1775,6 +1917,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the read / write type of the connection.
+     *
+     * @return $this
      */
     public function setReadWriteType(?string $readWriteType): static
     {
@@ -1803,6 +1947,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the table prefix in use by the connection.
+     *
+     * @return $this
      */
     public function setTablePrefix(string $prefix): static
     {
@@ -1838,12 +1984,53 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     abstract public function getServerVersion(): string;
 
     /**
+     * Get the ID of the last committed transaction.
+     *
+     * @throws RuntimeException
+     */
+    public function getLastCommitId(): string
+    {
+        throw new RuntimeException('The database connection does not support retrieving the last commit ID.');
+    }
+
+    /**
+     * Calculate the commit ID for a set of commit IDs that includes all of them.
+     *
+     * @param string[] $values
+     *
+     * @throws RuntimeException
+     */
+    public function mergeCommitIds(array $values): string
+    {
+        throw new RuntimeException('The database connection does not support managing commit IDs.');
+    }
+
+    /**
+     * Determine if the given commit ID has been applied.
+     *
+     * @throws RuntimeException
+     */
+    public function hasCommitId(string $value, int $wait = 0): bool
+    {
+        throw new RuntimeException('The database connection does not support checking a commit ID.');
+    }
+
+    /**
+     * Determine whether the server supports skipping locked rows.
+     */
+    public function supportsSkipLocked(): bool
+    {
+        return false;
+    }
+
+    /**
      * Register a connection resolver.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent Connection construction for the
-     * given driver across all coroutines.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent Connection construction for the given
+     * driver across all coroutines.
      */
+    #[BootOnly]
     public static function resolverFor(string $driver, Closure $callback): void
     {
         static::$resolvers[$driver] = $callback;

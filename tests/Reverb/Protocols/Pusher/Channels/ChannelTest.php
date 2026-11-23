@@ -25,7 +25,8 @@ use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\Channel as CoroutineChannel;
 
@@ -37,6 +38,9 @@ class ChannelTest extends ReverbTestCase
 
     protected ChannelConnectionManager $channelConnectionManager;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -67,9 +71,10 @@ class ChannelTest extends ReverbTestCase
 
     public function testRemovesAChannelWhenNoSubscribersRemain(): void
     {
-        $scopedManager = m::spy(ScopedChannelManager::class);
-        $channelManager = m::mock(ChannelManager::class);
-        $channelManager->shouldReceive('for')->andReturn($scopedManager);
+        $scopedManager = Double::for(ScopedChannelManager::class)->strict();
+        $scopedManager->allows('remove');
+        $channelManager = Double::for(ChannelManager::class)->strict();
+        $channelManager->allows('for')->returns($scopedManager);
         $this->app->singleton(ChannelManager::class, fn () => $channelManager);
 
         $channel = new Channel('test-channel');
@@ -77,18 +82,16 @@ class ChannelTest extends ReverbTestCase
         $channel->subscribe($this->connection);
         $channel->unsubscribe($this->connection);
 
-        $scopedManager->shouldHaveReceived('remove')
-            ->once()
-            ->with($channel);
+        $scopedManager->received('remove')->times(1)
+            ->with(Argument::same($channel));
     }
 
     public function testDuplicateSubscribeAndNonmemberUnsubscribeDoNotPublishSharedState(): void
     {
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('subscribe')
-            ->once()
-            ->andReturn(new SubscriptionResult(false, false, false, false, 1));
-        $sharedState->shouldNotReceive('unsubscribe');
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->expects('subscribe')
+            ->returns(new SubscriptionResult(false, false, false, false, 1));
+        $sharedState->expects('unsubscribe')->never();
         $this->app->instance(SharedState::class, $sharedState);
 
         $channel = new Channel('test-channel');
@@ -104,8 +107,8 @@ class ChannelTest extends ReverbTestCase
 
     public function testSharedSubscribeFailureDoesNotPublishLocalMembership(): void
     {
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('subscribe')->once()->andThrow(new RuntimeException('subscribe failed'));
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->expects('subscribe')->throws(new RuntimeException('subscribe failed'));
         $this->app->instance(SharedState::class, $sharedState);
 
         $channel = $this->channels()->findOrCreate('test-channel');
@@ -125,8 +128,8 @@ class ChannelTest extends ReverbTestCase
         $channel = $this->channels()->findOrCreate('test-channel');
         $channel->subscribe($this->connection);
 
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('unsubscribe')->once()->andThrow(new RuntimeException('unsubscribe failed'));
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->expects('unsubscribe')->throws(new RuntimeException('unsubscribe failed'));
         $this->app->instance(SharedState::class, $sharedState);
 
         $this->expectException(RuntimeException::class);
@@ -148,18 +151,16 @@ class ChannelTest extends ReverbTestCase
         $joinStarted = new CoroutineChannel(1);
         $releaseJoin = new CoroutineChannel(1);
         $joinFinished = new CoroutineChannel(1);
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('subscribe')
-            ->once()
-            ->andReturnUsing(function () use ($joinStarted, $releaseJoin): SubscriptionResult {
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->expects('subscribe')
+            ->resolves(function () use ($joinStarted, $releaseJoin): SubscriptionResult {
                 $joinStarted->push(true);
                 $releaseJoin->pop();
 
                 return new SubscriptionResult(false, false, false, false, 1);
             });
-        $sharedState->shouldReceive('unsubscribe')
-            ->once()
-            ->andReturn(new SubscriptionResult(false, false, false, false, 0));
+        $sharedState->expects('unsubscribe')
+            ->returns(new SubscriptionResult(false, false, false, false, 0));
         $this->app->instance(SharedState::class, $sharedState);
 
         go(function () use ($channel, $joiningConnection, $joinFinished): void {
@@ -186,10 +187,9 @@ class ChannelTest extends ReverbTestCase
         $joinStarted = new CoroutineChannel(1);
         $releaseJoin = new CoroutineChannel(1);
         $joinFailed = new CoroutineChannel(1);
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('subscribe')
-            ->once()
-            ->andReturnUsing(function () use ($joinStarted, $releaseJoin): never {
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->expects('subscribe')
+            ->resolves(function () use ($joinStarted, $releaseJoin): never {
                 $joinStarted->push(true);
                 $releaseJoin->pop();
 
@@ -232,15 +232,15 @@ class ChannelTest extends ReverbTestCase
     public function testTimedOutSendListenerStopsDeliveryToLaterConnections(): void
     {
         $app = $this->app->make(ApplicationProvider::class)->findByKey('reverb-key');
-        $transport = m::mock(WebSocketConnection::class);
-        $transport->shouldReceive('id')->andReturn(42);
+        $transport = Double::for(WebSocketConnection::class)->strict();
+        $transport->allows('id')->returns(42);
         $transport->expects('send')->with('{"foo":"bar"}');
         $first = new Connection($transport, $app, null);
         $second = new FakeConnection;
         $this->channelConnectionManager->add($first, []);
         $this->channelConnectionManager->add($second, []);
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
         $this->app->make('events')->listen(MessageSent::class, static function (): void {
             Coroutine::sleep(1);
@@ -265,11 +265,17 @@ class ChannelTest extends ReverbTestCase
         $failingConnection = static fn (RuntimeException $failure): FakeConnection => new class($failure) extends FakeConnection {
             public bool $attempted = false;
 
+            /**
+             * Create a connection with a configured send failure.
+             */
             public function __construct(private RuntimeException $failure)
             {
                 parent::__construct();
             }
 
+            /**
+             * Record the send attempt and throw its configured failure.
+             */
             public function send(string $message): void
             {
                 $this->attempted = true;
@@ -281,8 +287,8 @@ class ChannelTest extends ReverbTestCase
         $middle = new FakeConnection;
         $second = $failingConnection($secondFailure);
         $last = new FakeConnection;
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->once()->with($firstFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($firstFailure));
         $this->app->instance(ExceptionHandler::class, $handler);
 
         foreach ([$first, $middle, $second, $last] as $connection) {
@@ -611,19 +617,19 @@ class ChannelTest extends ReverbTestCase
         ]));
 
         // Mock SharedState to return count >100 and lock already held
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('subscribe')
-            ->andReturn(new SubscriptionResult(
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->allows('subscribe')
+            ->returns(new SubscriptionResult(
                 channelOccupied: true,
                 channelVacated: false,
                 memberAdded: false,
                 memberRemoved: false,
                 subscriptionCount: 150,
             ));
-        $sharedState->shouldReceive('trySubscriptionCountLock')
+        $sharedState->allows('trySubscriptionCountLock')
             ->with('123456', 'test-channel')
-            ->andReturn(false);
-        $sharedState->shouldReceive('clearSmoothingPending')->andReturn(false);
+            ->returns(false);
+        $sharedState->allows('clearSmoothingPending')->returns(false);
         $this->app->instance(SharedState::class, $sharedState);
 
         $channel = new Channel('test-channel');
@@ -646,19 +652,19 @@ class ChannelTest extends ReverbTestCase
         ]));
 
         // Mock SharedState to return count >100 and lock acquired
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('subscribe')
-            ->andReturn(new SubscriptionResult(
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->allows('subscribe')
+            ->returns(new SubscriptionResult(
                 channelOccupied: true,
                 channelVacated: false,
                 memberAdded: false,
                 memberRemoved: false,
                 subscriptionCount: 150,
             ));
-        $sharedState->shouldReceive('trySubscriptionCountLock')
+        $sharedState->allows('trySubscriptionCountLock')
             ->with('123456', 'test-channel')
-            ->andReturn(true);
-        $sharedState->shouldReceive('clearSmoothingPending')->andReturn(false);
+            ->returns(true);
+        $sharedState->allows('clearSmoothingPending')->returns(false);
         $this->app->instance(SharedState::class, $sharedState);
 
         $channel = new Channel('test-channel');

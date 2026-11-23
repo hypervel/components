@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use DateTimeZone;
 use Hypervel\Bus\Queueable;
+use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Console\Events\ScheduledTaskCanceled;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
@@ -16,6 +18,7 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Sentry\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Sentry\CheckIn;
 use Sentry\CheckInStatus;
@@ -23,6 +26,8 @@ use Sentry\Event as SentryEvent;
 use Sentry\EventType;
 use Sentry\MonitorSchedule;
 use Sentry\Tracing\SpanStatus;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -157,6 +162,20 @@ class ConsoleSchedulingIntegrationTest extends TestCase
         );
     }
 
+    public function testSystemCommandPassingThePhpAndArtisanBinariesAsArgumentsKeepsItsName(): void
+    {
+        $command = 'echo ' . ConsoleApplication::formatCommandString('inspire');
+        $this->getScheduler()->exec($command)->everyMinute()->sentryMonitor();
+
+        $this->artisan('schedule:run --once');
+
+        $checkIn = $this->getCapturedSentryEventsOfType(EventType::checkIn())[0][0]->getCheckIn();
+
+        $this->assertNotNull($checkIn);
+        $this->assertStringStartsWith('scheduled_echo-', $checkIn->getMonitorSlug());
+        $this->assertSame($command, $this->getCapturedTransactions()[0]->getTransaction());
+    }
+
     public function testScheduleMacroWithoutSlugCommandOrDescriptionOrName(): void
     {
         $this->expectException(RuntimeException::class);
@@ -270,6 +289,51 @@ class ConsoleSchedulingIntegrationTest extends TestCase
             (string) SpanStatus::internalError(),
             $transaction->getContexts()['trace']['status'],
         );
+    }
+
+    public function testScheduledClosureThatThrowsFailsItsUnfinishedCheckIn(): void
+    {
+        $this->getScheduler()->call(static function (): never {
+            throw new RuntimeException('Scheduled closure failed.');
+        })->everyMinute()->sentryMonitor('throwing-monitor');
+
+        $this->artisan('schedule:run --once');
+
+        [$startCheckIn, $finishCheckIn] = $this->getCheckIns();
+
+        $this->assertSame(CheckInStatus::inProgress(), $startCheckIn->getStatus());
+        $this->assertSame(CheckInStatus::error(), $finishCheckIn->getStatus());
+        $this->assertSame($startCheckIn->getId(), $finishCheckIn->getId());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCanceledTaskFailsItsUnfinishedCheckInOnlyForAFailureOutcome(bool $wrapped): void
+    {
+        $cancellation = $wrapped ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
+
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->call(static fn () => throw $cancellation)
+            ->sentryMonitor('canceled-monitor');
+
+        try {
+            $scheduledEvent->run($this->app);
+            $this->fail('Expected the scheduled callback to be canceled.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->dispatchHypervelEvent(new ScheduledTaskCanceled($scheduledEvent, $cancellation));
+
+        $checkIns = $this->getCheckIns();
+        $this->assertCount($wrapped ? 2 : 1, $checkIns);
+        $this->assertSame(CheckInStatus::inProgress(), $checkIns[0]->getStatus());
+
+        if ($wrapped) {
+            $this->assertSame(CheckInStatus::error(), $checkIns[1]->getStatus());
+            $this->assertSame($checkIns[0]->getId(), $checkIns[1]->getId());
+        }
     }
 
     public function testScheduledJobCreatesTransaction(): void

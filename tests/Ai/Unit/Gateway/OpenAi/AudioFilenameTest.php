@@ -7,14 +7,13 @@ namespace Hypervel\Tests\Ai\Unit\Gateway\OpenAi;
 use Hypervel\Ai\Contracts\Files\TranscribableAudio;
 use Hypervel\Ai\Files\Base64Audio;
 use Hypervel\Ai\Gateway\OpenAi\OpenAiGateway;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use ReflectionMethod;
 
 function callAudioFilename(TranscribableAudio $audio): string
 {
-    $gateway = new OpenAiGateway(m::mock(Dispatcher::class));
+    $gateway = new OpenAiGateway(new Dispatcher);
 
     $method = new ReflectionMethod($gateway, 'audioFilename');
 

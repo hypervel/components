@@ -30,6 +30,7 @@ class CoroutineIsolationTest extends TestCase
         ]);
     }
 
+    // REMOVED: upstream's Feature/QueueEventsTest. The queue worker runs each job in a new coroutine, so no queue event needs to flush memoized values.
     public function testValuesAreIsolatedBetweenConcurrentCoroutines(): void
     {
         Feature::define('resolved', fn () => CoroutineContext::get('__pennant_test.value'));

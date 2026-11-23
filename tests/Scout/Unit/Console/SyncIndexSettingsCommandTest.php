@@ -9,39 +9,39 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
-use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
+use Hypervel\Tests\Scout\Fixtures\SettingsEngine;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionMethod;
 
 class SyncIndexSettingsCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFailsWhenEngineDoesNotSupportUpdatingIndexSettings(): void
     {
         $engine = new CollectionEngine;
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('getDefaultDriver')
-            ->once()
-            ->andReturn('collection');
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('getDefaultDriver')
+            ->returns('collection');
+        $manager->expects('engine')
             ->with('collection')
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
-        $config = m::mock(Repository::class);
+        $config = new Repository;
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')
             ->with('driver')
-            ->andReturn(null);
-        $command->shouldReceive('error')
-            ->once()
+            ->returns(null);
+        $command->expects('error')
             ->with('The "collection" engine does not support updating index settings.');
 
         $result = $command->handle($manager, $config);
@@ -52,14 +52,13 @@ class SyncIndexSettingsCommandTest extends TestCase
     public function testNullConfiguredDriverResolvesThroughTheManager(): void
     {
         $config = new Repository(['scout' => ['driver' => null]]);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
-        $manager = new EngineManager($container, new EngineOperationRunner);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('config')->returns($config);
+        $manager = new EngineManager($container->instance(), new EngineOperationRunner);
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('driver')->andReturn(null);
-        $command->shouldReceive('error')
-            ->once()
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')->with('driver')->returns(null);
+        $command->expects('error')
             ->with('The "null" engine does not support updating index settings.');
 
         $this->assertSame(1, $command->handle($manager, $config));
@@ -67,28 +66,22 @@ class SyncIndexSettingsCommandTest extends TestCase
 
     public function testSucceedsWithInfoMessageWhenNoIndexSettingsConfigured(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+        $engine = Double::for(SettingsEngine::class)->strict();
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('getDefaultDriver')
-            ->once()
-            ->andReturn('meilisearch');
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('getDefaultDriver')
+            ->returns('meilisearch');
+        $manager->expects('engine')
             ->with('meilisearch')
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
-            ->with('scout.meilisearch.index-settings', [])
-            ->andReturn([]);
+        $config = new Repository(['scout' => ['meilisearch' => ['index-settings' => []]]]);
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')
             ->with('driver')
-            ->andReturn(null);
-        $command->shouldReceive('info')
-            ->once()
+            ->returns(null);
+        $command->expects('info')
             ->with('No index settings found for the "meilisearch" engine.');
 
         $result = $command->handle($manager, $config);
@@ -98,36 +91,29 @@ class SyncIndexSettingsCommandTest extends TestCase
 
     public function testSyncsIndexSettingsSuccessfully(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
-        $engine->shouldReceive('updateIndexSettings')
-            ->once()
+        $engine = Double::for(SettingsEngine::class)->strict();
+        $engine->expects('updateIndexSettings')
             ->with('test_posts', ['filterableAttributes' => ['status']]);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('getDefaultDriver')
-            ->once()
-            ->andReturn('meilisearch');
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('getDefaultDriver')
+            ->returns('meilisearch');
+        $manager->expects('engine')
             ->with('meilisearch')
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
-            ->with('scout.meilisearch.index-settings', [])
-            ->andReturn([
+        $config = new Repository(['scout' => [
+            'prefix' => '',
+            'meilisearch' => ['index-settings' => [
                 'test_posts' => ['filterableAttributes' => ['status']],
-            ]);
-        $config->shouldReceive('string')
-            ->with('scout.prefix')
-            ->andReturn('');
+            ]],
+        ]]);
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')
             ->with('driver')
-            ->andReturn(null);
-        $command->shouldReceive('info')
-            ->once()
+            ->returns(null);
+        $command->expects('info')
             ->with('Settings for the [test_posts] index synced successfully.');
 
         $result = $command->handle($manager, $config);
@@ -137,30 +123,27 @@ class SyncIndexSettingsCommandTest extends TestCase
 
     public function testLifecycleCallbackReceivesModelSettingsAfterSoftDeleteContribution(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
-        $engine->shouldReceive('configureSoftDeleteFilter')
-            ->once()
+        $engine = Double::for(SettingsEngine::class)->strict();
+        $engine->expects('configureSoftDeleteFilter')
             ->with(['searchableAttributes' => ['title']])
-            ->andReturn([
+            ->returns([
                 'searchableAttributes' => ['title'],
                 'filterableAttributes' => ['__soft_deleted'],
             ]);
-        $engine->shouldReceive('updateIndexSettings')
-            ->once()
+        $engine->expects('updateIndexSettings')
             ->with('soft_deletable_searchable_models', [
                 'searchableAttributes' => ['title'],
                 'filterableAttributes' => ['__soft_deleted', 'tenant_id'],
             ]);
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('getDefaultDriver')->once()->andReturn('meilisearch');
-        $manager->shouldReceive('engine')->with('meilisearch')->once()->andReturn($engine);
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
-            ->with('scout.meilisearch.index-settings', [])
-            ->andReturn([
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('getDefaultDriver')->returns('meilisearch');
+        $manager->expects('engine')->with('meilisearch')->returns($engine);
+        $config = new Repository(['scout' => [
+            'soft_delete' => true,
+            'meilisearch' => ['index-settings' => [
                 SyncIndexSettingsSoftDeleteModel::class => ['searchableAttributes' => ['title']],
-            ]);
-        $config->shouldReceive('boolean')->with('scout.soft_delete')->andReturn(true);
+            ]],
+        ]]);
 
         Scout::prepareIndexSettingsUsing(function (
             array $settings,
@@ -181,35 +164,29 @@ class SyncIndexSettingsCommandTest extends TestCase
             return $settings;
         });
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('driver')->andReturn(null);
-        $command->shouldReceive('info')->once();
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')->with('driver')->returns(null);
+        $command->expects('info');
 
         $this->assertSame(0, $command->handle($manager, $config));
     }
 
     public function testUsesDriverOptionWhenProvided(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+        $engine = Double::for(SettingsEngine::class)->strict();
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
             ->with('typesense')
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
-        $config = m::mock(Repository::class);
-        // Note: scout.driver should not be called when driver option is provided
-        $config->shouldReceive('array')
-            ->with('scout.typesense.index-settings', [])
-            ->andReturn([]);
+        $config = new Repository(['scout' => ['typesense' => ['index-settings' => []]]]);
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')
             ->with('driver')
-            ->andReturn('typesense');
-        $command->shouldReceive('info')
-            ->once()
+            ->returns('typesense');
+        $command->expects('info')
             ->with('No index settings found for the "typesense" engine.');
 
         $result = $command->handle($manager, $config);
@@ -219,25 +196,20 @@ class SyncIndexSettingsCommandTest extends TestCase
 
     public function testZeroDriverOptionIsNotReplacedByConfiguredDriver(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+        $engine = Double::for(SettingsEngine::class)->strict();
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
             ->with('0')
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
-            ->with('scout.0.index-settings', [])
-            ->andReturn([]);
+        $config = new Repository(['scout' => ['0' => ['index-settings' => []]]]);
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')
             ->with('driver')
-            ->andReturn('0');
-        $command->shouldReceive('info')
-            ->once()
+            ->returns('0');
+        $command->expects('info')
             ->with('No index settings found for the "0" engine.');
 
         $this->assertSame(0, $command->handle($manager, $config));
@@ -245,28 +217,22 @@ class SyncIndexSettingsCommandTest extends TestCase
 
     public function testEmptyDriverOptionUsesConfiguredDriver(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+        $engine = Double::for(SettingsEngine::class)->strict();
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('getDefaultDriver')
-            ->once()
-            ->andReturn('meilisearch');
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('getDefaultDriver')
+            ->returns('meilisearch');
+        $manager->expects('engine')
             ->with('meilisearch')
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
-            ->with('scout.meilisearch.index-settings', [])
-            ->andReturn([]);
+        $config = new Repository(['scout' => ['meilisearch' => ['index-settings' => []]]]);
 
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
-        $command->shouldReceive('option')
+        $command = Double::for(new SyncIndexSettingsCommand)->passthru();
+        $command->allows('option')
             ->with('driver')
-            ->andReturn('');
-        $command->shouldReceive('info')
-            ->once()
+            ->returns('');
+        $command->expects('info')
             ->with('No index settings found for the "meilisearch" engine.');
 
         $this->assertSame(0, $command->handle($manager, $config));
@@ -274,14 +240,11 @@ class SyncIndexSettingsCommandTest extends TestCase
 
     public function testIndexNameResolutionPrependsPrefix(): void
     {
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
+        $command = new SyncIndexSettingsCommand;
 
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.prefix')
-            ->andReturn('prod_');
+        $config = new Repository(['scout' => ['prefix' => 'prod_']]);
 
         // Test that prefix is prepended when not already present
         $result = $method->invoke($command, 'posts', $config);
@@ -290,14 +253,11 @@ class SyncIndexSettingsCommandTest extends TestCase
 
     public function testIndexNameResolutionDoesNotDuplicatePrefix(): void
     {
-        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
+        $command = new SyncIndexSettingsCommand;
 
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.prefix')
-            ->andReturn('prod_');
+        $config = new Repository(['scout' => ['prefix' => 'prod_']]);
 
         // Test that prefix is not duplicated when already present
         $result = $method->invoke($command, 'prod_posts', $config);

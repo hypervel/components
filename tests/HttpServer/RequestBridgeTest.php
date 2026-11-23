@@ -10,7 +10,8 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use Swoole\Http\Request as SwooleRequest;
@@ -18,6 +19,8 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class RequestBridgeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDirectory;
 
     protected function setUp(): void
@@ -174,7 +177,7 @@ class RequestBridgeTest extends TestCase
 
     public function testCreateFromSwooleWithRawJsonBody(): void
     {
-        $body = '{"name":"Taylor","role":"admin"}';
+        $body = '{"name":"Taylor","age":38,"admin":true,"profile":{"city":"Paris"}}';
 
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'post', 'request_uri' => '/api/users'],
@@ -185,6 +188,28 @@ class RequestBridgeTest extends TestCase
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
         $this->assertSame($body, $request->getContent());
+        $this->assertSame(38, $request->post('age'));
+        $this->assertTrue($request->input('admin'));
+        $this->assertSame(['city' => 'Paris'], $request->request->all('profile'));
+
+        // The request bag and the JSON payload are the same bag.
+        $request->merge(['team' => 'core']);
+        $this->assertSame('core', $request->request->get('team'));
+        $this->assertSame('core', $request->json('team'));
+    }
+
+    public function testCreateFromSwooleWithMalformedJsonBody(): void
+    {
+        $swooleRequest = $this->createSwooleRequest(
+            server: ['request_method' => 'post', 'request_uri' => '/api/users'],
+            header: ['host' => 'example.com', 'content-type' => 'application/json'],
+            rawContent: '{"name":',
+        );
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+
+        $this->assertSame('{"name":', $request->getContent());
+        $this->assertSame([], $request->post());
     }
 
     public function testCreateFromSwooleWithEmptyRawContent(): void
@@ -617,14 +642,14 @@ class RequestBridgeTest extends TestCase
         ?array $files = null,
         string|false $rawContent = false,
     ): SwooleRequest {
-        $swooleRequest = m::mock(SwooleRequest::class);
+        $swooleRequest = Double::for(SwooleRequest::class)->strict();
         $swooleRequest->server = $server;
         $swooleRequest->header = $header;
         $swooleRequest->get = $get;
         $swooleRequest->post = $post;
         $swooleRequest->cookie = $cookie;
         $swooleRequest->files = $files;
-        $swooleRequest->shouldReceive('rawContent')->andReturn($rawContent);
+        $swooleRequest->allows('rawContent')->returns($rawContent);
 
         return $swooleRequest;
     }

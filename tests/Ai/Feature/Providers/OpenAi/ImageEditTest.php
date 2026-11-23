@@ -151,4 +151,27 @@ class ImageEditTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => $request->hasFile('image', 'source-bytes', 'image.png'));
     }
+
+    public function testGptImageEditsSendModerationLowByDefault(): void
+    {
+        Http::fake(['*' => $this->fakeOpenAiImageEditResponse()]);
+
+        Image::of('Make it brighter')
+            ->attachments([new Base64Image(base64_encode('source-bytes'), 'image/png')])
+            ->generate(provider: 'openai', model: 'gpt-image-1');
+
+        Http::assertSent(fn (Request $request): bool => collect($request->data())->pluck('contents', 'name')->get('moderation') === 'low');
+    }
+
+    public function testGptImageEditsModerationCanBeSetThroughProviderOptions(): void
+    {
+        Http::fake(['*' => $this->fakeOpenAiImageEditResponse()]);
+
+        Image::of('Make it brighter')
+            ->attachments([new Base64Image(base64_encode('source-bytes'), 'image/png')])
+            ->withProviderOptions(['moderation' => 'auto'])
+            ->generate(provider: 'openai', model: 'gpt-image-1');
+
+        Http::assertSent(fn (Request $request): bool => collect($request->data())->pluck('contents', 'name')->get('moderation') === 'auto');
+    }
 }

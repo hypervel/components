@@ -10,14 +10,17 @@ use Hypervel\Testing\Constraints\HasInDatabase;
 use Hypervel\Testing\Constraints\NotSoftDeletedInDatabase;
 use Hypervel\Testing\Constraints\SoftDeletedInDatabase;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\ExpectationFailedException;
 
 class DatabaseConstraintsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testStringRepresentationsSubstituteInvalidUtf8(): void
     {
-        $database = m::mock(Connection::class);
+        $database = Double::for(Connection::class)->strict();
         $invalidUtf8 = "\xB1";
         $constraints = [
             new HasInDatabase($database, ['value' => $invalidUtf8]),
@@ -35,7 +38,7 @@ class DatabaseConstraintsTest extends TestCase
     public function testHasInDatabaseFailureDescriptionKeepsUnicodeReadable(): void
     {
         $constraint = new HasInDatabaseWithoutAdditionalInfo(
-            m::mock(Connection::class),
+            Double::for(Connection::class)->strict(),
             ['name' => '世界'],
         );
 
@@ -48,17 +51,17 @@ class DatabaseConstraintsTest extends TestCase
     public function testHasInDatabaseAssertionFailureIncludesMalformedSimilarResults(): void
     {
         $invalidUtf8 = "\xB1";
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with(['name' => 'expected'])->once()->andReturnSelf();
-        $builder->shouldReceive('exists')->once()->andReturnFalse();
-        $builder->shouldReceive('where')->with('name', 'expected')->once()->andReturnSelf();
-        $builder->shouldReceive('select')->with(['name'])->once()->andReturnSelf();
-        $builder->shouldReceive('limit')->with(3)->once()->andReturnSelf();
-        $builder->shouldReceive('get')->once()->andReturn(collect([['name' => $invalidUtf8]]));
-        $builder->shouldReceive('count')->once()->andReturn(1);
+        $builder = Double::for(Builder::class)->strict();
+        $builder->expects('where')->with(['name' => 'expected'])->returns($builder);
+        $builder->expects('exists')->returns(false);
+        $builder->expects('where')->with('name', 'expected')->returns($builder);
+        $builder->expects('select')->with(['name'])->returns($builder);
+        $builder->expects('limit')->with(3)->returns($builder);
+        $builder->expects('get')->returns(collect([['name' => $invalidUtf8]]));
+        $builder->expects('count')->returns(1);
 
-        $database = m::mock(Connection::class);
-        $database->shouldReceive('table')->with('users')->twice()->andReturn($builder);
+        $database = Double::for(Connection::class)->strict();
+        $database->expects('table')->with('users')->times(2)->returns($builder);
 
         $failure = null;
 
@@ -76,20 +79,20 @@ class DatabaseConstraintsTest extends TestCase
     public function testHasInDatabaseAdditionalInfoIncludesMalformedFallbackResults(): void
     {
         $invalidUtf8 = "\xB1";
-        $similarBuilder = m::mock(Builder::class);
-        $similarBuilder->shouldReceive('where')->with('name', 'expected')->once()->andReturnSelf();
-        $similarBuilder->shouldReceive('select')->with(['name'])->once()->andReturnSelf();
-        $similarBuilder->shouldReceive('limit')->with(3)->once()->andReturnSelf();
-        $similarBuilder->shouldReceive('get')->once()->andReturn(collect());
+        $similarBuilder = Double::for(Builder::class)->strict();
+        $similarBuilder->expects('where')->with('name', 'expected')->returns($similarBuilder);
+        $similarBuilder->expects('select')->with(['name'])->returns($similarBuilder);
+        $similarBuilder->expects('limit')->with(3)->returns($similarBuilder);
+        $similarBuilder->expects('get')->returns(collect());
 
-        $fallbackBuilder = m::mock(Builder::class);
-        $fallbackBuilder->shouldReceive('select')->with(['name'])->once()->andReturnSelf();
-        $fallbackBuilder->shouldReceive('limit')->with(3)->once()->andReturnSelf();
-        $fallbackBuilder->shouldReceive('get')->once()->andReturn(collect([['name' => $invalidUtf8]]));
-        $fallbackBuilder->shouldReceive('count')->once()->andReturn(1);
+        $fallbackBuilder = Double::for(Builder::class)->strict();
+        $fallbackBuilder->expects('select')->with(['name'])->returns($fallbackBuilder);
+        $fallbackBuilder->expects('limit')->with(3)->returns($fallbackBuilder);
+        $fallbackBuilder->expects('get')->returns(collect([['name' => $invalidUtf8]]));
+        $fallbackBuilder->expects('count')->returns(1);
 
-        $database = m::mock(Connection::class);
-        $database->shouldReceive('table')->with('users')->twice()->andReturn($similarBuilder, $fallbackBuilder);
+        $database = Double::for(Connection::class)->strict();
+        $database->expects('table')->with('users')->times(2)->returns($similarBuilder, $fallbackBuilder);
 
         $constraint = new ExposedHasInDatabase($database, ['name' => 'expected']);
         $description = $constraint->additionalInfo('users');
@@ -101,13 +104,13 @@ class DatabaseConstraintsTest extends TestCase
     public function testSoftDeleteAdditionalInfoSubstitutesMalformedResults(): void
     {
         foreach ([ExposedSoftDeletedInDatabase::class, ExposedNotSoftDeletedInDatabase::class] as $constraintClass) {
-            $builder = m::mock(Builder::class);
-            $builder->shouldReceive('limit')->with(3)->once()->andReturnSelf();
-            $builder->shouldReceive('get')->once()->andReturn(collect([['name' => "\xB1"]]));
-            $builder->shouldReceive('count')->once()->andReturn(1);
+            $builder = Double::for(Builder::class)->strict();
+            $builder->expects('limit')->with(3)->returns($builder);
+            $builder->expects('get')->returns(collect([['name' => "\xB1"]]));
+            $builder->expects('count')->returns(1);
 
-            $database = m::mock(Connection::class);
-            $database->shouldReceive('table')->with('users')->once()->andReturn($builder);
+            $database = Double::for(Connection::class)->strict();
+            $database->expects('table')->with('users')->returns($builder);
 
             $constraint = new $constraintClass($database, ['name' => 'expected'], 'deleted_at');
 
@@ -117,7 +120,7 @@ class DatabaseConstraintsTest extends TestCase
 
     public function testStringRepresentationUsesPartialOutputForNonFiniteNumbers(): void
     {
-        $constraint = new HasInDatabase(m::mock(Connection::class), ['number' => INF]);
+        $constraint = new HasInDatabase(Double::for(Connection::class)->strict(), ['number' => INF]);
 
         $this->assertSame('{"number":0}', $constraint->toString());
     }

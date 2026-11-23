@@ -9,19 +9,23 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Tests\Auth\Fixtures\AuthorizableStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use JMac\Testing\OverriddenDouble;
 
 class AuthorizableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAuthorize(): void
     {
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
         $response = Response::allow();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('authorize')->with('foo', ['bar'])->once()->andReturn($response);
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('authorize')->with('foo', ['bar'])->returns($response);
 
         $this->assertSame($response, $user->authorize('foo', ['bar']));
     }
@@ -31,8 +35,8 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('check')->with('foo', ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('check')->with('foo', ['bar'])->returns(true);
 
         $this->assertTrue($user->can('foo', ['bar']));
     }
@@ -42,8 +46,8 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('any')->with(['foo'], ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('any')->with(['foo'], ['bar'])->returns(true);
 
         $this->assertTrue($user->canAny(['foo'], ['bar']));
     }
@@ -53,8 +57,8 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('check')->with('foo', ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('check')->with('foo', ['bar'])->returns(true);
 
         $this->assertFalse($user->cant('foo', ['bar']));
     }
@@ -64,8 +68,8 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('check')->with('foo', ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('check')->with('foo', ['bar'])->returns(true);
 
         $this->assertFalse($user->cannot('foo', ['bar']));
     }
@@ -75,8 +79,8 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->returns(true);
 
         $this->assertTrue($user->can(AuthorizableTestAbility::ManageUsers, ['bar']));
     }
@@ -86,8 +90,8 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('any')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('any')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->returns(true);
 
         $this->assertTrue($user->canAny(AuthorizableTestAbility::ManageUsers, ['bar']));
     }
@@ -97,8 +101,8 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->returns(true);
 
         $this->assertFalse($user->cant(AuthorizableTestAbility::ManageUsers, ['bar']));
     }
@@ -108,21 +112,21 @@ class AuthorizableTest extends TestCase
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
 
-        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
-        $gate->shouldReceive('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+        $gate->expects('forUser')->with(Argument::same($user));
+        $gate->expects('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->returns(true);
 
         $this->assertFalse($user->cannot(AuthorizableTestAbility::ManageUsers, ['bar']));
     }
 
     /**
-     * @return Gate|MockInterface
+     * Create and bind an authorization gate double.
      */
-    private function mockGate(): Gate
+    private function mockGate(): OverriddenDouble
     {
-        $gate = m::mock(Gate::class);
+        $gate = Double::for(Gate::class, override: true)->strict();
 
         $container = new Container;
-        $container->instance(Gate::class, $gate);
+        $container->instance(Gate::class, $gate->instance());
         Container::setInstance($container);
 
         return $gate;

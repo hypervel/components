@@ -695,6 +695,10 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
             $if = resolveDocblockTypes($method, $typeNode->if, $depth + 1);
             $else = resolveDocblockTypes($method, $typeNode->else, $depth + 1);
 
+            if ($if === $else) {
+                return $if;
+            }
+
             if (! canPreserveConditionalTarget($method, $typeNode->targetType)) {
                 return flattenConditionalBranches($if, $else);
             }

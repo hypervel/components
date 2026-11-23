@@ -141,7 +141,7 @@ assertType('Hypervel\Support\Collection<string, DataTypeUserData>', $explicitCol
 assertType('Hypervel\Support\LazyCollection<string, DataTypeUserData>', $explicitLazyCollection);
 assertType('Hypervel\Data\DataCollection<string, DataTypeUserData>', $explicitDataCollection);
 assertType('Hypervel\Support\Collection<string, DataTypeUserData>', $iteratorCollection);
-assertType('array<string, DataTypeUserData>|Hypervel\Contracts\Pagination\CursorPaginator<string, DataTypeUserData>|Hypervel\Contracts\Pagination\Paginator<string, DataTypeUserData>|Hypervel\Data\CursorPaginatedDataCollection<string, DataTypeUserData>|Hypervel\Data\DataCollection<string, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<string, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<string, DataTypeUserData>|Hypervel\Pagination\AbstractPaginator<string, DataTypeUserData>|Hypervel\Support\Enumerable<string, DataTypeUserData>', $dynamicTarget);
+assertType('array<string, DataTypeUserData>|Hypervel\Contracts\Pagination\CursorPaginator<string, DataTypeUserData>|Hypervel\Contracts\Pagination\Paginator<string, DataTypeUserData>|Hypervel\Data\CursorPaginatedDataCollection<string, DataTypeUserData>|Hypervel\Data\DataCollection<string, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<string, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<string, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Pagination\AbstractPaginator<string, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Support\Enumerable<string, DataTypeUserData>', $dynamicTarget);
 
 /** @var Paginator<int, array{id: int}> $paginator */
 $paginator = new Paginator([['id' => 1]], 10, 1);
@@ -184,21 +184,21 @@ $stringKeyedCursorPaginator = new CursorPaginator(dataTypeStringKeyedRows(), 10)
 $directPaginatedData = new PaginatedDataCollection(DataTypeUserData::class, $stringKeyedPaginator);
 $directCursorPaginatedData = new CursorPaginatedDataCollection(DataTypeUserData::class, $stringKeyedCursorPaginator);
 
-assertType('Hypervel\Pagination\Paginator<int, DataTypeUserData>', $paginated);
+assertType('Hypervel\Pagination\Paginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $paginated);
 assertType('Hypervel\Data\PaginatedDataCollection<int, DataTypeUserData>', $paginatedData);
-assertType('Hypervel\Pagination\CursorPaginator<int, DataTypeUserData>', $cursorPaginated);
+assertType('Hypervel\Pagination\CursorPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $cursorPaginated);
 assertType('Hypervel\Data\CursorPaginatedDataCollection<int, DataTypeUserData>', $cursorPaginatedData);
-assertType('Hypervel\Pagination\LengthAwarePaginator<int, DataTypeUserData>', $lengthAwarePaginated);
-assertType('Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData>', $abstractPaginated);
-assertType('Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData>', $abstractCursorPaginated);
-assertType('Hypervel\Data\CursorPaginatedDataCollection<int, DataTypeUserData>|Hypervel\Data\DataCollection<int, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<int, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData>|Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData>|Hypervel\Support\Collection<int, DataTypeUserData>|Hypervel\Support\LazyCollection<int, DataTypeUserData>', $contractPaginated);
-assertType('Hypervel\Data\CursorPaginatedDataCollection<int, DataTypeUserData>|Hypervel\Data\DataCollection<int, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<int, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData>|Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData>|Hypervel\Support\Collection<int, DataTypeUserData>|Hypervel\Support\LazyCollection<int, DataTypeUserData>', $contractCursorPaginated);
-assertType('Hypervel\Data\CursorPaginatedDataCollection<int, DataTypeUserData>|Hypervel\Data\DataCollection<int, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<int, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData>|Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData>|Hypervel\Support\Collection<int, DataTypeUserData>|Hypervel\Support\LazyCollection<int, DataTypeUserData>', $contractLengthAwarePaginated);
-assertType('Hypervel\Pagination\Paginator<int, DataTypeUserData>', $explicitPaginator);
-assertType('Hypervel\Pagination\CursorPaginator<int, DataTypeUserData>', $explicitCursorPaginator);
-assertType('Hypervel\Pagination\LengthAwarePaginator<int, DataTypeUserData>', $explicitLengthAwarePaginator);
-assertType('Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData>', $explicitAbstractPaginator);
-assertType('Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData>', $explicitAbstractCursorPaginator);
+assertType('Hypervel\Pagination\LengthAwarePaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $lengthAwarePaginated);
+assertType('Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $abstractPaginated);
+assertType('Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $abstractCursorPaginated);
+assertType('Hypervel\Data\CursorPaginatedDataCollection<int, DataTypeUserData>|Hypervel\Data\DataCollection<int, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<int, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Support\Collection<int, DataTypeUserData>|Hypervel\Support\LazyCollection<int, DataTypeUserData>', $contractPaginated);
+assertType('Hypervel\Data\CursorPaginatedDataCollection<int, DataTypeUserData>|Hypervel\Data\DataCollection<int, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<int, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Support\Collection<int, DataTypeUserData>|Hypervel\Support\LazyCollection<int, DataTypeUserData>', $contractCursorPaginated);
+assertType('Hypervel\Data\CursorPaginatedDataCollection<int, DataTypeUserData>|Hypervel\Data\DataCollection<int, DataTypeUserData>|Hypervel\Data\PaginatedDataCollection<int, DataTypeUserData>|Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>|Hypervel\Support\Collection<int, DataTypeUserData>|Hypervel\Support\LazyCollection<int, DataTypeUserData>', $contractLengthAwarePaginated);
+assertType('Hypervel\Pagination\Paginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $explicitPaginator);
+assertType('Hypervel\Pagination\CursorPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $explicitCursorPaginator);
+assertType('Hypervel\Pagination\LengthAwarePaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $explicitLengthAwarePaginator);
+assertType('Hypervel\Pagination\AbstractPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $explicitAbstractPaginator);
+assertType('Hypervel\Pagination\AbstractCursorPaginator<int, DataTypeUserData, Hypervel\Support\Collection<(int|string), mixed>>', $explicitAbstractCursorPaginator);
 assertType('Hypervel\Contracts\Pagination\Paginator<int, DataTypeUserData>', $explicitPaginatorContract);
 assertType('Hypervel\Contracts\Pagination\CursorPaginator<int, DataTypeUserData>', $explicitCursorPaginatorContract);
 assertType('Hypervel\Contracts\Pagination\LengthAwarePaginator<int, DataTypeUserData>', $explicitLengthAwareContract);

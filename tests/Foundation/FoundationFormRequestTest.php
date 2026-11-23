@@ -28,13 +28,17 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator as TranslatorConcrete;
 use Hypervel\Validation\Factory as ValidationFactory;
+use Hypervel\Validation\Rules\Numeric;
 use Hypervel\Validation\ValidationException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 use Symfony\Component\HttpFoundation\InputBag;
 
 class FoundationFormRequestTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $mocks = [];
 
     public function testValidatedMethodReturnsTheValidatedData(): void
@@ -44,6 +48,34 @@ class FoundationFormRequestTest extends TestCase
         $request->validateResolved();
 
         $this->assertEquals(['name' => 'specified'], $request->validated());
+    }
+
+    public function testInjectedRuleConstraintsBelongToEachRequest(): void
+    {
+        $container = new Container;
+        $container->instance(ValidationFactoryContract::class, $this->createValidationFactory($container));
+
+        $prototype = new class extends FormRequest {
+            /**
+             * Build the constraints for this request.
+             */
+            public function rules(Numeric $numeric): array
+            {
+                return [
+                    'minimum' => ['boolean'],
+                    'amount' => [$this->boolean('minimum') ? $numeric->min(10) : $numeric->max(5)],
+                ];
+            }
+        };
+
+        foreach ([['minimum' => true, 'amount' => 12], ['minimum' => false, 'amount' => 3]] as $payload) {
+            $request = $prototype::create('/', 'POST', $payload);
+            $request->setContainer($container)->setRedirector($this->createMockRedirector($request));
+
+            $request->validateResolved();
+
+            $this->assertSame($payload, $request->validated());
+        }
     }
 
     public function testValidatedMethodReturnsTheValidatedDataNestedRules(): void
@@ -160,7 +192,7 @@ class FoundationFormRequestTest extends TestCase
     {
         $request = $this->createRequest([], FoundationTestFormRequestOverridingParentPropertiesWithRouteAttributeStub::class, 'POST');
 
-        $this->mocks['generator']->shouldReceive('route')->with('grandchild.route')->andReturn('http://localhost/grandchild');
+        $this->mocks['generator']->expects('route')->with('grandchild.route')->returns('http://localhost/grandchild');
 
         $exception = $this->catchException(ValidationException::class, function () use ($request): void {
             $request->validateResolved();
@@ -660,6 +692,38 @@ class FoundationFormRequestTest extends TestCase
         $this->assertTrue($exception->validator->errors()->has('unexpected'));
     }
 
+    public function testFailOnUnknownFieldsIgnoresCsrfTokenAndMethodFields(): void
+    {
+        FormRequest::failOnUnknownFields();
+
+        $request = $this->createRequest(
+            ['_token' => 'token', '_method' => 'PUT', 'name' => 'Taylor'],
+            FoundationTestFormRequestStub::class,
+            'POST'
+        );
+
+        $request->validateResolved();
+
+        $this->assertEquals(['name' => 'Taylor'], $request->validated());
+    }
+
+    public function testFailOnUnknownFieldsStillRejectsUnknownFieldsAlongsideCsrfTokenAndMethodFields(): void
+    {
+        FormRequest::failOnUnknownFields();
+
+        $request = $this->createRequest(
+            ['_token' => 'token', '_method' => 'PUT', 'name' => 'Taylor', 'unexpected' => 'value'],
+            FoundationTestFormRequestStub::class,
+            'POST'
+        );
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertSame(['unexpected'], $exception->validator->errors()->keys());
+    }
+
     public function testFailOnUnknownFieldsAllowsConfirmationFieldsWhenBaseFieldIsConfirmed(): void
     {
         FormRequest::failOnUnknownFields();
@@ -805,10 +869,10 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createValidationFactory(Container $container): ValidationFactory
     {
-        $translator = m::mock(Translator::class);
-        $translator->shouldReceive('get')->zeroOrMoreTimes()->andReturn('error');
-        $translator->shouldReceive('string')->zeroOrMoreTimes()->andReturn('error');
-        $translator->shouldReceive('choice')->zeroOrMoreTimes()->andReturn('error');
+        $translator = Double::for(Translator::class)->strict();
+        $translator->allows('get')->returns('error');
+        $translator->allows('string')->returns('error');
+        $translator->allows('choice')->returns('error');
 
         return new ValidationFactory($translator, $container);
     }
@@ -835,16 +899,16 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createMockRedirector(FormRequest $request): Redirector
     {
-        $redirector = $this->mocks['redirector'] = m::mock(Redirector::class);
+        $redirector = $this->mocks['redirector'] = Double::for(Redirector::class)->strict();
 
-        $redirector->shouldReceive('getUrlGenerator')->zeroOrMoreTimes()
-            ->andReturn($generator = $this->createMockUrlGenerator());
+        $redirector->allows('getUrlGenerator')
+            ->returns($generator = $this->createMockUrlGenerator());
 
-        $redirector->shouldReceive('to')->zeroOrMoreTimes()
-            ->andReturn($this->createMockRedirectResponse());
+        $redirector->allows('to')
+            ->returns($this->createMockRedirectResponse());
 
-        $generator->shouldReceive('previous')->zeroOrMoreTimes()
-            ->andReturn('previous');
+        $generator->allows('previous')
+            ->returns('previous');
 
         return $redirector;
     }
@@ -854,7 +918,7 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createMockUrlGenerator(): UrlGenerator
     {
-        return $this->mocks['generator'] = m::mock(UrlGenerator::class);
+        return $this->mocks['generator'] = Double::for(UrlGenerator::class)->strict();
     }
 
     /**
@@ -862,7 +926,7 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createMockRedirectResponse(): RedirectResponse
     {
-        return $this->mocks['redirect'] = m::mock(RedirectResponse::class);
+        return $this->mocks['redirect'] = Double::for(RedirectResponse::class)->strict();
     }
 
     public function testAttributeConfigurationIsCachedPerClass(): void

@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
-class Dimensions implements Stringable
+class Dimensions implements Stringable, Transient
 {
     use Conditionable;
 
@@ -23,6 +24,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the "width" constraint.
+     *
+     * @return $this
      */
     public function width(int|string $value): static
     {
@@ -33,6 +36,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the "height" constraint.
+     *
+     * @return $this
      */
     public function height(int|string $value): static
     {
@@ -43,6 +48,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the "min width" constraint.
+     *
+     * @return $this
      */
     public function minWidth(int|string $value): static
     {
@@ -53,6 +60,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the "min height" constraint.
+     *
+     * @return $this
      */
     public function minHeight(int|string $value): static
     {
@@ -63,6 +72,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the "max width" constraint.
+     *
+     * @return $this
      */
     public function maxWidth(int|string $value): static
     {
@@ -73,6 +84,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the "max height" constraint.
+     *
+     * @return $this
      */
     public function maxHeight(int|string $value): static
     {
@@ -83,6 +96,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the "ratio" constraint.
+     *
+     * @return $this
      */
     public function ratio(float|string $value): static
     {
@@ -93,6 +108,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the minimum aspect ratio.
+     *
+     * @return $this
      */
     public function minRatio(float|string $value): static
     {
@@ -103,6 +120,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the maximum aspect ratio.
+     *
+     * @return $this
      */
     public function maxRatio(float|string $value): static
     {
@@ -113,6 +132,8 @@ class Dimensions implements Stringable
 
     /**
      * Set the aspect ratio range.
+     *
+     * @return $this
      */
     public function ratioBetween(float|string $min, float|string $max): static
     {
