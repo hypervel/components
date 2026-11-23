@@ -1172,14 +1172,17 @@ trait ValidatesAttributes
     {
         $verifier = $this->getPresenceVerifier();
 
+        // A hook may validate another attribute, so read the rule being validated first.
+        $rule = $this->currentRule;
+
         // As in Laravel, parameters after the header pass through the hook and combine with the
         // rule's own conditions, so validator subclasses can scope a fluent rule either way.
         $conditions = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
 
-        if ($this->currentRule instanceof DatabaseRulePlan) {
-            $conditions = $conditions->merge($this->currentRule->conditions);
-        } elseif ($this->currentRule instanceof Exists) {
-            $conditions = $conditions->merge($this->currentRuleConditions = $this->currentRule->queryConditions());
+        if ($rule instanceof DatabaseRulePlan) {
+            $conditions = $conditions->merge($rule->conditions);
+        } elseif ($rule instanceof Exists) {
+            $conditions = $conditions->merge($this->currentRuleConditions = $rule->queryConditions());
         }
 
         $query = new PresenceQuery($connection, $table, $column, $conditions);
@@ -1222,14 +1225,27 @@ trait ValidatesAttributes
         // data store like Redis, etc. We will use it to determine uniqueness.
         $verifier = $this->getPresenceVerifier();
 
+        // A hook may validate another attribute, so read the rule being validated first.
+        $rule = $this->currentRule;
+
         // As in Laravel, parameters after the header pass through the hook and combine with the
         // rule's own conditions, so validator subclasses can scope a fluent rule either way.
         $conditions = $this->getUniqueExtra($parameters);
 
-        if ($this->currentRule instanceof DatabaseRulePlan) {
-            $conditions = $conditions->merge($this->currentRule->conditions);
-        } elseif ($this->currentRule instanceof Unique) {
-            $conditions = $conditions->merge($this->currentRuleConditions = $this->currentRule->queryConditions());
+        if ($rule instanceof DatabaseRulePlan) {
+            $conditions = $conditions->merge($rule->conditions);
+        } elseif ($rule instanceof Unique) {
+            $declared = $rule->queryConditions();
+
+            // Laravel renders a builder's predicates as extra parameters, which sends them through
+            // the shared hook. This header carries none, so consult the hook for them here.
+            if (! isset($parameters[4])
+                && array_any($declared->all(), static fn (mixed $condition): bool => $condition instanceof DatabaseCondition)
+            ) {
+                $conditions = $conditions->merge($this->getExtraConditions([]));
+            }
+
+            $conditions = $conditions->merge($this->currentRuleConditions = $declared);
         }
 
         return $verifier->getCount(

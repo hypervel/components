@@ -5265,47 +5265,90 @@ class ValidationValidatorTest extends TestCase
             }
         };
 
-        $hookScoped = new class($this->getArrayTranslator(), [], []) extends Validator {
+        $extraConditionsScoped = new class($this->getArrayTranslator(), [], []) extends Validator {
             /**
-             * Scope the extra conditions for the unique rule to a tenant.
-             */
-            protected function getUniqueExtra(array $parameters): DatabaseConditions
-            {
-                return $this->scope(parent::getUniqueExtra($parameters));
-            }
-
-            /**
-             * Scope the extra conditions for the exists rule to a tenant.
+             * Scope the extra conditions shared by the exists and unique rules to a tenant.
              */
             protected function getExtraConditions(array $segments): DatabaseConditions
             {
-                return $this->scope(parent::getExtraConditions($segments));
-            }
-
-            /**
-             * Append the tenant condition to the given conditions.
-             */
-            private function scope(DatabaseConditions $conditions): DatabaseConditions
-            {
                 return new DatabaseConditions(
-                    ...$conditions->all(),
+                    ...parent::getExtraConditions($segments)->all(),
                     ...[new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42')],
                 );
             }
         };
 
-        foreach ([$parameterScoped::class, $hookScoped::class] as $class) {
-            foreach ([
-                [(new Unique('users', 'email'))->where('active', true), new PresenceQuery(null, 'users', 'email', new DatabaseConditions($tenant, $active), null, 'id'), 0],
-                [(new Exists('users', 'email'))->where('active', true), new PresenceQuery(null, 'users', 'email', new DatabaseConditions($tenant, $active)), 1],
-            ] as [$rule, $query, $count]) {
-                $validator = new $class($this->getArrayTranslator(), ['email' => 'foo'], ['email' => [$rule]]);
-                $verifier = Double::for(PresenceVerifierInterface::class)->strict();
-                $verifier->expects('getCount')->with($this->matchingPresenceQuery($query), 'foo')->returns($count);
-                $validator->setPresenceVerifier($verifier);
-
-                $this->assertTrue($validator->passes());
+        $uniqueExtraScoped = new class($this->getArrayTranslator(), [], []) extends Validator {
+            /**
+             * Scope the extra conditions for the unique rule to a tenant.
+             */
+            protected function getUniqueExtra(array $parameters): DatabaseConditions
+            {
+                return new DatabaseConditions(
+                    ...parent::getUniqueExtra($parameters)->all(),
+                    ...[new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42')],
+                );
             }
+        };
+
+        $scoped = new DatabaseConditions($tenant, $active);
+        $unique = fn (): Unique => (new Unique('users', 'email'))->where('active', true);
+        $exists = fn (): Exists => (new Exists('users', 'email'))->where('active', true);
+
+        foreach ([
+            [$parameterScoped::class, $unique(), new PresenceQuery(null, 'users', 'email', $scoped, null, 'id'), 0],
+            [$parameterScoped::class, $exists(), new PresenceQuery(null, 'users', 'email', $scoped), 1],
+            [$extraConditionsScoped::class, $unique(), new PresenceQuery(null, 'users', 'email', $scoped, null, 'id'), 0],
+            [$extraConditionsScoped::class, $exists(), new PresenceQuery(null, 'users', 'email', $scoped), 1],
+            [$uniqueExtraScoped::class, $unique(), new PresenceQuery(null, 'users', 'email', $scoped, null, 'id'), 0],
+            // As in Laravel, a unique rule without extra conditions does not reach the shared hook.
+            [$extraConditionsScoped::class, new Unique('users', 'email'), new PresenceQuery(null, 'users', 'email', new DatabaseConditions, null, 'id'), 0],
+        ] as [$class, $rule, $query, $count]) {
+            $validator = new $class($this->getArrayTranslator(), ['email' => 'foo'], ['email' => [$rule]]);
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->with($this->matchingPresenceQuery($query), 'foo')->returns($count);
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertTrue($validator->passes());
+        }
+    }
+
+    public function testDatabaseRuleConditionsSurviveValidationInsideAConditionHook(): void
+    {
+        $reentrant = new class($this->getArrayTranslator(), [], []) extends Validator {
+            /**
+             * Validate another attribute before resolving the unique rule's extra conditions.
+             */
+            protected function getUniqueExtra(array $parameters): DatabaseConditions
+            {
+                $this->validateAttribute('other', 'string');
+
+                return parent::getUniqueExtra($parameters);
+            }
+
+            /**
+             * Validate another attribute before resolving the shared extra conditions.
+             */
+            protected function getExtraConditions(array $segments): DatabaseConditions
+            {
+                $this->validateAttribute('other', 'string');
+
+                return parent::getExtraConditions($segments);
+            }
+        };
+
+        $tenant = new DatabaseConditions(new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42'));
+
+        foreach ([
+            [(new Unique('users', 'email'))->where('tenant_id', 42), new PresenceQuery(null, 'users', 'email', $tenant, null, 'id'), 0],
+            [(new Exists('users', 'email'))->where('tenant_id', 42), new PresenceQuery(null, 'users', 'email', $tenant), 1],
+        ] as [$rule, $query, $count]) {
+            $validator = new $reentrant($this->getArrayTranslator(), ['email' => 'foo', 'other' => 'bar'], ['email' => [$rule]]);
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->with($this->matchingPresenceQuery($query), 'foo')->returns($count);
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertTrue($validator->passes());
         }
     }
 
