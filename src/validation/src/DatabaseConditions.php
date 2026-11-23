@@ -6,6 +6,7 @@ namespace Hypervel\Validation;
 
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Number;
 
 use function Hypervel\Support\enum_value;
 
@@ -71,6 +72,44 @@ final readonly class DatabaseConditions
         }
 
         return $prepared === null ? $this : new self(...$prepared);
+    }
+
+    /**
+     * Render the predicates as the extra column/value pairs of a legacy rule.
+     *
+     * @return list<string>
+     */
+    public function toParameters(): array
+    {
+        $parameters = [];
+
+        foreach ($this->conditions as $condition) {
+            // Callbacks and opaque operands such as query expressions have no legacy form.
+            if ($condition instanceof Closure || is_object($condition->value)) {
+                continue;
+            }
+
+            $operand = match (true) {
+                is_bool($condition->value) => (int) $condition->value,
+                is_float($condition->value) => Number::toString($condition->value),
+                default => $condition->value,
+            };
+
+            // Membership predicates, like callbacks, have no legacy string representation.
+            $value = match ($condition->operator) {
+                DatabaseConditionOperator::Equals => (string) $operand,
+                DatabaseConditionOperator::NotEquals => '!' . $operand,
+                DatabaseConditionOperator::IsNull => 'NULL',
+                DatabaseConditionOperator::IsNotNull => 'NOT_NULL',
+                DatabaseConditionOperator::In, DatabaseConditionOperator::NotIn => null,
+            };
+
+            if ($value !== null) {
+                array_push($parameters, $condition->column, $value);
+            }
+        }
+
+        return $parameters;
     }
 
     /**

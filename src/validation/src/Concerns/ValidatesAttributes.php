@@ -1174,7 +1174,7 @@ trait ValidatesAttributes
 
         $conditions = match (true) {
             $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
-            $this->currentRule instanceof Exists => $this->currentRule->queryConditions(),
+            $this->currentRule instanceof Exists => $this->currentRuleConditions = $this->currentRule->queryConditions(),
             default => $this->getExtraConditions(array_values(array_slice($parameters, 2))),
         };
         $query = new PresenceQuery($connection, $table, $column, $conditions);
@@ -1219,7 +1219,7 @@ trait ValidatesAttributes
 
         $conditions = match (true) {
             $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
-            $this->currentRule instanceof Unique => $this->currentRule->queryConditions(),
+            $this->currentRule instanceof Unique => $this->currentRuleConditions = $this->currentRule->queryConditions(),
             default => $this->getUniqueExtra($parameters),
         };
 

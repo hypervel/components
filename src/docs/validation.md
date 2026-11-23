@@ -3691,7 +3691,7 @@ The available operators are `Equals`, `NotEquals`, `IsNull`, `IsNotNull`, `In` a
 
 Override `queryParameters` to customize the table, column or ignored ID. It returns `[table, column]` for `Exists` and `[table, column, ignoredId, idColumn]` for `Unique`, with null indicating no ignored ID. Both builders have a final `__toString` method that renders these declarations; string rendering is not how the validator receives a builder's conditions. The validator's `getRules` method retains these builders as objects.
 
-Pass database-rule objects directly to the validator. Their string form cannot preserve callbacks, `whereIn` / `whereNotIn` conditions, JSON booleans or literal values such as `NULL` and `!active`.
+Pass database-rule objects directly to the validator. Their string form cannot preserve callbacks, query expressions, `whereIn` / `whereNotIn` conditions, JSON booleans or literal values such as `NULL` and `!active`.
 
 The default validator reads these declarations at the start of each validation run. Changes made before `passes`, or between runs, take effect on the next run; changes made by an earlier check during a run do not. Use `using` callbacks for conditions that must be evaluated during the database check. Custom validator subclasses retain the original database-rule objects and read their declarations during delegated execution.
 

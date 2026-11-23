@@ -97,6 +97,13 @@ class Validator implements ValidatorContract
     protected array|object|string|null $currentRule = null;
 
     /**
+     * The conditions read from the database rule builder that is validating.
+     *
+     * A failure reports these instead of reading the builder a second time.
+     */
+    private ?DatabaseConditions $currentRuleConditions = null;
+
+    /**
      * The array of wildcard attributes with their asterisks expanded.
      */
     protected array $implicitAttributes = [];
@@ -1126,7 +1133,8 @@ class Validator implements ValidatorContract
      */
     protected function validateAttribute(string $attribute, array|object|string $rule): void
     {
-        $this->currentRule = $rule;
+        $this->currentRule = $declaration = $rule;
+        $this->currentRuleConditions = null;
 
         [$rule, $parameters] = $this->parseRuleDeclaration($rule);
 
@@ -1170,7 +1178,18 @@ class Validator implements ValidatorContract
         $this->numericRules = $this->defaultNumericRules;
 
         if ($validatable && ! $this->{$method}($attribute, $value, $parameters, $this)) {
-            $this->addFailure($attribute, $rule, $parameters);
+            // Database rules execute from their header and typed conditions, but failed()
+            // and message replacers receive the complete parameter list as in Laravel.
+            $this->addFailure($attribute, $rule, match (true) {
+                $declaration instanceof DatabaseRulePlan => $declaration->failureParameters($parameters),
+                // A check that failed before querying has not read the builder's conditions yet.
+                $declaration instanceof Exists, $declaration instanceof Unique => (new DatabaseRulePlan(
+                    $rule,
+                    $parameters,
+                    $this->currentRuleConditions ?? $declaration->queryConditions(),
+                ))->failureParameters($parameters),
+                default => $parameters,
+            });
         }
     }
 

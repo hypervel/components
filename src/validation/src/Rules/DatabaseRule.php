@@ -8,7 +8,6 @@ use BackedEnum;
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Number;
 use Hypervel\Validation\DatabaseCondition;
 use Hypervel\Validation\DatabaseConditionOperator;
 use Hypervel\Validation\DatabaseConditions;
@@ -219,29 +218,8 @@ trait DatabaseRule
     {
         $wheres = [];
 
-        foreach ($this->queryConditions()->all() as $condition) {
-            if ($condition instanceof Closure) {
-                continue;
-            }
-
-            $operand = match (true) {
-                is_bool($condition->value) => (int) $condition->value,
-                is_float($condition->value) => Number::toString($condition->value),
-                default => $condition->value,
-            };
-
-            // Membership predicates, like callbacks, have no legacy string representation.
-            $value = match ($condition->operator) {
-                DatabaseConditionOperator::Equals => (string) $operand,
-                DatabaseConditionOperator::NotEquals => '!' . $operand,
-                DatabaseConditionOperator::IsNull => 'NULL',
-                DatabaseConditionOperator::IsNotNull => 'NOT_NULL',
-                DatabaseConditionOperator::In, DatabaseConditionOperator::NotIn => null,
-            };
-
-            if ($value !== null) {
-                $wheres[] = $condition->column . ',"' . str_replace('"', '""', $value) . '"';
-            }
+        foreach (array_chunk($this->queryConditions()->toParameters(), 2) as [$column, $value]) {
+            $wheres[] = $column . ',"' . str_replace('"', '""', $value) . '"';
         }
 
         return implode(',', $wheres);

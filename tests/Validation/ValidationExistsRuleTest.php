@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
@@ -47,6 +48,11 @@ class ValidationExistsRuleTest extends TestCase
             ->where('score', 1.234567890123456)
             ->whereNot('score', 1.234567890123457);
         $this->assertSame('exists:table,id,score,"1.234567890123456",score,"!1.234567890123457"', (string) $rule);
+
+        $rule = (new Exists('table', 'id'))
+            ->where('total', new Expression('1 + 1'))
+            ->where('foo', 'bar');
+        $this->assertSame('exists:table,id,foo,"bar"', (string) $rule);
 
         $rule = new Exists(User::class);
         $rule->where('foo', 'bar');

@@ -22,6 +22,7 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
@@ -5152,6 +5153,92 @@ class ValidationValidatorTest extends TestCase
 
                 $this->assertTrue($validator->passes());
             }
+        }
+    }
+
+    public function testFailedUniqueAndExistsRulesReportTheirConditions(): void
+    {
+        $customValidator = new class($this->getArrayTranslator(), [], []) extends Validator {};
+
+        foreach ([
+            ['unique:users,email,9,id,tenant_id,42', 1, 'Unique', ['users', 'email', '9', 'id', 'tenant_id', '42']],
+            [
+                ['unique', 'users', 'email', null, 'id', 'tenant_id', 42, 'active', true],
+                1,
+                'Unique',
+                ['users', 'email', '', 'id', 'tenant_id', '42', 'active', '1'],
+            ],
+            [
+                (new Unique('users', 'email'))
+                    ->where('tenant_id', 42)
+                    ->whereNot('status', 'archived')
+                    ->whereNull('deleted_at')
+                    ->whereIn('role', ['admin'])
+                    ->where(fn ($query) => $query),
+                1,
+                'Unique',
+                ['users', 'email', 'NULL', 'id', 'tenant_id', '42', 'status', '!archived', 'deleted_at', 'NULL'],
+            ],
+            [(new Unique('users'))->ignore(5, 'uid'), 1, 'Unique', ['users', 'NULL', '5', 'uid']],
+            [
+                'exists:users,email,tenant_id,42,deleted_at,NULL',
+                0,
+                'Exists',
+                ['users', 'email', 'tenant_id', '42', 'deleted_at', 'NULL'],
+            ],
+            [(new Exists('users', 'email'))->where('tenant_id', 42), 0, 'Exists', ['users', 'email', 'tenant_id', '42']],
+            [
+                (new Exists('users', 'email'))
+                    ->where('tenant_id', new Expression('1 + 1'))
+                    ->whereNot('owner_id', new Expression('2 + 2'))
+                    ->where('active', true),
+                0,
+                'Exists',
+                ['users', 'email', 'active', '1'],
+            ],
+        ] as [$rule, $count, $name, $parameters]) {
+            foreach ([Validator::class, $customValidator::class] as $class) {
+                $validator = new $class($this->getArrayTranslator(), ['email' => 'foo'], ['email' => [$rule]]);
+                $validator->addReplacer(
+                    strtolower($name),
+                    fn (string $message, string $attribute, string $rule, array $parameters): string => implode('|', $parameters),
+                );
+                $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+                $verifier->expects('getCount')->returns($count);
+                $validator->setPresenceVerifier($verifier);
+
+                $this->assertFalse($validator->passes());
+                $this->assertSame(['email' => [$name => $parameters]], $validator->failed());
+                $this->assertSame(implode('|', $parameters), $validator->errors()->first('email'));
+            }
+        }
+
+        foreach ([Validator::class, $customValidator::class] as $class) {
+            $validator = new $class(
+                $this->getArrayTranslator(),
+                ['items' => [['id' => 7, 'email' => 'foo']]],
+                ['items.*.email' => 'unique:users,email,[items.*.id],id,tenant_id,42'],
+            );
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->returns(1);
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame(
+                ['items.0.email' => ['Unique' => ['users', 'email', '[items.0.id]', 'id', 'tenant_id', '42']]],
+                $validator->failed(),
+            );
+
+            // A value rejected before any query still reports the builder's conditions.
+            $validator = new $class(
+                $this->getArrayTranslator(),
+                ['ids' => [[1]]],
+                ['ids' => [(new Exists('users', 'id'))->where('tenant_id', 42)]],
+            );
+            $validator->setPresenceVerifier(Double::for(PresenceVerifierInterface::class)->strict());
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame(['ids' => ['Exists' => ['users', 'id', 'tenant_id', '42']]], $validator->failed());
         }
     }
 
