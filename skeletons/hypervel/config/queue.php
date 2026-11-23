@@ -184,6 +184,7 @@ return [
     |
     | Batches are stored in the database. Choose the database or Redis
     | driver to record the results of individual jobs in each batch.
+    | Set "database" to null to use the default database connection.
     |
     */
 

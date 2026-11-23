@@ -161,7 +161,6 @@ class Guard
                     return null;
                 }
 
-                /** @var string $provider */
                 $provider = $guard['provider'];
 
                 return static::getProviderModel($provider);
@@ -185,13 +184,12 @@ class Guard
         }
 
         // Get the provider configuration for the given guard
-        $provider = self::config()->get("auth.guards.{$guard}.provider");
+        $provider = self::config()->nullableString("auth.guards.{$guard}.provider", null);
 
         if ($provider === null || $provider === '') {
             return self::$modelsForGuards[$guard] = null;
         }
 
-        /** @var string $provider */
         return self::$modelsForGuards[$guard] = static::getProviderModel($provider);
     }
 

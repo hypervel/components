@@ -424,10 +424,10 @@ class WorkCommand extends Command
      */
     protected function now(): CarbonImmutable
     {
-        $queueTimezone = $this->config->get('queue.output_timezone');
+        $queueTimezone = $this->config->nullableString('queue.output_timezone', null);
 
         if ($queueTimezone
-            && $queueTimezone !== $this->config->get('app.timezone')
+            && $queueTimezone !== $this->config->string('app.timezone')
         ) {
             return CarbonImmutable::now()->setTimezone($queueTimezone);
         }

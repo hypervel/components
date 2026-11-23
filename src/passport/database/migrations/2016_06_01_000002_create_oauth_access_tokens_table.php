@@ -45,6 +45,6 @@ return new class extends Migration {
      */
     public function getConnection(): ?string
     {
-        return $this->connection ?? config('passport.connection');
+        return $this->connection ?? config()->nullableString('passport.connection', null);
     }
 };

@@ -52,9 +52,9 @@ class SqliteDatabaseExists extends Diagnostic implements Fixable
     {
         $connection = Configured::string('database.default');
         $name = $connection === null ? null : ConnectionName::parse($connection);
-        $configuration = $name === null ? null : config("database.connections.{$name->base}");
+        $configuration = $name === null ? null : Configured::array("database.connections.{$name->base}");
 
-        if (! is_array($configuration)) {
+        if ($configuration === null) {
             return $this->skip('not-sqlite');
         }
 

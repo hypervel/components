@@ -39,6 +39,7 @@ class TypedConfigGetterRuleTest extends RuleTestCase
                 $error("'typed.debug'", 'a boolean', 'boolean', 18),
                 $error("'typed.hosts'", 'an array', 'array', 19),
                 $error("'typed.label'|'typed.name'", 'a string', 'string', 20),
+                $error("'typed.optional_label'", 'a string or null', 'nullableString', 31),
             ]);
         } finally {
             self::setPackageApplication($packageApplication);

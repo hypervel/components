@@ -191,9 +191,9 @@ class DatabaseConnectionIsReachable extends Diagnostic
      */
     private function configuration(string $connection): ?array
     {
-        $configuration = config("database.connections.{$connection}");
+        $configuration = Configured::array("database.connections.{$connection}");
 
-        if (! is_array($configuration)) {
+        if ($configuration === null) {
             return null;
         }
 

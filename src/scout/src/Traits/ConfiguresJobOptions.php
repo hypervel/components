@@ -38,18 +38,19 @@ trait ConfiguresJobOptions
      */
     protected function configureJob(): void
     {
-        if (! isset($this->tries) && ($tries = config('scout.jobs.tries')) !== null) {
+        if (! isset($this->tries) && ($tries = config()->nullableInteger('scout.jobs.tries', null)) !== null) {
             $this->tries = $tries;
         }
 
         if (! isset($this->backoff)
             && ! method_exists($this, 'backoff')
+            // @phpstan-ignore hypervel.untypedConfigRead (Job backoff accepts a number of seconds or a retry schedule.)
             && ($backoff = config('scout.jobs.backoff')) !== null) {
             $this->backoff = $backoff;
         }
 
         if (! isset($this->maxExceptions)
-            && ($maxExceptions = config('scout.jobs.max_exceptions')) !== null) {
+            && ($maxExceptions = config()->nullableInteger('scout.jobs.max_exceptions', null)) !== null) {
             $this->maxExceptions = $maxExceptions;
         }
     }

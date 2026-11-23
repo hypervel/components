@@ -11,4 +11,6 @@ return [
     'hosts' => ['primary', 'replica'],
     'either' => PHP_OS_FAMILY === 'Windows' ? 3306 : '/tmp/mysql.sock',
     'nullable' => null,
+    'optional_label' => env('USE_LABEL') ? 'Hypervel' : null,
+    'environment' => env('UNKNOWN_CONFIG_VALUE'),
 ];

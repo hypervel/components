@@ -99,6 +99,7 @@ class PendingClassification
         }
 
         $providers = Ai::resolveOnDemandProviders(Provider::providerAndModelPairs(
+            // @phpstan-ignore hypervel.untypedConfigRead (Providers may be selected by name, enum, or a failover list.)
             $provider ?? Config::get('ai.default_for_classification'),
             $model
         ));

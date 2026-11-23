@@ -20,9 +20,9 @@ class RoutingServiceProviderTest extends TestCase
 
     public function testUrlGeneratorRequiresForceHttpsConfiguration(): void
     {
-        $this->app->make('config')->set('app', [
-            'key' => $this->app->make('config')->get('app.key'),
-        ]);
+        $app = config()->array('app');
+        unset($app['force_https']);
+        config(['app' => $app]);
 
         $this->app->instance('request', Request::create('http://example.com/'));
 

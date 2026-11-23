@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Passport\Database;
 
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Passport\Bridge\DeviceCodeRepository;
 use Hypervel\Passport\DeviceCode;
+use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
@@ -21,6 +23,14 @@ use RuntimeException;
 class TokenPersistenceTest extends TestCase
 {
     use DatabaseTruncation;
+
+    /**
+     * Register Passport's configuration and model services.
+     */
+    protected function getPackageProviders(Application $app): array
+    {
+        return [PassportServiceProvider::class];
+    }
 
     /**
      * Create the tables needed to distinguish credential and family failures.

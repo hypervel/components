@@ -78,7 +78,7 @@ class SupervisorOptions
         public int $concurrency = 1,
     ) {
         $this->queue = $queue === null || $queue === ''
-            ? config('queue.connections.' . $connection . '.queue')
+            ? config()->nullableString('queue.connections.' . $connection . '.queue', null)
             : $queue;
     }
 

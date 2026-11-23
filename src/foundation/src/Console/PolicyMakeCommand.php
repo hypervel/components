@@ -81,17 +81,11 @@ class PolicyMakeCommand extends GeneratorCommand
             ? $this->hypervel->make('auth')->getDefaultDriver()
             : $guard;
 
-        if (is_null($guardProvider = $config->get('auth.guards.' . $guard . '.provider'))) {
+        if (is_null($guardProvider = $config->nullableString('auth.guards.' . $guard . '.provider', null))) {
             throw new LogicException('The [' . $guard . '] guard is not defined in your "auth" configuration file.');
         }
 
-        if (! $config->get('auth.providers.' . $guardProvider . '.model')) {
-            return 'App\Models\User';
-        }
-
-        return $config->get(
-            'auth.providers.' . $guardProvider . '.model'
-        );
+        return $config->nullableString('auth.providers.' . $guardProvider . '.model', null) ?: 'App\Models\User';
     }
 
     /**

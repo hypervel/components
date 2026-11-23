@@ -414,13 +414,13 @@ class UntrustedUrlTest extends TestCase
     }
 
     #[DataProvider('invalidSizeLimits')]
-    public function testTheSizeLimitMustBeAPositiveIntegerOrNull(int|bool $limit): void
+    public function testTheSizeLimitMustBeAPositiveIntegerOrNull(int|bool $limit, string $message): void
     {
         config(['ai.remote_files.max_size' => $limit]);
         Http::fake(['*' => Http::response('bytes')]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must be a positive integer or null');
+        $this->expectExceptionMessageIs($message);
 
         UntrustedUrl::fetch('https://example.com/photo.png');
     }
@@ -431,9 +431,9 @@ class UntrustedUrlTest extends TestCase
     public static function invalidSizeLimits(): array
     {
         return [
-            'zero' => [0],
-            'negative' => [-1],
-            'wrong type' => [false],
+            'zero' => [0, 'The remote file maximum size must be a positive integer or null.'],
+            'negative' => [-1, 'The remote file maximum size must be a positive integer or null.'],
+            'wrong type' => [false, 'Configuration value for key [ai.remote_files.max_size] must be an integer or null, boolean given.'],
         ];
     }
 

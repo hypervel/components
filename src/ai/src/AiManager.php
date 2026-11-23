@@ -635,6 +635,7 @@ class AiManager extends MultipleInstanceManager
      */
     public function getDefaultInstance(): string
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (The default provider may be a provider name or a Lab enum.)
         $default = $this->config->get('ai.default');
 
         if ($default instanceof Lab) {
@@ -665,7 +666,7 @@ class AiManager extends MultipleInstanceManager
     public function getInstanceConfig(string $name): array
     {
         $providers = CoroutineContext::get(self::ON_DEMAND_PROVIDERS_CONTEXT_KEY, []);
-        $config = $providers[$name]['config'] ?? $this->config->get('ai.providers.' . $name);
+        $config = $providers[$name]['config'] ?? $this->config->nullableArray('ai.providers.' . $name, null);
 
         if ($config === null && str_starts_with($name, 'ondemand_')) {
             throw new InvalidArgumentException("On-demand provider [{$name}] was not built in this operation. Build it where the work runs, such as the agent's provider() method.");

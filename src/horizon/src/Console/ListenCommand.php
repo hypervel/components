@@ -33,14 +33,10 @@ class ListenCommand extends Command
     {
         $configRepository = $this->hypervel->make('config');
         $config = $configRepository->array('watcher');
-        $paths = $configRepository->get('horizon.watch');
+        $paths = $configRepository->nullableArray('horizon.watch', null);
 
-        if ($paths !== null) {
-            $paths = $configRepository->array('horizon.watch');
-
-            if ($paths !== []) {
-                $config['watch'] = $paths;
-            }
+        if ($paths !== null && $paths !== []) {
+            $config['watch'] = $paths;
         }
 
         if (empty($config['watch'] ?? null)) {

@@ -14,9 +14,6 @@ use PHPStan\DependencyInjection\Conditional;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
-use PHPStan\Type\VerbosityLevel;
-
-use function sprintf;
 
 /**
  * Upstream checks only Config::collection(); repository calls, including config()->collection(),
@@ -52,22 +49,16 @@ class ConfigCollectionRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if ($this->configHelper->getMethodName($node, $scope) !== 'collection') {
+        $methodName = $this->configHelper->getMethodName($node, $scope);
+
+        if ($methodName !== 'collection') {
             return [];
         }
 
-        $key = $node->getArg('key', 0);
-        $valueType = $this->configHelper->getValueType($node, $scope);
+        $message = $this->configHelper->getTypeError($node, $scope, $methodName);
 
-        if ($key === null || $valueType === null || ! $valueType->isArray()->no()) {
-            return [];
-        }
-
-        return [
-            RuleErrorBuilder::message(sprintf(
-                'Config key %s is not an array, so collection() throws. Correct the config value or use the getter that matches its type.',
-                $scope->getType($key->value)->describe(VerbosityLevel::precise()),
-            ))
+        return $message === null ? [] : [
+            RuleErrorBuilder::message($message)
                 ->identifier('hypervel.configCollection')
                 ->build(),
         ];

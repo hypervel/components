@@ -26,6 +26,7 @@ use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
+use PHPStan\TrinaryLogic;
 use PHPStan\Type\ArrayType;
 use PHPStan\Type\BooleanType;
 use PHPStan\Type\ErrorType;
@@ -42,6 +43,7 @@ use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\TypeTraverser;
 use PHPStan\Type\UnionType;
+use PHPStan\Type\VerbosityLevel;
 
 use function array_all;
 use function array_any;
@@ -56,7 +58,10 @@ class ConfigHelper
     /**
      * The repository and Config facade methods whose return types come from config values.
      */
-    private const array METHODS = ['get', 'string', 'integer', 'float', 'boolean', 'array', 'collection'];
+    private const array METHODS = [
+        'get', 'string', 'integer', 'float', 'boolean', 'array', 'collection',
+        'nullablestring', 'nullableinteger', 'nullablefloat', 'nullableboolean', 'nullablearray',
+    ];
 
     /**
      * Create a new helper instance.
@@ -79,8 +84,21 @@ class ConfigHelper
      */
     public function getValueType(CallLike $call, Scope $scope): ?Type
     {
+        $lookup = $this->lookup($call, $scope);
+
+        return $lookup === null ? null : $this->valueWithDefault($lookup, $call, $scope, false);
+    }
+
+    /**
+     * Get the presence and the configured types of all possible literal keys.
+     *
+     * @param DependencyTracker&Scope $scope
+     * @return null|array{TrinaryLogic, Type}
+     */
+    private function lookup(CallLike $call, Scope $scope): ?array
+    {
         // PHPStan orders named arguments for extensions, but does not expand unpacked ones.
-        if (array_any($call->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
+        if ($call->isFirstClassCallable() || array_any($call->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
             return null;
         }
 
@@ -96,8 +114,49 @@ class ConfigHelper
             return null;
         }
 
+        $presence = [];
+        $types = [];
+
+        foreach ($keyType->getConstantStrings() as $constantString) {
+            $value = $this->configParser->getValue($constantString->getValue(), $scope);
+
+            if ($value === null) {
+                return null;
+            }
+
+            $presence[] = $value[0];
+
+            if (! $value[0]->no()) {
+                $types[] = $value[1];
+            }
+        }
+
+        return [TrinaryLogic::extremeIdentity(...$presence), TypeCombinator::union(...$types)];
+    }
+
+    /**
+     * Include a lookup's fallback only on a path that can return it.
+     *
+     * @param array{TrinaryLogic, Type} $lookup
+     */
+    private function valueWithDefault(array $lookup, CallLike $call, Scope $scope, bool $typed): Type
+    {
+        [$presence, $type] = $lookup;
         $default = $call->getArg('default', 1);
-        $defaultType = $default === null ? new NullType : TypeTraverser::map(
+
+        if ($presence->yes() || ($typed && $default === null)) {
+            return $type;
+        }
+
+        return TypeCombinator::union($type, $this->defaultType($default, $scope));
+    }
+
+    /**
+     * Get the value returned by a default, evaluating only a Closure.
+     */
+    private function defaultType(?Arg $default, Scope $scope): Type
+    {
+        return $default === null ? new NullType : TypeTraverser::map(
             $scope->getType($default->value),
             static function (Type $type, callable $traverse) use ($scope): Type {
                 // value() calls a default that is itself a Closure, not one the default holds.
@@ -110,28 +169,6 @@ class ConfigHelper
                     : $type;
             },
         )->generalize(GeneralizePrecision::lessSpecific());
-
-        $types = [];
-
-        foreach ($keyType->getConstantStrings() as $constantString) {
-            $value = $this->configParser->getValue($constantString->getValue(), $scope);
-
-            if ($value === null) {
-                return null;
-            }
-
-            [$presence, $type] = $value;
-
-            if (! $presence->no()) {
-                $types[] = $type;
-            }
-
-            if (! $presence->yes()) {
-                $types[] = $defaultType;
-            }
-        }
-
-        return TypeCombinator::union(...$types);
     }
 
     /**
@@ -152,9 +189,15 @@ class ConfigHelper
             return null;
         }
 
-        $valueType = $this->getValueType($call, $scope);
+        $lookup = $this->lookup($call, $scope);
 
-        if ($valueType === null || $methodName === 'get') {
+        if ($lookup === null) {
+            return null;
+        }
+
+        $valueType = $this->valueWithDefault($lookup, $call, $scope, $methodName !== 'get');
+
+        if ($methodName === 'get') {
             return $valueType;
         }
 
@@ -169,6 +212,131 @@ class ConfigHelper
         }
 
         return $type;
+    }
+
+    /**
+     * Describe a typed read that cannot succeed for any possible key.
+     *
+     * @param DependencyTracker&Scope $scope
+     */
+    public function getTypeError(CallLike $call, Scope $scope, string $methodName): ?string
+    {
+        $lookup = $this->lookup($call, $scope);
+        $key = $call->getArg('key', 0);
+
+        if ($lookup === null || $key === null) {
+            return null;
+        }
+
+        $getter = $this->getterName($methodName);
+        $keyDescription = $scope->getType($key->value)->describe(VerbosityLevel::precise());
+
+        if ($lookup[0]->no() && $call->getArg('default', 1) === null) {
+            return sprintf('Config key %s is not defined, so %s() throws. Check the key and its configuration.', $keyDescription, $getter);
+        }
+
+        $value = $this->valueWithDefault($lookup, $call, $scope, true);
+
+        if ($value instanceof NeverType || ! TypeCombinator::intersect($value, $this->getGetterType($methodName)) instanceof NeverType) {
+            return null;
+        }
+
+        return sprintf(
+            'Config key %s is not %s, so %s() throws. Correct the config value or use the getter that matches its type.',
+            $keyDescription,
+            $this->getterDescription($methodName),
+            $getter,
+        );
+    }
+
+    /**
+     * Recommend a getter when every possible key is present and has one supported type.
+     *
+     * @param DependencyTracker&Scope $scope
+     * @return null|array{string, string, string}
+     */
+    public function recommendedGetter(CallLike $call, Scope $scope): ?array
+    {
+        if (! ($call instanceof FuncCall && $this->workerStateHelper->isConfigFunction($call, $scope))
+            && $this->getMethodName($call, $scope) !== 'get') {
+            return null;
+        }
+
+        $key = $call->getArg('key', 0);
+
+        if ($key === null || ! $scope->getType($key->value)->isConstantScalarValue()->yes()) {
+            return null;
+        }
+
+        $this->runtimeInputs->track($scope);
+
+        if ($this->runtimeInputs->isPackageApplication()) {
+            return null;
+        }
+
+        $lookup = $this->lookup($call, $scope);
+
+        if ($lookup === null || ! $lookup[0]->yes()) {
+            return null;
+        }
+
+        $type = TypeCombinator::removeNull($lookup[1]);
+        $method = match (true) {
+            $type instanceof NeverType => null,
+            $type->isString()->yes() => 'string',
+            $type->isInteger()->yes() => 'integer',
+            $type->isFloat()->yes() => 'float',
+            $type->isBoolean()->yes() => 'boolean',
+            $type->isArray()->yes() => 'array',
+            default => null,
+        };
+
+        if ($method === null) {
+            return null;
+        }
+
+        if (! $lookup[1]->isNull()->no()) {
+            $method = 'nullable' . $method;
+        }
+
+        $default = $call->getArg('default', 1);
+
+        if ($default !== null && ! TypeCombinator::addNull($this->getGetterType($method))->isSuperTypeOf($this->defaultType($default, $scope))->yes()) {
+            return null;
+        }
+
+        return [
+            $scope->getType($key->value)->describe(VerbosityLevel::precise()),
+            $this->getterName($method),
+            $this->getterDescription($method),
+        ];
+    }
+
+    /**
+     * Return the declared casing of a getter for diagnostic messages.
+     */
+    private function getterName(string $method): string
+    {
+        return str_starts_with($method, 'nullable') ? 'nullable' . ucfirst(substr($method, 8)) : $method;
+    }
+
+    /**
+     * Describe the config values a getter accepts.
+     */
+    private function getterDescription(string $method): string
+    {
+        if (str_starts_with($method, 'nullable')) {
+            return $this->getterDescription(substr($method, 8)) . ' or null';
+        }
+
+        return match ($method) {
+            'string' => 'a string',
+            'integer' => 'an integer',
+            'float' => 'a float',
+            'boolean' => 'a boolean',
+            'array', 'collection' => 'an array',
+            default => throw new InvalidArgumentException(sprintf('[%s] is not a typed config getter.', $method)),
+        };
     }
 
     /**
@@ -270,8 +438,12 @@ class ConfigHelper
     /**
      * Get the type a typed getter requires its value to have.
      */
-    public function getGetterType(string $methodName): Type
+    private function getGetterType(string $methodName): Type
     {
+        if (str_starts_with($methodName, 'nullable')) {
+            return TypeCombinator::addNull($this->getGetterType(substr($methodName, 8)));
+        }
+
         return match ($methodName) {
             'string' => new StringType,
             'integer' => new IntegerType,

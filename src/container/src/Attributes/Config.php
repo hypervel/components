@@ -23,6 +23,7 @@ class Config implements ContextualAttribute
      */
     public static function resolve(self $attribute, Container $container): mixed
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (The injected configuration value can have any type.)
         return $container->make('config')->get($attribute->key, $attribute->default);
     }
 }

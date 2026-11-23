@@ -20,7 +20,7 @@ use Lcobucci\JWT\Exception;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Token;
 use Lcobucci\JWT\UnencryptedToken;
-use Lcobucci\JWT\Validation\Constraint\LooseValidAt;
+use Lcobucci\JWT\Validation\Constraint\PermissiveValidAt;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use Lcobucci\JWT\Validation\RequiredConstraintsViolated;
 use League\OAuth2\Server\AuthorizationValidators\AuthorizationValidatorInterface;
@@ -35,7 +35,7 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
 {
     private Configuration $jwtConfiguration;
 
-    private LooseValidAt $validAt;
+    private PermissiveValidAt $validAt;
 
     /**
      * @var array<string, SignedWith>
@@ -81,7 +81,7 @@ class BearerTokenValidator implements AuthorizationValidatorInterface
             }
         };
 
-        $this->validAt = new LooseValidAt($clock, $this->jwtValidAtDateLeeway);
+        $this->validAt = new PermissiveValidAt($clock, $this->jwtValidAtDateLeeway);
     }
 
     /**
