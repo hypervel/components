@@ -44,6 +44,18 @@ class PassportSchemaTest extends TestCase
         $this->loadMigrationsFrom(dirname(__DIR__, 4) . '/src/passport/database/migrations');
     }
 
+    public function testPublishedMigrationsUseTheDefaultConnectionWithoutPassportConfiguration(): void
+    {
+        config(['passport' => []]);
+
+        $migrations = $this->app->make('migrator')->getMigrationFiles(dirname(__DIR__, 4) . '/src/passport/database/migrations');
+        $this->assertNotEmpty($migrations);
+
+        foreach ($migrations as $path) {
+            $this->assertNull((require $path)->getConnection(), basename($path));
+        }
+    }
+
     #[RequiresDatabase('mysql')]
     public function testCachedMutationOffsetsDoNotBecomeOversizedBindingLists(): void
     {

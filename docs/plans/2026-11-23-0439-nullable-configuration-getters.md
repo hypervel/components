@@ -90,7 +90,7 @@ Remove obsolete assertions, PHPDoc casts, helpers, imports, comments and duplica
 
 ## Optional settings and integration checks
 
-Preserve omission of AI's conversation connection, Permission's optional model names, and the application URL used for Mercure and the fallback request. Passport models and migrations read the shipped connection key; register the provider in their integration tests. Keep `app.asset_url` required and read it once when hashing the Inertia version. Isolate deliberately killed remote queue workers in their own Testbench runtime. The broadcasting installer writes to the selected application environment file. Mirror the split analyzer's Composer installer in root development dependencies with its plugin disabled for the explicit root rulesets.
+Preserve omission of AI's conversation connection, Permission's optional model names, and the application URL used for Mercure and the fallback request. Passport models read the shipped connection key. Published migrations also run without Passport's provider, so allow an absent connection there. Inertia's replaceable SSR and DevTools records allow the bundle and gate to be omitted. Keep `app.asset_url` required and read it once when hashing the Inertia version. Isolate deliberately killed remote queue workers in their own Testbench runtime. The broadcasting installer writes to the selected application environment file. Mirror the split analyzer's Composer installer in root development dependencies with its plugin disabled for the explicit root rulesets.
 
 ## Documentation
 
