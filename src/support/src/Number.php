@@ -81,8 +81,9 @@ class Number
         }
 
         if (is_finite($number)) {
-            // PHP's default serialize_precision=-1 preserves finite floats on a round trip.
-            return (string) json_encode($number);
+            // Precision -1 selects PHP's shortest round-trip form without consulting the
+            // precision or serialize_precision settings, and %h ignores the numeric locale.
+            return sprintf('%.*h', -1, $number);
         }
 
         // Keep non-finite values printable so each consumer retains its own rejection policy.
