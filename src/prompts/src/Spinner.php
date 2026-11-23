@@ -7,11 +7,14 @@ namespace Hypervel\Prompts;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Support\PromptAnimation;
+use Hypervel\Support\Attributes\Unsupported;
 use RuntimeException;
 use Throwable;
 
 class Spinner extends Prompt
 {
+    use Concerns\RendersAnimations;
+
     /**
      * How long to wait between rendering each frame.
      */
@@ -50,7 +53,7 @@ class Spinner extends Prompt
         $this->prevFrame = '';
         $this->capturePreviousNewLines();
 
-        if (! static::output()->isDecorated() || ! Coroutine::inCoroutine()) {
+        if ($this->shouldRenderStatically() || ! Coroutine::inCoroutine()) {
             return $this->renderStatically($callback);
         }
 
@@ -76,24 +79,24 @@ class Spinner extends Prompt
 
             throw $exception;
         } finally {
+            $failure = $operationFailure;
             $animationFailure = null;
 
             try {
                 $animationFailure = $animation?->stop();
             } catch (Throwable $exception) {
-                $animationFailure = $exception;
+                $failure = Coroutine::preferCancellation($failure, $exception);
             }
 
             $cleanupFailure = $this->settleOperation();
 
-            if ($operationFailure === null) {
-                if ($animationFailure !== null) {
-                    throw $animationFailure;
-                }
+            if ($cleanupFailure !== null && Coroutine::causedByCancellation($cleanupFailure)) {
+                $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
+            }
 
-                if ($cleanupFailure !== null) {
-                    throw $cleanupFailure;
-                }
+            $failure ??= $animationFailure ?? $cleanupFailure;
+            if ($failure !== null && $failure !== $operationFailure) {
+                throw $failure;
             }
         }
     }
@@ -123,8 +126,8 @@ class Spinner extends Prompt
         } finally {
             $cleanupFailure = $this->settleOperation();
 
-            if ($operationFailure === null && $cleanupFailure !== null) {
-                throw $cleanupFailure;
+            if ($cleanupFailure !== null) {
+                throw Coroutine::preferCancellation($operationFailure, $cleanupFailure);
             }
         }
     }
@@ -145,7 +148,7 @@ class Spinner extends Prompt
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;
@@ -156,6 +159,7 @@ class Spinner extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use spin() instead.')]
     public function prompt(): never
     {
         throw new RuntimeException('Spinner cannot be prompted.');

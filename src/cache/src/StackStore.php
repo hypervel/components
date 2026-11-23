@@ -152,7 +152,7 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
                     } catch (Throwable $exception) {
                         if (Coroutine::causedByCancellation($exception)) {
                             // Finish this layer's cleanup, as callStores() does across layers.
-                            $cancellation ??= $exception;
+                            $cancellation = Coroutine::preferCancellation($cancellation, $exception);
                         } else {
                             // An ordinary failure usually means the layer is unreachable, so stop
                             // instead of paying a timeout per key. callStores() discards these.
@@ -689,7 +689,7 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
                 } catch (Throwable $cleanupException) {
                     // Preserve the write failure unless cleanup was canceled.
                     if (Coroutine::causedByCancellation($cleanupException)) {
-                        $cancellation ??= $cleanupException;
+                        $cancellation = Coroutine::preferCancellation($cancellation, $cleanupException);
                     }
                 }
             }

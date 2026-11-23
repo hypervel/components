@@ -9,13 +9,16 @@ use Hypervel\Queue\Connectors\RedisConnector;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class QueueRedisConnectorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConnectUsesDefaultMigrationBatchSizeWhenOmitted(): void
     {
-        $queue = (new RedisConnector(m::mock(Redis::class)))->connect([
+        $queue = (new RedisConnector(Double::for(Redis::class)->strict()))->connect([
             'queue' => 'default',
         ]);
 
@@ -24,7 +27,7 @@ class QueueRedisConnectorTest extends TestCase
 
     public function testConnectUsesConfiguredMigrationBatchSize(): void
     {
-        $queue = (new RedisConnector(m::mock(Redis::class)))->connect([
+        $queue = (new RedisConnector(Double::for(Redis::class)->strict()))->connect([
             'queue' => 'default',
             'migration_batch_size' => 100,
         ]);

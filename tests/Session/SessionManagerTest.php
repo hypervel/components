@@ -25,13 +25,16 @@ use Hypervel\Session\UserSessions;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use SessionHandlerInterface;
 
 class SessionManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: CacheBasedSessionHandlerTest; Redis sessions use a dedicated handler,
     // and the APC, Memcached and DynamoDB session drivers are unsupported.
 
@@ -57,7 +60,7 @@ class SessionManagerTest extends TestCase
             ],
         ]));
 
-        $manager->extend('0', fn () => m::mock(SessionHandlerInterface::class));
+        $manager->extend('0', fn () => Double::for(SessionHandlerInterface::class)->strict());
         $manager->setDefaultDriver(SessionIntegerIdentifier::Zero);
 
         $this->assertSame('0', $manager->getDefaultDriver());
@@ -96,7 +99,7 @@ class SessionManagerTest extends TestCase
             'session.track_user_sessions' => false,
             'cache.prefix' => 'cache_prefix',
         ]);
-        $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
+        $container->instance(RedisFactory::class, Double::for(RedisFactory::class)->strict());
 
         $sessionStore = (new SessionManager($container))->driver();
         $handler = $this->handlerFromStore($sessionStore);
@@ -142,7 +145,7 @@ class SessionManagerTest extends TestCase
             'session.prefix' => 'application_session:',
             'session.track_user_sessions' => true,
         ]);
-        $redis = m::mock(RedisFactory::class);
+        $redis = Double::for(RedisFactory::class)->strict();
         $container->instance(RedisFactory::class, $redis);
 
         $redisSessionStore = (new SessionManager($container))->driver();
@@ -179,7 +182,7 @@ class SessionManagerTest extends TestCase
                 'session.prefix' => 'application_session:',
                 'session.track_user_sessions' => $tracking,
             ]);
-            $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
+            $container->instance(RedisFactory::class, Double::for(RedisFactory::class)->strict());
 
             $this->assertSame(
                 $tracking,
@@ -225,8 +228,8 @@ class SessionManagerTest extends TestCase
     {
         $handler = new SessionManagerCapableHandler;
         $manager = $this->customManager($handler);
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getAuthIdentifier')->once()->andReturn('user-1');
+        $user = Double::for(Authenticatable::class)->strict();
+        $user->expects('getAuthIdentifier')->returns('user-1');
 
         $manager->forUser($user)->all();
 
@@ -329,8 +332,8 @@ class SessionManagerTest extends TestCase
             $this->assertSame('The user identifier may not be empty.', $exception->getMessage());
         }
 
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getAuthIdentifier')->once()->andReturnNull();
+        $user = Double::for(Authenticatable::class)->strict();
+        $user->expects('getAuthIdentifier')->returns(null);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('The user identifier must be an integer or string.');
@@ -357,7 +360,7 @@ class SessionManagerTest extends TestCase
             'session.prefix' => 'application_session:',
             'session.track_user_sessions' => false,
         ]);
-        $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
+        $container->instance(RedisFactory::class, Double::for(RedisFactory::class)->strict());
         $disabled = new SessionManager($container);
 
         foreach ([$unsupported, $disabled] as $manager) {
@@ -435,8 +438,8 @@ class SessionManagerTest extends TestCase
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository($config));
-        $container->instance(Encrypter::class, m::mock(Encrypter::class));
-        $container->instance('db', m::mock(ConnectionResolverInterface::class));
+        $container->instance(Encrypter::class, Double::for(Encrypter::class)->strict());
+        $container->instance('db', Double::for(ConnectionResolverInterface::class)->strict());
 
         Container::setInstance($container);
 

@@ -53,6 +53,7 @@ trait ParsesTextResponses
             $this->extractUsage($data),
             $this->extractFinishReason($data),
             $structured,
+            $data['container']['id'] ?? null,
         );
     }
 
@@ -66,6 +67,7 @@ trait ParsesTextResponses
         TextUsage $usage,
         FinishReason $finishReason,
         bool $structured,
+        ?string $container = null,
     ): StepResponse {
         $text = $this->extractText($content);
         $toolCalls = $this->extractToolCalls($content);
@@ -89,6 +91,11 @@ trait ParsesTextResponses
             $finishReason = FinishReason::Stop;
         }
 
+        // Claude can end a message holding tool_use blocks with end_turn, so the tool calls still need to run.
+        if ($finishReason === FinishReason::Stop && $realToolCalls !== []) {
+            $finishReason = FinishReason::ToolCalls;
+        }
+
         return new StepResponse(
             text: $hasStructuredToolCall && ! empty($structuredData) ? (json_encode($structuredData) ?: '') : $text,
             toolCalls: $realToolCalls,
@@ -96,6 +103,7 @@ trait ParsesTextResponses
             usage: $usage,
             meta: new Meta($provider->name(), $model, $citations),
             structured: $structuredData,
+            continuationToken: $container,
             // The synthetic output has no tool result, so replaying its call would leave an unmatched tool-use ID.
             replayBlocks: array_values(array_filter($content, fn (array $block): bool => ($block['type'] ?? '') !== 'tool_use' || ($block['name'] ?? '') !== 'output_structured_data')),
             reasoning: $this->extractReasoning($content),
@@ -205,15 +213,6 @@ trait ParsesTextResponses
 
         foreach ($content as $block) {
             $blockType = $block['type'] ?? '';
-
-            if ($blockType === 'web_search_tool_result') {
-                foreach ($block['search_results'] ?? [] as $result) {
-                    $citations->push(new UrlCitation(
-                        $result['url'] ?? '',
-                        $result['title'] ?? null,
-                    ));
-                }
-            }
 
             if ($blockType === 'web_fetch_tool_result') {
                 $result = $block['content'] ?? [];

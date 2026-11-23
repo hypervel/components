@@ -26,6 +26,7 @@ use Hypervel\Session\SessionId;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -42,6 +43,17 @@ class AuthenticationTest extends TestCase
     use RefreshDatabase;
 
     /**
+     * Set up the test environment.
+     */
+    #[Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Sleep::fake();
+    }
+
+    /**
      * Define the authentication test environment.
      */
     #[Override]
@@ -50,9 +62,7 @@ class AuthenticationTest extends TestCase
         $app->make('config')->set([
             'app.key' => '12345678901234567890123456789012',
             'auth.providers.users.model' => AuthTestUser::class,
-            'auth.timebox_duration' => 0,
             'hashing.driver' => 'bcrypt',
-            'hashing.bcrypt.rounds' => 4,
         ]);
     }
 

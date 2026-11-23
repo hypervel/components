@@ -17,8 +17,10 @@ use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Redis;
 use RedisCluster;
 use RedisException;
@@ -28,6 +30,8 @@ use Throwable;
 
 class PhpRedisClusterConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testClusterCreationPreservesExactCancellation(): void
     {
         $cancellation = new CanceledException('cluster creation canceled');
@@ -95,12 +99,11 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection = new PhpRedisClusterConnectionStub;
 
         // In atomic mode, isQueueingMode() returns false, so transforms fire
-        $client = m::mock(RedisCluster::class);
-        $client->shouldReceive('getMode')->andReturn(Redis::ATOMIC);
-        $client->shouldReceive('setNx')
-            ->once()
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('setNx')
             ->with('key', 'value')
-            ->andReturn(true);
+            ->returns(true);
 
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
@@ -116,12 +119,11 @@ class PhpRedisClusterConnectionTest extends TestCase
 
         // In multi mode, isQueueingMode() returns true, so transforms are skipped
         // and the raw command is forwarded directly to the client
-        $client = m::mock(RedisCluster::class);
-        $client->shouldReceive('getMode')->andReturn(Redis::MULTI);
-        $client->shouldReceive('setnx')
-            ->once()
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::MULTI);
+        $client->expects('setnx')
             ->with('key', 'value')
-            ->andReturn($client); // multi() returns self for chaining
+            ->returns($client); // multi() returns self for chaining
 
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
@@ -184,12 +186,12 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testFlushdbAttemptsEveryMasterAndAggregatesFailures(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380], ['127.0.0.1', 6381]];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->once()->andReturn($masters);
-        $client->expects('flushdb')->with($masters[0])->andReturnTrue();
-        $client->expects('flushdb')->with($masters[1])->andReturnFalse();
-        $client->expects('flushdb')->with($masters[2])->andReturnTrue();
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('_masters')->returns($masters);
+        $client->expects('flushdb')->with($masters[0])->returns(true);
+        $client->expects('flushdb')->with($masters[1])->returns(false);
+        $client->expects('flushdb')->with($masters[2])->returns(true);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -198,9 +200,14 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertFalse($connection->__call('flushdb', []));
     }
 
-    public function testItScansStartingFromTheFirstMaster(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testItScansStartingFromTheFirstMaster(bool $hasNextMaster): void
     {
-        $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380]];
+        $masters = [['127.0.0.1', 6379]];
+        if ($hasNextMaster) {
+            $masters[] = ['127.0.0.1', 6380];
+        }
         $nodeKey = '127.0.0.1:6379';
         $client = new FakeRedisClusterClient(
             masters: $masters,
@@ -220,17 +227,21 @@ class PhpRedisClusterConnectionTest extends TestCase
 
         $this->assertSame(['key1', 'key2'], $result[1]);
         $this->assertSame($cursor, $result[0]);
-        $this->assertStringStartsWith('hypervel:', $cursor);
+        if ($hasNextMaster) {
+            $this->assertStringStartsWith('hypervel:', $cursor);
+        } else {
+            $this->assertSame(0, $cursor);
+        }
 
         $scanCalls = $client->getScanCalls();
-        $this->assertCount(1, $scanCalls);
-        $this->assertSame(['127.0.0.1', 6379], $scanCalls[0]['node']);
+        $this->assertSame([['iterator' => null, 'node' => $masters[0], 'pattern' => '*', 'count' => 10]], $scanCalls);
     }
 
-    public function testItScansUsingOptionNode(): void
+    #[TestWith([['127.0.0.1', 6380]])]
+    #[TestWith(['option-node'])]
+    public function testItScansUsingOptionNode(array|string $explicitNode): void
     {
-        $explicitNode = ['127.0.0.1', 6380];
-        $nodeKey = '127.0.0.1:6380';
+        $nodeKey = is_array($explicitNode) ? implode(':', $explicitNode) : $explicitNode;
         $client = new FakeRedisClusterClient(
             masters: [['127.0.0.1', 6379], ['127.0.0.1', 6380]],
             scanResults: [
@@ -250,58 +261,50 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame([0, ['key3']], $result);
 
         $scanCalls = $client->getScanCalls();
-        $this->assertCount(1, $scanCalls);
-        $this->assertSame($explicitNode, $scanCalls[0]['node']);
+        $this->assertSame([['iterator' => null, 'node' => $explicitNode, 'pattern' => '*', 'count' => 10]], $scanCalls);
+        $this->assertSame(0, $client->mastersRequested);
     }
 
     public function testItThrowsExceptionWithoutNodes(): void
     {
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->andReturn([]);
-        $client->shouldNotReceive('scan');
+        $client = new FakeRedisClusterClient(masters: []);
+
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
 
         $this->expectExceptionObject(new InvalidArgumentException('No master nodes found in the cluster.'));
 
         $cursor = null;
-        $connection->scan($cursor);
+        try {
+            $connection->scan($cursor);
+        } finally {
+            $this->assertSame([], $client->getScanCalls());
+        }
     }
 
     public function testItReturnsFalseWhenCursorIsZeroAndResultIsEmpty(): void
     {
         $master = ['127.0.0.1', 6379];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->andReturn([$master]);
-        $client->expects('scan')->with(0, $master, '*', 10)->andReturnFalse();
+        $client = new FakeRedisClusterClient(masters: [$master]);
+
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
         $cursor = 0;
 
         $this->assertFalse($connection->scan($cursor));
         $this->assertSame(0, $cursor);
+        $this->assertSame([['iterator' => 0, 'node' => $master, 'pattern' => '*', 'count' => 10]], $client->getScanCalls());
     }
 
     public function testItScansEveryMasterInTurn(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379], ['127.0.0.3', 6379]];
         $keys = ['a', 'b', 'c'];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->allows('_masters')->andReturn($masters);
-
-        foreach ($masters as $index => $master) {
-            $key = $keys[$index];
-            $client->expects('scan')->with(null, $master, '*', 10)
-                ->andReturnUsing(function (&$cursor) use ($key): array {
-                    $cursor = 0;
-
-                    return [$key];
-                });
-            $client->expects('scan')->with(0, $master, '*', 10)->andReturnFalse();
-        }
+        $client = new FakeRedisClusterClient(masters: $masters, scanResults: [
+            '127.0.0.1:6379' => [['keys' => ['a'], 'iterator' => 0]],
+            '127.0.0.2:6379' => [['keys' => ['b'], 'iterator' => 0]],
+            '127.0.0.3:6379' => [['keys' => ['c'], 'iterator' => 0]],
+        ]);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
@@ -315,29 +318,27 @@ class PhpRedisClusterConnectionTest extends TestCase
             $this->assertSame([$key], $page[1]);
         }
 
+        $this->assertSame(array_map(
+            fn (array $master): array => ['iterator' => null, 'node' => $master, 'pattern' => '*', 'count' => 10],
+            $masters,
+        ), $client->getScanCalls());
         $this->assertSame(0, $cursor);
         $this->assertFalse($connection->scan($cursor));
+        $this->assertSame([null, null, null, 0, 0, 0], array_column($client->getScanCalls(), 'iterator'));
+        $this->assertSame([...$masters, ...$masters], array_column($client->getScanCalls(), 'node'));
     }
 
     #[DataProvider('firstScanPages')]
     public function testItResumesAMasterFromTheEncodedCursor(array $firstPage): void
     {
         $master = ['127.0.0.1', 6379];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->allows('_masters')->andReturn([$master]);
-        $client->expects('scan')->with(null, $master, '*', 10)
-            ->andReturnUsing(function (&$cursor) use ($firstPage): array {
-                $cursor = 42;
+        $client = new FakeRedisClusterClient(masters: [$master], scanResults: [
+            '127.0.0.1:6379' => [
+                ['keys' => $firstPage, 'iterator' => 42],
+                ['keys' => ['last'], 'iterator' => 0],
+            ],
+        ]);
 
-                return $firstPage;
-            });
-        $client->expects('scan')->with(42, $master, '*', 10)
-            ->andReturnUsing(function (&$cursor): array {
-                $cursor = 0;
-
-                return ['last'];
-            });
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
         $cursor = null;
@@ -348,6 +349,11 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame($reportedCursor, $cursor);
         $this->assertSame($firstPage, $keys);
         $this->assertSame([0, ['last']], $connection->scan($cursor));
+
+        $this->assertSame([
+            ['iterator' => null, 'node' => $master, 'pattern' => '*', 'count' => 10],
+            ['iterator' => 42, 'node' => $master, 'pattern' => '*', 'count' => 10],
+        ], $client->getScanCalls());
     }
 
     /**
@@ -366,114 +372,100 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testItKeepsScanningWhenAMasterReturnsNoKeys(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379]];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->allows('_masters')->andReturn($masters);
-        $client->expects('scan')->with(null, $masters[0], '*', 10)
-            ->andReturnUsing(function (&$cursor): array {
-                $cursor = 0;
+        $client = new FakeRedisClusterClient(masters: $masters, scanResults: [
+            '127.0.0.1:6379' => [['keys' => [], 'iterator' => 0]],
+            '127.0.0.2:6379' => [['keys' => ['key'], 'iterator' => 0]],
+        ]);
 
-                return [];
-            });
-        $client->expects('scan')->with(null, $masters[1], '*', 10)
-            ->andReturnUsing(function (&$cursor): array {
-                $cursor = 0;
-
-                return ['key'];
-            });
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
         $cursor = null;
 
         $this->assertSame([0, ['key']], $connection->scan($cursor));
+
+        $this->assertSame([
+            ['iterator' => null, 'node' => $masters[0], 'pattern' => '*', 'count' => 10],
+            ['iterator' => null, 'node' => $masters[1], 'pattern' => '*', 'count' => 10],
+        ], $client->getScanCalls());
     }
 
     public function testItPreservesLargeStringCursors(): void
     {
         $master = ['127.0.0.1', 6379];
         $largeCursor = '18446744073709551615';
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->allows('_masters')->andReturn([$master]);
-        $client->expects('scan')->with(null, $master, '*', 10)
-            ->andReturnUsing(function (&$cursor) use ($largeCursor): array {
-                $cursor = $largeCursor;
+        $client = new FakeRedisClusterClient(masters: [$master], scanResults: [
+            '127.0.0.1:6379' => [
+                ['keys' => ['first'], 'iterator' => $largeCursor],
+                ['keys' => ['last'], 'iterator' => 0],
+            ],
+        ]);
 
-                return ['first'];
-            });
-        $client->expects('scan')->with($largeCursor, $master, '*', 10)
-            ->andReturnUsing(function (&$cursor): array {
-                $cursor = 0;
-
-                return ['last'];
-            });
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
         $cursor = null;
         [$cursor] = $connection->scan($cursor);
 
         $this->assertSame([0, ['last']], $connection->scan($cursor));
+
+        $this->assertSame([
+            ['iterator' => null, 'node' => $master, 'pattern' => '*', 'count' => 10],
+            ['iterator' => $largeCursor, 'node' => $master, 'pattern' => '*', 'count' => 10],
+        ], $client->getScanCalls());
     }
 
     public function testItKeepsNodeAffinityWhenMastersAreReordered(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379]];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->twice()->andReturn($masters, array_reverse($masters));
-
-        foreach ($masters as $index => $master) {
-            $client->expects('scan')->with(null, $master, '*', 10)
-                ->andReturnUsing(function (&$cursor) use ($index): array {
-                    $cursor = 0;
-
-                    return [$index === 0 ? 'a' : 'b'];
-                });
-        }
+        $client = new FakeRedisClusterClient(masters: $masters, scanResults: [
+            '127.0.0.1:6379' => [['keys' => ['a'], 'iterator' => 0]],
+            '127.0.0.2:6379' => [['keys' => ['b'], 'iterator' => 0]],
+        ]);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
         $cursor = null;
         [$cursor] = $connection->scan($cursor);
+        $client->setMasters(array_reverse($masters));
 
         $this->assertSame([0, ['b']], $connection->scan($cursor));
+        $this->assertSame(2, $client->mastersRequested);
+        $this->assertSame([
+            ['iterator' => null, 'node' => $masters[0], 'pattern' => '*', 'count' => 10],
+            ['iterator' => null, 'node' => $masters[1], 'pattern' => '*', 'count' => 10],
+        ], $client->getScanCalls());
     }
 
     public function testItContinuesWithAnotherMasterWhenTheCurrentMasterDisappears(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379]];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->twice()->andReturn($masters, [$masters[1]]);
-        $client->expects('scan')->with(null, $masters[0], '*', 10)
-            ->andReturnUsing(function (&$cursor): array {
-                $cursor = 42;
+        $client = new FakeRedisClusterClient(masters: $masters, scanResults: [
+            '127.0.0.1:6379' => [['keys' => ['a'], 'iterator' => 42]],
+            '127.0.0.2:6379' => [['keys' => ['b'], 'iterator' => 0]],
+        ]);
 
-                return ['a'];
-            });
-        $client->expects('scan')->with(null, $masters[1], '*', 10)
-            ->andReturnUsing(function (&$cursor): array {
-                $cursor = 0;
-
-                return ['b'];
-            });
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client)->shouldTransform();
         $cursor = null;
         [$cursor] = $connection->scan($cursor);
+        $client->setMasters([$masters[1]]);
 
         $this->assertSame([0, ['b']], $connection->scan($cursor));
+        $this->assertSame(2, $client->mastersRequested);
+        $this->assertSame([
+            ['iterator' => null, 'node' => $masters[0], 'pattern' => '*', 'count' => 10],
+            ['iterator' => null, 'node' => $masters[1], 'pattern' => '*', 'count' => 10],
+        ], $client->getScanCalls());
     }
 
     public function testInfoTransformIncludesTheDefaultNodeAndSections(): void
     {
         $defaultNode = ['127.0.0.1', 6379];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->once()->andReturn([$defaultNode]);
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('_masters')->returns([$defaultNode]);
         $client->expects('info')
             ->with($defaultNode, 'server', 'memory')
-            ->andReturn(['redis_version' => '8.0.0']);
+            ->returns(['redis_version' => '8.0.0']);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -488,12 +480,12 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testInfoTransformSupportsAnUnfilteredRequest(): void
     {
         $defaultNode = ['127.0.0.1', 6379];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->once()->andReturn([$defaultNode]);
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('_masters')->returns([$defaultNode]);
         $client->expects('info')
             ->with($defaultNode)
-            ->andReturn(['redis_version' => '8.0.0', 'used_memory' => 1024]);
+            ->returns(['redis_version' => '8.0.0', 'used_memory' => 1024]);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -508,11 +500,11 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testPingTransformRoutesToTheDefaultNode(): void
     {
         $defaultNode = ['127.0.0.1', 6379];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->once()->andReturn([$defaultNode]);
-        $client->expects('ping')->with($defaultNode)->andReturnTrue();
-        $client->expects('ping')->with($defaultNode, 'hello')->andReturn('hello');
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('_masters')->returns([$defaultNode]);
+        $client->expects('ping')->with($defaultNode)->returns(true);
+        $client->expects('ping')->with($defaultNode, 'hello')->returns('hello');
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -524,11 +516,11 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testExecuteRawRoutesByTheFirstArgumentAndNormalizesNullReplies(): void
     {
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
         $client->expects('rawCommand')
             ->with('{user}:1', 'GET', '{user}:1')
-            ->andReturnNull();
+            ->returns(null);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -539,11 +531,11 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testExecuteRawRoutesByTheFirstArgumentWhileQueueing(): void
     {
-        $client = m::mock(RedisCluster::class);
-        $client->expects('getMode')->andReturn(Redis::MULTI);
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->expects('getMode')->returns(Redis::MULTI);
         $client->expects('rawCommand')
             ->with('{user}:1', 'GET', '{user}:1')
-            ->andReturn($client);
+            ->returns($client);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -558,12 +550,12 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testExecuteRawRoutesKeylessCommandsToTheDefaultNode(): void
     {
         $defaultNode = ['127.0.0.1', 6379];
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->expects('_masters')->once()->andReturn([$defaultNode]);
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('_masters')->returns([$defaultNode]);
         $client->expects('rawCommand')
             ->with($defaultNode, 'TIME')
-            ->andReturn(['1', '2']);
+            ->returns(['1', '2']);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -810,13 +802,13 @@ class PhpRedisClusterConnectionTest extends TestCase
                 $this->setOptions($redis);
             }
         };
-        $redis = m::mock(RedisCluster::class);
+        $redis = Double::for(RedisCluster::class)->strict();
         $redis->expects('setOption')
             ->with(RedisCluster::OPT_SLAVE_FAILOVER, RedisCluster::FAILOVER_DISTRIBUTE)
-            ->andReturnTrue();
+            ->returns(true);
         $redis->expects('setOption')
             ->with(Redis::OPT_PACK_IGNORE_NUMBERS, true)
-            ->andReturnTrue();
+            ->returns(true);
         $this->expectDefaultConnectionOptions($redis);
 
         $connection->setOptionsForTest($redis);
@@ -834,7 +826,7 @@ class PhpRedisClusterConnectionTest extends TestCase
                 $this->setOptions($redis);
             }
         };
-        $redis = m::mock(RedisCluster::class);
+        $redis = Double::for(RedisCluster::class)->strict();
         $this->expectDefaultConnectionOptions($redis);
 
         $this->expectExceptionObject(new InvalidRedisOptionException(
@@ -868,7 +860,7 @@ class PhpRedisClusterConnectionTest extends TestCase
                 $this->setOptions($redis);
             }
         };
-        $redis = m::mock(RedisCluster::class);
+        $redis = Double::for(RedisCluster::class)->strict();
         $this->expectDefaultConnectionOptions($redis);
 
         $connection->setOptionsForTest($redis);
@@ -935,15 +927,14 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testDefaultNodeIsCached(): void
     {
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->shouldReceive('_masters')
-            ->once()
-            ->andReturn([['127.0.0.1', 6379]]);
-        $client->shouldReceive('ping')
-            ->twice()
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('_masters')
+            ->returns([['127.0.0.1', 6379]]);
+        $client->expects('ping')
+            ->times(2)
             ->with(['127.0.0.1', 6379])
-            ->andReturnTrue();
+            ->returns(true);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -955,11 +946,10 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testDefaultNodeThrowsWhenNoMasters(): void
     {
-        $client = m::mock(RedisCluster::class);
-        $client->allows('getMode')->andReturn(Redis::ATOMIC);
-        $client->shouldReceive('_masters')
-            ->once()
-            ->andReturn([]);
+        $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects('_masters')
+            ->returns([]);
 
         $connection = new PhpRedisClusterConnectionStub;
         $connection->setActiveConnection($client);
@@ -974,13 +964,13 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testConnectionRebuildsItsClientOnNextAcquisitionWithoutReplayingCommand(): void
     {
         $exception = new RedisException('Connection lost');
-        $failedClient = m::mock(RedisCluster::class);
-        $healthyClient = m::mock(RedisCluster::class);
+        $failedClient = Double::for(RedisCluster::class)->strict();
+        $healthyClient = Double::for(RedisCluster::class)->strict();
         $this->expectDefaultConnectionOptions($failedClient);
         $this->expectDefaultConnectionOptions($healthyClient);
-        $failedClient->expects('get')->once()->with('foo')->andThrow($exception);
-        $failedClient->expects('getLastError')->andReturnNull();
-        $healthyClient->expects('get')->once()->with('foo')->andReturn('bar');
+        $failedClient->expects('get')->with('foo')->throws($exception);
+        $failedClient->expects('getLastError')->returns(null);
+        $healthyClient->expects('get')->with('foo')->returns('bar');
 
         $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), [$failedClient, $healthyClient]) extends PhpRedisClusterConnection {
             /**
@@ -1023,29 +1013,29 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testReconnectClearsCachedDefaultNode(): void
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray([]));
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->allows('has')->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
 
         // First client: master is node A
-        $clientA = m::mock(RedisCluster::class);
-        $clientA->shouldReceive('_masters')->once()->andReturn([['10.0.0.1', 6379]]);
-        $clientA->allows('getMode')->andReturn(Redis::ATOMIC);
-        $clientA->expects('ping')->with(['10.0.0.1', 6379])->andReturnTrue();
-        $clientA->shouldReceive('setOption')->andReturnTrue();
+        $clientA = Double::for(RedisCluster::class)->strict();
+        $clientA->expects('_masters')->returns([['10.0.0.1', 6379]]);
+        $clientA->allows('getMode')->returns(Redis::ATOMIC);
+        $clientA->expects('ping')->with(['10.0.0.1', 6379])->returns(true);
+        $clientA->allows('setOption')->returns(true);
 
         // Second client (after reconnect): master is node B
-        $clientB = m::mock(RedisCluster::class);
-        $clientB->shouldReceive('_masters')->once()->andReturn([['10.0.0.2', 6379]]);
-        $clientB->allows('getMode')->andReturn(Redis::ATOMIC);
-        $clientB->expects('ping')->with(['10.0.0.2', 6379])->andReturnTrue();
-        $clientB->shouldReceive('setOption')->andReturnTrue();
+        $clientB = Double::for(RedisCluster::class)->strict();
+        $clientB->expects('_masters')->returns([['10.0.0.2', 6379]]);
+        $clientB->allows('getMode')->returns(Redis::ATOMIC);
+        $clientB->expects('ping')->with(['10.0.0.2', 6379])->returns(true);
+        $clientB->allows('setOption')->returns(true);
 
         $callCount = 0;
-        $connection = new class($container, $pool, $this->clusterConfig(['cluster' => ['enabled' => true, 'seeds' => ['tcp://10.0.0.1:6379']]]), $clientA, $clientB, $callCount) extends PhpRedisClusterConnection {
+        $connection = new class($container->instance(), $pool, $this->clusterConfig(['cluster' => ['enabled' => true, 'seeds' => ['tcp://10.0.0.1:6379']]]), $clientA, $clientB, $callCount) extends PhpRedisClusterConnection {
             public function __construct(
                 ContainerContract $container,
                 ConnectionPool $pool,
@@ -1075,9 +1065,6 @@ class PhpRedisClusterConnectionTest extends TestCase
 
         // The next ping must resolve node B from the replacement client.
         $this->assertTrue($connection->ping());
-
-        // Mockery's ->once() on each client's _masters() verifies each was called exactly once,
-        // proving the cache was cleared and re-populated after reconnect.
     }
 
     /**
@@ -1122,12 +1109,12 @@ class PhpRedisClusterConnectionTest extends TestCase
      */
     private function expectDefaultConnectionOptions(RedisCluster $redis): void
     {
-        $redis->expects('setOption')->with(Redis::OPT_MAX_RETRIES, 3)->andReturnTrue();
+        $redis->expects('setOption')->with(Redis::OPT_MAX_RETRIES, 3)->returns(true);
         $redis->expects('setOption')
             ->with(Redis::OPT_BACKOFF_ALGORITHM, Redis::BACKOFF_ALGORITHM_DECORRELATED_JITTER)
-            ->andReturnTrue();
-        $redis->expects('setOption')->with(Redis::OPT_BACKOFF_BASE, 100)->andReturnTrue();
-        $redis->expects('setOption')->with(Redis::OPT_BACKOFF_CAP, 1000)->andReturnTrue();
+            ->returns(true);
+        $redis->expects('setOption')->with(Redis::OPT_BACKOFF_BASE, 100)->returns(true);
+        $redis->expects('setOption')->with(Redis::OPT_BACKOFF_CAP, 1000)->returns(true);
     }
 
     /**
@@ -1135,8 +1122,8 @@ class PhpRedisClusterConnectionTest extends TestCase
      */
     private function getMockedPool(): ConnectionPool
     {
-        $pool = m::mock(ConnectionPool::class);
-        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray([]));
 
         return $pool;
     }
@@ -1146,11 +1133,11 @@ class PhpRedisClusterConnectionTest extends TestCase
      */
     private function getContainer(): ContainerContract
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->allows('has')->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
 
-        return $container;
+        return $container->instance();
     }
 
     /**

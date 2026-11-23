@@ -12,8 +12,8 @@ use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\WebClient;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\Macroable;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ClientManager
@@ -44,11 +44,13 @@ class ClientManager
     /**
      * Register a named client factory.
      *
-     * Boot-only. Factories persist across requests. Re-registration disconnects
-     * only the current owner's client; other owners retain theirs until cleanup.
+     * On the shared manager, factories persist across requests. Re-registration
+     * disconnects only the current owner's client; other owners retain theirs
+     * until cleanup.
      *
      * @param Closure(): Client $factory
      */
+    #[BootOnly(whenShared: true)]
     public function registerClient(string $name, Closure $factory): void
     {
         if (isset($this->clients[$name])) {
@@ -166,10 +168,7 @@ class ClientManager
             try {
                 $this->disconnect($client);
             } catch (Throwable $throwable) {
-                if ($exception === null
-                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -185,7 +184,10 @@ class ClientManager
     {
         try {
             $client->disconnect();
-        } catch (ClientException) {
+        } catch (ClientException $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
     }
 

@@ -9,6 +9,7 @@ use Hypervel\Mcp\Server\Contracts\Content;
 use Hypervel\Mcp\Server\Prompt;
 use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 
 class Blob implements Content
@@ -27,6 +28,7 @@ class Blob implements Content
      *
      * @return array<string, mixed>
      */
+    #[Unsupported('Return blob content from a resource.')]
     public function toTool(Tool $tool): array
     {
         throw new InvalidArgumentException(
@@ -39,6 +41,7 @@ class Blob implements Content
      *
      * @return array<string, mixed>
      */
+    #[Unsupported('Return blob content from a resource.')]
     public function toPrompt(Prompt $prompt): array
     {
         throw new InvalidArgumentException(

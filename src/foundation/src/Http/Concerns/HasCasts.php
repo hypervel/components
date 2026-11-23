@@ -18,6 +18,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
+use Hypervel\Support\Number;
 use Hypervel\Validation\ValidationData;
 use InvalidArgumentException;
 use stdClass;
@@ -443,8 +444,15 @@ trait HasCasts
      */
     protected function asDecimal(mixed $value, int $decimals): string
     {
+        $value = is_float($value) ? Number::toString($value) : (string) $value;
+
+        // Validated numeric input can still contain exponents that exhaust worker memory.
+        if (Number::exceedsMaxExponent($value)) {
+            throw new MathException('Unable to cast value to a decimal.');
+        }
+
         try {
-            return (string) BigDecimal::of((string) $value)->toScale($decimals, RoundingMode::HalfUp);
+            return (string) BigDecimal::of($value)->toScale($decimals, RoundingMode::HalfUp);
         } catch (BrickMathException $exception) {
             throw new MathException('Unable to cast value to a decimal.', previous: $exception);
         }

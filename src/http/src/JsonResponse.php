@@ -97,6 +97,8 @@ class JsonResponse extends BaseJsonResponse implements Transient
 
     /**
      * Set the JSONP callback.
+     *
+     * @return $this
      */
     public function withCallback(?string $callback = null): static
     {

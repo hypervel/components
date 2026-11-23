@@ -7,6 +7,9 @@ namespace Hypervel\Support;
 use ArrayAccess;
 use Hypervel\Support\Traits\Macroable;
 
+/**
+ * @template TValue
+ */
 class Optional implements ArrayAccess
 {
     use Macroable {
@@ -20,6 +23,8 @@ class Optional implements ArrayAccess
 
     /**
      * Create a new optional instance.
+     *
+     * @param TValue $value
      */
     public function __construct(mixed $value)
     {

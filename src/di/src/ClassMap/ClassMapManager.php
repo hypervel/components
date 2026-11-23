@@ -6,6 +6,8 @@ namespace Hypervel\Di\ClassMap;
 
 use Composer\Autoload\ClassLoader;
 use Hypervel\Di\Aop\ProxySource;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use ReflectionClass;
 use RuntimeException;
 
@@ -33,11 +35,12 @@ class ClassMapManager
      * Each entry maps an original class name to the path of its replacement file.
      * Fails if a target is already loaded from a different source.
      *
-     * Boot-only. Class-map overrides mutate the worker's Composer autoloader and
-     * must be registered before application proxy generation and target loading.
+     * Class-map overrides mutate the worker's Composer autoloader and must be
+     * registered before application proxy generation and target loading.
      *
      * @param array<class-string, string> $map
      */
+    #[BootOnly]
     public static function add(array $map): void
     {
         if (static::$sealed) {
@@ -79,8 +82,9 @@ class ClassMapManager
     /**
      * Close class map registration after application proxy generation.
      *
-     * Boot-only. Later registrations in this worker are rejected.
+     * Later registrations in this worker are rejected.
      */
+    #[BootOnly]
     public static function seal(): void
     {
         static::$sealed = true;
@@ -89,9 +93,10 @@ class ClassMapManager
     /**
      * Reopen class map registration while retaining the registered overrides.
      *
-     * Boot or tests only. This permits worker-wide autoloader changes for a new
-     * application bootstrap; already-loaded classes cannot be replaced.
+     * This permits worker-wide autoloader changes for a new application
+     * bootstrap; already-loaded classes cannot be replaced.
      */
+    #[BootOrTestsOnly]
     public static function unseal(): void
     {
         static::$sealed = false;
@@ -100,10 +105,11 @@ class ClassMapManager
     /**
      * Publish generated replacements with the lifetime of their source overrides.
      *
-     * Boot-only. These autoload entries affect every request in the worker.
+     * These autoload entries affect every request in the worker.
      *
      * @param array<string, string> $proxies
      */
+    #[BootOnly]
     public static function applyProxies(array $proxies): void
     {
         static::$loader?->addClassMap(array_intersect_key($proxies, static::$entries));

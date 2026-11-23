@@ -16,12 +16,15 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class AiManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected AiManager $manager;
 
     /**
@@ -141,7 +144,7 @@ class AiManagerTest extends TestCase
 
     public function testCustomDriversMayImplementProviderContractsWithoutExtendingTheBaseClass(): void
     {
-        $provider = m::mock(AudioProvider::class);
+        $provider = Double::for(AudioProvider::class)->strict();
         $this->manager->extend('custom', static fn (): AudioProvider => $provider);
 
         $this->assertSame($provider, $this->manager->audioProvider());

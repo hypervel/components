@@ -6,6 +6,7 @@ namespace Hypervel\Inertia;
 
 use BackedEnum;
 use Closure;
+use Hypervel\Broadcasting\Channel;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Support\Arrayable;
@@ -21,6 +22,7 @@ use Hypervel\Inertia\Support\Header;
 use Hypervel\Inertia\Support\SessionKey;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Redirect;
 use Hypervel\Support\Facades\Request;
@@ -267,6 +269,17 @@ class ResponseFactory
     }
 
     /**
+     * Create a live property.
+     *
+     * @param null|array<int, class-string|object|string>|class-string|object|string $on
+     * @param null|array<int, Channel|string>|Channel|string $channel
+     */
+    public function live(mixed $value, array|object|string|null $on = null, array|Channel|string|null $channel = null, ?int $throttle = null): LiveProp
+    {
+        return new LiveProp($value, $on, $channel, $throttle);
+    }
+
+    /**
      * Create a once property.
      */
     public function once(callable $value): OnceProp
@@ -360,6 +373,23 @@ class ResponseFactory
     }
 
     /**
+     * Resolve props for a broadcast payload.
+     *
+     * @param array<array-key, mixed> $props
+     * @return array{__inertia: array{props: array<array-key, mixed>}}
+     */
+    public function broadcastProps(array $props): array
+    {
+        $resolver = new PropsResolver(request(), '');
+
+        return [
+            '__inertia' => [
+                'props' => $resolver->resolveBroadcastProps($props),
+            ],
+        ];
+    }
+
+    /**
      * Create an Inertia location response.
      */
     public function location(string|SymfonyRedirectResponse $url): SymfonyResponse
@@ -374,9 +404,10 @@ class ResponseFactory
     /**
      * Register a callback to handle HTTP exceptions for Inertia requests.
      *
-     * Boot-only. The callback is stored on the exception handler singleton
-     * and applies to all requests for the worker lifetime.
+     * The callback is stored on the exception handler singleton and
+     * applies to all requests for the worker lifetime.
      */
+    #[BootOnly]
     public function handleExceptionsUsing(callable $callback): void
     {
         /** @var mixed $handler */

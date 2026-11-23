@@ -7,8 +7,9 @@ namespace Hypervel\Cache;
 use Exception;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\InteractsWithTime;
-use Swoole\Coroutine\CanceledException;
 
 class StorageStore implements Store
 {
@@ -194,9 +195,11 @@ class StorageStore implements Store
             }
 
             $expiresAt = (int) substr($contents, 0, 10);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $this->emptyPayload();
         }
         $currentTime = $this->currentTime();
@@ -209,9 +212,11 @@ class StorageStore implements Store
 
         try {
             $data = $this->unserialize(substr($contents, 10));
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->forget($key);
 
             return $this->emptyPayload();
@@ -304,9 +309,10 @@ class StorageStore implements Store
     /**
      * Set the cache key prefix.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setPrefix(string $prefix): void
     {
         $this->prefix = $prefix;

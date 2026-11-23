@@ -8,6 +8,7 @@ use Closure;
 use Exception;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -172,11 +173,12 @@ class MigrationCreator
     /**
      * Register a post migration create hook.
      *
-     * Boot-only. Hooks persist on the migration creator for the worker
-     * lifetime and run for every subsequent migration creation.
+     * Hooks persist on the shared migration creator for the worker lifetime and
+     * run for every subsequent migration creation.
      *
      * @param Closure(?string, string): void $callback
      */
+    #[BootOnly(whenShared: true)]
     public function afterCreate(Closure $callback): void
     {
         $this->postCreate[] = $callback;

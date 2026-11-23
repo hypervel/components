@@ -10,10 +10,13 @@ use Closure;
 use Exception;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -26,6 +29,7 @@ use Traversable;
  * @template TKey of array-key
  *
  * @template-covariant TValue
+ * @template-covariant TCollection of Collection = Collection<array-key, mixed> the stored collection, kept as given
  *
  * @mixin Collection<TKey, TValue>
  */
@@ -360,7 +364,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param array<class-string, array<int, string>> $relations
+     * @phpstan-template TRelations of array
+     *
+     * @param array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
+     * @phpstan-param morph-eager-loads<TRelations> $relations
      * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
@@ -374,7 +381,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param array<class-string, array<int, string>> $relations
+     * @phpstan-template TRelations of array
+     *
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @phpstan-param morph-aggregates<TRelations> $relations
      * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
@@ -403,7 +413,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      * @param callable(TValue, TKey): TThroughValue $callback
      * @return $this
      *
-     * @phpstan-this-out static<TKey, TThroughValue>
+     * @phpstan-this-out static<TKey, TThroughValue, Collection<TKey, TThroughValue>>
      */
     public function through(callable $callback): static
     {
@@ -493,9 +503,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Set the current cursor resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent cursor-paginator's cursor lookup.
+     * The resolver persists in a static property for the worker lifetime and
+     * runs on every subsequent cursor-paginator's cursor lookup.
      */
+    #[BootOnly]
     public static function currentCursorResolver(Closure $resolver): void
     {
         static::$currentCursorResolver = $resolver;
@@ -554,7 +565,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get the paginator's underlying collection.
      *
-     * @return Collection<TKey, TValue>
+     * @return Collection<TKey, TValue>&TCollection
      */
     public function getCollection(): Collection
     {
@@ -566,11 +577,12 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @template TSetKey of array-key
      * @template TSetValue
+     * @template TSetCollection of Collection
      *
-     * @param Collection<TSetKey, TSetValue> $collection
+     * @param Collection<TSetKey, TSetValue>&TSetCollection $collection
      * @return $this
      *
-     * @phpstan-this-out static<TSetKey, TSetValue>
+     * @phpstan-this-out static<TSetKey, TSetValue, TSetCollection>
      */
     public function setCollection(Collection $collection): static
     {

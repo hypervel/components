@@ -8,18 +8,22 @@ use Closure;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\QueryException;
 use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\PassportServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDOException;
 use RuntimeException;
 
 class ClientRepositoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Register the configured cache and model services.
      */
@@ -63,9 +67,10 @@ class ClientRepositoryTest extends TestCase
     {
         $id = '550e8400-e29b-41d4-a716-446655440000';
         $client = new Client;
-        $query = m::mock(Builder::class);
-        $query->expects('useWritePdo')->andReturnSelf();
-        $query->expects('find')->with($id)->andReturn($client);
+        $baseQuery = Double::for(QueryBuilder::class)->strict();
+        $baseQuery->expects('useWritePdo');
+        $query = Double::for(new Builder($baseQuery))->passthru();
+        $query->expects('find')->with($id)->returns($client);
         ClientRepositoryTestClient::$query = fn () => $query;
 
         $this->assertSame($client, (new ClientRepository)->find($id));
@@ -79,9 +84,10 @@ class ClientRepositoryTest extends TestCase
 
         $id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
         $client = new Client;
-        $query = m::mock(Builder::class);
-        $query->expects('useWritePdo')->andReturnSelf();
-        $query->expects('find')->with($id)->andReturn($client);
+        $baseQuery = Double::for(QueryBuilder::class)->strict();
+        $baseQuery->expects('useWritePdo');
+        $query = Double::for(new Builder($baseQuery))->passthru();
+        $query->expects('find')->with($id)->returns($client);
         ClientRepositoryTestClient::$query = fn () => $query;
 
         $repository = new ClientRepository;

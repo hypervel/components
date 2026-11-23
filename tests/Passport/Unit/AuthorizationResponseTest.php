@@ -9,13 +9,16 @@ use Hypervel\Passport\Http\Responses\AuthorizationResponse;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\ServerSettings;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthorizationResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[TestWith([null, false])]
     #[TestWith(['HTTPS://Auth.Example:443/issuer/', false])]
     #[TestWith(['https://auth.example', true])]
@@ -79,8 +82,8 @@ class AuthorizationResponseTest extends TestCase
 
     public function testLocalErrorsDoNotResolveOrExposeAnIssuer(): void
     {
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldNotReceive('settings');
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->expects('settings')->never();
         $response = (new AuthorizationResponse($servers))->error(OAuthServerException::invalidRequest('client_id'), null, null, 'query');
 
         $this->assertSame(400, $response->getStatusCode());
@@ -92,8 +95,8 @@ class AuthorizationResponseTest extends TestCase
      */
     protected function renderer(?string $issuer): AuthorizationResponse
     {
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldReceive('settings')->andReturn(new ServerSettings([], issuer: $issuer));
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->allows('settings')->returns(new ServerSettings([], issuer: $issuer));
 
         return new AuthorizationResponse($servers);
     }

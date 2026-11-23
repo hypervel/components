@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Resources\Exceptions\ResourceClassNotFoundException;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Fixtures\Models\Administration\Billing\TransformsToResourceTestNestedModel;
 use Hypervel\Tests\Database\Fixtures\Models\TransformsToResourceTestModelInModelsNamespace;
-use LogicException;
 
 class TransformsToResourceTest extends TestCase
 {
@@ -25,7 +25,7 @@ class TransformsToResourceTest extends TestCase
 
     public function testToResourceThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
+        $this->expectException(ResourceClassNotFoundException::class);
         $this->expectExceptionMessageIs('Failed to find resource class for model [Hypervel\Tests\Database\Eloquent\Concerns\TransformsToResourceTestModel].');
 
         $model = new TransformsToResourceTestModel;

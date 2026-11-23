@@ -20,7 +20,9 @@ use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Nyholm\Psr7\Request as NyholmRequest;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
@@ -45,14 +47,16 @@ use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\UrlIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class HttpClientInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Factory $factory;
@@ -69,7 +73,7 @@ class HttpClientInstrumentationTest extends TestCase
 
     private MeterProvider $meterProvider;
 
-    private OpenTelemetryManager $manager;
+    private OpenTelemetryManager&DoubleInterface $manager;
 
     private ExceptionContextRegistry $exceptionContexts;
 
@@ -98,10 +102,9 @@ class HttpClientInstrumentationTest extends TestCase
         $this->meterProvider = (new MeterProviderBuilder)
             ->addReader($this->metricReader)
             ->build();
-        $this->manager = m::mock(OpenTelemetryManager::class);
-        $this->manager->shouldReceive('urlTemplateResolver')
-            ->zeroOrMoreTimes()
-            ->andReturnUsing(function (): ?Closure {
+        $this->manager = Double::for(OpenTelemetryManager::class)->strict();
+        $this->manager->allows('urlTemplateResolver')
+            ->resolves(function (): ?Closure {
                 ++$this->urlTemplateResolverCalls;
 
                 return $this->urlTemplateResolver;
@@ -180,9 +183,9 @@ class HttpClientInstrumentationTest extends TestCase
             $attributes[UrlAttributes::URL_FULL],
         );
         $this->assertSame('https', $attributes[UrlAttributes::URL_SCHEME]);
-        $this->assertSame('/users/{user}', $attributes[UrlIncubatingAttributes::URL_TEMPLATE]);
-        $this->assertSame(12, $attributes[HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE]);
-        $this->assertSame(5, $attributes[HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE]);
+        $this->assertSame('/users/{user}', $attributes['url.template']);
+        $this->assertSame(12, $attributes['http.request.body.size']);
+        $this->assertSame(5, $attributes['http.response.body.size']);
         $this->assertSame(201, $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE]);
         $this->assertSame('2', $attributes[NetworkAttributes::NETWORK_PROTOCOL_VERSION]);
         $this->assertArrayNotHasKey(NetworkAttributes::NETWORK_PROTOCOL_NAME, $attributes);
@@ -205,7 +208,7 @@ class HttpClientInstrumentationTest extends TestCase
         $this->assertSame('2', $points[0]->attributes->get(NetworkAttributes::NETWORK_PROTOCOL_VERSION));
         $this->assertNull($points[0]->attributes->get(UrlAttributes::URL_FULL));
         $this->assertNull($points[0]->attributes->get(UrlAttributes::URL_SCHEME));
-        $this->assertNull($points[0]->attributes->get(UrlIncubatingAttributes::URL_TEMPLATE));
+        $this->assertNull($points[0]->attributes->get('url.template'));
     }
 
     public function testUsesTheExactMethodExposedAtEachSupportedClientBoundary(): void
@@ -304,7 +307,7 @@ class HttpClientInstrumentationTest extends TestCase
         $this->assertSame(RuntimeException::class, $point->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
-    public function testPromiseCancellationPropagatesWithoutCompletionTelemetry(): void
+    public function testPromiseCancellationEndsTheSpanWithoutAnError(): void
     {
         $cancellation = new CanceledException;
         $this->factory->fake(static fn () => Create::rejectionFor($cancellation));
@@ -317,15 +320,23 @@ class HttpClientInstrumentationTest extends TestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $spans = $this->spanExporter->getSpans();
+        $this->assertCount(1, $spans);
+        $this->assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        $this->assertNull($spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertNull($spans[0]->getAttributes()->get(HttpAttributes::HTTP_RESPONSE_STATUS_CODE));
+        $this->assertSame([], $spans[0]->getEvents());
         $this->metricReader->collect();
-        $this->assertSame([], $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
-        $this->assertSame(2_000_000_000, $this->clock->timestamp);
+        $points = $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints;
+        $this->assertCount(1, $points);
+        $this->assertNull($points[0]->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
-    public function testUrlTemplateResolverCancellationStopsBeforeThePhysicalSend(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testUrlTemplateResolverCancellationStopsBeforeThePhysicalSend(bool $wrapped): void
     {
-        $cancellation = new CanceledException;
+        $cancellation = $wrapped ? new RuntimeException('Resolver cleanup failed.', previous: new CanceledException) : new CanceledException;
         $physicalSends = 0;
         $this->urlTemplateResolver = static function () use ($cancellation): never {
             throw $cancellation;
@@ -337,17 +348,25 @@ class HttpClientInstrumentationTest extends TestCase
         });
         $this->instrumentation()->register($this->options());
 
+        $caught = null;
+
         try {
             $this->factory->get('https://example.test');
-            $this->fail('The resolver cancellation was not rethrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertSame(0, $physicalSends);
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $spans = $this->spanExporter->getSpans();
+        $this->assertCount(1, $spans);
+
+        // Cancellation stops the request, but a real cleanup failure carrying it remains observable.
+        $this->assertSame($wrapped ? StatusCode::STATUS_ERROR : StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        $this->assertSame($wrapped ? RuntimeException::class : null, $spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+
         $this->metricReader->collect();
-        $this->assertSame([], $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
+        $this->assertCount(1, $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
     }
 
     public function testManualModeTracesOnlyMarkedRequestsWhileMetricsRemainIndependent(): void

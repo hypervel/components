@@ -42,7 +42,7 @@ class TestListResponse
             Assert::assertContains($name, $itemNames, "The expected class [{$class}] was not found in the response content.");
         }
 
-        // @phpstan-ignore-next-line
+        // @phpstan-ignore staticMethod.alreadyNarrowedType (counts a passed assertion)
         Assert::assertTrue(true);
 
         return $this;
@@ -64,7 +64,7 @@ class TestListResponse
             Assert::assertNotContains($name, $itemNames, "The expected class [{$class}] was found in the response content.");
         }
 
-        // @phpstan-ignore-next-line
+        // @phpstan-ignore staticMethod.alreadyNarrowedType (counts a passed assertion)
         Assert::assertTrue(true);
 
         return $this;

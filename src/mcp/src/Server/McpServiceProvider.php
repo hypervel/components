@@ -16,6 +16,7 @@ use Hypervel\Mcp\Console\Commands\MakeServerCommand;
 use Hypervel\Mcp\Console\Commands\MakeToolCommand;
 use Hypervel\Mcp\Console\Commands\StartCommand;
 use Hypervel\Mcp\Request;
+use Hypervel\Mcp\Server\Middleware\AddAuthorizationFramingHeaders;
 use Hypervel\Mcp\Server\Middleware\AddWwwAuthenticateHeader;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -53,13 +54,14 @@ class McpServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register the authentication challenge middleware.
+     * Register the authentication challenge and authorization framing middleware.
      */
     protected function registerGlobalMiddleware(): void
     {
         $this->callAfterResolving(HttpKernelContract::class, function (mixed $kernel): void {
             if ($kernel instanceof HttpKernel) {
                 $kernel->pushMiddleware(AddWwwAuthenticateHeader::class);
+                $kernel->pushMiddleware(AddAuthorizationFramingHeaders::class);
             }
         });
     }

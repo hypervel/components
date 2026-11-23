@@ -10,6 +10,7 @@ use Hypervel\Mcp\Server\Contracts\Content;
 use Hypervel\Mcp\Server\Prompt;
 use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 
 class ResourceLink implements Content
@@ -59,6 +60,7 @@ class ResourceLink implements Content
      *
      * @return array<string, mixed>
      */
+    #[Unsupported]
     public function toResource(Resource $resource): array
     {
         throw new InvalidArgumentException(

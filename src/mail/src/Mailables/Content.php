@@ -32,6 +32,8 @@ class Content
 
     /**
      * Set the view for the message.
+     *
+     * @return $this
      */
     public function view(string $view): static
     {
@@ -42,6 +44,8 @@ class Content
 
     /**
      * Set the view for the message.
+     *
+     * @return $this
      */
     public function html(string $view): static
     {
@@ -50,6 +54,8 @@ class Content
 
     /**
      * Set the plain text view for the message.
+     *
+     * @return $this
      */
     public function text(string $view): static
     {
@@ -60,6 +66,8 @@ class Content
 
     /**
      * Set the Markdown view for the message.
+     *
+     * @return $this
      */
     public function markdown(string $view): static
     {
@@ -70,6 +78,8 @@ class Content
 
     /**
      * Set the pre-rendered HTML for the message.
+     *
+     * @return $this
      */
     public function htmlString(string $html): static
     {
@@ -80,6 +90,8 @@ class Content
 
     /**
      * Add a piece of view data to the message.
+     *
+     * @return $this
      */
     public function with(array|string $key, mixed $value = null): static
     {

@@ -36,6 +36,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Flash a piece of data to the session.
+     *
+     * @return $this
      */
     public function with(string|array $key, mixed $value = null): static
     {
@@ -50,6 +52,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Flash an array of input to the session.
+     *
+     * @return $this
      */
     public function withInput(?array $input = null): static
     {
@@ -80,6 +84,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Flash only the specified input keys to the session.
+     *
+     * @return $this
      */
     public function onlyInput(): static
     {
@@ -88,6 +94,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Flash all input except the specified keys to the session.
+     *
+     * @return $this
      */
     public function exceptInput(): static
     {
@@ -96,6 +104,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Flash a container of errors to the session.
+     *
+     * @return $this
      */
     public function withErrors(MessageProvider|array|string $provider, string $key = 'default'): static
     {
@@ -129,6 +139,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Add a fragment identifier to the URL.
+     *
+     * @return $this
      */
     public function withFragment(string $fragment): static
     {
@@ -138,6 +150,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Remove any fragment identifier from the response URL.
+     *
+     * @return $this
      */
     public function withoutFragment(): static
     {
@@ -182,6 +196,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Set the request instance.
+     *
+     * @return $this
      */
     public function setRequest(Request $request): static
     {
@@ -200,6 +216,8 @@ class RedirectResponse extends BaseRedirectResponse implements Responsable
 
     /**
      * Set the session store instance.
+     *
+     * @return $this
      */
     public function setSession(SessionStore $session): static
     {

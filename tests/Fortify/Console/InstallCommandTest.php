@@ -13,12 +13,15 @@ use Hypervel\Fortify\FortifyServiceProvider;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class InstallCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected ?string $originalProvidersContents = null;
 
     protected function setUp(): void
@@ -169,8 +172,8 @@ class InstallCommandTest extends TestCase
         $laterFile = $this->publishedSupportFiles()[1];
         (new Filesystem)->replace($laterFile, '<?php // later file');
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('replace')->once()->andThrow(new RuntimeException('replace failed'));
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('replace')->throws(new RuntimeException('replace failed'));
         $this->app->instance(Filesystem::class, $files);
 
         $this->artisan('fortify:install')

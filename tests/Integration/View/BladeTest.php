@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\View;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Blade;
@@ -12,8 +13,13 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Component;
-use Mockery as m;
+use Hypervel\View\ComponentAttributeBag;
+use Hypervel\View\DynamicComponent;
+use Hypervel\View\RawTemplate;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
@@ -22,6 +28,8 @@ use function Hypervel\Filesystem\join_paths;
 
 class BladeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Clear compiled views after the test.
      */
@@ -73,6 +81,30 @@ class BladeTest extends TestCase
         $this->assertSame('Hello Taylor', Blade::render('Hello {{ $name }}', ['name' => 'Taylor'], true));
     }
 
+    #[DefineEnvironment('withViewCacheDisabled')]
+    public function testDeletingARenderedBladeStringDoesNotBreakOtherRendersOfTheSameTemplate(): void
+    {
+        $component = new HelloComponent('Taylor');
+        $compiledFiles = fn (): array => scandir(config('view.compiled'));
+
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+        $files = $compiledFiles();
+        $this->assertSame('Hello Ana', Blade::render('Hello {{ $name }}', ['name' => 'Ana'], true));
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+
+        $overlapped = false;
+        View::composer('__components::*', function () use (&$overlapped): void {
+            if (! $overlapped) {
+                $overlapped = true;
+                $this->assertSame('Hello Ben', Blade::render('Hello {{ $name }}', ['name' => 'Ben'], true));
+            }
+        });
+
+        $this->assertSame('Hello Ana', Blade::render('Hello {{ $name }}', ['name' => 'Ana'], true));
+        $this->assertTrue($overlapped);
+        $this->assertSame($files, $compiledFiles());
+    }
+
     public function testRenderingBladeLongMaxpathlenString(): void
     {
         $longString = str_repeat('a', PHP_MAXPATHLEN);
@@ -99,6 +131,29 @@ class BladeTest extends TestCase
         $component = new HelloComponent('Taylor');
 
         $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+    }
+
+    public function testRenderingRawTemplateComponentInstance(): void
+    {
+        $component = new RawTemplateHelloComponent('Taylor');
+
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+    }
+
+    public function testRenderingRawTemplateClosureComponentInstance(): void
+    {
+        $component = new RawTemplateClosureComponent('Taylor');
+
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+    }
+
+    public function testRawTemplateIsNeverResolvedAsAViewName(): void
+    {
+        $this->assertTrue(View::exists('hello'));
+
+        $component = new RawTemplateViewNameComponent;
+
+        $this->assertSame('hello', Blade::renderComponent($component));
     }
 
     public function testBasicBladeRendering(): void
@@ -254,6 +309,30 @@ class BladeTest extends TestCase
         $this->assertSame(trim($static), trim($dynamic));
     }
 
+    public function testDynamicComponentRendersBoundAttributesLikeClassComponentTag(): void
+    {
+        Blade::component('attributes-hello', AttributesHelloComponent::class);
+        DynamicComponent::flushState();
+
+        $data = [
+            'name' => 'Taylor & Co',
+            'title' => '"Quotes" & <tags>',
+            'bag' => new ComponentAttributeBag(['class' => 'a&amp;b']),
+        ];
+
+        foreach ([':title="$title"', 'title="{{ $title }}"', ':class="$title" :attributes="$bag"'] as $attributes) {
+            $static = Blade::render('<x-attributes-hello :name="$name" ' . $attributes . ' />', $data);
+            $dynamic = Blade::render('<x-dynamic-component component="attributes-hello" :name="$name" ' . $attributes . ' />', $data);
+
+            $this->assertSame(trim($static), trim($dynamic));
+        }
+
+        $this->assertSame(
+            '<div title="&quot;Quotes&quot; &amp; &lt;tags&gt;">Hello Taylor &amp; Co</div>',
+            trim(Blade::render('<x-dynamic-component component="attributes-hello" :name="$name" :title="$title" />', $data))
+        );
+    }
+
     public function testNoNamePassedToSlotUsesDefaultName(): void
     {
         $content = Blade::render('<x-link href="#"><x-slot>default slot</x-slot></x-link>');
@@ -296,11 +375,23 @@ class BladeTest extends TestCase
         View::addNamespace('templates', join_paths(__DIR__, 'Fixtures', 'templates'));
         View::addNamespace('components', join_paths(__DIR__, 'Fixtures', 'templates', 'components'));
 
-        // Unmatched compile() calls need the configured compiler; a class-based partial mock skips its constructor.
-        Blade::swap(m::mock(Blade::getFacadeRoot())->makePartial());
-        Blade::expects('compile')->with(realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php'));
+        $path = realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php');
+        $compiler = Double::for(Blade::getFacadeRoot())->passthru();
+        Blade::swap($compiler);
 
         $this->artisan('view:cache');
+
+        $compiler->received('compile')->with($path)->times(1);
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testViewCacheCommandCompilesNamespacedViewsAtThePathTheyRenderFrom(): void
+    {
+        View::addNamespace('components', join_paths(__DIR__, 'Fixtures', 'templates', 'components', '..', 'components'));
+
+        $this->artisan('view:cache');
+
+        $this->assertFileExists(Blade::getCompiledPath(View::getFinder()->find('components::panel')));
     }
 
     /**
@@ -347,5 +438,72 @@ class HelloComponent extends Component
     public function render(): string
     {
         return 'Hello {{ $name }}';
+    }
+}
+
+class AttributesHelloComponent extends Component
+{
+    /**
+     * Create a greeting component.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Get the greeting template with the component attributes.
+     */
+    public function render(): string
+    {
+        return '<div {{ $attributes }}>Hello {{ $name }}</div>';
+    }
+}
+
+class RawTemplateHelloComponent extends Component
+{
+    /**
+     * Create a greeting component.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Get the greeting template.
+     */
+    public function render(): RawTemplate
+    {
+        return new RawTemplate('Hello {{ $name }}');
+    }
+}
+
+class RawTemplateClosureComponent extends Component
+{
+    /**
+     * Create a greeting component.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Get a closure that returns the greeting template.
+     */
+    public function render(): Closure
+    {
+        return function (array $data): RawTemplate {
+            return new RawTemplate('Hello {{ $name }}');
+        };
+    }
+}
+
+class RawTemplateViewNameComponent extends Component
+{
+    /**
+     * Get a template that matches an application view name.
+     */
+    public function render(): RawTemplate
+    {
+        return new RawTemplate('hello');
     }
 }

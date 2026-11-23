@@ -124,7 +124,7 @@ Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{vers
 ```php
 $name = text(
     label: 'What is your name?',
-    validate: ['name' => 'required|max:255|unique:users']
+    validate: ['name' => ['required', 'max:255', 'unique:users']]
 );
 ```
 
@@ -193,7 +193,7 @@ Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{vers
 ```php
 $story = textarea(
     label: 'Tell me a story.',
-    validate: ['story' => 'required|max:10000']
+    validate: ['story' => ['required', 'max:10000']]
 );
 ```
 
@@ -278,7 +278,7 @@ Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{vers
 ```php
 $copies = number(
     label: 'How many copies would you like?',
-    validate: ['copies' => 'required|integer|min:1|max:100']
+    validate: ['copies' => ['required', 'integer', 'min:1', 'max:100']]
 );
 ```
 
@@ -722,7 +722,7 @@ Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{vers
 $name = suggest(
     label: 'What is your name?',
     options: ['Taylor', 'Dayle'],
-    validate: ['name' => 'required|min:3|max:255']
+    validate: ['name' => ['required', 'min:3', 'max:255']]
 );
 ```
 

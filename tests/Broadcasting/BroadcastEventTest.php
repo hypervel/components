@@ -7,21 +7,55 @@ namespace Hypervel\Tests\Broadcasting;
 use Exception;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Broadcasting\UniqueBroadcastEvent;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\UniqueFor;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Throwable;
 
 class BroadcastEventTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    public function testUniqueBroadcastEventReadsUniqueForAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithUniqueForAttribute);
+
+        $this->assertSame(60, $job->uniqueFor);
+    }
+
+    public function testUniqueBroadcastEventReadsInheritedUniqueForAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithInheritedUniqueFor);
+
+        $this->assertSame(60, $job->uniqueFor);
+    }
+
+    public function testUniqueBroadcastEventUniqueForMethodOverridesAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithUniqueForMethod);
+
+        $this->assertSame(120, $job->uniqueFor);
+    }
+
+    public function testUniqueBroadcastEventChildPropertyOverridesInheritedAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithUniqueForProperty);
+
+        $this->assertSame(180, $job->uniqueFor);
+    }
+
     public function testBasicEventBroadcastParameterFormatting(): void
     {
-        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast')->with(
             ['test-channel'],
@@ -29,9 +63,9 @@ class BroadcastEventTest extends TestCase
             ['firstName' => 'Taylor', 'lastName' => 'Otwell', 'collection' => ['foo' => 'bar']]
         );
 
-        $manager = m::mock(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
-        $manager->expects('connection')->with(null)->andReturn($broadcaster);
+        $manager->expects('connection')->with(null)->returns($broadcaster);
 
         $event = new TestBroadcastEvent;
 
@@ -40,7 +74,7 @@ class BroadcastEventTest extends TestCase
 
     public function testManualParameterSpecification(): void
     {
-        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast')->with(
             ['test-channel'],
@@ -48,9 +82,9 @@ class BroadcastEventTest extends TestCase
             ['name' => 'Taylor', 'socket' => null]
         );
 
-        $manager = m::mock(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
-        $manager->expects('connection')->with(null)->andReturn($broadcaster);
+        $manager->expects('connection')->with(null)->returns($broadcaster);
 
         $event = new TestBroadcastEventWithManualData;
 
@@ -70,23 +104,27 @@ class BroadcastEventTest extends TestCase
         $payload = get_object_vars($event);
         $payload['collection'] = ['foo' => 'bar'];
 
-        $broadcaster = m::mock(Broadcaster::class);
-        $broadcaster->expects('broadcast')->with(['test-channel'], $event::class, $payload);
-        $manager = m::mock(BroadcastingFactory::class);
-        $manager->expects('connection')->with(null)->andReturn($broadcaster);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
+        $broadcaster->expects('broadcast')->with(
+            ['test-channel'],
+            $event::class,
+            Argument::satisfies(static fn (array $actual): bool => $actual == $payload),
+        );
+        $manager = Double::for(BroadcastingFactory::class)->strict();
+        $manager->expects('connection')->with(null)->returns($broadcaster);
 
         (new BroadcastEvent($event))->handle($manager);
     }
 
     public function testSpecificBroadcasterGiven(): void
     {
-        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast');
 
-        $manager = m::mock(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
-        $manager->expects('connection')->with('log')->andReturn($broadcaster);
+        $manager->expects('connection')->with('log')->returns($broadcaster);
 
         $event = new TestBroadcastEventWithSpecificBroadcaster;
 
@@ -95,7 +133,7 @@ class BroadcastEventTest extends TestCase
 
     public function testSpecificChannelsPerConnection(): void
     {
-        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast')->with(
             ['first-channel'],
@@ -109,10 +147,10 @@ class BroadcastEventTest extends TestCase
             ['firstName' => 'Taylor']
         );
 
-        $manager = m::mock(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
-        $manager->expects('connection')->with('first_connection')->andReturn($broadcaster);
-        $manager->expects('connection')->with('second_connection')->andReturn($broadcaster);
+        $manager->expects('connection')->with('first_connection')->returns($broadcaster);
+        $manager->expects('connection')->with('second_connection')->returns($broadcaster);
 
         $event = new TestBroadcastEventWithChannelsPerConnection;
 
@@ -153,12 +191,12 @@ class BroadcastEventTest extends TestCase
 
     public function testSingleStringChannelIsBroadcast(): void
     {
-        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
         $broadcaster->expects('broadcast')
-            ->with(['test-channel'], TestBroadcastEventWithStringChannel::class, m::type('array'));
+            ->with(['test-channel'], TestBroadcastEventWithStringChannel::class, Argument::type('array'));
 
-        $manager = m::mock(BroadcastingFactory::class);
-        $manager->expects('connection')->with(null)->andReturn($broadcaster);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
+        $manager->expects('connection')->with(null)->returns($broadcaster);
 
         (new BroadcastEvent(new TestBroadcastEventWithStringChannel))->handle($manager);
     }
@@ -256,18 +294,43 @@ class BroadcastEventTest extends TestCase
      */
     protected function assertEventBroadcastsAs(object $event, string $name): void
     {
-        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
         $broadcaster->expects('broadcast')->with(
             ['test-channel'],
             $name,
             ['firstName' => 'Taylor', 'lastName' => 'Otwell', 'collection' => ['foo' => 'bar']]
         );
 
-        $manager = m::mock(BroadcastingFactory::class);
-        $manager->expects('connection')->with(null)->andReturn($broadcaster);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
+        $manager->expects('connection')->with(null)->returns($broadcaster);
 
         (new BroadcastEvent($event))->handle($manager);
     }
+}
+
+#[UniqueFor(60)]
+class TestBroadcastEventWithUniqueForAttribute extends TestBroadcastEvent
+{
+}
+
+class TestBroadcastEventWithInheritedUniqueFor extends TestBroadcastEventWithUniqueForAttribute
+{
+}
+
+class TestBroadcastEventWithUniqueForMethod extends TestBroadcastEventWithUniqueForAttribute
+{
+    /**
+     * Get the uniqueness lifetime.
+     */
+    public function uniqueFor(): int
+    {
+        return 120;
+    }
+}
+
+class TestBroadcastEventWithUniqueForProperty extends TestBroadcastEventWithUniqueForAttribute
+{
+    public int $uniqueFor = 180;
 }
 
 class TestBroadcastEvent

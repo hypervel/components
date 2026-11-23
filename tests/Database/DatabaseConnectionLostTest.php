@@ -36,6 +36,7 @@ class DatabaseConnectionLostTest extends TestCase
             'PostgreSQL connection refused' => ["SQLSTATE[08006] [7] connection to server at \"example.database.com\" (10.0.1.7), port 5432 failed: Connection refused\nIs the server running on that host and accepting TCP/IP connections? (Connection: pgsql, Host: example.database.com, Port: 5432, Database: forge, SQL: select * from \"cache\" where \"key\" in (hypervel:queue:restart))"],
             'MySQL server gone away' => ['SQLSTATE[HY000]: General error: 2006 MySQL server has gone away'],
             'SSL/TLS alert' => ['SSL error: ssl/tls alert unexpected message'],
+            'Vitess query list terminated' => ['SQLSTATE[HY000]: General error: 1105 unknown: target: example.-.primary: vttablet: rpc error: code = Canceled desc = QueryList.TerminateAll(), elapsed time: 33.391648184s, killing connection ID 12345'],
         ];
     }
 
@@ -44,6 +45,38 @@ class DatabaseConnectionLostTest extends TestCase
         $detector = new LostConnectionDetector;
 
         $this->assertFalse($detector->causedByLostConnection(new PDOException('Unexpected EOF while parsing application data')));
+    }
+
+    public function testLostConnectionDetectorCanDetectUsingCallback(): void
+    {
+        $detector = new LostConnectionDetector;
+
+        $this->assertFalse($detector->causedByLostConnection(new PDOException('Proxy hiccup')));
+
+        LostConnectionDetector::detectUsing(fn (Throwable $e): bool => str_contains($e->getMessage(), 'Proxy hiccup'));
+
+        $this->assertTrue($detector->causedByLostConnection(new PDOException('SQLSTATE[HY000]: Proxy hiccup')));
+        $this->assertTrue($detector->causedByLostConnection(new PDOException('SQLSTATE[HY000]: General error: 2006 MySQL server has gone away')));
+        $this->assertFalse($detector->causedByLostConnection(new PDOException('Syntax error')));
+
+        LostConnectionDetector::detectUsing(null);
+
+        $this->assertFalse($detector->causedByLostConnection(new PDOException('Proxy hiccup')));
+    }
+
+    public function testCustomCallbackReceivesTheOriginalQueryException(): void
+    {
+        $failure = new QueryException('custom', 'select 1', [], new RuntimeException('Custom driver lost its session'));
+        $received = null;
+
+        LostConnectionDetector::detectUsing(function (Throwable $e) use (&$received): bool {
+            $received = $e;
+
+            return $e instanceof QueryException && $e->getConnectionName() === 'custom';
+        });
+
+        $this->assertTrue((new LostConnectionDetector)->causedByLostConnection($failure));
+        $this->assertSame($failure, $received);
     }
 
     public function testQueryContextCannotForgeALostConnection(): void
@@ -77,6 +110,8 @@ class DatabaseConnectionLostTest extends TestCase
         yield 'explicit signal' => [new LostConnectionException('Lost connection and no reconnector available.')];
         yield 'mysqlnd packet warning' => [new ErrorException('Packets out of order. Expected 1 received 0. Packet size=145', 0, E_WARNING)];
         yield 'mysqlnd send warning' => [new ErrorException('Error while sending QUERY packet. PID=1234', 0, E_WARNING)];
+        yield 'PDO TLS broken pipe' => [new ErrorException('PDOStatement::execute(): SSL: Broken pipe', 0, E_WARNING)];
+        yield 'PDO TLS record failure' => [new ErrorException('PDO::query(): SSL operation failed with code 1. OpenSSL Error messages: decryption failed or bad record mac', 0, E_WARNING)];
     }
 
     #[DataProvider('nonDatabaseFailures')]
@@ -99,5 +134,7 @@ class DatabaseConnectionLostTest extends TestCase
         yield 'filesystem warning' => [new ErrorException('fopen(missing): Failed to open stream: No such file or directory', 0, E_WARNING)];
         yield 'embedded packet warning' => [new ErrorException('fopen(Packets out of order. Expected): Failed to open stream', 0, E_WARNING)];
         yield 'unsupported PDO warning mode' => [new ErrorException('PDO::query(): SQLSTATE[HY000]: General error: 2006 MySQL server has gone away', 0, E_WARNING)];
+        yield 'PDO certificate configuration' => [new ErrorException('PDO::__construct(): SSL operation failed with code 1. OpenSSL Error messages: certificate verify failed', 0, E_WARNING)];
+        yield 'Redis TLS failure' => [new ErrorException('Redis::get(): SSL: Connection reset by peer', 0, E_WARNING)];
     }
 }

@@ -8,19 +8,22 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use GuzzleHttp\Psr7\LimitStream;
-use GuzzleHttp\Psr7\StreamWrapper;
+use GuzzleHttp\Psr7\Stream;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Concerns\TransfersFiles;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
+use Hypervel\Http\StreamWrapper;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -51,7 +54,6 @@ use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use ReflectionFunction;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -125,6 +127,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the given file or directory exists.
+     *
+     * @return $this
      */
     public function assertExists(array|string $path, ?string $content = null): static
     {
@@ -154,6 +158,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the number of files in path equals the expected count.
+     *
+     * @return $this
      */
     public function assertCount(string $path, int $count, bool $recursive = false): static
     {
@@ -172,6 +178,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the given file or directory does not exist.
+     *
+     * @return $this
      */
     public function assertMissing(array|string $path): static
     {
@@ -191,6 +199,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the given directory is empty.
+     *
+     * @return $this
      */
     public function assertDirectoryEmpty(string $path): static
     {
@@ -204,6 +214,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the disk contains no files.
+     *
+     * @return $this
      */
     public function assertEmpty(): static
     {
@@ -276,7 +288,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             return $this->driver->read($path);
         } catch (UnableToReadFile $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -396,7 +408,16 @@ class FilesystemAdapter implements CloudFilesystemContract
 
         try {
             if ($contents instanceof StreamInterface) {
-                $this->driver->writeStream($path, $contents->detach(), $options);
+                $stream = StreamWrapper::detach($contents);
+
+                try {
+                    $this->driver->writeStream($path, $stream, $options);
+                } finally {
+                    // Laravel leaves detached native handles open; only our owned bridge needs closing here.
+                    if ($contents::class !== Stream::class && is_resource($stream)) {
+                        fclose($stream);
+                    }
+                }
 
                 return true;
             }
@@ -405,7 +426,7 @@ class FilesystemAdapter implements CloudFilesystemContract
                 ? $this->driver->writeStream($path, $contents, $options)
                 : $this->driver->write($path, $contents, $options);
         } catch (UnableToWriteFile|UnableToSetVisibility $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -488,7 +509,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->setVisibility($path, $this->parseVisibility($visibility));
         } catch (UnableToSetVisibility $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -549,7 +570,7 @@ class FilesystemAdapter implements CloudFilesystemContract
             try {
                 $this->driver->delete($path);
             } catch (UnableToDeleteFile $e) {
-                if ($this->throwsExceptions()) {
+                if ($this->shouldThrow($e)) {
                     throw $e;
                 }
 
@@ -570,7 +591,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->copy($from, $to);
         } catch (UnableToCopyFile $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -590,7 +611,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->move($from, $to);
         } catch (UnableToMoveFile $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -620,7 +641,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             return $this->driver->checksum($path, $options);
         } catch (UnableToProvideChecksum $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -640,7 +661,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             return $this->driver->mimeType($path);
         } catch (UnableToRetrieveMetadata $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -668,7 +689,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             return $this->driver->readStream($path);
         } catch (UnableToReadFile $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -742,7 +763,7 @@ class FilesystemAdapter implements CloudFilesystemContract
 
             $psrStream = Utils::streamFor($stream);
             $limitedStream = new LimitStream($psrStream, $length, $psrStream->tell());
-            $range = StreamWrapper::getResource($limitedStream);
+            $range = StreamWrapper::detach($limitedStream);
 
             if (in_array(stream_get_meta_data($stream)['stream_type'], ['TEMP', 'MEMORY'], true)) {
                 // Only mark this new wrapper; a driver's stream may share the default context.
@@ -750,15 +771,16 @@ class FilesystemAdapter implements CloudFilesystemContract
             }
 
             return $range;
-        } catch (CanceledException $exception) {
-            if (is_resource($stream)) {
-                fclose($stream);
-            }
-
-            throw $exception;
         } catch (Throwable $exception) {
-            if (is_resource($stream)) {
-                fclose($stream);
+            try {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+            } finally {
+                // Closing a stream may fail too; keep any cancellation in its exception chain.
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
             }
 
             $failure = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
@@ -803,7 +825,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->writeStream($path, $resource, $options);
         } catch (UnableToWriteFile|UnableToSetVisibility $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -834,7 +856,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         if (method_exists($this->driver, 'getUrl')) {
             return $this->driver->getUrl($path);
         }
-        if ($adapter instanceof FtpAdapter || $adapter instanceof SftpAdapter) { // @phpstan-ignore class.notFound, class.notFound
+        if ($adapter instanceof FtpAdapter || $adapter instanceof SftpAdapter) {
             return $this->getFtpUrl($path);
         }
         if ($adapter instanceof LocalAdapter) {
@@ -1029,7 +1051,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->createDirectory($path);
         } catch (UnableToCreateDirectory|UnableToSetVisibility $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -1049,7 +1071,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->deleteDirectory($directory);
         } catch (UnableToDeleteDirectory $e) {
-            if ($this->throwsExceptions()) {
+            if ($this->shouldThrow($e)) {
                 throw $e;
             }
 
@@ -1079,6 +1101,12 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Run a callback with the Flysystem driver, as pooled disks do with a borrowed one.
+     *
+     * @template TDriver of FilesystemOperator
+     * @template T
+     *
+     * @param Closure(TDriver): T $callback
+     * @return T
      */
     public function withDriver(Closure $callback): mixed
     {
@@ -1087,6 +1115,12 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Run a callback with the Flysystem adapter, as pooled disks do with a borrowed one.
+     *
+     * @template TAdapter of FlysystemAdapter
+     * @template T
+     *
+     * @param Closure(TAdapter): T $callback
+     * @return T
      */
     public function withAdapter(Closure $callback): mixed
     {
@@ -1122,9 +1156,10 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Define a custom callback that generates file download responses.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent serve() call for that disk.
+     * The callback persists on the cached disk adapter for the worker lifetime
+     * and runs on every subsequent serve() call for that disk.
      */
+    #[BootOnly(whenShared: true)]
     public function serveUsing(?Closure $callback): void
     {
         $this->serveCallback = $callback;
@@ -1133,10 +1168,10 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Define a custom temporary URL builder callback.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent temporary URL generation for
-     * that disk.
+     * The callback persists on the cached disk adapter for the worker lifetime
+     * and runs on every subsequent temporary URL generation for that disk.
      */
+    #[BootOnly(whenShared: true)]
     public function buildTemporaryUrlsUsing(?Closure $callback): void
     {
         $this->temporaryUrlCallback = $this->prepareTemporaryUrlCallback($callback);
@@ -1145,10 +1180,11 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Define a custom temporary upload URL builder callback.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent temporary upload URL
+     * The callback persists on the cached disk adapter for the worker
+     * lifetime and runs on every subsequent temporary upload URL
      * generation for that disk.
      */
+    #[BootOnly(whenShared: true)]
     public function buildTemporaryUploadUrlsUsing(?Closure $callback): void
     {
         $this->temporaryUploadUrlCallback = $this->prepareTemporaryUrlCallback($callback);
@@ -1179,6 +1215,14 @@ class FilesystemAdapter implements CloudFilesystemContract
     protected function throwsExceptions(): bool
     {
         return (bool) ($this->config['throw'] ?? false);
+    }
+
+    /**
+     * Determine whether failure policy or coroutine cancellation requires propagation.
+     */
+    protected function shouldThrow(Throwable $exception): bool
+    {
+        return $this->throwsExceptions() || Coroutine::causedByCancellation($exception);
     }
 
     /**

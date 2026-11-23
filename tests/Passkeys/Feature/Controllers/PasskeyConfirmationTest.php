@@ -10,10 +10,13 @@ use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class PasskeyConfirmationTest extends TestCase
 {
+    use VerifiesDoubles;
     use WebAuthnFixtures;
 
     public function testItReturnsConfirmationOptionsForAuthenticatedUser(): void
@@ -77,11 +80,11 @@ class PasskeyConfirmationTest extends TestCase
             'email' => 'test@example.com',
         ]);
 
-        $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
-            ->shouldReceive('__invoke')
-            ->once()
-            ->andThrow(InvalidPasskeyException::make('Unable to verify passkey. Please try again.'))
-            ->getMock());
+        $action = Double::for(VerifyPasskey::class)->strict();
+        $action
+            ->expects('__invoke')
+            ->throws(InvalidPasskeyException::make('Unable to verify passkey. Please try again.'));
+        $this->instance(VerifyPasskey::class, $action);
 
         $this->actingAs($user)
             ->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])
@@ -107,13 +110,14 @@ class PasskeyConfirmationTest extends TestCase
             'credential' => [],
         ]);
 
-        $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
-            ->shouldReceive('__invoke')
-            ->once()
-            ->withArgs(static fn ($credential, $options, $expectedUser): bool => $expectedUser instanceof User
-                && $expectedUser->is($user))
-            ->andReturn($passkey)
-            ->getMock());
+        $action = Double::for(VerifyPasskey::class)->strict();
+        $action
+            ->expects('__invoke')
+            ->with(Argument::any(), Argument::any(), Argument::satisfies(
+                static fn ($expectedUser): bool => $expectedUser instanceof User && $expectedUser->is($user),
+            ))
+            ->returns($passkey);
+        $this->instance(VerifyPasskey::class, $action);
 
         $this->actingAs($user)
             ->withSession(['passkey.verification_options_web' => WebAuthn::toJson($this->createRequestOptions())])

@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container as GlobalContainer;
 use Hypervel\Context\CoroutineContext;
@@ -18,6 +19,7 @@ use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\QueryException;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
@@ -26,21 +28,27 @@ use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Concerns\StagesOutboxJobs;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Context;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
+use LogicException;
+use ReflectionMethod;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -48,7 +56,7 @@ use function Hypervel\Support\enum_value;
 
 use const JSON_UNESCAPED_UNICODE;
 
-abstract class Queue
+abstract class Queue implements EnqueuesBatchJobs
 {
     use StagesOutboxJobs;
     use InteractsWithTime;
@@ -94,7 +102,7 @@ abstract class Queue
      */
     public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
-        return $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
+        return $this->push($job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
     }
 
     /**
@@ -102,7 +110,7 @@ abstract class Queue
      */
     public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
-        return $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
+        return $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
     }
 
     /**
@@ -110,20 +118,199 @@ abstract class Queue
      */
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
-        $queue = $this->normalizeQueue($queue);
-        $jobs = $this->stageOutboxJobs($jobs, $data, $queue);
+        return $this->enqueueBulk(array_values($jobs), $data, $this->normalizeQueue($queue), null);
+    }
 
-        foreach ((array) $jobs as $job) {
-            $delay = $this->getJobDelay($job);
+    /**
+     * Validate the whole addition before enrolling jobs in the caller's transaction.
+     *
+     * @internal
+     */
+    public function ensureBatchCanBeEnqueued(array $jobs, string $connection, bool $ownerHasTransaction): void
+    {
+        if (! $ownerHasTransaction) {
+            return;
+        }
 
-            if ($delay !== null) {
-                $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
+        $customBulk = $this->usesCustomBatchDelivery();
+        if (($customBulk || $this->batchWaitsForOwner($connection))
+            && array_any($jobs, fn ($job) => ($job->afterCommit ?? null) === false && ($customBulk || ! $this->shouldStageViaOutbox($job)))) {
+            throw new LogicException("A batched job cannot use beforeCommit() while its batch database [{$connection}] has an open transaction.");
+        }
+    }
+
+    /**
+     * Determine whether a direct send can escape its batch's database transaction.
+     */
+    protected function batchWaitsForOwner(string $connection): bool
+    {
+        return true;
+    }
+
+    /**
+     * Preserve custom transport hooks that an optimized batch send would bypass.
+     * Queue subclasses may override bulkForBatch() to report their own delivery outcomes.
+     */
+    protected function usesCustomBatchDelivery(): bool
+    {
+        return (new ReflectionMethod($this, 'bulk'))->getDeclaringClass()->getName() !== self::class;
+    }
+
+    /**
+     * Enqueue enrolled jobs and return the delivery outcome when a send fails.
+     *
+     * @internal
+     */
+    public function bulkForBatch(
+        array $jobs,
+        Closure $onDeferredRejection,
+        mixed $data = '',
+        UnitEnum|string|null $queue = null,
+        ?string $batchTransactionConnection = null,
+    ): BatchEnqueueResult {
+        $attempt = new BatchEnqueueAttempt($onDeferredRejection, $batchTransactionConnection);
+
+        try {
+            if ($this->usesCustomBatchDelivery()) {
+                $send = static function (self $owner) use ($jobs, $data, $queue, $attempt) {
+                    $attempt->attempting(array_keys($jobs));
+                    return $owner->bulk($jobs, $data, $queue);
+                };
+                if ($batchTransactionConnection === null) {
+                    $send($this);
+                } else {
+                    $this->deferBatchEnqueueAfterCommit(
+                        $this->container->make('db.transactions'),
+                        $jobs,
+                        $send,
+                        $batchTransactionConnection,
+                        static fn (Throwable $failure) => $attempt->releaseRejected($failure, $jobs),
+                    );
+                }
             } else {
-                $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
+                $this->enqueueBulk($jobs, $data, $this->normalizeQueue($queue), $attempt);
+            }
+        } catch (Throwable $failure) {
+            $result = $attempt->failed($failure, $jobs);
+            if ($batchTransactionConnection !== null && count($result->rejected) !== count($jobs)
+                && ! $this->transactionCanContinueAfter($failure)) {
+                throw $failure;
+            }
+            return $result;
+        }
+
+        return new BatchEnqueueResult;
+    }
+
+    /**
+     * Check whether a failed query left its transaction able to commit.
+     */
+    protected function transactionCanContinueAfter(Throwable $failure): bool
+    {
+        for ($cause = $failure; $cause !== null; $cause = $cause->getPrevious()) {
+            if (! $cause instanceof QueryException) {
+                continue;
+            }
+
+            try {
+                $owner = $this->container->make('db')->getHeldConnection($cause->getConnectionName());
+                if ($owner !== null && $owner->transactionLevel() > 0) {
+                    if (! $owner->inTransaction() || (int) $owner->scalar('select 1', [], false) !== 1) {
+                        return false;
+                    }
+                    // MySQL may still report a transaction after a deadlock until the next statement.
+                    if (! $owner->inTransaction()) {
+                        return false;
+                    }
+                }
+            } catch (Throwable $probeFailure) {
+                if (Coroutine::causedByCancellation($probeFailure)) {
+                    throw $probeFailure;
+                }
+
+                return false;
             }
         }
 
+        return true;
+    }
+
+    /**
+     * Stage durable sends before publishing the remaining jobs to this transport.
+     */
+    protected function enqueueBulk(array $jobs, mixed $data, ?string $queue, ?BatchEnqueueAttempt $attempt): mixed
+    {
+        $jobs = $this->stageOutboxJobs($jobs, $data, $queue, $attempt);
+
+        foreach ($jobs as $offset => $job) {
+            $delay = $this->getJobDelay($job);
+            if ($attempt === null) {
+                if ($delay === null) {
+                    $this->push($job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
+                } else {
+                    $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
+                }
+                continue;
+            }
+
+            $send = $this->prepareBatchMember($job, $data, $queue, $delay, $offset);
+            $connection = $attempt->batchTransactionConnection;
+            if (($connection !== null && $this->batchWaitsForOwner($connection)) || $this->shouldDispatchAfterCommit($job)) {
+                $transactions = $this->container->has('db.transactions') ? $this->container->make('db.transactions') : null;
+                if ($transactions?->hasApplicableTransaction($connection)) {
+                    $later = new BatchEnqueueAttempt($attempt->onDeferredRejection, null);
+                    $member = [$offset => $job];
+                    $this->deferBatchEnqueueAfterCommit(
+                        $transactions,
+                        $member,
+                        static fn (Queue $owner) => $send($owner, $later),
+                        $connection,
+                        static fn (Throwable $failure) => $later->releaseRejected($failure, $member),
+                    );
+                    $attempt->attempting([$offset]);
+                    continue;
+                }
+            }
+
+            $send($this, $attempt);
+        }
+
         return null;
+    }
+
+    /**
+     * Validate driver-specific constraints on direct jobs before staging or publishing any jobs.
+     */
+    protected function validateBulkJobs(array $jobs, ?string $queue): void
+    {
+    }
+
+    /**
+     * Let a custom sequential transport own its dispatch and retain an unacknowledged send.
+     */
+    protected function prepareBatchMember(object|string $job, mixed $data, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, int $offset): Closure
+    {
+        return static function (Queue $owner, BatchEnqueueAttempt $attempt) use ($job, $data, $queue, $delay, $offset): void {
+            $attempt->attempting([$offset]);
+            if ($delay === null) {
+                $owner->push($job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
+            } else {
+                $owner->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
+            }
+            $attempt->accepted([$offset]);
+        };
+    }
+
+    /**
+     * Give preparation hooks a list and restore the original offsets for delivery accounting.
+     */
+    protected function prepareBatchJobsWithOffsets(array $jobs, mixed $data, ?string $queue): array
+    {
+        if (array_is_list($jobs)) {
+            return $this->prepareBatchJobs($jobs, $data, $queue);
+        }
+
+        return array_combine(array_keys($jobs), $this->prepareBatchJobs(array_values($jobs), $data, $queue));
     }
 
     /**
@@ -135,9 +322,9 @@ abstract class Queue
     {
         $prepared = [];
 
-        foreach ($jobs as $job) {
+        foreach ($jobs as $offset => $job) {
             $delay = $this->getJobDelay($job);
-            $prepared[] = [
+            $prepared[$offset] = [
                 'job' => $job,
                 'delay' => $delay,
                 'payload' => $this->createPayload($job, $queue, $data, $delay),
@@ -189,32 +376,38 @@ abstract class Queue
      */
     protected function createPayload(array|object|string $job, ?string $queue, mixed $data = '', DateInterval|DateTimeInterface|int|null $delay = null): string
     {
-        if ($job instanceof Closure) {
-            $job = CallQueuedClosure::create($job);
+        try {
+            if ($job instanceof Closure) {
+                $job = CallQueuedClosure::create($job);
+            }
+
+            $value = $this->createPayloadArray($job, $queue, $data);
+
+            $value['delay'] = isset($delay)
+                ? $this->secondsUntil($delay)
+                : null;
+
+            $payload = json_encode($value, JSON_UNESCAPED_UNICODE);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new InvalidPayloadException(
+                    sprintf(
+                        'Unable to JSON encode payload for job [%s] on queue [%s]. Error (%d): %s',
+                        $value['displayName'] ?? 'unknown',
+                        $queue,
+                        json_last_error(),
+                        json_last_error_msg(),
+                    ),
+                    $value
+                );
+            }
+
+            return $payload;
+        } catch (Throwable $failure) {
+            $this->reportForwardedFailure($job, false);
+
+            throw $failure;
         }
-
-        $value = $this->createPayloadArray($job, $queue, $data);
-
-        $value['delay'] = isset($delay)
-            ? $this->secondsUntil($delay)
-            : null;
-
-        $payload = json_encode($value, JSON_UNESCAPED_UNICODE);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new InvalidPayloadException(
-                sprintf(
-                    'Unable to JSON encode payload for job [%s] on queue [%s]. Error (%d): %s',
-                    $value['displayName'] ?? 'unknown',
-                    $queue,
-                    json_last_error(),
-                    json_last_error_msg(),
-                ),
-                $value
-            );
-        }
-
-        return $payload;
     }
 
     /**
@@ -255,6 +448,10 @@ abstract class Queue
             'createdAt' => CarbonImmutable::now()->getTimestamp(),
         ];
 
+        if (isset($job->batchPositionId, class_uses_recursive($job)[Batchable::class])) {
+            $payload['data']['batchPositionId'] = $job->batchPositionId;
+        }
+
         $uniqueJobMetadata = DispatchLockContext::peekPayloadMetadata($job);
 
         $payload = $uniqueJobMetadata === null && (! ContextRepository::hasInstance() || ! ContextRepository::getInstance()->hasHidden('laravel_unique_job_key'))
@@ -280,9 +477,11 @@ abstract class Queue
             $command = $this->jobShouldBeEncrypted($job) && $this->container->has(Encrypter::class)
                 ? $this->container->make(Encrypter::class)->encrypt(serialize(clone $job))
                 : serialize(clone $job);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             throw new RuntimeException(
                 sprintf('Failed to serialize job of type [%s]: %s', get_class($job), $e->getMessage()),
                 0,
@@ -348,7 +547,9 @@ abstract class Queue
     public function getJobExpiration(mixed $job): mixed
     {
         if (! method_exists($job, 'retryUntil') && ! isset($job->retryUntil)) {
-            return null;
+            $retryFor = $this->getAttributeValue($job, RetryFor::class);
+
+            return is_null($retryFor) ? null : $this->availableAt($retryFor);
         }
 
         $expiration = $job->retryUntil ?? $job->retryUntil();
@@ -379,6 +580,8 @@ abstract class Queue
             'uuid' => (string) Str::uuid(),
             'displayName' => is_string($job) ? explode('@', $job)[0] : null,
             'job' => $job,
+            // Caller data must not be interpreted as serialized object-job metadata.
+            'stringJob' => true,
             'maxTries' => null,
             'maxExceptions' => null,
             'failOnTimeout' => false,
@@ -392,10 +595,11 @@ abstract class Queue
     /**
      * Register a callback to be executed when creating job payloads.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every subsequent payload creation across all
-     * coroutines. Passing null clears the registry.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every subsequent payload creation across all coroutines.
+     * Passing null clears the registry.
      */
+    #[BootOnly]
     public static function createPayloadUsing(?callable $callback): void
     {
         if (is_null($callback)) {
@@ -422,8 +626,14 @@ abstract class Queue
     /**
      * Set the dispatcher for after-commit queue operations.
      *
+     * Queue connection instances are cached on QueueManager; replacing the
+     * dispatcher on a shared connection changes every subsequent after-commit
+     * enqueue through it.
+     *
      * @param null|Closure(Closure(Queue): mixed): mixed $dispatcher
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setAfterCommitDispatcher(?Closure $dispatcher): static
     {
         $this->afterCommitDispatcher = $dispatcher;
@@ -444,11 +654,7 @@ abstract class Queue
         try {
             $stageViaOutbox = $this->shouldStageViaOutbox($job);
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
-            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
+            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception, sendAttempted: false);
 
             throw $exception;
         }
@@ -501,49 +707,33 @@ abstract class Queue
         array $jobs,
         Closure $enqueue,
         ?string $connection = null,
+        ?Closure $onFailure = null,
     ): void {
         // Inline work still belongs to its caller, including a failover's next attempt.
         if (! $transactions->hasApplicableTransaction($connection)) {
             $enqueue($this);
-
             return;
         }
+
+        $dispatcher = $this->afterCommitDispatcher;
+        $operation = $dispatcher === null ? fn () => $enqueue($this) : static fn () => $dispatcher($enqueue);
+        $commit = $onFailure === null ? static fn () => self::runDeferredEnqueue($jobs, $operation)
+            : static fn () => self::runDeferredEnqueue($jobs, static function () use ($operation, $onFailure) {
+                try {
+                    return $operation();
+                } catch (Throwable $failure) {
+                    try {
+                        throw $failure;
+                    } finally {
+                        $onFailure($failure);
+                    }
+                }
+            });
 
         foreach ($jobs as $job) {
             $this->addJobRollbackCallback($transactions, $job, $connection);
         }
-
-        $callback = static function (Queue $owner) use ($jobs, $enqueue): mixed {
-            foreach ($jobs as $job) {
-                if (is_object($job)) {
-                    DispatchLockContext::claim($job);
-                }
-            }
-
-            try {
-                return $enqueue($owner);
-            } finally {
-                foreach ($jobs as $job) {
-                    if (is_object($job)) {
-                        DispatchLockContext::release($job);
-                    }
-                }
-            }
-        };
-
-        if ($this->afterCommitDispatcher !== null) {
-            $dispatcher = $this->afterCommitDispatcher;
-
-            $transactions->addCallback(
-                static fn () => $dispatcher($callback),
-                $connection,
-            );
-        } else {
-            $transactions->addCallback(
-                fn () => $callback($this),
-                $connection,
-            );
-        }
+        $transactions->addCallback($commit, $connection);
 
         foreach ($jobs as $job) {
             if (is_object($job)) {
@@ -553,21 +743,61 @@ abstract class Queue
     }
 
     /**
+     * Run deferred work with its dispatch locks and optional deferredDispatchFailed job hook.
+     *
+     * @param array<int, object|string> $jobs
+     */
+    protected static function runDeferredEnqueue(array $jobs, Closure $operation): mixed
+    {
+        try {
+            foreach ($jobs as $job) {
+                if (is_object($job)) {
+                    DispatchLockContext::claim($job);
+                }
+            }
+
+            // Reacquiring a pooled queue can fail before its enqueue callback runs.
+            try {
+                return $operation();
+            } finally {
+                foreach ($jobs as $job) {
+                    if (is_object($job)) {
+                        DispatchLockContext::release($job);
+                    }
+                }
+            }
+        } catch (Throwable $exception) {
+            $job = reset($jobs);
+
+            if (Coroutine::causedByCancellation($exception)
+                || count($jobs) !== 1
+                || ! is_object($job)
+                || ! method_exists($job, 'deferredDispatchFailed')
+            ) {
+                throw $exception;
+            }
+
+            return $job->deferredDispatchFailed($exception);
+        }
+    }
+
+    /**
      * Enqueue a job immediately using the given callback.
      */
-    protected function enqueueNow(object|string $job, string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
+    protected function enqueueNow(object|string $job, string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback, ?BatchEnqueueAttempt $attempt = null, int $offset = 0): mixed
     {
+        $sendAttempted = false;
+
         try {
             $payload = $this->finalizePayloadForQueueing($queue, $job, $payload, $delay);
             $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
             $storedPayload = $this->preparePayloadForPush($job, $payload, $queue);
+            $sendAttempted = true;
+            $attempt?->attempting([$offset]);
             $jobId = $callback($this, $storedPayload, $queue, $delay);
+            $attempt?->accepted([$offset]);
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
-            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
+            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception, $sendAttempted);
 
             throw $exception;
         }
@@ -575,27 +805,21 @@ abstract class Queue
         $this->acceptDispatchLocks($job);
         $exception = null;
 
+        // The job is stored, so a canceled post-storage step must not skip its queued notification.
         try {
             $this->handlePayloadPushed($storedPayload, $queue);
         } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
             $exception = $throwable;
         }
 
         try {
             $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
         } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
-            $exception ??= $throwable;
+            $exception = FailureReporter::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {
+            $this->reportForwardedFailure($job, true);
             throw $exception;
         }
 
@@ -620,13 +844,20 @@ abstract class Queue
     /**
      * Notify every batch member and return the first ordinary notification failure.
      *
+     * A canceled notification does not skip the remaining members; the first
+     * cancellation is rethrown once every member has been notified, and the
+     * ordinary failure it displaces is reported.
+     *
      * @template TMember
      * @param array<array-key, TMember> $members
      * @param Closure(TMember): void ...$notifications
+     *
+     * @throws Throwable the first notification cancellation
      */
     protected function notifyBatchMembers(array $members, Closure ...$notifications): ?Throwable
     {
         $exception = null;
+        $cancellation = null;
 
         foreach ($members as $member) {
             foreach ($notifications as $notification) {
@@ -634,19 +865,27 @@ abstract class Queue
                     $notification($member);
                 } catch (Throwable $throwable) {
                     if (Coroutine::causedByCancellation($throwable)) {
-                        throw $throwable;
+                        $cancellation = Coroutine::preferCancellation($cancellation, $throwable);
+                    } else {
+                        $exception ??= $throwable;
                     }
-
-                    $exception ??= $throwable;
                 }
             }
+        }
+
+        if ($cancellation !== null) {
+            if ($exception !== null) {
+                FailureReporter::report($exception);
+            }
+
+            throw $cancellation;
         }
 
         return $exception;
     }
 
     /**
-     * Notify every batch member of a failure, reporting listener errors so they cannot replace it.
+     * Notify every batch member of a failure or cancellation, reporting listener errors so they cannot replace it.
      *
      * @template TMember
      * @param array<array-key, TMember> $members
@@ -734,7 +973,7 @@ abstract class Queue
 
         return (new Collection($jobs))
             ->partition(fn ($job) => $this->shouldDispatchAfterCommit($job))
-            ->map(fn ($partition) => $partition->values()->all())
+            ->map(fn ($partition) => $partition->all())
             ->all();
     }
 
@@ -783,11 +1022,8 @@ abstract class Queue
             return null;
         }
 
-        return static function () use ($job): void {
-            // Rollback revokes ownership delegated to the commit callback, which can no longer run.
-            DispatchLockContext::claim($job);
-            DispatchLockContext::release($job);
-        };
+        // Rollback revokes ownership delegated to the commit callback, which can no longer run.
+        return static fn () => self::runDeferredEnqueue([$job], static fn () => null);
     }
 
     /**
@@ -822,14 +1058,25 @@ abstract class Queue
     }
 
     /**
-     * Raise the job queueing failed event.
+     * Raise the job queueing failed event, or the canceled event when cancellation stopped the job.
      *
      * @param Closure|object|string $job
      */
-    protected function raiseJobQueueingFailedEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay, Throwable $exception): void
-    {
-        // Cancellation is not a queueing failure; wrapped cancellation skips the event like a bare one.
+    protected function raiseJobQueueingFailedEvent(
+        ?string $queue,
+        object|string $job,
+        string $payload,
+        DateInterval|DateTimeInterface|int|null $delay,
+        Throwable $exception,
+        bool $sendAttempted = true,
+    ): void {
+        if (! $sendAttempted) {
+            $this->reportForwardedFailure($job, false);
+        }
+
         if (Coroutine::causedByCancellation($exception)) {
+            $this->raiseJobQueueingCanceledEvent($queue, $job, $payload, $delay, $exception, $sendAttempted);
+
             return;
         }
 
@@ -843,7 +1090,61 @@ abstract class Queue
 
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $events->dispatch(new JobQueueingFailed($this->connectionName, $queue, $job, $payload, $delay, $exception));
+            try {
+                $events->dispatch(new JobQueueingFailed($this->connectionName, $queue, $job, $payload, $delay, $exception, $sendAttempted));
+            } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $this->raiseJobQueueingCanceledEvent($queue, $job, $payload, $delay, $throwable, $sendAttempted, exception: $exception);
+                }
+
+                throw $throwable;
+            }
+        }
+    }
+
+    /**
+     * Raise the job queueing canceled event.
+     *
+     * The cancellation is already propagating, so a listener failure is
+     * reported instead of replacing it.
+     *
+     * @param Closure|object|string $job
+     */
+    protected function raiseJobQueueingCanceledEvent(
+        ?string $queue,
+        object|string $job,
+        string $payload,
+        DateInterval|DateTimeInterface|int|null $delay,
+        Throwable $cancellation,
+        bool $sendAttempted,
+        bool $queued = false,
+        ?Throwable $exception = null,
+    ): void {
+        if ($this->container->bound('events')) {
+            /** @var EventDispatcher $events */
+            $events = $this->container->make('events');
+
+            if (! $events->hasListeners(JobQueueingCanceled::class)) {
+                return;
+            }
+
+            $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
+
+            try {
+                $events->dispatch(new JobQueueingCanceled(
+                    $this->connectionName,
+                    $queue,
+                    $job,
+                    $payload,
+                    $delay,
+                    $cancellation,
+                    $sendAttempted,
+                    $queued,
+                    $exception,
+                ));
+            } catch (Throwable $throwable) {
+                FailureReporter::report($throwable);
+            }
         }
     }
 
@@ -864,7 +1165,15 @@ abstract class Queue
 
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $events->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
+            try {
+                $events->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
+            } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $this->raiseJobQueueingCanceledEvent($queue, $job, $payload, $delay, $throwable, sendAttempted: true, queued: true);
+                }
+
+                throw $throwable;
+            }
         }
     }
 
@@ -903,10 +1212,13 @@ abstract class Queue
     /**
      * Set the connection name for the queue.
      *
-     * Boot or tests only. Queue connection instances are cached on
-     * QueueManager; runtime use races across coroutines and changes every
-     * concurrent dispatch through this connection.
+     * Queue connection instances are cached on QueueManager; runtime use
+     * races across coroutines and changes every concurrent dispatch
+     * through this connection.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConnectionName(string $name): static
     {
         $this->connectionName = $name;
@@ -925,10 +1237,13 @@ abstract class Queue
     /**
      * Set the queue configuration array.
      *
-     * Boot or tests only. Queue connection instances are cached on
-     * QueueManager; runtime use races across coroutines and changes every
-     * concurrent dispatch through this connection.
+     * Queue connection instances are cached on QueueManager; runtime use
+     * races across coroutines and changes every concurrent dispatch
+     * through this connection.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConfig(array $config): static
     {
         $this->config = $config;
@@ -948,10 +1263,11 @@ abstract class Queue
     /**
      * Set the IoC container instance.
      *
-     * Boot or tests only. Queue connection instances are cached on
-     * QueueManager; runtime use races across coroutines and changes every
-     * concurrent dispatch through this connection.
+     * Queue connection instances are cached on QueueManager; runtime use
+     * races across coroutines and changes every concurrent dispatch
+     * through this connection.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

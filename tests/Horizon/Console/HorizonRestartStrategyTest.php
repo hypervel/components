@@ -11,7 +11,8 @@ use Hypervel\Support\DotenvManager;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
@@ -20,6 +21,8 @@ use Symfony\Component\Process\Process;
 
 class HorizonRestartStrategyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('environments')]
     #[RunInSeparateProcess]
     public function testStartsHorizonFromTheApplicationDirectoryWithTheConfiguredEnvironment(string $environment): void
@@ -75,11 +78,13 @@ PHP,
         string $errorOutput,
         string $expectedMessage,
     ): void {
-        $process = m::mock(Process::class);
-        $process->expects('start')->once();
-        $process->expects('isTerminated')->once()->andReturnTrue();
-        $process->expects('getExitCode')->once()->andReturn($exitCode);
-        $process->expects('getErrorOutput')->once()->andReturn($errorOutput);
+        $process = Double::for(Process::class)->strict();
+        // Symfony's destructor stops the process with a zero timeout.
+        $process->allows('stop')->with(0.0);
+        $process->expects('start');
+        $process->expects('isTerminated')->returns(true);
+        $process->expects('getExitCode')->returns($exitCode);
+        $process->expects('getErrorOutput')->returns($errorOutput);
 
         $strategy = new class($this->app, new NullOutput, null, $process) extends HorizonRestartStrategy {
             public function __construct(
@@ -124,10 +129,11 @@ PHP,
         $this->app->loadEnvironmentFrom('.env.custom');
         DotenvManager::safeLoad([$tempDir], '.env.custom');
 
-        $process = m::mock(Process::class);
-        $process->shouldReceive('start')->twice();
-        $process->shouldReceive('isTerminated')->twice()->andReturnFalse();
-        $process->shouldReceive('isRunning')->once()->andReturnFalse();
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0);
+        $process->expects('start')->times(2);
+        $process->expects('isTerminated')->times(2)->returns(false);
+        $process->expects('isRunning')->returns(false);
 
         $strategy = new class($this->app, new NullOutput, null, $process) extends HorizonRestartStrategy {
             /** @var list<string> */
@@ -182,10 +188,10 @@ PHP,
         $files->put($applicationPath . '/.env', '');
         $files->put($applicationPath . '/artisan', $script);
 
-        $application = m::mock(ApplicationContract::class);
-        $application->expects('environmentFilePath')->andReturn($applicationPath . '/.env');
-        $application->expects('basePath')->andReturn($applicationPath);
+        $application = Double::for(ApplicationContract::class, override: true)->strict();
+        $application->expects('environmentFilePath')->returns($applicationPath . '/.env');
+        $application->expects('basePath')->returns($applicationPath);
 
-        return [$files, $applicationPath, $application];
+        return [$files, $applicationPath, $application->instance()];
     }
 }

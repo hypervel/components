@@ -103,6 +103,29 @@ class EmbeddingTest extends TestCase
         $this->assertCount(2, $response->embeddings);
     }
 
+    public function testEmbeddingsAreReturnedInInputOrderEvenWhenTheResponseIsShuffled(): void
+    {
+        Http::fake(['*' => Http::response([
+            'id' => 'embd-123',
+            'object' => 'list',
+            'model' => 'text-embedding-3-small',
+            'data' => [
+                ['object' => 'embedding', 'index' => 2, 'embedding' => [0.7, 0.8, 0.9]],
+                ['object' => 'embedding', 'index' => 0, 'embedding' => [0.1, 0.2, 0.3]],
+                ['object' => 'embedding', 'index' => 1, 'embedding' => [0.4, 0.5, 0.6]],
+            ],
+            'usage' => ['prompt_tokens' => 30],
+        ])]);
+
+        $response = Embeddings::for(['Hello', 'World', 'Again'])->generate(provider: 'azure', model: 'text-embedding-3-small');
+
+        $this->assertSame([
+            [0.1, 0.2, 0.3],
+            [0.4, 0.5, 0.6],
+            [0.7, 0.8, 0.9],
+        ], $response->embeddings);
+    }
+
     public function testEmbeddingsRateLimitResponseThrowsRateLimitedException(): void
     {
         $this->expectException(RateLimitedException::class);

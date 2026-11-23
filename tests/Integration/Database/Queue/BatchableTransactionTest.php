@@ -34,7 +34,7 @@ class BatchableTransactionTest extends DatabaseTestCase
 
     public function testItCanHandleTimeoutJob(): void
     {
-        Bus::batch([new Fixtures\TimeOutJobWithTransaction])
+        $batch = Bus::batch([new Fixtures\TimeOutJobWithTransaction])
             ->allowFailures()
             ->dispatch();
 
@@ -62,7 +62,8 @@ class BatchableTransactionTest extends DatabaseTestCase
             'total_jobs' => 1,
             'pending_jobs' => 1,
             'failed_jobs' => 1,
-            'failed_job_ids' => json_encode(DB::table('failed_jobs')->pluck('uuid')->all()),
+            'outstanding_failed_jobs' => 1,
         ]);
+        $this->assertSame(DB::table('failed_jobs')->pluck('uuid')->all(), $batch->fresh()->failedJobIds);
     }
 }

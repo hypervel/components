@@ -8,6 +8,7 @@ use BackedEnum;
 use Closure;
 use Hypervel\Http\Request;
 use Hypervel\Pennant\Feature;
+use Hypervel\Support\Attributes\BootOnly;
 use UnitEnum;
 
 use function Hypervel\Pennant\enum_value;
@@ -52,9 +53,10 @@ class EnsureFeaturesAreActive
     /**
      * Specify a callback that should be used to generate responses for failed feature checks.
      *
-     * Boot-only. The callback persists in a static property for the worker lifetime
-     * and affects every subsequent request.
+     * The callback persists in a static property for the worker lifetime and
+     * affects every subsequent request.
      */
+    #[BootOnly]
     public static function whenInactive(?Closure $callback): void
     {
         static::$respondUsing = $callback;

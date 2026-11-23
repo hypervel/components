@@ -88,7 +88,7 @@ class ShowCommand extends Command
                 array_pop($name);
 
                 return implode('_', $name);
-            })->toArray();
+            })->all();
             array_unshift($roleHeaders, new TableCell(''));
 
             $teamHeaders = $teams ? $teams->toArray() : [];

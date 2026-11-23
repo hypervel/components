@@ -56,7 +56,7 @@ class CacheIntegration extends Feature
     /**
      * Indicates whether to attempt to detect the session key when running in the console.
      *
-     * Tests only. This mutates the feature singleton and should not be used at runtime.
+     * Setting this mutates the shared feature instance for the worker lifetime.
      *
      * @internal this is mainly intended for testing purposes
      */
@@ -188,14 +188,20 @@ class CacheIntegration extends Feature
 
                 $displayKeys = $this->replaceSessionKeys($keys);
 
+                $data = [
+                    'cache.key' => $displayKeys,
+                ];
+
+                // A `null` TTL means the entry never expires, in which case the TTL is omitted
+                if ($event->seconds !== null) {
+                    $data['cache.ttl'] = $event->seconds;
+                }
+
                 $this->pushCacheSpan(
                     $parentSpan->startChild(
                         SpanContext::make()
                             ->setOp('cache.put')
-                            ->setData([
-                                'cache.key' => $displayKeys,
-                                'cache.ttl' => $event->seconds,
-                            ])
+                            ->setData($data)
                             ->setOrigin('auto.cache')
                             ->setDescription(implode(', ', $displayKeys))
                     ),
@@ -444,7 +450,11 @@ class CacheIntegration extends Feature
             } finally {
                 CoroutineContext::forget(self::SESSION_KEY_RESOLUTION_CONTEXT_KEY);
             }
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             // We can assume the session store is not available here so there is no session key to retrieve
             // We capture a generic exception to avoid breaking the application because some code paths can
             // result in an exception other than the expected `BindingResolutionException`

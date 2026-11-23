@@ -8,12 +8,11 @@ use __PHP_Incomplete_Class;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Redis;
 use stdClass;
 
-class SerializationTest extends TestCase
+class SerializationTest extends RedisCacheTestCase
 {
     private Serialization $serialization;
 
@@ -162,11 +161,11 @@ class SerializationTest extends TestCase
 
     public function testSerializeForLuaUsesPackWhenSerializerConfigured(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('serialized')->andReturn(true);
-        $connection->shouldReceive('pack')
+        $connection = $this->mockConnection();
+        $connection->allows('serialized')->returns(true);
+        $connection->allows('pack')
             ->with(['test-value'])
-            ->andReturn(['packed-value']);
+            ->returns(['packed-value']);
 
         $this->assertSame('packed-value', $this->serialization->serializeForLua($connection, 'test-value'));
     }
@@ -177,39 +176,39 @@ class SerializationTest extends TestCase
             $this->markTestSkipped('Redis::COMPRESSION_LZF not available (phpredis compiled without LZF support)');
         }
 
-        $connection = m::mock(PhpRedisConnection::class);
+        $connection = $this->mockConnection();
 
-        $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('getOption')
+        $connection->allows('serialized')->returns(false);
+        $connection->client()->allows('getOption')
             ->with(Redis::OPT_COMPRESSION)
-            ->andReturn(Redis::COMPRESSION_LZF);
-        $connection->shouldReceive('pack')
+            ->returns(Redis::COMPRESSION_LZF);
+        $connection->allows('pack')
             ->with([serialize('test-value')])
-            ->andReturn(['compressed-value']);
+            ->returns(['compressed-value']);
 
         $this->assertSame('compressed-value', $this->serialization->serializeForLua($connection, 'test-value'));
     }
 
     public function testSerializeForLuaReturnsPhpSerializedWhenNoSerializerOrCompression(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
+        $connection = $this->mockConnection();
 
-        $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('getOption')
+        $connection->allows('serialized')->returns(false);
+        $connection->client()->allows('getOption')
             ->with(Redis::OPT_COMPRESSION)
-            ->andReturn(Redis::COMPRESSION_NONE);
+            ->returns(Redis::COMPRESSION_NONE);
 
         $this->assertSame(serialize('test-value'), $this->serialization->serializeForLua($connection, 'test-value'));
     }
 
     public function testSerializeForLuaCastsNumericValuesToString(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
+        $connection = $this->mockConnection();
 
-        $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('getOption')
+        $connection->allows('serialized')->returns(false);
+        $connection->client()->allows('getOption')
             ->with(Redis::OPT_COMPRESSION)
-            ->andReturn(Redis::COMPRESSION_NONE);
+            ->returns(Redis::COMPRESSION_NONE);
 
         // Numeric values should be cast to string for Lua ARGV
         $this->assertSame('123', $this->serialization->serializeForLua($connection, 123));
@@ -222,15 +221,15 @@ class SerializationTest extends TestCase
             $this->markTestSkipped('Redis::COMPRESSION_LZF not available (phpredis compiled without LZF support)');
         }
 
-        $connection = m::mock(PhpRedisConnection::class);
+        $connection = $this->mockConnection();
 
-        $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('getOption')
+        $connection->allows('serialized')->returns(false);
+        $connection->client()->allows('getOption')
             ->with(Redis::OPT_COMPRESSION)
-            ->andReturn(Redis::COMPRESSION_LZF);
-        $connection->shouldReceive('pack')
+            ->returns(Redis::COMPRESSION_LZF);
+        $connection->allows('pack')
             ->with([123])
-            ->andReturn(['compressed-123']);
+            ->returns(['compressed-123']);
 
         $this->assertSame('compressed-123', $this->serialization->serializeForLua($connection, 123));
     }
@@ -240,8 +239,8 @@ class SerializationTest extends TestCase
      */
     private function createConnection(bool $serialized = false): PhpRedisConnection
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('serialized')->andReturn($serialized);
+        $connection = $this->mockConnection();
+        $connection->allows('serialized')->returns($serialized);
 
         return $connection;
     }

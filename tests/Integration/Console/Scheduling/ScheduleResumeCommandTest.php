@@ -9,17 +9,19 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ScheduleResumeCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDispatchesEvent(): void
     {
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('forget')
-            ->once()
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('forget')
             ->with('hypervel:schedule:paused')
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->app->instance(Cache::class, $cache);
         Event::fake();
@@ -32,11 +34,10 @@ class ScheduleResumeCommandTest extends TestCase
 
     public function testPassiveObserverDoesNotCauseResumeSignalToDispatch(): void
     {
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('forget')
-            ->once()
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('forget')
             ->with('hypervel:schedule:paused')
-            ->andReturnTrue();
+            ->returns(true);
         $this->app->instance(Cache::class, $cache);
 
         $observedEvents = [];
@@ -54,11 +55,10 @@ class ScheduleResumeCommandTest extends TestCase
 
     public function testContinueAliasClearsPauseSignal(): void
     {
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('forget')
-            ->once()
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('forget')
             ->with('hypervel:schedule:paused')
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->app->instance(Cache::class, $cache);
         Event::fake();

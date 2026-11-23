@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseConcernsPreventsCircularRecursionTest;
 
 use Hypervel\Database\Eloquent\Concerns\PreventsCircularRecursion;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 {
@@ -180,16 +178,12 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
         $this->assertEquals(3, $third->instanceStack);
     }
 
-    public function testMockedModelCallToWithoutRecursionMethodWorks(): void
+    public function testEvaluatedCodeRunsWithoutARecursionCacheEntry(): void
     {
-        $mock = m::mock(ModelStub::class)->makePartial();
+        // Mocking libraries call this from generated code, which has no stable source location for a recursion key.
+        $callback = eval('return fn () => $this->withoutRecursion(fn () => 123);');
 
-        // Model toArray method implementation
-        $toArray = $mock->withoutRecursion(
-            fn (): array => array_merge($mock->attributesToArray(), $mock->relationsToArray()),
-            fn (): array => $mock->attributesToArray(),
-        );
-        $this->assertSame([], $toArray);
+        $this->assertSame(123, $callback->call(new RecursiveMethodStub));
     }
 }
 
@@ -284,8 +278,4 @@ class RecursiveMethodStub
             $this->instanceStack,
         );
     }
-}
-
-class ModelStub extends Model
-{
 }

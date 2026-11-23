@@ -24,13 +24,16 @@ use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store as Session;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 
 class CacheMemoizedStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testExposesTheUnderlyingStore(): void
     {
         $innerStore = new ArrayStore;
@@ -145,8 +148,8 @@ class CacheMemoizedStoreTest extends TestCase
 
     public function testPutManyWithEmptyInputReturnsDelegatedRepositoryResult(): void
     {
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('putMany')->once()->with([], 60)->andReturn(false);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->expects('putMany')->with([], 60)->returns(false);
 
         $store = new MemoizedStore('memoized', $repository);
 
@@ -208,7 +211,7 @@ class CacheMemoizedStoreTest extends TestCase
     public function testTagSupportDelegatesToTheUnderlyingStore(): void
     {
         $taggable = new MemoizedStore('array', new Repository(new ArrayStore));
-        $nonTaggable = new MemoizedStore('test', new Repository(m::mock(Store::class)));
+        $nonTaggable = new MemoizedStore('test', new Repository(Double::for(Store::class)->strict()));
 
         $this->assertTrue($taggable->supportsTags());
         $this->assertSame(TagMode::All, $taggable->getTagMode());
@@ -304,6 +307,29 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertNull($memoized->tags(['users'])->get('name'));
     }
 
+    public function testClonedTaggedCacheChangesIndependentlyOfTheOriginal(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $memoized = new Repository(new MemoizedStore('array', $repository));
+
+        $repository->tags(['users'])->put('name', 'Tim', 60);
+        $tagged = $memoized->tags(['users']);
+        $this->assertSame('Tim', $tagged->get('name'));
+
+        $copy = clone $tagged;
+        $copy->put('clone-only', 'value', 60);
+
+        $this->assertSame('value', $copy->get('clone-only'));
+        $this->assertNull($repository->tags(['users'])->get('clone-only'));
+
+        $copy->flush();
+
+        $this->assertNull($copy->get('name'));
+        $this->assertNull($copy->tags(['users'])->get('name'));
+        $this->assertSame('Tim', $tagged->get('name'));
+        $this->assertSame('Tim', $repository->tags(['users'])->get('name'));
+    }
+
     public function testMemoizedStoreCanWrapStackStore(): void
     {
         $stackRepo = $this->createStackRepository();
@@ -365,10 +391,10 @@ class CacheMemoizedStoreTest extends TestCase
         // Capture only the many() read-path events by attaching the dispatcher
         // after the write.
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function ($event) use (&$captured) {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function ($event) use (&$captured) {
                 $captured[] = $event;
             });
         $outerRepo->setEventDispatcher($events);
@@ -387,7 +413,7 @@ class CacheMemoizedStoreTest extends TestCase
     public function testLockFlushCapabilityDelegatesToUnderlyingStore(): void
     {
         $flushable = new MemoizedStore('test', new Repository(new ArrayStore));
-        $nonFlushableStore = m::mock(Store::class);
+        $nonFlushableStore = Double::for(Store::class)->strict();
         $nonFlushable = new MemoizedStore('test', new Repository($nonFlushableStore));
 
         $this->assertTrue($flushable->supportsFlushingLocks());
@@ -402,9 +428,9 @@ class CacheMemoizedStoreTest extends TestCase
 
     public function testFlushLocksDelegatesToUnderlyingStore(): void
     {
-        $store = m::mock(Store::class, CanFlushLocks::class);
-        $store->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $store->shouldReceive('flushLocks')->once()->andReturnTrue();
+        $store = Double::for(Store::class, CanFlushLocks::class)->strict();
+        $store->expects('supportsFlushingLocks')->returns(true);
+        $store->expects('flushLocks')->returns(true);
 
         $memoized = new MemoizedStore('test', new Repository($store));
 
@@ -426,9 +452,9 @@ class CacheMemoizedStoreTest extends TestCase
 
     public function testFlushLocksRejectsUnsupportedUnderlyingStore(): void
     {
-        $store = m::mock(Store::class, CanFlushLocks::class);
-        $store->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
-        $store->shouldNotReceive('flushLocks');
+        $store = Double::for(Store::class, CanFlushLocks::class)->strict();
+        $store->expects('supportsFlushingLocks')->returns(false);
+        $store->expects('flushLocks')->never();
 
         $this->expectException(BadMethodCallException::class);
         $this->expectExceptionMessageIs(sprintf(

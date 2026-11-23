@@ -7,7 +7,9 @@ namespace Hypervel\Testing\Concerns;
 use Closure;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testing\ParallelConsoleOutput;
@@ -64,9 +66,10 @@ trait RunsInParallel
     /**
      * Set the application resolver callback.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent parallel test runner instance.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent parallel test runner instance.
      */
+    #[TestsOnly]
     public static function resolveApplicationUsing(?Closure $resolver): void
     {
         static::$applicationResolver = $resolver;
@@ -75,9 +78,10 @@ trait RunsInParallel
     /**
      * Set the runner resolver callback.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent parallel test runner instance.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent parallel test runner instance.
      */
+    #[TestsOnly]
     public static function resolveRunnerUsing(?Closure $resolver): void
     {
         static::$runnerResolver = $resolver;
@@ -110,7 +114,7 @@ trait RunsInParallel
             try {
                 $this->forProcess($token, fn () => ParallelTesting::callTearDownProcessCallbacks());
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -154,13 +158,13 @@ trait RunsInParallel
         try {
             $application->terminate();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             $application->flush();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

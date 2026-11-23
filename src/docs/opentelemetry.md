@@ -177,7 +177,7 @@ Each built-in instrumentation class may be set to `false`, `true`, or an option 
 
 Omitting a built-in metric does not disable it. Set its name to `false` to disable it individually, or set `metrics` to `false` to disable every metric in that instrumentation. Named entries override only the metrics they name; the others keep their shipped defaults.
 
-When Swoole cancels an operation coroutine, the package emits no completion span, metric, or event. Its coroutine-local telemetry state is released when that coroutine ends.
+When coroutine cancellation stops an operation, its span ends, its duration is recorded and active-operation counters are updated. A direct `Swoole\Coroutine\CanceledException` is not recorded as an error. Known outcomes, such as a response already sent or a job accepted by its queue, are preserved. Outcomes it never reached, such as an HTTP or gRPC status, exit code or `result` attribute, are omitted. Earlier failures and cleanup failures carrying cancellation are still recorded as errors.
 
 The shipped defaults are:
 
@@ -186,7 +186,7 @@ The shipped defaults are:
 | HTTP server | Request spans | `http.server.request.duration`; `http.server.active_requests` is off |
 | HTTP client | Physical request spans | `http.client.request.duration` |
 | Database and Redis | Client operation spans | `db.client.operation.duration` |
-| Database and Redis pools | None | `db.client.connection.count`, `db.client.connection.max`, `db.client.connection.pending_requests` |
+| Database and Redis pools | None | `db.client.connection.count`, `db.client.connection.limit`, `db.client.connection.pending_requests` |
 | Cache | Events on the current span | `hypervel.cache.operations` |
 | Queue | Producer and consumer spans | `messaging.client.sent.messages`, `messaging.client.operation.duration`, `messaging.client.consumed.messages`, `messaging.process.duration`; `hypervel.queue.jobs` is off |
 | Queue outbox | No additional spans | `hypervel.queue.outbox.delivered.messages`, `hypervel.queue.outbox.delivery.duration`, `hypervel.queue.outbox.delivery.latency` |
@@ -198,7 +198,7 @@ The shipped defaults are:
 | gRPC | Logical client and server RPC spans | `rpc.client.call.duration`, `rpc.server.call.duration` |
 | WebSockets | Message spans | `hypervel.websocket.message.duration`, `hypervel.websocket.messages`, `hypervel.websocket.active_connections` |
 | Exceptions | Error log records | `hypervel.exceptions` |
-| Object pools | None | `hypervel.object_pool.objects`, `hypervel.object_pool.max`, `hypervel.object_pool.pending_requests` |
+| Object pools | None | `hypervel.object_pool.objects`, `hypervel.object_pool.limit`, `hypervel.object_pool.pending_requests` |
 | PHP runtime | None | memory, GC, process CPU/context-switch, and OPcache metrics |
 | Swoole server and workers | None | connections, requests, task activity/queue depth, worker requests, and coroutine count |
 
@@ -319,7 +319,9 @@ The built-in `background` and `deferred` connections propagate the current conte
 
 Jobs dispatched after a database commit are finalized and timed only when the queue driver actually begins enqueueing them. Database and SQS batch operations retain one lifecycle per logical message. Later SQS chunks include the time spent sending earlier chunks because timing begins when the batch is finalized, and a later batch failure completes every still-outstanding message once.
 
-Terminal queue correlation normally uses the exact final encoded payload without decoding it. If another finalizer rewrites that payload afterward, the package performs one terminal decode to recover Hypervel's job UUID. Payloads from custom drivers or `Queue::createPayloadUsing()` callbacks that do not contain a string UUID are accepted, omit `messaging.message.id`, and use exact-payload correlation only. If a later finalizer rewrites such a payload, its producer span remains started but is never ended or exported, and its state remains until coroutine or process exit. A later finalizer that removes or corrupts an existing UUID likewise leaves unmatched state. A long-running non-coroutine custom process that catches and continues after such failures may retain that state until it exits.
+If you customize payloads using `Queue::createPayloadUsing()` or a [`JobPayloadFinalizing`](/docs/{{version}}/queues#job-events) listener, preserve the job's string `uuid` so instrumentation can match it after payload changes. Payloads without a string UUID omit `messaging.message.id` and can only be matched by their exact contents. If a later `JobPayloadFinalizing` listener changes such a payload or removes a payload's UUID, its producer span remains unfinished and its state is retained until the coroutine or non-coroutine process exits.
+
+The `messaging.client.sent.messages` counter counts messages the producer attempted to send. A job whose enqueue attempt failed or was canceled before it reached the queue backend still ends its producer span and records its duration, but is not counted as sent.
 
 When using the [transactional outbox](/docs/{{version}}/queue-outbox), the producer span ends when the job is stored in the outbox. The relay preserves the job's trace context without creating another producer span. The following metrics are enabled by default and record delivery separately for each queue connection's batch:
 
@@ -367,7 +369,7 @@ It adds an event to the current recording span without inspecting event payloads
 
 View spans include only the view name. View data, rendered output, and filesystem paths are excluded. Scout spans cover the actual search-engine `search`, `paginate`, `update`, `delete`, `flush`, and filtered-delete operation; query strings, pagination values, model IDs, and index payloads are excluded. Engines resolved through `EngineManager` are observed automatically. A directly constructed raw engine is not.
 
-When `hypervel/grpc` is installed, one span covers a complete logical RPC across retries, backoff, and streaming. Message bodies and metadata values are excluded. Every non-OK client status is classified as an error. Server spans follow the narrower RPC server convention, so application-result statuses such as `INVALID_ARGUMENT` do not become errors merely because they are non-OK. Exception records reported within an RPC retain the bounded `rpc` origin. Explicit `Call::cancel()` completes a client span as `CANCELLED`; runtime coroutine cancellation does not emit a false completion. Client endpoint attributes use the known configured address and port. Server metric address attributes remain off unless `server_metric_address` is enabled.
+When `hypervel/grpc` is installed, one span covers a complete logical RPC across retries, backoff, and streaming. Message bodies and metadata values are excluded. Every non-OK client status is classified as an error. Server spans follow the narrower RPC server convention, so application-result statuses such as `INVALID_ARGUMENT` do not become errors merely because they are non-OK. Exception records reported within an RPC retain the bounded `rpc` origin. Explicit `Call::cancel()` completes a client span as `CANCELLED`. When coroutine cancellation stops an RPC, its span ends without an RPC status. A client call released before it finishes ends with the final status it already received, if any. Client endpoint attributes use the known configured address and port. Server metric address attributes remain off unless `server_metric_address` is enabled.
 
 WebSocket instrumentation covers each application message and active connection counts without creating connection-lifetime spans. It also covers Reverb's WebSocket handler through the shared Hypervel message boundary.
 
@@ -653,7 +655,7 @@ class QueueDurationView implements MetricView
     public function template(): ViewTemplate
     {
         return ViewTemplate::create()->withAttributeKeys([
-            'messaging.system',
+            'messaging.system.name',
             'messaging.destination.name',
             'messaging.operation.name',
             'error.type',
@@ -800,4 +802,4 @@ Observable runtime, server, pool, and queue-depth metrics collect from existing 
 
 The package keeps bounded SDK queues and coroutine-scoped operation state. It does not store telemetry on disk or in an application database. Monitor queue loss, worker RSS, backend request volume, and dynamic metric dimensions under production-like concurrency when changing queue sizes, intervals, internal metrics, compression, or custom extensions.
 
-The database-pool and messaging metric conventions used by the current OpenTelemetry semantic-conventions package are marked development, while the RPC conventions are release candidate. Their names or attributes may change in a future framework release as the standard stabilizes.
+Built-in instrumentation follows OpenTelemetry semantic conventions 1.45 and reports that schema URL on its instrumentation scopes. Some of these conventions, including the database-pool and messaging conventions, are still marked development, so their names or attributes may change in a future framework release as the standard stabilizes.

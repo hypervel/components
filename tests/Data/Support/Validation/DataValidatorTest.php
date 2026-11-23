@@ -24,6 +24,7 @@ use Hypervel\Data\Attributes\Validation\CustomValidationAttribute;
 use Hypervel\Data\Attributes\Validation\Distinct;
 use Hypervel\Data\Attributes\Validation\Enum as EnumAttribute;
 use Hypervel\Data\Attributes\Validation\ExcludeIf;
+use Hypervel\Data\Attributes\Validation\In;
 use Hypervel\Data\Attributes\Validation\Max;
 use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\Required;
@@ -63,7 +64,10 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Validation\Factory as ValidationFactory;
+use Hypervel\Validation\Rule as NativeRule;
+use Hypervel\Validation\Rules\Confirmed as ConfirmedRule;
 use Hypervel\Validation\Rules\Enum as EnumRule;
+use Hypervel\Validation\Rules\In as InRule;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -981,6 +985,16 @@ class DataValidatorTest extends TestCase
         ]);
     }
 
+    public function testFinishedItemsCannotBypassAParameterizedDistinctRule(): void
+    {
+        $this->expectException(CannotBuildValidationRule::class);
+        $this->expectExceptionMessageIsOrContains('Cannot build the distinct rule for [items.*.name]');
+
+        ParameterizedDistinctParentDataFixture::getValidationRules([
+            'items' => [new ParameterizedDistinctChildDataFixture('duplicate'), ['name' => 'duplicate']],
+        ]);
+    }
+
     /**
      * Test finished properties cannot narrow a nested distinct identity.
      */
@@ -1312,6 +1326,33 @@ class DataValidatorTest extends TestCase
         $rules = AttributeValidatedDataFixture::getValidationRules([]);
 
         $this->assertSame(['required', 'string'], $rules['name']);
+    }
+
+    public function testMembershipPresenceInferenceDoesNotExportTheDeclaration(): void
+    {
+        $rules = MembershipAttributeDataFixture::getValidationRules([]);
+        $rule = $rules['status'][2];
+
+        $this->assertSame(['required', 'string'], array_slice($rules['status'], 0, 2));
+        $this->assertInstanceOf(DataValidatorMembershipRule::class, $rule);
+        $this->assertSame(0, $rule->exports);
+        $this->assertTrue($this->app->make(ValidationFactory::class)->make(['status' => 'active'], $rules)->passes());
+        $this->assertSame(1, $rule->exports);
+    }
+
+    public function testExecutableParameterizedRulesKeepTheirCallbacksThroughDataCompilation(): void
+    {
+        $data = ['name' => 'same', 'name_confirmation' => 'same'];
+        $rules = ExecutableConfirmedAttributeDataFixture::getValidationRules($data);
+        $rule = $rules['name'][2];
+
+        $this->assertInstanceOf(DataValidatorCustomConfirmedRule::class, $rule);
+        $validator = $this->app->make(ValidationFactory::class)->make($data, $rules);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(1, $rule->calls);
+        $this->assertSame(0, $rule->exports);
+        $this->assertSame('The custom confirmation rule rejected this value.', $validator->errors()->first('name'));
     }
 
     /**
@@ -3356,6 +3397,38 @@ class NestedDynamicCollectionParentDataFixture extends Data
     }
 }
 
+class ParameterizedDistinctChildDataFixture extends Data
+{
+    /**
+     * Create a child with a value checked across the collection.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Return the structured distinct rule.
+     */
+    public static function rules(): array
+    {
+        return ['name' => [NativeRule::distinct()]];
+    }
+}
+
+class ParameterizedDistinctParentDataFixture extends Data
+{
+    /**
+     * Create the collection parent.
+     *
+     * @param array<array-key, ParameterizedDistinctChildDataFixture> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(ParameterizedDistinctChildDataFixture::class)]
+        public array $items,
+    ) {
+    }
+}
+
 #[MergeValidationRules]
 class NestedDistinctChildDataFixture extends Data
 {
@@ -3680,6 +3753,71 @@ class ValidatedLazyParentDataFixture extends Data
     public function __construct(
         #[DataCollectionOf(ValidatedChildDataFixture::class)]
         public LazyCollection $children,
+    ) {
+    }
+}
+
+class DataValidatorMembershipRule extends InRule
+{
+    public int $exports = 0;
+
+    /**
+     * Count declaration reads through the Data compilation and validation boundaries.
+     */
+    public function toArray(): array
+    {
+        ++$this->exports;
+
+        return parent::toArray();
+    }
+}
+
+class MembershipAttributeDataFixture extends Data
+{
+    /**
+     * Create a fixture with a structured membership attribute.
+     */
+    public function __construct(
+        #[In(new DataValidatorMembershipRule(['active']))]
+        public string $status,
+    ) {
+    }
+}
+
+class DataValidatorCustomConfirmedRule extends ConfirmedRule implements ValidationRuleContract
+{
+    public int $exports = 0;
+
+    public int $calls = 0;
+
+    /**
+     * Count any incorrect attempt to replace custom validation with the declaration.
+     */
+    public function toArray(): array
+    {
+        ++$this->exports;
+
+        return parent::toArray();
+    }
+
+    /**
+     * Reject a value even when the built-in confirmation check would pass.
+     */
+    public function validate(string $attribute, mixed $value, Closure $fail): void
+    {
+        ++$this->calls;
+        $fail('The custom confirmation rule rejected this value.');
+    }
+}
+
+class ExecutableConfirmedAttributeDataFixture extends Data
+{
+    /**
+     * Create a fixture with custom validation on a parameterized builder.
+     */
+    public function __construct(
+        #[Rule(new DataValidatorCustomConfirmedRule)]
+        public string $name,
     ) {
     }
 }

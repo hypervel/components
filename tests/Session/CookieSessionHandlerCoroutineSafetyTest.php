@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hypervel\Contracts\Cookie\QueueingFactory;
+use Hypervel\Cookie\CookieJar;
 use Hypervel\Http\Request;
 use Hypervel\Session\CookieSessionHandler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -17,7 +16,7 @@ class CookieSessionHandlerCoroutineSafetyTest extends TestCase
     public function testCookieSessionHandlerRequestIsCoroutineIsolated(): void
     {
         $handler = new CookieSessionHandler(
-            m::mock(QueueingFactory::class),
+            new CookieJar,
             120
         );
 

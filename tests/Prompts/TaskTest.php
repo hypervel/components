@@ -16,9 +16,11 @@ use Hypervel\Prompts\Task;
 use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Prompts\task;
 
@@ -89,6 +91,22 @@ class TaskTest extends TestCase
         }
 
         Prompt::assertStrippedOutputDoesntContain('✔ My Task');
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationWhileRenderingTheFinalSummaryPropagatesAfterCallbackFailure(bool $decorated): void
+    {
+        Prompt::fake();
+        Prompt::setOutput(new BufferedConsoleOutput(decorated: $decorated));
+        $this->expectException(CanceledException::class);
+
+        (new Task('Deploy', keepSummary: true))->run(static function (Logger $logger): never {
+            $logger->success('Uploaded');
+            Prompt::terminal()->shouldReceive('cols')->once()->andThrow(new CanceledException);
+
+            throw new RuntimeException('Deploy failed.');
+        });
     }
 
     public function testPrintsCompletionLineAfterSuccessfulCoroutineTaskWithSummary(): void
@@ -251,6 +269,29 @@ class TaskTest extends TestCase
         $this->assertSame('done', $result);
 
         Prompt::assertOutputContains('Running...');
+    }
+
+    public function testRendersTaskStaticallyWhenOutputIsNotATerminalEvenIfItIsDecorated(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+
+        $output = new BufferedConsoleOutput(decorated: true);
+        Prompt::setOutput($output);
+
+        $task = new Task(label: 'Running...', keepSummary: true);
+
+        $result = $task->run(function (Logger $logger): string {
+            $logger->success('Built');
+
+            return 'done';
+        });
+
+        $this->assertSame('done', $result);
+        $this->assertTrue($task->static);
+        $this->assertStringContainsString('Running...', $output->content());
+        $this->assertStringContainsString('Built', $output->content());
+        $this->assertSame(Utils::sanitizeTerminalFormatting($output->content()), $output->content());
     }
 
     public function testReturnsNullWhenCallbackDoesNotReturnValue(): void

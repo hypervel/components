@@ -23,7 +23,8 @@ use Hypervel\Sentry\Integration;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
 use Hypervel\Tests\Sentry\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Sentry\SentrySdk;
@@ -38,6 +39,8 @@ require_once __DIR__ . '/../../Ai/Fixtures/helpers.php';
 
 class AiFailedInvocationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.tracing.http_client_requests' => false,
@@ -261,8 +264,8 @@ class AiFailedInvocationTest extends TestCase
         config(['ai.conversations.generate_title' => false]);
         SentryInnerRememberingAgent::fake(['Hello']);
         $failure = new RuntimeException('Storage failed.');
-        $store = m::mock(FakeConversationStore::class)->makePartial();
-        $store->shouldReceive('storeConversation')->once()->andThrow($failure);
+        $store = Double::for(new FakeConversationStore)->passthru();
+        $store->expects('storeConversation')->throws($failure);
         $this->app->instance(ConversationStore::class, $store);
         $transaction = $this->startTransaction();
 

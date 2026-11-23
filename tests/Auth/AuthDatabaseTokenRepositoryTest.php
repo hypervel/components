@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Auth;
 use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Contracts\Auth\CanResetPassword;
 use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
@@ -15,11 +16,15 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Hashing\BcryptHasher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDO;
 
 class AuthDatabaseTokenRepositoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCreateInsertsNewRecordIntoTable(): void
     {
         $repo = $this->getRepo();
@@ -126,24 +131,24 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
 
     public function testResolverBackedRepositoryResolvesTheConfiguredConnectionForEveryOperation(): void
     {
-        $firstConnection = m::mock(ConnectionInterface::class);
-        $firstQuery = m::mock(Builder::class);
-        $firstConnection->shouldReceive('table')->once()->with('table')->andReturn($firstQuery);
-        $firstQuery->shouldReceive('where')->once()->with('created_at', '<', m::any())->andReturnSelf();
-        $firstQuery->shouldReceive('delete')->once();
+        $firstConnection = Double::for(Connection::class)->strict();
+        $firstQuery = Double::for(Builder::class)->strict();
+        $firstConnection->expects('table')->with('table')->returns($firstQuery);
+        $firstQuery->expects('where')->with('created_at', '<', Argument::any());
+        $firstQuery->expects('delete');
 
-        $secondConnection = m::mock(ConnectionInterface::class);
-        $secondQuery = m::mock(Builder::class);
-        $secondConnection->shouldReceive('table')->once()->with('table')->andReturn($secondQuery);
-        $secondQuery->shouldReceive('where')->once()->with('created_at', '<', m::any())->andReturnSelf();
-        $secondQuery->shouldReceive('delete')->once();
+        $secondConnection = Double::for(Connection::class)->strict();
+        $secondQuery = Double::for(Builder::class)->strict();
+        $secondConnection->expects('table')->with('table')->returns($secondQuery);
+        $secondQuery->expects('where')->with('created_at', '<', Argument::any());
+        $secondQuery->expects('delete');
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->twice()->with('passwords')->andReturn($firstConnection, $secondConnection);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->expects('connection')->times(2)->with('passwords')->returns($firstConnection, $secondConnection);
 
         $repository = new DatabaseTokenRepository(
             $resolver,
-            m::mock(Hasher::class),
+            Double::for(Hasher::class)->strict(),
             'table',
             'key',
             connectionName: 'passwords'
@@ -155,24 +160,24 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
 
     public function testResolverBackedRepositoryUsesTheDefaultConnectionWhenNoNameIsConfigured(): void
     {
-        $connection = m::mock(ConnectionInterface::class);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $connection = Double::for(Connection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->expects('connection')->with(null)->returns($connection);
 
-        $repository = new DatabaseTokenRepository($resolver, m::mock(Hasher::class), 'table', 'key');
+        $repository = new DatabaseTokenRepository($resolver, Double::for(Hasher::class)->strict(), 'table', 'key');
 
         $this->assertSame($connection, $repository->getConnection());
     }
 
     public function testResolverContractTakesPrecedenceForObjectsImplementingBothConnectionContracts(): void
     {
-        $resolvedConnection = m::mock(ConnectionInterface::class);
-        $connectionResolver = m::mock(ConnectionInterface::class . ', ' . ConnectionResolverInterface::class);
-        $connectionResolver->shouldReceive('connection')->once()->with('passwords')->andReturn($resolvedConnection);
+        $resolvedConnection = Double::for(Connection::class)->strict();
+        $connectionResolver = Double::for(ConnectionInterface::class, ConnectionResolverInterface::class)->strict();
+        $connectionResolver->expects('connection')->with('passwords')->returns($resolvedConnection);
 
         $repository = new DatabaseTokenRepository(
             $connectionResolver,
-            m::mock(Hasher::class),
+            Double::for(Hasher::class)->strict(),
             'table',
             'key',
             connectionName: 'passwords'

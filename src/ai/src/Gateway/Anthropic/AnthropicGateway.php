@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Gateway\Anthropic;
 use Generator;
 use Hypervel\Ai\Contracts\Files\TranscribableAudio;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
+use Hypervel\Ai\Contracts\Gateway\ReplaysFullHistory;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\Providers\AudioProvider;
 use Hypervel\Ai\Contracts\Providers\EmbeddingProvider;
@@ -31,9 +32,10 @@ use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Ai\Responses\ImageResponse;
 use Hypervel\Ai\Responses\TranscriptionResponse;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\Attributes\Unsupported;
 use LogicException;
 
-class AnthropicGateway implements Gateway, StepTextGateway
+class AnthropicGateway implements Gateway, ReplaysFullHistory, StepTextGateway
 {
     use BuildsTextRequests;
     use CreatesAnthropicClient;
@@ -77,6 +79,8 @@ class AnthropicGateway implements Gateway, StepTextGateway
             $options,
         );
 
+        $body = $this->withContainer($body, $stepContext);
+
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $this->client($provider, $timeout)->post('messages', $body),
@@ -86,7 +90,10 @@ class AnthropicGateway implements Gateway, StepTextGateway
 
         $this->validateTextResponse($data);
 
-        return $this->parseTextResponse($data, $provider, filled($schema))->withRawResponse($response);
+        return $this->withRequestContainer(
+            $this->parseTextResponse($data, $provider, filled($schema))->withRawResponse($response),
+            $body,
+        );
     }
 
     /**
@@ -115,6 +122,8 @@ class AnthropicGateway implements Gateway, StepTextGateway
             $options,
         );
 
+        $body = $this->withContainer($body, $stepContext);
+
         $body['stream'] = true;
 
         $response = $this->withErrorHandling(
@@ -124,12 +133,16 @@ class AnthropicGateway implements Gateway, StepTextGateway
                 ->post('messages', $body),
         );
 
-        return yield from $this->processTextStream(
+        $step = yield from $this->processTextStream(
             $invocationId,
             $provider,
             $model,
             $response->getBody(),
+            $this->pausedContent($messages),
         );
+
+        // A stream that ends without completing its message has no step.
+        return $step === null ? null : $this->withRequestContainer($step, $body);
     }
 
     /**
@@ -137,6 +150,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateImage(
         ImageProvider $provider,
         string $model,
@@ -155,6 +169,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateAudio(
         AudioProvider $provider,
         string $model,
@@ -172,6 +187,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateTranscription(
         TranscriptionProvider $provider,
         string $model,
@@ -189,6 +205,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateEmbeddings(
         EmbeddingProvider $provider,
         string $model,

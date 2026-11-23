@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Ai\Gateway\FakeAudioGateway;
 use Hypervel\Ai\Prompts\AudioPrompt;
 use Hypervel\Ai\Prompts\QueuedAudioPrompt;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -31,8 +32,9 @@ trait InteractsWithFakeAudio
     /**
      * Fake audio generation.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeAudio(Closure|array $responses = []): FakeAudioGateway
     {
         return $this->fakeAudioGateway = new FakeAudioGateway($responses);
@@ -41,8 +43,9 @@ trait InteractsWithFakeAudio
     /**
      * Record an audio generation.
      *
-     * Tests only. Recorded prompts remain on the worker-shared manager.
+     * Recorded prompts remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordAudioGeneration(AudioPrompt|QueuedAudioPrompt $prompt): self
     {
         if ($prompt instanceof QueuedAudioPrompt) {

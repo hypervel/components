@@ -8,6 +8,8 @@ use BackedEnum;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Attributes\Controllers\Middleware as MiddlewareAttribute;
@@ -23,6 +25,7 @@ use Hypervel\Routing\Matching\SchemeValidator;
 use Hypervel\Routing\Matching\UriValidator;
 use Hypervel\Routing\Matching\ValidatorInterface;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -80,6 +83,8 @@ class Route
 
     /**
      * The HTTP methods the route responds to.
+     *
+     * @var array<string>
      */
     public array $methods;
 
@@ -378,16 +383,18 @@ class Route
     /**
      * Determine if this route's controller may be cached on the shared Route instance.
      *
-     * Worker-shared bindings (singletons, auto-singletons) are safe to cache
-     * on the Route property. Per-coroutine bindings (#[Scoped], explicit bind())
-     * must go through Context to preserve the container's binding contract.
+     * Worker-shared lifetimes (singletons, auto-singletons) are safe to cache
+     * on the Route property. Per-coroutine and fresh lifetimes (#[Scoped],
+     * explicit bind(), unbound Transient or SelfBuilding classes) must go
+     * through Context to preserve the container's binding contract.
      */
     private function shouldCacheControllerOnRoute(string $class): bool
     {
         return $this->shouldCacheControllerOnRoute ??= match (true) {
             $this->container->isScoped($class) => false,
-            $this->container->bound($class) => $this->container->isShared($class),
-            default => true,
+            $this->container->isShared($class) => true,
+            $this->container->bound($class) => false,
+            default => ! is_a($class, Transient::class, true) && ! is_a($class, SelfBuilding::class, true),
         };
     }
 
@@ -418,13 +425,14 @@ class Route
     /**
      * Flush the cached controller state on the route.
      *
-     * Boot or tests only. Clears caches on the worker-shared route and
-     * evicts its controller class from the container.
+     * Clears caches on the worker-shared route and evicts its
+     * controller class from the container.
      *
      * Clears both the route-level property cache (for worker-shared controllers)
      * and the coroutine Context entry (for scoped/bound controllers), plus the
      * container's auto-singleton cache so make() creates a fresh instance.
      */
+    #[BootOrTestsOnly]
     public function flushController(): void
     {
         $this->computedMiddleware = null;
@@ -509,6 +517,8 @@ class Route
      *
      * Parameters are stored in coroutine Context, not on the Route instance,
      * because Route objects are cached and shared across coroutines.
+     *
+     * @return $this
      */
     public function bind(Request $request): static
     {
@@ -525,6 +535,7 @@ class Route
      * @internal
      *
      * @param array<string, mixed> $parameters
+     * @return $this
      */
     public function bindFromCompiledMatch(array $parameters, Request $request): static
     {
@@ -547,6 +558,8 @@ class Route
 
     /**
      * Store the route's current and original parameters for this coroutine.
+     *
+     * @return $this
      */
     private function storeParameters(array $parameters): static
     {
@@ -714,6 +727,8 @@ class Route
 
     /**
      * Set the binding fields for the route.
+     *
+     * @return $this
      */
     public function setBindingFields(array $bindingFields): static
     {
@@ -739,6 +754,8 @@ class Route
 
     /**
      * Allow "trashed" models to be retrieved when resolving implicit model bindings for this route.
+     *
+     * @return $this
      */
     public function withTrashed(bool $withTrashed = true): static
     {
@@ -757,6 +774,8 @@ class Route
 
     /**
      * Set a default value for the route.
+     *
+     * @return $this
      */
     public function defaults(string $key, mixed $value): static
     {
@@ -767,6 +786,8 @@ class Route
 
     /**
      * Set the default values for the route.
+     *
+     * @return $this
      */
     public function setDefaults(array $defaults): static
     {
@@ -777,6 +798,8 @@ class Route
 
     /**
      * Set a regular expression requirement on the route.
+     *
+     * @return $this
      */
     public function where(array|string $name, ?string $expression = null): static
     {
@@ -797,6 +820,8 @@ class Route
 
     /**
      * Set a list of regular expression requirements on the route.
+     *
+     * @return $this
      */
     public function setWheres(array $wheres): static
     {
@@ -809,6 +834,8 @@ class Route
 
     /**
      * Mark this route as a fallback route.
+     *
+     * @return $this
      */
     public function fallback(): static
     {
@@ -819,6 +846,8 @@ class Route
 
     /**
      * Set the fallback value.
+     *
+     * @return $this
      */
     public function setFallback(bool $isFallback): static
     {
@@ -829,6 +858,8 @@ class Route
 
     /**
      * Get the HTTP verbs the route responds to.
+     *
+     * @return array<string>
      */
     public function methods(): array
     {
@@ -930,6 +961,8 @@ class Route
 
     /**
      * Add a prefix to the route URI.
+     *
+     * @return $this
      */
     public function prefix(?string $prefix): static
     {
@@ -962,6 +995,8 @@ class Route
 
     /**
      * Set the URI that the route responds to.
+     *
+     * @return $this
      */
     public function setUri(string $uri): static
     {
@@ -992,6 +1027,8 @@ class Route
 
     /**
      * Add or change the route name.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1027,6 +1064,8 @@ class Route
 
     /**
      * Set the handler for the route.
+     *
+     * @return $this
      */
     public function uses(Closure|array|string $action): static
     {
@@ -1082,6 +1121,8 @@ class Route
 
     /**
      * Set the action array for the route.
+     *
+     * @return $this
      */
     public function setAction(array $action): static
     {
@@ -1132,6 +1173,8 @@ class Route
 
     /**
      * Define the callable that should be invoked on a missing model exception.
+     *
+     * @return $this
      */
     public function missing(Closure $missing): static
     {
@@ -1161,7 +1204,7 @@ class Route
     /**
      * Get or set the middlewares attached to the route.
      *
-     * @return ($middleware is null ? array : $this)
+     * @return ($middleware is null ? array<Closure|string> : $this)
      */
     public function middleware(array|string|Stringable|null $middleware = null): static|array
     {
@@ -1187,6 +1230,8 @@ class Route
 
     /**
      * Specify that the "Authorize" / "can" middleware should be applied to the route.
+     *
+     * @return $this
      */
     public function can(UnitEnum|string $ability, array|string $models = []): static
     {
@@ -1245,7 +1290,7 @@ class Route
             })
             ->map
             ->middleware
-            ->flatten() // @phpstan-ignore method.nonObject (HigherOrderCollectionProxy result can't be statically typed)
+            ->flatten()
             ->values()
             ->all();
     }
@@ -1358,6 +1403,8 @@ class Route
 
     /**
      * Specify middleware that should be removed from the given route.
+     *
+     * @return $this
      */
     public function withoutMiddleware(array|string $middleware): static
     {
@@ -1382,6 +1429,8 @@ class Route
 
     /**
      * Indicate that the route should enforce scoping of multiple implicit Eloquent bindings.
+     *
+     * @return $this
      */
     public function scopeBindings(): static
     {
@@ -1392,6 +1441,8 @@ class Route
 
     /**
      * Indicate that the route should not enforce scoping of multiple implicit Eloquent bindings.
+     *
+     * @return $this
      */
     public function withoutScopedBindings(): static
     {
@@ -1418,6 +1469,8 @@ class Route
 
     /**
      * Specify that the route should not allow concurrent requests from the same session.
+     *
+     * @return $this
      */
     public function block(?int $lockSeconds = 10, ?int $waitSeconds = 10): static
     {
@@ -1429,6 +1482,8 @@ class Route
 
     /**
      * Specify that the route should allow concurrent requests from the same session.
+     *
+     * @return $this
      */
     public function withoutBlocking(): static
     {
@@ -1453,6 +1508,8 @@ class Route
 
     /**
      * Specify that the route should read the session without saving it.
+     *
+     * @return $this
      */
     public function readOnlySession(bool $readOnly = true): static
     {
@@ -1471,6 +1528,8 @@ class Route
 
     /**
      * Add metadata to the route.
+     *
+     * @return $this
      */
     public function metadata(array $metadata): static
     {
@@ -1496,6 +1555,8 @@ class Route
 
     /**
      * Set the metadata for the route, replacing any existing metadata.
+     *
+     * @return $this
      */
     public function setMetadata(array $metadata): static
     {
@@ -1577,6 +1638,8 @@ class Route
 
     /**
      * Set the router instance on the route.
+     *
+     * @return $this
      */
     public function setRouter(Router $router): static
     {
@@ -1587,6 +1650,8 @@ class Route
 
     /**
      * Set the container instance on the route.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

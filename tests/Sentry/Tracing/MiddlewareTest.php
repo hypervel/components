@@ -6,11 +6,16 @@ namespace Hypervel\Tests\Sentry\Tracing;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\Sentry\Tracing\Middleware;
 use Hypervel\Tests\Sentry\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
+use Sentry\Tracing\SpanStatus;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -141,6 +146,39 @@ class MiddlewareTest extends TestCase
         }
 
         $this->assertTrue($found, 'After-response span should be captured on the transaction');
+    }
+
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    #[TestWith(['sent'])]
+    #[TestWith(['sent after a failure'])]
+    public function testRequestCanceledFinishesTheTransactionWithTheKnownOutcome(string $case): void
+    {
+        $middleware = new Middleware(false, true);
+        $request = Request::create('/test', 'GET');
+        $middleware->handle($request, static fn (): Response => new Response('OK'));
+        $transaction = SentrySdk::getCurrentHub()->getTransaction();
+        $this->assertNotNull($transaction);
+        $cancellation = $case === 'wrapped'
+            ? new RuntimeException('Cleanup failed.', previous: new CanceledException)
+            : new CanceledException;
+
+        // As in terminate(), a sent response's HTTP status is the transaction status;
+        // the earlier lifecycle failure is reported as its own event.
+        $middleware->requestCanceled(new RequestCanceled(
+            $request,
+            str_starts_with($case, 'sent') ? new Response('OK') : null,
+            $cancellation,
+            $case === 'sent after a failure' ? new RuntimeException('Handled listener failed.') : null,
+        ));
+
+        $this->assertSentryTransactionCount(1);
+        $this->assertNotNull($transaction->getEndTimestamp());
+        $this->assertEquals(match ($case) {
+            'direct' => null,
+            'wrapped' => SpanStatus::internalError(),
+            'sent', 'sent after a failure' => SpanStatus::ok(),
+        }, $transaction->getStatus());
     }
 
     public function testTerminateFinishesTransactionWhenAfterResponseTracingIsDisabled(): void

@@ -70,7 +70,7 @@ class PostgresGrammar extends Grammar
         return sprintf(
             'select exists (select 1 from pg_class c, pg_namespace n where '
             . "n.nspname = %s and c.relname = %s and c.relkind in ('r', 'p') and n.oid = c.relnamespace)",
-            $schema ? $this->quoteString($schema) : 'current_schema()',
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()',
             $this->quoteString($table)
         );
     }
@@ -88,6 +88,7 @@ class PostgresGrammar extends Grammar
             . 'join pg_namespace pn on pn.oid = pc.relnamespace '
             . 'where c.relispartition and i.inhrelid = c.oid) as partition_of from pg_class c, pg_namespace n '
             . "where c.relkind in ('r', 'p') and n.oid = c.relnamespace and "
+            . "not exists (select 1 from pg_depend d where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e') and "
             . $this->compileSchemaWhereClause($schema, 'n.nspname')
             . ' order by n.nspname, c.relname';
     }
@@ -97,9 +98,12 @@ class PostgresGrammar extends Grammar
      */
     public function compileViews(string|array|null $schema): string
     {
-        return 'select viewname as name, schemaname as schema, definition from pg_views where '
-            . $this->compileSchemaWhereClause($schema, 'schemaname')
-            . ' order by schemaname, viewname';
+        // Read catalog OIDs directly: resolving view names requires schema USAGE privileges.
+        return 'select c.relname as name, n.nspname as schema, pg_get_viewdef(c.oid) as definition '
+            . "from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind = 'v' and "
+            . "not exists (select 1 from pg_depend d where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e') and "
+            . $this->compileSchemaWhereClause($schema, 'n.nspname')
+            . ' order by n.nspname, c.relname';
     }
 
     /**
@@ -114,7 +118,7 @@ class PostgresGrammar extends Grammar
             . 'left join pg_type el on el.oid = t.typelem '
             . 'left join pg_class ce on ce.oid = el.typrelid '
             . "where ((t.typrelid = 0 and (ce.relkind = 'c' or ce.relkind is null)) or c.relkind = 'c') "
-            . "and not exists (select 1 from pg_depend d where d.objid in (t.oid, t.typelem) and d.deptype = 'e') and "
+            . "and not exists (select 1 from pg_depend d where d.classid = 'pg_type'::regclass and d.objid in (t.oid, t.typelem) and d.deptype = 'e') and "
             . $this->compileSchemaWhereClause($schema, 'n.nspname');
     }
 
@@ -125,7 +129,7 @@ class PostgresGrammar extends Grammar
     {
         return $column . (match (true) {
             ! empty($schema) && is_array($schema) => ' in (' . $this->quoteString($schema) . ')',
-            ! empty($schema) => ' = ' . $this->quoteString($schema),
+            is_string($schema) => ' = ' . $this->quoteString($schema),
             default => " <> 'information_schema' and {$column} not like 'pg\\_%'",
         });
     }
@@ -139,10 +143,8 @@ class PostgresGrammar extends Grammar
 
         return sprintf(
             'select a.attname as name, t.typname as type_name, format_type(a.atttypid, a.atttypmod) as type, '
-            . (version_compare($serverVersion, '9.1', '<')
-                ? 'null as collation, '
-                : '(select tc.collcollate from pg_catalog.pg_collation tc where tc.oid = a.attcollation) as collation, ')
-            . 'not a.attnotnull as nullable, '
+            . '(select tc.collcollate from pg_catalog.pg_collation tc where tc.oid = a.attcollation) as collation, '
+            . 'not a.attnotnull as nullable, a.attidentity as identity, '
             . '(select pg_get_expr(adbin, adrelid) from pg_attrdef where c.oid = pg_attrdef.adrelid and pg_attrdef.adnum = a.attnum) as default, '
             . (version_compare($serverVersion, '12.0', '<') ? "'' as generated, " : 'a.attgenerated as generated, ')
             . 'col_description(c.oid, a.attnum) as comment '
@@ -150,7 +152,7 @@ class PostgresGrammar extends Grammar
             . 'where c.relname = %s and n.nspname = %s and a.attnum > 0 and a.attrelid = c.oid and a.atttypid = t.oid and n.oid = c.relnamespace '
             . 'order by a.attnum',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -159,8 +161,9 @@ class PostgresGrammar extends Grammar
      */
     public function compileIndexes(?string $schema, string $table): string
     {
+        // Native rows preserve quoted column names and the positions of expression keys.
         return sprintf(
-            "select ic.relname as name, string_agg(a.attname, ',' order by indseq.ord) as columns, "
+            'select ic.relname as name, a.attname as column_name, '
             . 'am.amname as "type", i.indisunique as "unique", i.indisprimary as "primary", '
             . 'i.indpred is not null as "partial" '
             . 'from pg_index i '
@@ -168,12 +171,14 @@ class PostgresGrammar extends Grammar
             . 'join pg_namespace tn on tn.oid = tc.relnamespace '
             . 'join pg_class ic on ic.oid = i.indexrelid '
             . 'join pg_am am on am.oid = ic.relam '
-            . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on true '
+            // INCLUDE payloads are not index keys; PostgreSQL 10 has no indnkeyatts column.
+            . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on '
+            . (version_compare($this->connection->getServerVersion(), '11.0', '<') ? 'true ' : 'indseq.ord <= i.indnkeyatts ')
             . 'left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = indseq.num '
             . 'where tc.relname = %s and tn.nspname = %s '
-            . 'group by ic.relname, am.amname, i.indisunique, i.indisprimary, i.indpred is not null',
+            . 'order by ic.relname, indseq.ord',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -184,9 +189,9 @@ class PostgresGrammar extends Grammar
     {
         return sprintf(
             'select c.conname as name, '
-            . "string_agg(la.attname, ',' order by conseq.ord) as columns, "
+            . 'la.attname as column_name, '
             . 'fn.nspname as foreign_schema, fc.relname as foreign_table, '
-            . "string_agg(fa.attname, ',' order by conseq.ord) as foreign_columns, "
+            . 'fa.attname as foreign_column_name, '
             . 'c.confupdtype as on_update, c.confdeltype as on_delete '
             . 'from pg_constraint c '
             . 'join pg_class tc on c.conrelid = tc.oid '
@@ -197,9 +202,9 @@ class PostgresGrammar extends Grammar
             . 'join pg_attribute la on la.attrelid = c.conrelid and la.attnum = conseq.num '
             . 'join pg_attribute fa on fa.attrelid = c.confrelid and fa.attnum = c.confkey[conseq.ord] '
             . "where c.contype = 'f' and tc.relname = %s and tn.nspname = %s "
-            . 'group by c.conname, fn.nspname, fc.relname, c.confupdtype, c.confdeltype',
+            . 'order by c.conname, conseq.ord',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -218,7 +223,7 @@ class PostgresGrammar extends Grammar
             . 'where c.relispartition and pc.relname = %s and pn.nspname = %s '
             . 'order by n.nspname, c.relname',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -372,20 +377,22 @@ class PostgresGrammar extends Grammar
      */
     public function compileUnique(Blueprint $blueprint, Fluent $command): array
     {
-        $uniqueStatement = 'unique';
+        $nullsStatement = '';
 
         if (! is_null($command->nullsNotDistinct)) {
-            $uniqueStatement .= ' nulls ' . ($command->nullsNotDistinct ? 'not distinct' : 'distinct');
+            $nullsStatement = ' nulls ' . ($command->nullsNotDistinct ? 'not distinct' : 'distinct');
         }
+        $uniqueStatement = 'unique' . $nullsStatement;
 
         if ($command->online || $command->algorithm) {
             $createIndexSql = sprintf(
-                'create unique index %s%s on %s%s (%s)',
+                'create unique index %s%s on %s%s (%s)%s',
                 $command->online ? 'concurrently ' : '',
                 $this->wrap($command->index),
                 $this->wrapTable($blueprint),
                 $command->algorithm ? ' using ' . $command->algorithm : '',
-                $this->columnize($command->columns)
+                $this->columnize($command->columns),
+                $nullsStatement
             );
 
             $sql = sprintf(
@@ -441,6 +448,12 @@ class PostgresGrammar extends Grammar
         $columns = array_map(function ($column) use ($language) {
             return "to_tsvector({$this->quoteString($language)}, {$this->wrap($column)})";
         }, $command->columns);
+
+        // Unlike Laravel, each vector of a multi-column index is coalesced, matching the query grammar's full-text
+        // expression so a null column doesn't hide the row and searches can still use the index.
+        if (count($columns) > 1) {
+            $columns = array_map(fn (string $vector): string => "coalesce({$vector}, ''::tsvector)", $columns);
+        }
 
         return sprintf(
             'create index %s%s on %s using gin ((%s))',
@@ -606,7 +619,7 @@ class PostgresGrammar extends Grammar
      */
     public function compileDropIndex(Blueprint $blueprint, Fluent $command): string
     {
-        return "drop index {$this->wrap($command->index)}";
+        return "drop index {$this->wrapIndex($blueprint, $command->index)}";
     }
 
     /**
@@ -660,9 +673,21 @@ class PostgresGrammar extends Grammar
     {
         return sprintf(
             'alter index %s rename to %s',
-            $this->wrap($command->from),
+            $this->wrapIndex($blueprint, $command->from),
             $this->wrap($command->to)
         );
+    }
+
+    /**
+     * Wrap an index name, qualifying it with the schema of the blueprint's table.
+     */
+    protected function wrapIndex(Blueprint $blueprint, string $index): string
+    {
+        [$schema] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
+
+        return $schema !== null && ! str_contains($index, '.')
+            ? $this->wrapValue($schema) . '.' . $this->wrap($index)
+            : $this->wrap($index);
     }
 
     /**

@@ -14,7 +14,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -29,6 +30,8 @@ use function Hypervel\Coroutine\run;
  */
 class InMemorySqliteSharedPdoTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     protected function setUp(): void
@@ -365,12 +368,10 @@ class InMemorySqliteSharedPdoTest extends TestCase
     public function testCanceledCloseClearsSharedPdo(): void
     {
         $cancellation = new CanceledException('connection close canceled');
-        $connection = m::mock(PoolConnection::class);
-        $connection->shouldReceive('close')->once()->andThrow($cancellation);
-        $pool = m::mock(DatabasePool::class, [$this->app, 'memory_test'])
-            ->makePartial()
-            ->shouldAllowMockingProtectedMethods();
-        $pool->shouldReceive('createConnection')->once()->andReturn($connection);
+        $connection = Double::for(PoolConnection::class)->strict();
+        $connection->expects('close')->throws($cancellation);
+        $pool = Double::for(new DatabasePool($this->app, 'memory_test'))->passthru();
+        $pool->expects('createConnection')->returns($connection);
         $pool->release($pool->borrow());
         $caught = null;
 

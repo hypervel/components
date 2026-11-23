@@ -19,6 +19,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Events\MigrationEnded;
+use Hypervel\Database\Events\MigrationFailed;
 use Hypervel\Database\Events\MigrationsEnded;
 use Hypervel\Database\Events\MigrationSkipped;
 use Hypervel\Database\Events\MigrationsStarted;
@@ -27,10 +28,14 @@ use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use ReflectionClass;
+use Throwable;
 use WeakReference;
 
 class Migrator
@@ -440,18 +445,35 @@ class Migrator
                     $this->fireMigrationEvent(new MigrationStarted($migration, $method, $name));
                 }
 
+                $startedAt = microtime(true);
+
                 $this->runMethod($connection, $migration, $method);
 
                 if ($this->hasMigrationEventListeners(MigrationEnded::class)) {
-                    $this->fireMigrationEvent(new MigrationEnded($migration, $method, $name));
+                    $duration = round((microtime(true) - $startedAt) * 1000, 2);
+
+                    $this->fireMigrationEvent(new MigrationEnded($migration, $method, $name, $duration));
                 }
             }
         };
 
-        $this->getSchemaGrammar($connection)->supportsSchemaTransactions()
-            && $migration->withinTransaction
-                ? $connection->transaction($callback)
-                : $callback();
+        try {
+            $this->getSchemaGrammar($connection)->supportsSchemaTransactions()
+                && $migration->withinTransaction
+                    ? $connection->transaction($callback)
+                    : $callback();
+        } catch (Throwable $exception) {
+            if ($this->hasMigrationEventListeners(MigrationFailed::class)) {
+                try {
+                    $this->fireMigrationEvent(new MigrationFailed($migration, $method, $name, $exception));
+                } catch (Throwable $listenerException) {
+                    // Unlike Laravel, report listener failures without replacing the migration failure, unless they carry cancellation.
+                    $exception = FailureReporter::preferCancellation($exception, $listenerException);
+                }
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -642,8 +664,9 @@ class Migrator
     /**
      * Register a custom migration path.
      *
-     * Boot-only. Paths remain on the shared migrator and affect every subsequent run.
+     * Paths remain on the shared migrator and affect every subsequent run.
      */
+    #[BootOnly(whenShared: true)]
     public function path(string $path): void
     {
         $this->paths = array_unique(array_merge($this->paths, [$path]));
@@ -662,11 +685,12 @@ class Migrator
     /**
      * Set the pending migrations to skip.
      *
-     * Boot or tests only. The list persists in a static property for the worker
-     * lifetime and applies to every subsequent migration run.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent migration run.
      *
      * @param list<string> $migrations
      */
+    #[BootOrTestsOnly]
     public static function withoutMigrations(array $migrations): void
     {
         static::$withoutMigrations = $migrations;
@@ -833,18 +857,19 @@ class Migrator
                 $connection
             );
         }
-        // @phpstan-ignore return.type (resolver returns ConnectionInterface but concrete Connection in practice)
+
         return $this->resolver->connection($connection);
     }
 
     /**
      * Set a connection resolver callback.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every migration's connection resolution.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every migration's connection resolution.
      *
      * @param Closure(Resolver, ?string): Connection $callback
      */
+    #[BootOnly]
     public static function resolveConnectionsUsing(Closure $callback): void
     {
         static::$connectionResolverCallback = $callback;
@@ -906,6 +931,8 @@ class Migrator
 
     /**
      * Set the output implementation that should be used by the console.
+     *
+     * @return $this
      */
     public function setOutput(OutputStyle $output): static
     {

@@ -10,6 +10,8 @@ use Hypervel\Inertia\DevTools\EntryStore;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Inertia\TestCase;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class EntryStoreTest extends TestCase
 {
@@ -121,6 +123,57 @@ class EntryStoreTest extends TestCase
 
         $this->assertSame(1, $failing->calls, 'Second flush should be suppressed by circuit breaker.');
     }
+
+    public function testCancellationIsRethrownWithoutTrippingTheCircuitBreaker(): void
+    {
+        Log::shouldReceive('warning')->never();
+
+        $cancellation = new CanceledException('canceled');
+        $recorder = new EntryStore;
+
+        $recorder->record(new IncomingEntry);
+
+        try {
+            $recorder->flush(new FailingEntriesRepository($cancellation));
+
+            $this->fail('The cancellation was not rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $repo = new RecorderSpyRepo;
+
+        $recorder->record(new IncomingEntry);
+        $recorder->flush($repo);
+
+        $this->assertCount(1, $repo->saved, 'A canceled flush must not suppress later recording.');
+    }
+
+    public function testCancellationWhileLoggingTheFailureIsRethrown(): void
+    {
+        $cancellation = new CanceledException('canceled');
+
+        Log::shouldReceive('warning')->once()->andThrow($cancellation);
+
+        $recorder = new EntryStore;
+
+        $recorder->record(new IncomingEntry);
+
+        try {
+            $recorder->flush(new FailingEntriesRepository);
+
+            $this->fail('The cancellation was not rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $repo = new RecorderSpyRepo;
+
+        $recorder->record(new IncomingEntry);
+        $recorder->flush($repo);
+
+        $this->assertCount(0, $repo->saved, 'The storage failure must still suspend recording when logging it is canceled.');
+    }
 }
 
 /**
@@ -178,8 +231,9 @@ class FailingEntriesRepository extends EntriesRepository
     /**
      * Create a new failing repository instance without a storage directory.
      */
-    public function __construct()
-    {
+    public function __construct(
+        protected Throwable $failure = new RuntimeException('disk full'),
+    ) {
     }
 
     /**
@@ -191,6 +245,6 @@ class FailingEntriesRepository extends EntriesRepository
     {
         ++$this->calls;
 
-        throw new RuntimeException('disk full');
+        throw $this->failure;
     }
 }

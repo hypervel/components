@@ -116,13 +116,17 @@ class Reflector
 
     /**
      * Get the class names of the given parameter's type, including union types.
+     *
+     * @return list<string>
      */
     public static function getParameterClassNames(ReflectionParameter $parameter): array
     {
         $type = $parameter->getType();
 
         if (! $type instanceof ReflectionUnionType) {
-            return array_filter([static::getParameterClassName($parameter)]);
+            $className = static::getParameterClassName($parameter);
+
+            return $className === null ? [] : [$className];
         }
 
         $unionTypes = [];
@@ -135,7 +139,7 @@ class Reflector
             $unionTypes[] = static::getTypeName($parameter, $listedType);
         }
 
-        return array_filter($unionTypes);
+        return $unionTypes;
     }
 
     /**

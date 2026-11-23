@@ -17,11 +17,14 @@ use Hypervel\Passport\SigningKeyRepository;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class SigningKeyCommandsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Boot the real Passport provider to exercise command and schedule registration.
      */
@@ -75,8 +78,8 @@ class SigningKeyCommandsTest extends TestCase
         $now = CarbonImmutable::now()->startOfSecond();
         CarbonImmutable::setTestNow($now);
         $material = (new SigningKeyFactory)->definition();
-        $generator = m::mock(KeyGenerator::class);
-        $generator->shouldReceive('generate')->with(2048)->times(3)->andReturn(
+        $generator = Double::for(KeyGenerator::class)->strict();
+        $generator->expects('generate')->with(2048)->times(3)->returns(
             ['public' => $material['public_key'], 'private' => $material['private_key']],
             (new KeyGenerator)->generate(2048),
             (new KeyGenerator)->generate(2048),
@@ -116,8 +119,8 @@ class SigningKeyCommandsTest extends TestCase
     public function testImportCommandCarriesTheExplicitRetentionFloor(): void
     {
         $material = (new SigningKeyFactory)->definition();
-        $factory = m::mock(ServerFactory::class);
-        $factory->shouldReceive('fileKeys')->once()->andReturn([new ServerKey($material['public_key'], $material['private_key'])]);
+        $factory = Double::for(ServerFactory::class)->strict();
+        $factory->expects('fileKeys')->returns([new ServerKey($material['public_key'], $material['private_key'])]);
         $this->app->instance(ServerFactory::class, $factory);
         $this->artisan('passport:keys:import', ['--retain-until' => '2030-01-01T00:00:00Z'])
             ->expectsOutputToContain('Signing keys imported.')->assertSuccessful();
@@ -136,9 +139,9 @@ class SigningKeyCommandsTest extends TestCase
     public function testDatabaseManagementCommandsRejectTheFilesStore(string $command, array $parameters): void
     {
         config(['passport.key_store' => 'files']);
-        $repository = m::mock(SigningKeyRepository::class);
-        $repository->shouldNotReceive('rotate');
-        $repository->shouldNotReceive('revoke');
+        $repository = Double::for(SigningKeyRepository::class)->strict();
+        $repository->expects('rotate')->never();
+        $repository->expects('revoke')->never();
         $this->app->instance(SigningKeyRepository::class, $repository);
 
         $this->artisan($command, $parameters)->expectsOutputToContain('Rotate file keys manually using passport.verification_keys.')->assertFailed();

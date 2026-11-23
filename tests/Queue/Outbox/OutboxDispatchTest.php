@@ -18,17 +18,23 @@ use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Outbox\DatabaseOutboxRepository;
 use Hypervel\Queue\Outbox\OutboxDispatcher;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use LogicException;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
@@ -39,9 +45,11 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
+#[ResetRefreshDatabaseState]
 class OutboxDispatchTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -150,11 +158,15 @@ class OutboxDispatchTest extends TestCase
     public function testBaseBulkStagesOneInsertAndKeepsTheDirectPartition(bool $beanstalk): void
     {
         $queue = $beanstalk
-            ? m::mock(BeanstalkdQueue::class, [m::mock(PheanstalkManagerInterface::class . ', ' . PheanstalkPublisherInterface::class . ', ' . PheanstalkSubscriberInterface::class), 'orders', 60])->makePartial()
-            : m::mock(Queue::class . ', ' . QueueContract::class)->makePartial();
+            ? Double::for(new BeanstalkdQueue(
+                Double::for(PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class)->strict(),
+                'orders',
+                60,
+            ))->passthru()
+            : Double::for(OutboxDispatchBaseQueue::class)->passthru();
         $queue->setContainer($this->app)->setConnectionName($beanstalk ? 'beanstalkd' : 'custom');
         $direct = (new OutboxDispatchJob)->withoutOutbox();
-        $queue->expects('push')->with($direct, '', 'orders')->andReturn('direct');
+        $queue->expects('push')->with(Argument::same($direct), '', 'orders')->returns('direct');
         $jobs = array_map(static fn (): OutboxDispatchJob => (new OutboxDispatchJob)->viaOutbox(), range(1, 100));
         $connection = DB::connection();
         $connection->enableQueryLog();
@@ -192,19 +204,54 @@ class OutboxDispatchTest extends TestCase
             }
         });
         $this->app->make('events')->listen(JobQueueingFailed::class, function (JobQueueingFailed $event) use (&$failed): void {
-            $failed[] = $event->job;
+            $failed[] = $event;
         });
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
 
         try {
-            $queue->bulk($jobs);
+            $queue->bulk(array_combine(['first', 'second', 'third'], $jobs));
             $this->fail('Expected finalization to fail.');
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
         }
 
-        $this->assertSame($jobs, $failed);
+        $this->assertSame($jobs, array_column($failed, 'job'));
+        $this->assertSame([false, false, false], array_column($failed, 'sendAttempted'));
         $this->assertSame(0, DB::table('job_outbox')->count());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStorageFailureTerminatesEveryMemberAsAttempted(bool $bulk): void
+    {
+        $queue = $this->queue();
+        $failure = new RuntimeException('Storage failed');
+        $dispatcher = Double::for(new OutboxDispatcher(
+            $this->app->make(DatabaseOutboxRepository::class),
+            $this->app->make(ConnectionResolverInterface::class),
+            $this->app->make('db.transactions'),
+        ))->passthru();
+        $dispatcher->expects('store')->throws($failure);
+        $this->app->instance(OutboxDispatcher::class, $dispatcher);
+        $failed = [];
+        $this->app->make('events')->listen(JobQueueingFailed::class, function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+        $jobs = $bulk ? [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()] : [(new OutboxDispatchJob)->viaOutbox()];
+
+        try {
+            $bulk ? $queue->bulk($jobs) : $queue->push($jobs[0]);
+            $this->fail('Expected storage to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame($jobs, array_column($failed, 'job'));
+
+        foreach ($failed as $event) {
+            $this->assertSame($failure, $event->exception);
+            $this->assertTrue($event->sendAttempted);
+        }
     }
 
     public function testBulkFailureIsNotReplacedByAFailingFailureListener(): void
@@ -218,8 +265,8 @@ class OutboxDispatchTest extends TestCase
             $failed[] = $event->job;
         });
         $this->app->make('events')->listen(JobQueueingFailed::class, static fn () => throw $listener);
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($listener);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($listener));
         $this->app->instance(ExceptionHandler::class, $handler);
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
 
@@ -236,7 +283,7 @@ class OutboxDispatchTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testStagingCancellationDoesNotNotifyFailureOrStoreJobs(bool $bulk): void
+    public function testStagingCancellationPublishesCanceledEventsWithoutFailureOrStorage(bool $bulk): void
     {
         $queue = $this->queue();
         $cancellation = new RuntimeException('Finalization cleanup failed.', previous: new CanceledException);
@@ -246,16 +293,28 @@ class OutboxDispatchTest extends TestCase
         $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
             $failed[] = $event;
         });
+        $canceled = [];
+        $events->listen(JobQueueingCanceled::class, static function (JobQueueingCanceled $event) use (&$canceled): void {
+            $canceled[] = $event;
+        });
         $job = (new OutboxDispatchJob)->viaOutbox();
+        $jobs = $bulk ? [$job, clone $job] : [$job];
 
         try {
-            $bulk ? $queue->bulk([$job, clone $job]) : $queue->push($job);
+            $bulk ? $queue->bulk($jobs) : $queue->push($job);
             $this->fail('Expected staging cancellation to propagate.');
         } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertSame([], $failed);
+        $this->assertSame($jobs, array_column($canceled, 'job'));
+
+        foreach ($canceled as $event) {
+            $this->assertSame($cancellation, $event->cancellation);
+            $this->assertFalse($event->sendAttempted);
+        }
+
         $this->assertSame(0, DB::table('job_outbox')->count());
     }
 
@@ -312,11 +371,24 @@ class OutboxDispatchTest extends TestCase
         return [['none', null], ['zero', null], ['past', 0], ['future', 1]];
     }
 
+    public function testInvalidDirectFifoDelayFailsBeforeStagingOtherJobs(): void
+    {
+        $queue = new SqsQueue(Double::for(SqsClient::class)->strict(), 'orders.fifo');
+        $queue->setContainer($this->app)->setConnectionName('sqs');
+        try {
+            $queue->bulk([(new OutboxDispatchJob)->viaOutbox()->delay(5), (new OutboxDispatchJob)->withoutOutbox()->delay(5)]);
+            $this->fail('Expected the direct FIFO delay to be rejected.');
+        } catch (LogicException $exception) {
+            $this->assertSame('SQS FIFO queues do not support per-message delays.', $exception->getMessage());
+        }
+        $this->assertSame(0, DB::table('job_outbox')->count());
+    }
+
     #[DataProvider('sqsDelays')]
     public function testSqsStagingCapturesOptionsOnceAndWaitsForItsTransportWindow(string $method, bool $fifo, int $eligibleDelay): void
     {
         Date::setTestNow('2040-01-01 12:00:00');
-        $queue = new SqsQueue(m::mock(SqsClient::class), $fifo ? 'orders.fifo' : 'orders');
+        $queue = new SqsQueue(Double::for(SqsClient::class)->strict(), $fifo ? 'orders.fifo' : 'orders');
         $queue->setContainer($this->app)->setConnectionName('sqs');
         $job = (new OutboxFifoDispatchJob)->viaOutbox()->onGroup('tenant:17')->delay(1200);
 
@@ -378,6 +450,7 @@ class OutboxDispatchTest extends TestCase
             $this->assertCount(1, $failed);
             $this->assertSame($job, $failed[0]->job);
             $this->assertSame($exception, $failed[0]->exception);
+            $this->assertFalse($failed[0]->sendAttempted);
         } finally {
             DB::rollBack();
         }
@@ -391,11 +464,15 @@ class OutboxDispatchTest extends TestCase
      */
     protected function queue(): RecordingOutboxRedisQueue
     {
-        $queue = new RecordingOutboxRedisQueue(m::mock(Factory::class), 'orders');
+        $queue = new RecordingOutboxRedisQueue(Double::for(Factory::class)->strict(), 'orders');
         $queue->setContainer($this->app)->setConnectionName('redis');
 
         return $queue;
     }
+}
+
+abstract class OutboxDispatchBaseQueue extends Queue implements QueueContract
+{
 }
 
 class OutboxDispatchJob

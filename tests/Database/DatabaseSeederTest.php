@@ -10,8 +10,9 @@ use Hypervel\Container\Container as ContainerImplementation;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Seeder;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\Mock;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class TestSeeder extends Seeder
@@ -23,7 +24,7 @@ class TestSeeder extends Seeder
 
 class TestDepsSeeder extends Seeder
 {
-    public function run(Mock $someDependency, string $someParam = ''): void
+    public function run(Container $someDependency, string $someParam = ''): void
     {
     }
 }
@@ -137,6 +138,8 @@ class CallsRecordingSeederTwice extends Seeder
 
 class DatabaseSeederTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -148,17 +151,17 @@ class DatabaseSeederTest extends TestCase
     public function testCallResolveTheClassAndCallsRun(): void
     {
         $seeder = new TestSeeder;
-        $container = m::mock(Container::class);
-        $seeder->setContainer($container);
-        $output = m::mock(OutputStyle::class);
+        $container = Double::for(Container::class, override: true)->strict();
+        $seeder->setContainer($container->instance());
+        $output = Double::for(OutputStyle::class)->strict();
         $output->expects('writeln')->times(3);
-        $command = m::mock(Command::class);
-        $command->expects('getOutput')->times(3)->andReturn($output);
+        $command = Double::for(Command::class)->strict();
+        $command->expects('getOutput')->times(3)->returns($output);
         $seeder->setCommand($command);
-        $child = m::mock(Seeder::class);
-        $container->expects('make')->with('ClassName')->andReturn($child);
-        $child->expects('setContainer')->with($container)->andReturn($child);
-        $child->expects('setCommand')->with($command)->andReturn($child);
+        $child = Double::for(Seeder::class)->strict();
+        $container->expects('make')->with('ClassName')->returns($child);
+        $child->expects('setContainer')->with(Argument::same($container->instance()))->returns($child);
+        $child->expects('setCommand')->with(Argument::same($command))->returns($child);
         $child->expects('__invoke');
 
         $seeder->call('ClassName');
@@ -180,28 +183,28 @@ class DatabaseSeederTest extends TestCase
 
     public function testInjectDependenciesOnRunMethod(): void
     {
-        $container = m::mock(Container::class);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('call');
 
         $seeder = new TestDepsSeeder;
-        $seeder->setContainer($container);
+        $seeder->setContainer($container->instance());
 
         $seeder->__invoke();
 
-        $container->shouldHaveReceived('call')->once()->with([$seeder, 'run'], []);
+        $container->received('call')->times(1)->with([$seeder, 'run'], []);
     }
 
     public function testSendParamsOnCallMethodWithDeps(): void
     {
-        $container = m::mock(Container::class);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('call');
 
         $seeder = new TestDepsSeeder;
-        $seeder->setContainer($container);
+        $seeder->setContainer($container->instance());
 
         $seeder->__invoke(['test1', 'test2']);
 
-        $container->shouldHaveReceived('call')->once()->with([$seeder, 'run'], ['test1', 'test2']);
+        $container->received('call')->times(1)->with([$seeder, 'run'], ['test1', 'test2']);
     }
 
     public function testCallOnceResetsForEveryInvocationOfTheSameRoot(): void

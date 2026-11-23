@@ -61,7 +61,7 @@ abstract class TestCase extends BaseTestCase
         $router->get('users/{userId}/with-array-relationship', function ($userId) {
             $resource = new UserWithArrayRelationshipResource(User::find($userId));
             $resource->loadedRelationshipsMap = [
-                [new ArrayBackedJsonApiResource(['id' => 99, 'name' => 'test']), 'things', '99', true],
+                [new ArrayBackedJsonApiResource(['id' => 99, 'name' => 'test']), 'things', '99', null, null],
             ];
 
             return $resource;
@@ -73,8 +73,8 @@ abstract class TestCase extends BaseTestCase
 
             $resource = new UserWithArrayRelationshipResource(User::find($userId));
             $resource->loadedRelationshipsMap = [
-                [new UserResource($instance1), 'users', (string) $instance1->getKey(), true],
-                [new UserResource($instance2), 'users', (string) $instance2->getKey(), true],
+                [new UserResource($instance1), 'users', (string) $instance1->getKey(), null, null],
+                [new UserResource($instance2), 'users', (string) $instance2->getKey(), null, null],
             ];
 
             return $resource;

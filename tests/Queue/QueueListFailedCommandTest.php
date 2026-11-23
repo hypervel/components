@@ -7,13 +7,17 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\ListFailedCommand;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class QueueListFailedCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testQueuedListenerShowsUnderlyingListenerClassNotWrapper(): void
     {
         // CallQueuedListener is the wrapper class Hypervel uses to dispatch
@@ -84,6 +88,24 @@ class QueueListFailedCommandTest extends TestCase
         $this->assertStringNotContainsString('CallQueuedHandler', $output);
     }
 
+    public function testStringJobCommandDataDoesNotHideTheHandlerMethod(): void
+    {
+        $queue = new class extends SyncQueue {
+            /**
+             * Build a string payload through the real queue producer.
+             */
+            public function payloadFor(string $job, array $data): string
+            {
+                return $this->createPayload($job, 'default', $data);
+            }
+        };
+        $output = $this->runListFailedCommandWithRawPayload(
+            $queue->payloadFor('RunCommand@handle', ['command' => 'backup:run']),
+        );
+
+        $this->assertStringContainsString('RunCommand@handle', $output);
+    }
+
     public function testMalformedPayloadDoesNotThrow(): void
     {
         // Malformed JSON in the payload column must not bubble up an exception;
@@ -147,8 +169,8 @@ class QueueListFailedCommandTest extends TestCase
         $container = new Application;
 
         // The command resolves the failer via the queue.failer container binding.
-        $failer = m::mock(FailedJobProviderInterface::class);
-        $failer->expects('all')->andReturn($rows);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $failer->expects('all')->returns($rows);
         $container->instance('queue.failer', $failer);
 
         $command = new ListFailedCommand;

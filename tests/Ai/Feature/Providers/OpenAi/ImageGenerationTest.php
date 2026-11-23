@@ -11,6 +11,7 @@ use Hypervel\Ai\Image;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 
@@ -22,6 +23,16 @@ class ImageGenerationTest extends TestCase
     protected function defineEnvironment(Application $app): void
     {
         $app->make('config')->set('ai.providers.openai.key', 'test-key');
+    }
+
+    public function testTheRawHttpResponseIsExposedOnTheImageResponse(): void
+    {
+        Http::fake(['*' => fakeOpenAiImageResponse()]);
+
+        $response = Image::of('A red apple')->generate(provider: 'openai', model: 'gpt-image-1');
+
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame(base64_encode('fake-image'), $response->raw->json('data.0.b64_json'));
     }
 
     public function testImageRequestDoesNotIncludeQualityWhenNotSpecified(): void
@@ -69,6 +80,24 @@ class ImageGenerationTest extends TestCase
 
             return $body['model'] === 'gpt-image-1'
                 && $body['moderation'] === 'low';
+        });
+    }
+
+    public function testImageRequestModerationCanBeSetThroughProviderOptionsForGptImageModels(): void
+    {
+        Http::fake([
+            '*' => fakeOpenAiImageResponse(),
+        ]);
+
+        Image::of('A red apple')
+            ->withProviderOptions(['moderation' => 'auto'])
+            ->generate(provider: 'openai', model: 'gpt-image-1');
+
+        Http::assertSent(function (Request $request): bool {
+            $body = json_decode($request->body(), true);
+
+            return $body['model'] === 'gpt-image-1'
+                && $body['moderation'] === 'auto';
         });
     }
 

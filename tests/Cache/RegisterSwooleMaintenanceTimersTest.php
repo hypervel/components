@@ -7,13 +7,16 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\Listeners\RegisterSwooleMaintenanceTimers;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Server as SwooleServer;
@@ -21,6 +24,8 @@ use Throwable;
 
 class RegisterSwooleMaintenanceTimersTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRegistersEvictionAndIntervalRefreshTimersForEachSwooleStoreOnWorkerZero(): void
     {
         $config = $this->config([
@@ -50,23 +55,25 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
 
     public function testDoesNotRegisterTimersOnOtherWorkers(): void
     {
-        $container = m::mock(Container::class);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
-        (new RegisterSwooleMaintenanceTimers($container, $timer, $this->config([])))
+        (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $this->config([])))
             ->handle($this->workerEvent(workerId: 1));
 
+        $container->unused();
         $this->assertSame([], $timer->ticks);
     }
 
     public function testDoesNotRegisterTimersOnTaskWorkers(): void
     {
-        $container = m::mock(Container::class);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
-        (new RegisterSwooleMaintenanceTimers($container, $timer, $this->config([])))
+        (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $this->config([])))
             ->handle($this->workerEvent(workerId: 0, taskworker: true));
 
+        $container->unused();
         $this->assertSame([], $timer->ticks);
     }
 
@@ -80,22 +87,22 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
             ],
         ]);
 
-        $store = m::mock(SwooleStore::class);
-        $store->shouldReceive('evictRecords')->once();
-        $store->shouldReceive('refreshIntervalCaches')->once();
+        $store = Double::for(SwooleStore::class)->strict();
+        $store->expects('evictRecords');
+        $store->expects('refreshIntervalCaches');
 
-        $repository = m::mock();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $repository->expects('getStore')->returns($store);
 
-        $cache = m::mock();
-        $cache->shouldReceive('store')->once()->with('fast')->andReturn($repository);
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->with('fast')->returns($repository);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('cache')->andReturn($cache);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('cache')->returns($cache);
 
         $timer = new FakeCoordinatorTimer;
 
-        (new RegisterSwooleMaintenanceTimers($container, $timer, $config))
+        (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $config))
             ->handle($this->workerEvent(workerId: 0));
 
         $timer->ticks[0]['callback']();
@@ -116,21 +123,21 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
                 'interval_refresh_interval' => 1000,
             ],
         ]);
-        $firstRepository = m::mock();
-        $firstRepository->shouldReceive('getStore')->once()->andReturn(m::mock(SwooleStore::class));
+        $firstRepository = Double::for(CacheRepository::class)->strict();
+        $firstRepository->expects('getStore')->returns(Double::for(SwooleStore::class)->strict());
 
         $failure = new RuntimeException('Store resolution failed.');
-        $cache = m::mock();
-        $cache->shouldReceive('store')->once()->with('first')->andReturn($firstRepository);
-        $cache->shouldReceive('store')->once()->with('second')->andThrow($failure);
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->with('first')->returns($firstRepository);
+        $cache->expects('store')->with('second')->throws($failure);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->twice()->with('cache')->andReturn($cache);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->times(2)->with('cache')->returns($cache);
 
         $timer = new FakeCoordinatorTimer;
 
         try {
-            (new RegisterSwooleMaintenanceTimers($container, $timer, $config))
+            (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $config))
                 ->handle($this->workerEvent(workerId: 0));
 
             $this->fail('Expected store resolution to fail.');
@@ -240,11 +247,11 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
                 ...$intervalConfig,
             ],
         ]);
-        $container = m::mock(Container::class);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
         try {
-            (new RegisterSwooleMaintenanceTimers($container, $timer, $config))
+            (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $config))
                 ->handle($this->workerEvent(workerId: 0));
 
             $this->fail('Expected invalid timer configuration to fail.');
@@ -255,6 +262,7 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
             );
         }
 
+        $container->unused();
         $this->assertSame([], $timer->ticks);
     }
 
@@ -311,11 +319,11 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
                 'interval_refresh_interval' => 0,
             ],
         ]);
-        $container = m::mock(Container::class);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
         try {
-            (new RegisterSwooleMaintenanceTimers($container, $timer, $config))
+            (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $config))
                 ->handle($this->workerEvent(workerId: 0));
 
             $this->fail('Expected invalid timer configuration to fail.');
@@ -326,6 +334,7 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
             );
         }
 
+        $container->unused();
         $this->assertSame([], $timer->ticks);
     }
 
@@ -346,23 +355,23 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
      */
     private function containerWithSwooleStores(string ...$names): Container
     {
-        $cache = m::mock();
+        $cache = Double::for(CacheFactory::class)->strict();
 
         foreach ($names as $name) {
-            $repository = m::mock();
-            $repository->shouldReceive('getStore')->once()->andReturn(m::mock(SwooleStore::class));
-            $cache->shouldReceive('store')->once()->with($name)->andReturn($repository);
+            $repository = Double::for(CacheRepository::class)->strict();
+            $repository->expects('getStore')->returns(Double::for(SwooleStore::class)->strict());
+            $cache->expects('store')->with($name)->returns($repository);
         }
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->times(count($names))->with('cache')->andReturn($cache);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->times(count($names))->with('cache')->returns($cache);
 
-        return $container;
+        return $container->instance();
     }
 
     private function workerEvent(int $workerId, bool $taskworker = false): AfterWorkerStart
     {
-        $server = m::mock(SwooleServer::class);
+        $server = Double::for(SwooleServer::class)->strict();
         $server->taskworker = $taskworker;
 
         return new AfterWorkerStart($server, $workerId);

@@ -27,7 +27,8 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
@@ -37,6 +38,8 @@ use Symfony\Component\DomCrawler\Crawler;
 
 class ResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * The scratch directory for saved response bodies.
      */
@@ -690,10 +693,11 @@ class ResponseTest extends TestCase
 
     public function testFailedBodyExportDoesNotCloseACallerOwnedResource(): void
     {
-        $source = m::mock(StreamInterface::class);
-        $source->shouldReceive('isSeekable')->once()->andReturn(false);
-        $source->shouldReceive('eof')->once()->andReturn(false);
-        $source->shouldReceive('read')->once()->andThrow(new RuntimeException('read failed'));
+        $source = Double::for(StreamInterface::class)->strict();
+        $source->expects('isSeekable')->returns(false);
+        $source->expects('eof')->returns(false);
+        $source->expects('read')->throws(new RuntimeException('read failed'));
+        $source->allows('getMetadata')->with('timed_out')->returns(false);
         $response = $this->response(200, body: $source);
         $resource = fopen('php://temp', 'wb+');
         $this->assertIsResource($resource);

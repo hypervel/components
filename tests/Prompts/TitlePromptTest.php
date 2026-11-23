@@ -19,4 +19,14 @@ class TitlePromptTest extends TestCase
 
         Prompt::assertOutputContains("\033]0;Hello, World!\007");
     }
+
+    public function testDoesNotUpdateTheTitleWhenOutputIsNotATerminal(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+
+        title('Hello, World!');
+
+        $this->assertSame('', Prompt::content());
+    }
 }

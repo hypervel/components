@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Closure;
+use Google\Cloud\Core\Exception\ServiceException;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -12,6 +13,7 @@ use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Engine\Coroutine as Co;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -39,12 +41,13 @@ class Coroutine
     /**
      * Register a callback to be called after a coroutine is created.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs for every subsequently created coroutine. Callbacks
-     * run synchronously during child startup and must not suspend.
-     * Hooks that inherit parent context must honor DETACHED_CONTEXT_KEY while
-     * preserving values explicitly installed in the child.
+     * The callback persists in a static property for the worker lifetime and
+     * runs for every subsequently created coroutine. Callbacks run
+     * synchronously during child startup and must not suspend. Hooks that
+     * inherit parent context must honor DETACHED_CONTEXT_KEY while preserving
+     * values explicitly installed in the child.
      */
+    #[BootOnly]
     public static function afterCreated(callable $callback): void
     {
         static::$afterCreatedCallbacks[] = $callback;
@@ -69,6 +72,7 @@ class Coroutine
      */
     public static function sleep(float $seconds): void
     {
+        // @phpstan-ignore hypervel.rawSleep (the coroutine sleep itself: hooked usleep() yields the coroutine)
         usleep(intval($seconds * 1000 * 1000));
     }
 
@@ -151,6 +155,7 @@ class Coroutine
      */
     private static function createWithContext(callable $callable, array $context, ?Closure $wrapper): int
     {
+        // @phpstan-ignore hypervel.rawCoroutine (the framework wrapper: its callback catches and reports every exception)
         $coroutine = Co::create(static function () use ($callable, $context, $wrapper): void {
             try {
                 if ($wrapper === null) {
@@ -180,8 +185,6 @@ class Coroutine
         foreach (static::$afterCreatedCallbacks as $callback) {
             try {
                 $callback();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
                 static::printLog($throwable);
             }
@@ -200,10 +203,57 @@ class Coroutine
      * that the timeout elapsed. It is not a general failure signal.
      *
      * @param list<int> $coroutineIds
+     * @throws CanceledException if the caller is canceled during the wait
      */
     public static function join(array $coroutineIds, float $timeout = -1): bool
     {
-        return Co::join($coroutineIds, $timeout);
+        $joined = Co::join($coroutineIds, $timeout);
+
+        // Swoole rejects repeated live IDs before waiting. Retry only that case to avoid copying normal lists.
+        if (! $joined && swoole_last_error() === SWOOLE_ERROR_WRONG_OPERATION && count($coroutineIds) > 1) {
+            $distinctIds = array_keys(array_flip($coroutineIds));
+            if (count($distinctIds) < count($coroutineIds)) {
+                $joined = Co::join($distinctIds, $timeout);
+            }
+        }
+
+        // A join with no live targets doesn't yield, so isCanceled() can still describe an earlier wait.
+        if (! $joined && swoole_last_error() === SWOOLE_ERROR_CO_CANCELED) {
+            throw new CanceledException('Waiting for child coroutines was canceled.');
+        }
+
+        return $joined;
+    }
+
+    /**
+     * Wait for the given coroutines to finish before propagating caller cancellation.
+     *
+     * A timeout of zero or less waits without limit, like join().
+     *
+     * @param list<int> $coroutineIds
+     * @return bool whether none of the supplied coroutines remain active
+     * @throws CanceledException if the caller was canceled during the wait
+     */
+    public static function joinUninterruptibly(array $coroutineIds, float $timeout = -1): bool
+    {
+        $deadline = $timeout > 0 ? hrtime(true) / 1e9 + $timeout : null;
+        $cancellation = null;
+        $joined = false;
+
+        do {
+            try {
+                $joined = static::join($coroutineIds, $timeout);
+                break;
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
+            }
+        } while ($deadline === null || ($timeout = $deadline - hrtime(true) / 1e9) > 0);
+
+        if ($cancellation !== null) {
+            throw $cancellation;
+        }
+
+        return $joined || ! array_any($coroutineIds, Co::exists(...));
     }
 
     /**
@@ -252,20 +302,41 @@ class Coroutine
                 return false;
             }
 
+            // @phpstan-ignore hypervel.cancellation.exactType (the classification primitive walking the chain)
             if ($exception instanceof CanceledException) {
                 return true;
             }
-        } while (($exception = $exception->getPrevious()) !== null);
+
+            // Google's service cause is separate from the exception PHP chains during cleanup.
+            if ($exception instanceof ServiceException
+                && ($cause = $exception->getServiceException()) !== null
+                && static::causedByCancellation($cause)) {
+                return true;
+            }
+
+            $exception = $exception->getPrevious();
+        } while ($exception !== null);
 
         return false;
     }
 
     /**
+     * Keep the first failure unless a later failure carries this coroutine's cancellation.
+     */
+    public static function preferCancellation(?Throwable $kept, Throwable $next): Throwable
+    {
+        return $kept === null || (static::causedByCancellation($next) && ! static::causedByCancellation($kept))
+            ? $next
+            : $kept;
+    }
+
+    /**
      * Enable or disable exception reporting in coroutines.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every coroutine spawned across the process.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every coroutine spawned across the process.
      */
+    #[BootOnly]
     public static function reportExceptions(bool $report = true): void
     {
         static::$reportExceptions = $report;
@@ -274,10 +345,11 @@ class Coroutine
     /**
      * Report an exception through the exception handler.
      *
-     * @throws CanceledException When the failure or reporting path is canceled
+     * @throws Throwable When cancellation or its cleanup failure must propagate
      */
     protected static function printLog(Throwable $throwable): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a terminal reporter: a cleanup failure carrying cancellation is still reported)
         if ($throwable instanceof CanceledException) {
             throw $throwable;
         }
@@ -293,14 +365,17 @@ class Coroutine
                 $container->make(ExceptionHandlerContract::class)
                     ->report($throwable);
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (static::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             try {
                 error_log((string) $throwable);
-            } catch (CanceledException $exception) {
-                throw $exception;
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
+                if (static::causedByCancellation($exception)) {
+                    throw $exception;
+                }
             }
         }
     }
@@ -310,13 +385,17 @@ class Coroutine
      */
     protected static function reportUncaught(Throwable $throwable): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a terminal boundary: a cleanup failure carrying cancellation is still reported)
         if ($throwable instanceof CanceledException) {
             return;
         }
 
         try {
             static::printLog($throwable);
-        } catch (CanceledException) {
+        } catch (Throwable $exception) {
+            if (! static::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
     }
 

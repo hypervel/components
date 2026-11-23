@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation;
 
+use ErrorException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -24,6 +25,7 @@ use Hypervel\Tests\Testbench\Fixtures\Providers\FailingBootServiceProvider;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -188,6 +190,33 @@ class ApplicationTest extends TestCase
         yield 'without default migrations' => [['TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS=(true)'], false];
     }
 
+    #[Test]
+    public function itGivesChildProcessesAnAbsoluteComposerVendorDirectoryFromTheApplicationEnvironment(): void
+    {
+        $app = TestbenchApplication::create(
+            (string) default_skeleton_path(),
+            options: ['extra' => ['env' => ['COMPOSER_VENDOR_DIR=libs']]],
+        );
+
+        try {
+            $process = new Process([php_binary(), '-r', 'echo getenv("COMPOSER_VENDOR_DIR");']);
+            $process->mustRun();
+
+            $this->assertSame(package_path('libs'), $process->getOutput());
+        } finally {
+            // The rewritten value keeps the application environment's lifetime.
+            $forgotten = Env::forget('COMPOSER_VENDOR_DIR');
+
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
+
+        $this->assertTrue($forgotten);
+    }
+
     /**
      * @param array<string, bool> $options
      * @param array<int, string> $expected
@@ -216,6 +245,15 @@ class ApplicationTest extends TestCase
             'enabled' => [['enables_package_discoveries' => true], []],
             'disabled' => [['enables_package_discoveries' => false], ['*']],
         ];
+    }
+
+    #[Test]
+    #[TestWith([[], false])]
+    #[TestWith([['discovers_root_package' => true], true])]
+    #[TestWith([['discovers_root_package' => false], false])]
+    public function itAppliesTheRootPackageDiscoveryOption(array $options, bool $expected): void
+    {
+        $this->assertSame($expected, TestbenchApplication::make(options: $options)->discoversRootPackage());
     }
 
     #[Test]
@@ -418,14 +456,18 @@ class ApplicationTest extends TestCase
         try {
             date_default_timezone_set('Europe/London');
 
+            // A real vendor directory blocks the link. The disposable application keeps the
+            // worker's own vendor link out of reach, since creating a link first removes it.
+            (new Filesystem)->ensureDirectoryExists($this->customApplicationPath . '/vendor');
+
             try {
                 StandaloneTimezoneTestbenchApplication::createVendorSymlink(
-                    (string) default_skeleton_path(),
-                    (string) default_skeleton_path('missing-vendor'),
+                    $this->customApplicationPath,
+                    package_path('vendor'),
                 );
                 $this->fail('Expected vendor symlink creation to fail.');
-            } catch (Throwable) {
-                $this->addToAssertionCount(1);
+            } catch (ErrorException $exception) {
+                $this->assertStringContainsString('symlink(): File exists', $exception->getMessage());
             }
 
             $this->assertSame('Europe/London', date_default_timezone_get());

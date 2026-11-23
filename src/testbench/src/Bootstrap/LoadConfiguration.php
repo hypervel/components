@@ -29,6 +29,7 @@ class LoadConfiguration extends BaseLoadConfiguration
             $config->set('database.connections.testing', [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
+                // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (this default connection is configuration, set while configuration loads)
                 'foreign_key_constraints' => (bool) Env::get('DB_FOREIGN_KEYS', false),
             ]);
         }
@@ -50,7 +51,9 @@ class LoadConfiguration extends BaseLoadConfiguration
             ? $this->getBaseConfiguration()
             : [];
 
-        foreach ((new Collection($base))->diffKeys($files) as $name => $config) {
+        $baseOnly = (new Collection($base))->diffKeys($files)->all();
+
+        foreach ($baseOnly as $name => $config) {
             $repository->set($name, $config);
         }
 
@@ -58,8 +61,12 @@ class LoadConfiguration extends BaseLoadConfiguration
             $base = $this->loadConfigurationFile($repository, $name, $path, $base);
         }
 
+        // An unchanged base-only entry is already set; setting it again discards the nested
+        // files loaded below it, as the foundation loader explains.
         foreach ($base as $name => $config) {
-            $repository->set($name, $config);
+            if (! array_key_exists($name, $baseOnly) || $baseOnly[$name] !== $config) {
+                $repository->set($name, $config);
+            }
         }
     }
 

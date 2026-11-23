@@ -13,6 +13,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Promise\RejectedPromise;
 use GuzzleHttp\TransferStats;
 use Hypervel\Ai\AiManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\RequestException as HttpRequestException;
@@ -78,9 +79,11 @@ class BedrockHttpHandler
             }
 
             return new FulfilledPromise($response);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $response = $exception instanceof HttpRequestException ? $exception->response->toPsrResponse() : null;
 
             if ($exception instanceof ConnectionException && $exception->getPrevious() !== null) {

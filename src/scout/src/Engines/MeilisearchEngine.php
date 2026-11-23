@@ -394,7 +394,7 @@ class MeilisearchEngine extends Engine implements DeletesByFilter, SupportsSeman
     {
         return collect($builder->orders)
             ->map(fn (array $order) => $order['column'] . ':' . $order['direction'])
-            ->toArray();
+            ->all();
     }
 
     /**

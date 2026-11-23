@@ -25,7 +25,9 @@ use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Session\Store;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Nyholm\Psr7\Response as PsrResponse;
 use OTPHP\TOTP;
 use Psr\Clock\ClockInterface;
@@ -36,6 +38,8 @@ use Symfony\Component\HttpFoundation\Session\Storage\Handler\NullSessionHandler;
 
 class FortifyServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testViewsCanBeCustomized(): void
     {
         Fortify::loginView(function () {
@@ -67,10 +71,10 @@ class FortifyServiceProviderTest extends TestCase
 
     public function testNamedViewsReceiveTheRequest(): void
     {
-        $factory = m::mock(ResponseFactory::class);
-        $factory->shouldReceive('view')->once()->with('auth.login', m::on(
+        $factory = Double::for(ResponseFactory::class)->strict();
+        $factory->expects('view')->with('auth.login', Argument::satisfies(
             static fn (array $parameters): bool => $parameters['request'] instanceof Request,
-        ))->andReturn(new HttpResponse('Login'));
+        ))->returns(new HttpResponse('Login'));
         $this->app->instance(ResponseFactory::class, $factory);
         Fortify::loginView('auth.login');
 
@@ -190,12 +194,12 @@ class FortifyServiceProviderTest extends TestCase
         ]);
         $tracker = new ConfigMutationTracker;
         $tracker->observe($masterConfig);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturnFalse();
-        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        $app = Double::for(Application::class, override: true)->passthru();
+        $app->allows('configurationIsCached')->returns(false);
+        $app->allows('make')->with('config')->returns($masterConfig);
+        $app->allows('make')->with(ConfigMutationTracker::class)->returns($tracker);
 
-        (new ReflectionMethod(FortifyServiceProvider::class, 'configurePasskeys'))->invoke(new FortifyServiceProvider($app));
+        (new ReflectionMethod(FortifyServiceProvider::class, 'configurePasskeys'))->invoke(new FortifyServiceProvider($app->instance()));
 
         $this->assertSame('old.example.test', $masterConfig->get('passkeys.relying_party_id'));
 
@@ -259,7 +263,7 @@ class FortifyServiceProviderTest extends TestCase
 
     public function testActionsCanBeRegisteredWithNonClosureCallables(): void
     {
-        $creator = m::mock(CreatesNewUsers::class);
+        $creator = Double::for(CreatesNewUsers::class)->strict();
 
         Fortify::createUsersUsing(new class($creator) {
             public function __construct(

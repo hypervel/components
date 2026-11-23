@@ -374,6 +374,28 @@ try {
 
 `Coroutine::causedByCancellation` also recognizes cancellation when a `finally` block throws another exception while unwinding it. Rethrowing preserves any cleanup error for the caller to report. A cancellation wrapped in `Hypervel\Coroutine\Exceptions\ForeignCancellationException` came from another coroutine, such as the owner of a shared operation this code was waiting for. If the chain reaches that exception before it reaches a cancellation, `causedByCancellation` returns `false`, so you can handle it as an ordinary failure. `ChildCancellationException` extends it for independently canceled children.
 
+When work is shared, store its result or failure before waking waiting coroutines, and retain failures that later callers need to read. When passing cancellation to another coroutine, wrap it in `ForeignCancellationException`, or `ChildCancellationException` for an independently canceled child. Rethrow the original only in the canceled coroutine. Canceled work must not appear to have succeeded with an empty result.
+
+Libraries may wrap cancellation in a more specific exception, such as Flysystem's `UnableToReadFile`. Check for cancellation before translating these exceptions, so callers do not treat canceled work as an ordinary application failure.
+
+A direct `CanceledException` catch only matches cancellation thrown directly. Check the whole `try` block: if it also runs callbacks, listeners, or `DB::releaseIdleConnections()`, use `causedByCancellation` to recognize cancellation carried by another exception.
+
+If a failure listener throws inside a `catch` block, its exception replaces the original. Dispatch from a `finally` block while rethrowing instead. PHP then attaches the original as the listener exception's previous exception, so `causedByCancellation` still detects it:
+
+```php
+try {
+    performOperation();
+} catch (Throwable $exception) {
+    try {
+        throw $exception;
+    } finally {
+        event(new OperationFailed($exception));
+    }
+}
+```
+
+When collecting failures from several cleanup steps, or ignoring a cleanup failure to keep the original one, use `Coroutine::preferCancellation($kept, $next)`. It keeps the first failure, replacing an ordinary failure when a later one carries this coroutine's cancellation.
+
 Cleanup that does not wait should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
 
 <a name="reporting-unhandled-exceptions"></a>
@@ -952,19 +974,9 @@ $coroutineIds = Coroutine::list();
 
 The `join` method waits for the supplied child coroutine IDs to finish. You may include IDs for coroutines that have already finished.
 
-A `false` result may mean that none of the supplied coroutines remained active or that the timeout elapsed. It does not always indicate a failure.
+A `false` result may mean that all supplied coroutines had already finished or that the timeout elapsed. If the caller is canceled during the wait, `join` throws a `CanceledException`.
 
-Low-level infrastructure that must distinguish a canceled native wait from its other `false` outcomes may inspect the engine cancellation state immediately:
-
-```php
-use Hypervel\Engine\Coroutine as EngineCoroutine;
-
-if (! Coroutine::join($coroutineIds) && EngineCoroutine::isCanceled()) {
-    // The join was canceled...
-}
-```
-
-This state is not durable. Read it only at the failed native operation boundary.
+Use `joinUninterruptibly` when cleanup must wait for children to exit even if the caller is canceled. It waits until the children exit or the original timeout expires, then throws the caller's first cancellation. Without cancellation, it returns `true` if none of the supplied coroutines are still running. As with `join`, a timeout of zero or less waits without a deadline.
 
 The `afterCreated` method registers a callback that runs during child startup for `Coroutine::create`, `fork`, `createOwned`, and `forkOwned`, as well as helpers such as `go` and `co`:
 

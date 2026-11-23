@@ -7,6 +7,9 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Operations\AllTag\Prune;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClusterClient;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
+use RedisCluster;
 
 class PruneTest extends RedisCacheTestCase
 {
@@ -310,113 +313,75 @@ class PruneTest extends RedisCacheTestCase
 
     public function testClusterPruneBatchesOrphansThatRemainRemoved(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldNotReceive('pipeline');
-        $connection->shouldReceive('isCluster')->once()->andReturn(true);
-        $connection->shouldReceive('getShouldTransform')->once()->andReturn(false);
-        $connection->shouldReceive('masters')->once()->andReturn([['127.0.0.1', 7000]]);
-        $connection->shouldReceive('scan')
-            ->once()
-            ->andReturnUsing(function (&$iterator, $master, $pattern, $count): array {
-                $iterator = 0;
-
-                return ['prefix:_all:tag:users:entries'];
-            });
-        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->andReturnUsing(function ($tagKey, &$iterator): array {
-                $iterator = 0;
-
-                return ['live' => 1.0, 'orphan1' => 2.0, 'orphan2' => 3.0];
-            });
-        $connection->shouldReceive('exists')->once()->with('prefix:live')->andReturn(1);
-        $connection->shouldReceive('exists')->twice()->with('prefix:orphan1')->andReturn(0);
-        $connection->shouldReceive('exists')->twice()->with('prefix:orphan2')->andReturn(0);
-        $connection->shouldReceive('zrem')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 'orphan1', 'orphan2')
-            ->andReturn(2);
-        $connection->shouldReceive('zCard')->once()->andReturn(1);
+        $client = new PruneRedisClusterClient(
+            ['live' => 1.0, 'orphan1' => 2.0, 'orphan2' => 3.0],
+            ['prefix:live' => [1], 'prefix:orphan1' => [0, 0], 'prefix:orphan2' => [0, 0]],
+            removed: 2,
+        );
+        $connection = (new PhpRedisClusterConnectionStub)->setActiveConnection($client);
+        $store = $this->createStore($connection);
 
         $result = (new Prune($store->getContext()))->execute();
 
         $this->assertSame(3, $result['entries_checked']);
         $this->assertSame(2, $result['orphans_removed']);
+        $this->assertSame([
+            ['zRemRangeByScore', 'prefix:_all:tag:users:entries'],
+            ['zscan', 'prefix:_all:tag:users:entries', null, '*', 1000],
+            ['exists', 'prefix:live'],
+            ['exists', 'prefix:orphan1'],
+            ['exists', 'prefix:orphan2'],
+            ['zrem', 'prefix:_all:tag:users:entries', 'orphan1', 'orphan2'],
+            ['exists', 'prefix:orphan1'],
+            ['exists', 'prefix:orphan2'],
+            ['zCard', 'prefix:_all:tag:users:entries'],
+        ], $client->commands);
+        $this->assertCount(1, $client->getScanCalls());
+        $this->assertSame(1, $client->mastersRequested);
     }
 
     public function testClusterPruneRepairsMembershipWithoutOverwritingAWriterScore(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('isCluster')->once()->andReturn(true);
-        $connection->shouldReceive('getShouldTransform')->once()->andReturn(false);
-        $connection->shouldReceive('masters')->once()->andReturn([['127.0.0.1', 7000]]);
-        $connection->shouldReceive('scan')
-            ->once()
-            ->andReturnUsing(function (&$iterator, $master, $pattern, $count): array {
-                $iterator = 0;
-
-                return ['prefix:_all:tag:users:entries'];
-            });
-        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->andReturnUsing(function ($tagKey, &$iterator): array {
-                $iterator = 0;
-
-                return ['raced' => 1.0];
-            });
-        $connection->shouldReceive('exists')
-            ->twice()
-            ->with('prefix:raced')
-            ->andReturn(0, 1);
-        $connection->shouldReceive('zrem')->once()->andReturn(1);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'raced')
-            ->andReturn(0);
-        $connection->shouldReceive('zCard')->once()->andReturn(1);
+        $client = new PruneRedisClusterClient(['raced' => 1.0], ['prefix:raced' => [0, 1]], removed: 1);
+        $connection = (new PhpRedisClusterConnectionStub)->setActiveConnection($client);
+        $store = $this->createStore($connection);
 
         $result = (new Prune($store->getContext()))->execute();
 
         $this->assertSame(0, $result['orphans_removed']);
+        $this->assertSame([
+            ['zRemRangeByScore', 'prefix:_all:tag:users:entries'],
+            ['zscan', 'prefix:_all:tag:users:entries', null, '*', 1000],
+            ['exists', 'prefix:raced'],
+            ['zrem', 'prefix:_all:tag:users:entries', 'raced'],
+            ['exists', 'prefix:raced'],
+            ['zadd', 'prefix:_all:tag:users:entries', ['NX'], -1, 'raced'],
+            ['zCard', 'prefix:_all:tag:users:entries'],
+        ], $client->commands);
+        $this->assertCount(1, $client->getScanCalls());
+        $this->assertSame(1, $client->mastersRequested);
     }
 
     public function testClusterPruneRepairsMembershipAfterConcurrentRemovalReturnsZero(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('isCluster')->once()->andReturn(true);
-        $connection->shouldReceive('getShouldTransform')->once()->andReturn(false);
-        $connection->shouldReceive('masters')->once()->andReturn([['127.0.0.1', 7000]]);
-        $connection->shouldReceive('scan')
-            ->once()
-            ->andReturnUsing(function (&$iterator): array {
-                $iterator = 0;
-
-                return ['prefix:_all:tag:users:entries'];
-            });
-        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->andReturnUsing(function ($tagKey, &$iterator): array {
-                $iterator = 0;
-
-                return ['raced' => 1.0];
-            });
-        $connection->shouldReceive('exists')
-            ->twice()
-            ->with('prefix:raced')
-            ->andReturn(0, 1);
-        $connection->shouldReceive('zrem')->once()->andReturn(0);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'raced')
-            ->andReturn(0);
-        $connection->shouldReceive('zCard')->once()->andReturn(1);
+        $client = new PruneRedisClusterClient(['raced' => 1.0], ['prefix:raced' => [0, 1]], removed: 0);
+        $connection = (new PhpRedisClusterConnectionStub)->setActiveConnection($client);
+        $store = $this->createStore($connection);
 
         $result = (new Prune($store->getContext()))->execute();
 
         $this->assertSame(0, $result['orphans_removed']);
+        $this->assertSame([
+            ['zRemRangeByScore', 'prefix:_all:tag:users:entries'],
+            ['zscan', 'prefix:_all:tag:users:entries', null, '*', 1000],
+            ['exists', 'prefix:raced'],
+            ['zrem', 'prefix:_all:tag:users:entries', 'raced'],
+            ['exists', 'prefix:raced'],
+            ['zadd', 'prefix:_all:tag:users:entries', ['NX'], -1, 'raced'],
+            ['zCard', 'prefix:_all:tag:users:entries'],
+        ], $client->commands);
+        $this->assertCount(1, $client->getScanCalls());
+        $this->assertSame(1, $client->mastersRequested);
     }
 
     public function testPruneHandlesOptPrefixCorrectly(): void
@@ -448,5 +413,85 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame('myapp:cache:_all:tag:*:entries', $fakeClient->getScanCalls()[0]['pattern']);
 
         $this->assertSame(1, $result['tags_scanned']);
+    }
+}
+
+/**
+ * Simulate changing key existence while preserving native scan cursor updates.
+ */
+class PruneRedisClusterClient extends FakeRedisClusterClient
+{
+    public array $commands = [];
+
+    /**
+     * Configure the members and successive existence checks for one tag.
+     */
+    public function __construct(private array $members, private array $existence, private int $removed)
+    {
+        parent::__construct(
+            masters: [['127.0.0.1', 7000]],
+            scanResults: ['127.0.0.1:7000' => [['keys' => ['prefix:_all:tag:users:entries'], 'iterator' => 0]]],
+        );
+    }
+
+    /**
+     * Return the tag members and finish the scan.
+     */
+    public function zscan(string $key, int|string|null &$iterator, ?string $pattern = null, int $count = 0): RedisCluster|array|false
+    {
+        $this->commands[] = ['zscan', $key, $iterator, $pattern, $count];
+        $iterator = 0;
+
+        return $this->members;
+    }
+
+    /**
+     * Return the next existence result for the key.
+     */
+    public function exists(mixed $key, mixed ...$other_keys): RedisCluster|int|bool
+    {
+        $this->commands[] = ['exists', $key, ...$other_keys];
+
+        return array_shift($this->existence[$key]);
+    }
+
+    /**
+     * Record the batched removal and return its configured result.
+     */
+    public function zrem(mixed $key, mixed $member, mixed ...$other_members): RedisCluster|int|false
+    {
+        $this->commands[] = ['zrem', $key, $member, ...$other_members];
+
+        return $this->removed;
+    }
+
+    /**
+     * Record the membership repair without replacing the writer's score.
+     */
+    public function zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems): RedisCluster|int|float|false
+    {
+        $this->commands[] = ['zadd', $key, $score_or_options, ...$more_scores_and_mems];
+
+        return 0;
+    }
+
+    /**
+     * Keep the tag set nonempty after pruning.
+     */
+    public function zCard(string $key): RedisCluster|int|false
+    {
+        $this->commands[] = ['zCard', $key];
+
+        return 1;
+    }
+
+    /**
+     * Keep the configured members available for orphan checks.
+     */
+    public function zRemRangeByScore(string $key, string $min, string $max): RedisCluster|int|false
+    {
+        $this->commands[] = ['zRemRangeByScore', $key];
+
+        return 0;
     }
 }

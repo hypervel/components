@@ -12,6 +12,8 @@ use Hypervel\Contracts\Debug\ShouldntReport;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Middleware\PrefersJsonResponses;
@@ -21,9 +23,13 @@ use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Lottery;
 use Hypervel\Testbench\TestCase;
 use Monolog\Handler\TestHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\Process\PhpProcess;
 use Throwable;
@@ -45,6 +51,55 @@ class ExceptionHandlerTest extends TestCase
             ->assertExactJson([
                 'message' => 'expected message',
             ]);
+    }
+
+    #[TestWith([false, true], 'accepted')]
+    #[TestWith([true, true], 'accepted and mapped')]
+    #[TestWith([true, false], 'rejected and mapped')]
+    public function testCancellationCleanupIsReportedOnceAcrossMiddlewareAndKernel(bool $mapped, bool $accepted): void
+    {
+        $failure = new RuntimeException('cleanup failed', 0, new CanceledException('canceled'));
+        $handler = $this->app->make(ExceptionHandler::class);
+        $reported = [];
+        $policyEvaluations = 0;
+
+        Lottery::forceResultWithSequence([$accepted, ! $accepted], static fn (): bool => ! $accepted);
+        $handler->throttleUsing(function (Throwable $exception) use (&$policyEvaluations): Lottery {
+            ++$policyEvaluations;
+
+            return Lottery::odds(1, 1000);
+        });
+
+        if ($mapped) {
+            $handler->map(RuntimeException::class, static fn (RuntimeException $exception): Exception => new Exception('mapped cleanup', 0, $exception));
+        }
+
+        $handler->reportable(function (Throwable $exception) use (&$reported): false {
+            $reported[] = $exception;
+
+            return false;
+        });
+
+        Route::get('canceled', static fn (): never => throw $failure)
+            ->middleware([TrimStrings::class, ConvertEmptyStringsToNull::class]);
+
+        try {
+            $this->app->make(HttpKernel::class)->handle(Request::create('/canceled'));
+            $this->fail('The cancellation was not preserved.');
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        // The native server also reports the escaping exception before containing it.
+        $handler->report($failure);
+
+        $this->assertSame($accepted, $handler->shouldReport($failure));
+        $this->assertSame(1, $policyEvaluations);
+        $this->assertCount((int) $accepted, $reported);
+
+        if ($accepted) {
+            $this->assertSame($failure, $mapped ? $reported[0]->getPrevious() : $reported[0]);
+        }
     }
 
     public function testItDoesntReportExceptionsWithShouldntReportInterface(): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http\Client;
 
 use GuzzleHttp\Psr7\Message;
+use Hypervel\Support\Attributes\BootOnly;
 
 class RequestException extends HttpClientException
 {
@@ -43,9 +44,10 @@ class RequestException extends HttpClientException
     /**
      * Enable truncation of request exception messages.
      *
-     * Boot-only. The global default persists for the worker lifetime across all
+     * The global default persists for the worker lifetime across all
      * coroutines; per-request truncation settings take precedence.
      */
+    #[BootOnly]
     public static function truncate(): void
     {
         static::$truncateAt = self::DEFAULT_TRUNCATE_AT;
@@ -54,9 +56,10 @@ class RequestException extends HttpClientException
     /**
      * Set the truncation length for request exception messages.
      *
-     * Boot-only. The global default persists for the worker lifetime across all
+     * The global default persists for the worker lifetime across all
      * coroutines; per-request truncation settings take precedence.
      */
+    #[BootOnly]
     public static function truncateAt(int $length): void
     {
         static::$truncateAt = $length;
@@ -65,9 +68,10 @@ class RequestException extends HttpClientException
     /**
      * Disable truncation of request exception messages.
      *
-     * Boot-only. The global default persists for the worker lifetime across all
+     * The global default persists for the worker lifetime across all
      * coroutines; per-request truncation settings take precedence.
      */
+    #[BootOnly]
     public static function dontTruncate(): void
     {
         static::$truncateAt = false;

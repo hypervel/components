@@ -6,6 +6,7 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 
 /**
@@ -53,7 +54,10 @@ class Notification extends Facade
 {
     /**
      * Replace the bound instance with a fake.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(): NotificationFake
     {
         return tap(new NotificationFake, function ($fake) {

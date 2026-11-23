@@ -15,6 +15,8 @@ use Hypervel\Database\PdoConnection;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use LogicException;
 use PDO;
@@ -99,9 +101,10 @@ class ConnectionFactory
     /**
      * Register an extension connection resolver.
      *
-     * Boot-only. The resolver persists in the singleton factory's extensions
-     * array for the worker lifetime and applies to every subsequent connection.
+     * The resolver persists in the singleton factory's extensions array for the
+     * worker lifetime and applies to every subsequent connection.
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $name, callable $resolver): void
     {
         $this->extensions[$name] = $resolver;
@@ -110,10 +113,11 @@ class ConnectionFactory
     /**
      * Remove an extension connection resolver.
      *
-     * Boot or tests only. Mutates the singleton factory's extensions array;
-     * concurrent coroutines establishing connections may see the resolver
-     * removed mid-resolution.
+     * Mutates the singleton factory's extensions array; concurrent
+     * coroutines establishing connections may see the resolver removed
+     * mid-resolution.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetExtension(string $name): void
     {
         unset($this->extensions[$name]);

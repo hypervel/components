@@ -92,6 +92,8 @@ class JobPayload implements ArrayAccess
 
     /**
      * Prepare the payload for storage on the queue by adding tags, etc.
+     *
+     * @return $this
      */
     public function prepare(mixed $job): static
     {
@@ -103,6 +105,8 @@ class JobPayload implements ArrayAccess
 
     /**
      * Prepare the payload metadata while the original job is available.
+     *
+     * @return $this
      */
     public function prepareForQueueing(mixed $job): static
     {
@@ -131,6 +135,8 @@ class JobPayload implements ArrayAccess
 
     /**
      * Mark the payload as published to Redis.
+     *
+     * @return $this
      */
     public function markAsPushed(): static
     {
@@ -198,6 +204,8 @@ class JobPayload implements ArrayAccess
 
     /**
      * Set the given key / value pairs on the payload.
+     *
+     * @return $this
      */
     public function set(array $values): static
     {

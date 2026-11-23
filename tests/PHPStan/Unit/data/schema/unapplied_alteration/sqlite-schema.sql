@@ -1,0 +1,3 @@
+CREATE TABLE users (id INTEGER, name TEXT);
+CREATE TABLE posts (id INTEGER, title TEXT);
+ALTER TABLE users DROP COLUMN name;

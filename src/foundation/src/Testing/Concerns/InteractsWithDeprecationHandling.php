@@ -15,6 +15,8 @@ trait InteractsWithDeprecationHandling
 
     /**
      * Restore deprecation handling.
+     *
+     * @return $this
      */
     protected function withDeprecationHandling(): static
     {
@@ -27,6 +29,8 @@ trait InteractsWithDeprecationHandling
 
     /**
      * Disable deprecation handling for the test.
+     *
+     * @return $this
      *
      * @throws ErrorException
      */

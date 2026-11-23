@@ -12,8 +12,8 @@ final readonly class Boolean implements Question
     /**
      * Create a new yes / no question whose answer is the probability of "true".
      *
-     * @param array<string, mixed>|string $instructions
-     * @param null|array{true?: string, false?: string} $criteria descriptions of what a yes and a no mean
+     * @param array<array-key, mixed>|string $instructions
+     * @param null|array{true?: array<array-key, mixed>|string, false?: array<array-key, mixed>|string} $criteria descriptions of what a yes and a no mean
      *
      * @throws InvalidArgumentException if the criteria describe anything but the true and false cases
      */

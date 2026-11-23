@@ -7,6 +7,7 @@ namespace Hypervel\Mcp;
 use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Mcp\Enums\ErrorCode;
 use Hypervel\Mcp\Enums\Extension;
 use Hypervel\Mcp\Enums\MetaKey;
@@ -51,7 +52,6 @@ use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use JsonException;
 use stdClass;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -226,8 +226,9 @@ abstract class Server
                 throw new JsonRpcException('Parse error: Invalid JSON was received by the server.', ErrorCode::PARSE_ERROR->value);
             }
 
-            if (! is_array($jsonRequest) || array_is_list($jsonRequest)) {
-                throw new JsonRpcException('Invalid Request: The message must be an object.', ErrorCode::INVALID_REQUEST->value);
+            // JSON objects and arrays both decode to PHP arrays, so the first character identifies an object.
+            if ($rawMessage[strspn($rawMessage, " \t\n\r")] !== '{') {
+                throw new JsonRpcException('Invalid Request: The request must be a JSON object.', ErrorCode::INVALID_REQUEST->value);
             }
 
             $request = array_key_exists('id', $jsonRequest)
@@ -240,15 +241,12 @@ abstract class Server
 
             $requestId = $request->id;
             $request->source = $rawMessage;
-            $legacy = $request->isLegacy();
 
-            if (! $legacy) {
+            if (! $request->isLegacy()) {
                 $this->validateProtocolMeta($request, $context);
             }
 
-            // Initialize and ping belong to the legacy protocol, even on a server supporting both eras.
-            if (! isset($this->methods[$request->method])
-                || (! $legacy && in_array($request->method, ['initialize', 'ping'], true))) {
+            if (! $this->implementsMethod($request)) {
                 throw new JsonRpcException(
                     "The method [{$request->method}] was not found.",
                     ErrorCode::METHOD_NOT_FOUND->value,
@@ -257,8 +255,6 @@ abstract class Server
             }
 
             $this->handleMessage($request, $context);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
             $this->sendException($exception, $context, $requestId);
         }
@@ -269,8 +265,17 @@ abstract class Server
      */
     protected function sendException(Throwable $exception, ServerContext $context, int|string|null $requestId): void
     {
+        if (Coroutine::causedByCancellation($exception)) {
+            throw $exception;
+        }
+
         if ($exception instanceof JsonRpcException) {
             $response = $exception->toJsonRpcResponse();
+
+            // The exception may omit the request ID, which the client needs to match the error.
+            if ($requestId !== null) {
+                $response->content['id'] ??= $requestId;
+            }
         } else {
             report($exception);
 
@@ -285,18 +290,7 @@ abstract class Server
             );
         }
 
-        try {
-            $this->send($response, $context);
-        } catch (JsonException $exception) {
-            report($exception);
-
-            // Error data supplied by application code can also be unencodable.
-            $this->transport->send(JsonRpcResponse::error(
-                $requestId,
-                ErrorCode::INTERNAL_ERROR->value,
-                'Something went wrong while processing the request.',
-            )->toJson());
-        }
+        $this->send($response, $context);
     }
 
     /**
@@ -375,6 +369,20 @@ abstract class Server
     }
 
     /**
+     * Determine whether the server implements the requested method.
+     */
+    protected function implementsMethod(JsonRpcRequest $request): bool
+    {
+        if (! isset($this->methods[$request->method])) {
+            return false;
+        }
+
+        // Unlike upstream, this checks the method name rather than its handler class. The stateless
+        // protocol removed initialize and ping by name, even when the application replaces their handlers.
+        return $request->isLegacy() || ! in_array($request->method, ['initialize', 'ping'], true);
+    }
+
+    /**
      * Invoke the method and deliver its eager or streamed response.
      *
      * @throws JsonRpcException
@@ -417,8 +425,6 @@ abstract class Server
                 $this->send($message, $context, $request);
                 yield;
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
             $this->sendException($exception, $context, $request->id);
             yield;
@@ -441,7 +447,31 @@ abstract class Server
             ];
         }
 
-        $this->transport->send($response->toJson());
+        // A method may return an error without the request ID, which the client needs to match the error.
+        if ($request instanceof JsonRpcRequest && array_key_exists('error', $response->content)) {
+            $response->content['id'] ??= $request->id;
+        }
+
+        try {
+            $message = $response->toJson();
+        } catch (JsonException $jsonException) {
+            report($jsonException);
+
+            // Dropping an unencodable notification lets a streamed request still deliver its result.
+            if (array_key_exists('method', $response->content)) {
+                return;
+            }
+
+            $message = JsonRpcResponse::error(
+                $response->content['id'] ?? null,
+                ErrorCode::INTERNAL_ERROR->value,
+                Container::getInstance()->make(Repository::class)->boolean('app.debug')
+                    ? $jsonException->getMessage()
+                    : 'Something went wrong while processing the request.',
+            )->toJson();
+        }
+
+        $this->transport->send($message);
     }
 
     /**

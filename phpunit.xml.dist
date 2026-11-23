@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit backupGlobals="false"
+         defaultTestSuite="Hypervel Packages Test Suite"
          bootstrap="tests/bootstrap.php"
          beStrictAboutTestsThatDoNotTestAnything="false"
          colors="true"
@@ -17,6 +18,26 @@
     <testsuites>
         <testsuite name="Hypervel Packages Test Suite">
             <directory suffix="Test.php">./tests</directory>
+            <!-- PHPStan analyzer tests run through phpunit.phpstan.xml.dist. -->
+            <exclude>./tests/PHPStan</exclude>
+        </testsuite>
+        <testsuite name="database">
+            <directory>./tests/Integration/Database</directory>
+            <directory>./tests/Integration/*/Database</directory>
+            <!-- Only direct package tests are shared. Each driver suite includes its own subdirectories. -->
+            <exclude>./tests/Integration/*/Database/*/</exclude>
+        </testsuite>
+        <testsuite name="mysql">
+            <directory>./tests/Integration/*/Database/MySql</directory>
+        </testsuite>
+        <testsuite name="mariadb">
+            <directory>./tests/Integration/*/Database/MariaDb</directory>
+        </testsuite>
+        <testsuite name="pgsql">
+            <directory>./tests/Integration/*/Database/Postgres</directory>
+        </testsuite>
+        <testsuite name="sqlite">
+            <directory>./tests/Integration/*/Database/Sqlite</directory>
         </testsuite>
     </testsuites>
     <extensions>
@@ -29,6 +50,7 @@
         <ini name="display_startup_errors" value="on"/>
         <ini name="memory_limit" value="1024M"/>
         <server name="HYPERVEL_PARALLEL_TESTING" value="1"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
         <!--
             Fix terminal dimensions so console-output assertions do not depend
             on the developer's terminal size.

@@ -8,12 +8,13 @@ use GuzzleHttp\Client;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\AbstractProvider;
 use Hypervel\Socialite\Two\User;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
 use SensitiveParameter;
 
 class OAuthTwoTestProviderStub extends AbstractProvider
 {
-    public ?Client $http = null;
+    public (Client&DoubleInterface)|null $http = null;
 
     protected function getAuthUrl(?string $state): string
     {
@@ -66,7 +67,7 @@ class OAuthTwoTestProviderStub extends AbstractProvider
     }
 
     /**
-     * Get a fresh instance of the Guzzle HTTP client.
+     * Return the test HTTP client.
      */
     protected function getHttpClient(): Client
     {
@@ -74,6 +75,6 @@ class OAuthTwoTestProviderStub extends AbstractProvider
             return $this->http;
         }
 
-        return $this->http = m::mock(Client::class);
+        return $this->http = Double::for(Client::class)->strict();
     }
 }

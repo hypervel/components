@@ -9,6 +9,7 @@ use Hypervel\Ai\Files\File;
 use Hypervel\Ai\Gateway\FakeClassificationGateway;
 use Hypervel\Ai\PendingResponses\PendingClassification;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 
 class Classification
@@ -29,8 +30,9 @@ class Classification
     /**
      * Fake classification operations.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeClassificationGateway
     {
         return Ai::fakeClassification($responses);

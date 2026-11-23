@@ -1,0 +1,10 @@
+includes:
+    - ../../phpstan-tests.neon
+parameters:
+    # Hypervel's own configurations turn this off, and config file @return types still apply.
+    treatPhpDocTypesAsCertain: false
+    checkConfigTypes: true
+    configDirectories:
+        - %rootDir%/../../../tests/PHPStan/Type/data/config-file-resolution/config
+        - %rootDir%/../../../tests/PHPStan/Type/data/config-file-resolution/modules/*/config
+        - '%rootDir%/../../../tests/PHPStan/Type/data/config-file-resolution/literal[1]/config'

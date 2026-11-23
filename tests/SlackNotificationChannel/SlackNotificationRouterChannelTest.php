@@ -15,19 +15,23 @@ use Hypervel\Notifications\SlackNotificationRouterChannel;
 use Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures\SlackChannelTestNotifiable;
 use Hypervel\Tests\SlackNotificationChannel\Slack\Fixtures\SlackChannelTestNotification;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class SlackNotificationRouterChannelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItRoutesTheNotificationToTheWebhookChannelWhenTheNotifiableRouteIsAStringUrl(): void
     {
         $app = new Container;
-        $webhook = m::mock(SlackWebhookChannel::class);
-        $webApi = m::mock(SlackWebApiChannel::class);
-        $webhook->shouldReceive('send')->once()->withArgs(function (SlackChannelTestNotifiable $notifiable, Notification $notification): bool {
+        $webhook = Double::for(SlackWebhookChannel::class)->strict();
+        $webApi = Double::for(SlackWebApiChannel::class)->strict();
+        $webhook->expects('send')->with(Argument::all(function (SlackChannelTestNotifiable $notifiable, Notification $notification): bool {
             return $notifiable->routeNotificationFor('slack', $notification) === 'http://example.com';
-        })->andReturn(new Response);
-        $webApi->shouldNotReceive('send');
+        }))->returns(new Response);
+        $webApi->expects('send')->never();
         $app->instance(SlackWebhookChannel::class, $webhook);
         $app->instance(SlackWebApiChannel::class, $webApi);
 
@@ -39,12 +43,12 @@ class SlackNotificationRouterChannelTest extends TestCase
     public function testItRoutesTheNotificationToTheWebhookChannelWhenTheNotifiableRouteIsAPsrUrlInstance(): void
     {
         $app = new Container;
-        $webhook = m::mock(SlackWebhookChannel::class);
-        $webApi = m::mock(SlackWebApiChannel::class);
-        $webhook->shouldReceive('send')->once()->withArgs(function (SlackChannelTestNotifiable $notifiable, Notification $notification): bool {
+        $webhook = Double::for(SlackWebhookChannel::class)->strict();
+        $webApi = Double::for(SlackWebApiChannel::class)->strict();
+        $webhook->expects('send')->with(Argument::all(function (SlackChannelTestNotifiable $notifiable, Notification $notification): bool {
             return $notifiable->routeNotificationFor('slack', $notification) instanceof Uri;
-        })->andReturn(new Response);
-        $webApi->shouldNotReceive('send');
+        }))->returns(new Response);
+        $webApi->expects('send')->never();
         $app->instance(SlackWebhookChannel::class, $webhook);
         $app->instance(SlackWebApiChannel::class, $webApi);
 
@@ -56,12 +60,12 @@ class SlackNotificationRouterChannelTest extends TestCase
     public function testItRoutesTheNotificationToTheWebApiChannelWhenTheNotifiableRouteIsNotAnUrl(): void
     {
         $app = new Container;
-        $webhook = m::mock(SlackWebhookChannel::class);
-        $webApi = m::mock(SlackWebApiChannel::class);
-        $webhook->shouldNotReceive('send');
-        $webApi->shouldReceive('send')->once()->withArgs(function (SlackChannelTestNotifiable $notifiable, Notification $notification): bool {
+        $webhook = Double::for(SlackWebhookChannel::class)->strict();
+        $webApi = Double::for(SlackWebApiChannel::class)->strict();
+        $webhook->expects('send')->never();
+        $webApi->expects('send')->with(Argument::all(function (SlackChannelTestNotifiable $notifiable, Notification $notification): bool {
             return $notifiable->routeNotificationFor('slack', $notification) === '#general';
-        })->andReturn($response = new HttpResponse(new Response));
+        }))->returns($response = new HttpResponse(new Response));
         $app->instance(SlackWebhookChannel::class, $webhook);
         $app->instance(SlackWebApiChannel::class, $webApi);
 
@@ -76,10 +80,10 @@ class SlackNotificationRouterChannelTest extends TestCase
     public function testItStopsSendingWhenTheNotifiableRouteIsFalse(): void
     {
         $app = new Container;
-        $webhook = m::mock(SlackWebhookChannel::class);
-        $webApi = m::mock(SlackWebApiChannel::class);
-        $webhook->shouldNotReceive('send');
-        $webApi->shouldNotReceive('send');
+        $webhook = Double::for(SlackWebhookChannel::class)->strict();
+        $webApi = Double::for(SlackWebApiChannel::class)->strict();
+        $webhook->expects('send')->never();
+        $webApi->expects('send')->never();
         $app->instance(SlackWebhookChannel::class, $webhook);
         $app->instance(SlackWebApiChannel::class, $webApi);
 

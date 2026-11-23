@@ -11,7 +11,6 @@ use Hypervel\Ai\Contracts\Providers\StoreProvider;
 use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Gateway\Concerns\CreatesClient;
 use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
-use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\StoreFileCounts;
 use Hypervel\Ai\Store;
@@ -24,9 +23,9 @@ use Hypervel\Support\Str;
 
 class GeminiStoreGateway implements StoreGateway
 {
+    use Concerns\HandlesGeminiErrors;
     use CreatesClient;
     use EncodesResourceIds;
-    use HandlesFailoverErrors;
 
     /**
      * Get a vector store by its ID.

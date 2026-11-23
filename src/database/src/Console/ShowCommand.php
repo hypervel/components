@@ -167,7 +167,7 @@ class ShowCommand extends DatabaseInspectionCommand
                 $tableSize = is_null($table['size']) ? null : Number::fileSize($table['size'], 2);
 
                 $this->components->twoColumnDetail(
-                    ($table['schema'] ? $table['schema'] . ' <fg=gray;options=bold>/</> ' : '') . $table['table'] . ($this->output->isVerbose() ? ' <fg=gray>' . $table['engine'] . '</>' : null),
+                    ($table['schema'] !== null ? $table['schema'] . ' <fg=gray;options=bold>/</> ' : '') . $table['table'] . ($this->output->isVerbose() ? ' <fg=gray>' . $table['engine'] . '</>' : null),
                     ($tableSize ?? '—') . ($this->option('counts') ? ' <fg=gray;options=bold>/</> <fg=yellow;options=bold>' . Number::format($table['rows']) . '</>' : '')
                 );
 
@@ -192,7 +192,7 @@ class ShowCommand extends DatabaseInspectionCommand
             );
 
             $views->each(fn ($view) => $this->components->twoColumnDetail(
-                ($view['schema'] ? $view['schema'] . ' <fg=gray;options=bold>/</> ' : '') . $view['view'],
+                ($view['schema'] !== null ? $view['schema'] . ' <fg=gray;options=bold>/</> ' : '') . $view['view'],
                 Number::format($view['rows'])
             ));
 
@@ -208,7 +208,7 @@ class ShowCommand extends DatabaseInspectionCommand
             );
 
             $types->each(fn ($type) => $this->components->twoColumnDetail(
-                ($type['schema'] ? $type['schema'] . ' <fg=gray;options=bold>/</> ' : '') . $type['name'],
+                ($type['schema'] !== null ? $type['schema'] . ' <fg=gray;options=bold>/</> ' : '') . $type['name'],
                 $type['type'] . ' <fg=gray;options=bold>/</> ' . $type['category']
             ));
 

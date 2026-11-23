@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ServerProcess;
 
 use Closure;
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Coroutine\Coroutine;
@@ -15,22 +15,26 @@ use Hypervel\ServerProcess\Exceptions\SocketAcceptException;
 use Hypervel\Tests\ServerProcess\Fixtures\FakeSocket;
 use Hypervel\Tests\ServerProcess\Fixtures\ListenableProcess;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class ListenMethodTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testListenerContinuesAfterSignalInterruption(): void
     {
         $dispatched = [];
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(PipeMessage::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andReturnUsing(function (object $event) use (&$dispatched): void {
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->with(PipeMessage::class)->returns(true);
+        $dispatcher->expects('dispatch')->resolves(function (object $event) use (&$dispatched): void {
             $dispatched[] = $event;
         });
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->with(m::type(SocketAcceptException::class))->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::type(SocketAcceptException::class));
 
         $process = new ListenableProcess($this->makeContainer($dispatcher, $handler));
         $socket = new FakeSocket([
@@ -60,9 +64,9 @@ class ListenMethodTest extends TestCase
 
     public function testListenerSkipsPipeMessageEventWithoutListeners(): void
     {
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(PipeMessage::class)->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->with(PipeMessage::class)->returns(false);
+        $dispatcher->expects('dispatch')->never();
 
         $process = new ListenableProcess($this->makeContainer($dispatcher));
         $socket = new FakeSocket([[serialize(['hello' => 'world']), 0]]);
@@ -83,14 +87,14 @@ class ListenMethodTest extends TestCase
     public function testListenerContinuesAfterEagain(): void
     {
         $dispatched = [];
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(PipeMessage::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andReturnUsing(function (object $event) use (&$dispatched): void {
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->with(PipeMessage::class)->returns(true);
+        $dispatcher->expects('dispatch')->resolves(function (object $event) use (&$dispatched): void {
             $dispatched[] = $event;
         });
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->with(m::type(SocketAcceptException::class))->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::type(SocketAcceptException::class));
 
         $process = new ListenableProcess($this->makeContainer($dispatcher, $handler));
         $socket = new FakeSocket([
@@ -118,11 +122,11 @@ class ListenMethodTest extends TestCase
 
     public function testListenerStopsOnPermanentSocketClosure(): void
     {
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('dispatch')->never();
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->with(m::type(SocketAcceptException::class))->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::type(SocketAcceptException::class));
 
         $process = new ListenableProcess($this->makeContainer($dispatcher, $handler));
         $socket = new FakeSocket([
@@ -146,8 +150,8 @@ class ListenMethodTest extends TestCase
 
     public function testListenerStopsOnConnectionReset(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->with(m::type(SocketAcceptException::class))->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::type(SocketAcceptException::class));
 
         $process = new ListenableProcess($this->makeContainer(handler: $handler));
         $socket = new FakeSocket([
@@ -171,8 +175,8 @@ class ListenMethodTest extends TestCase
 
     public function testListenerStopsOnBadFileDescriptor(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->with(m::type(SocketAcceptException::class))->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::type(SocketAcceptException::class));
 
         $process = new ListenableProcess($this->makeContainer(handler: $handler));
         $socket = new FakeSocket([
@@ -196,11 +200,10 @@ class ListenMethodTest extends TestCase
 
     public function testListenerStopsWhenTheProcessSocketCannotBeExported(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')
-            ->with(m::on(fn (SocketAcceptException $exception): bool => $exception->isPermanent()
-                && $exception->getMessage() === 'Unable to export process IPC socket'))
-            ->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')
+            ->with(Argument::satisfies(fn (SocketAcceptException $exception): bool => $exception->isPermanent()
+                && $exception->getMessage() === 'Unable to export process IPC socket'));
 
         $process = new ListenableProcess($this->makeContainer(handler: $handler));
         $process->fakeSocket = false;
@@ -220,11 +223,10 @@ class ListenMethodTest extends TestCase
     {
         Coroutine::reportExceptions(false);
         $reporterFailure = new RuntimeException('reporter failed');
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')
-            ->with(m::type(SocketAcceptException::class))
-            ->once()
-            ->andThrow($reporterFailure);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')
+            ->with(Argument::type(SocketAcceptException::class))
+            ->throws($reporterFailure);
 
         $process = new ListenableProcess($this->makeContainer(handler: $handler));
         $socket = new FakeSocket([['', 0]]);
@@ -246,9 +248,9 @@ class ListenMethodTest extends TestCase
     {
         $payloads = [false, null, 0, '', []];
         $dispatched = [];
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->times(count($payloads))->with(PipeMessage::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->times(count($payloads))->andReturnUsing(function (PipeMessage $event) use (&$dispatched): void {
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $dispatcher->expects('hasListeners')->times(count($payloads))->with(PipeMessage::class)->returns(true);
+        $dispatcher->expects('dispatch')->times(count($payloads))->resolves(function (PipeMessage $event) use (&$dispatched): void {
             $dispatched[] = $event->data;
         });
 
@@ -279,17 +281,15 @@ class ListenMethodTest extends TestCase
     private function makeContainer(
         ?DispatcherContract $dispatcher = null,
         ?ExceptionHandlerContract $handler = null,
-    ): ContainerContract {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturn($dispatcher !== null);
+    ): Container {
+        $container = new Container;
 
         if ($dispatcher !== null) {
-            $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
+            $container->instance('events', $dispatcher);
         }
 
         if ($handler !== null) {
-            $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturn(true);
-            $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
+            $container->instance(ExceptionHandlerContract::class, $handler);
         }
 
         return $container;

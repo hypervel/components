@@ -11,6 +11,7 @@ use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 
@@ -53,6 +54,16 @@ class EmbeddingTest extends TestCase
         $this->assertSame('text-embedding-3-small', $response->meta->model);
     }
 
+    public function testEmbeddingsExposeTheRawHttpResponse(): void
+    {
+        Http::fake(['*' => $this->fakeOpenAiEmbeddingResponse()]);
+
+        $response = Embeddings::for(['Hello world'])->generate(provider: 'openai', model: 'text-embedding-3-small');
+
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame(10, $response->raw->json('usage.prompt_tokens'));
+    }
+
     public function testMultipleInputsReturnMultipleEmbeddings(): void
     {
         Http::fake(['*' => Http::response([
@@ -68,6 +79,27 @@ class EmbeddingTest extends TestCase
 
         $this->assertCount(2, $response->embeddings);
         $this->assertSame([0.4, 0.5, 0.6], $response->embeddings[1]);
+    }
+
+    public function testEmbeddingsAreReturnedInInputOrderEvenWhenTheResponseIsShuffled(): void
+    {
+        Http::fake(['*' => Http::response([
+            'object' => 'list',
+            'data' => [
+                ['object' => 'embedding', 'index' => 2, 'embedding' => [0.7, 0.8, 0.9]],
+                ['object' => 'embedding', 'index' => 0, 'embedding' => [0.1, 0.2, 0.3]],
+                ['object' => 'embedding', 'index' => 1, 'embedding' => [0.4, 0.5, 0.6]],
+            ],
+            'usage' => ['prompt_tokens' => 30],
+        ])]);
+
+        $response = Embeddings::for(['Hello', 'World', 'Again'])->generate(provider: 'openai', model: 'text-embedding-3-small');
+
+        $this->assertSame([
+            [0.1, 0.2, 0.3],
+            [0.4, 0.5, 0.6],
+            [0.7, 0.8, 0.9],
+        ], $response->embeddings);
     }
 
     public function testEmbeddingsRequestSendsBearerToken(): void

@@ -127,6 +127,21 @@ class CoroutineSafetyTest extends TestCase
         $this->assertTrue($results['co1']);
     }
 
+    public function testForkedCoroutineInheritsScopedInstances(): void
+    {
+        $container = new Container;
+        $container->scoped(CoroutineCounter::class);
+        $instance = $container->make(CoroutineCounter::class);
+        $result = new Channel(1);
+
+        $childId = Coroutine::fork(static function () use ($container, $result): void {
+            $result->push($container->make(CoroutineCounter::class));
+        });
+
+        $this->assertSame($instance, $result->pop(1.0));
+        Coroutine::join([$childId], 1.0);
+    }
+
     public function testForgetScopedInstancesCleansUpForNextRequest(): void
     {
         $container = new Container;

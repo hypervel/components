@@ -14,11 +14,14 @@ use Hypervel\Permission\Models\Role;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class GuardTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItReturnsNullForTheModelOfAGuardThatHasNoProviderConfigured(): void
     {
         config()->set('auth.guards.no-provider-guard', []);
@@ -51,7 +54,7 @@ class GuardTest extends TestCase
         ]);
 
         // The auth manager's guard() return type rejects upstream's stdClass, so use a guard without client().
-        Auth::shouldReceive('guard')->once()->with('fake-passport')->andReturn(m::mock(GuardContract::class));
+        Auth::shouldReceive('guard')->once()->with('fake-passport')->andReturn(Double::for(GuardContract::class)->strict());
 
         $this->assertNull(Guard::getPassportClient('web'));
     }

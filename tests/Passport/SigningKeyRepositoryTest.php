@@ -20,13 +20,16 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class SigningKeyRepositoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<array{private: string, public: string}> */
     protected static array $keys = [];
 
@@ -81,8 +84,8 @@ class SigningKeyRepositoryTest extends TestCase
 
     public function testCreateIsIdempotentAndGeneratesBeforeTakingTheLockOrTransaction(): void
     {
-        $generator = m::mock(KeyGenerator::class);
-        $generator->shouldReceive('generate')->with(2048)->once()->andReturnUsing(function (): array {
+        $generator = Double::for(KeyGenerator::class)->strict();
+        $generator->expects('generate')->with(2048)->resolves(function (): array {
             $this->assertSame(0, DB::transactionLevel());
             $this->assertFalse($this->app->make('cache')->store()->getStore()->lock('passport:signing-keys:default')->isLocked());
 
@@ -247,8 +250,8 @@ class SigningKeyRepositoryTest extends TestCase
     {
         Passport::tokensExpireIn(new DateInterval('PT15M'));
         Passport::personalAccessTokensExpireIn(new DateInterval('PT15M'));
-        $factory = m::mock(ServerFactory::class);
-        $factory->shouldReceive('fileKeys')->once()->andReturn([
+        $factory = Double::for(ServerFactory::class)->strict();
+        $factory->expects('fileKeys')->returns([
             new ServerKey(self::$keys[0]['public'], self::$keys[0]['private']),
             new ServerKey(self::$keys[0]['public']),
             new ServerKey(self::$keys[1]['public']),
@@ -281,8 +284,8 @@ class SigningKeyRepositoryTest extends TestCase
     {
         Passport::tokensExpireIn(new DateInterval('PT15M'));
         Passport::personalAccessTokensExpireIn(new DateInterval('P1Y'));
-        $factory = m::mock(ServerFactory::class);
-        $factory->shouldReceive('fileKeys')->once()->andReturn([
+        $factory = Double::for(ServerFactory::class)->strict();
+        $factory->expects('fileKeys')->returns([
             new ServerKey(self::$keys[0]['public'], self::$keys[0]['private']),
         ]);
         $this->app->instance(ServerFactory::class, $factory);
@@ -327,8 +330,8 @@ class SigningKeyRepositoryTest extends TestCase
 
     public function testManagementRejectsAnAmbientTransactionBeforeGeneratingOrChangingKeys(): void
     {
-        $generator = m::mock(KeyGenerator::class);
-        $generator->shouldNotReceive('generate');
+        $generator = Double::for(KeyGenerator::class)->strict();
+        $generator->expects('generate')->never();
         $this->app->instance(KeyGenerator::class, $generator);
         $repository = $this->app->make(SigningKeyRepository::class);
         DB::beginTransaction();
@@ -361,10 +364,11 @@ class SigningKeyRepositoryTest extends TestCase
      */
     protected function generator(array $indices): void
     {
-        $generator = m::mock(KeyGenerator::class);
+        $generator = Double::for(KeyGenerator::class)->strict();
 
-        foreach ($indices as $index) {
-            $generator->shouldReceive('generate')->with(2048)->once()->ordered()->andReturn(self::$keys[$index]);
+        if ($indices !== []) {
+            $generator->expects('generate')->with(2048)->times(count($indices))
+                ->returns(...array_map(static fn (int $index): array => self::$keys[$index], $indices));
         }
 
         $this->app->instance(KeyGenerator::class, $generator);

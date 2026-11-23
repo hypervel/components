@@ -30,7 +30,7 @@ class TestbenchTest extends TestCase
 
         $dispatcher->dispatchToQueue(new CustomPayloadJob);
 
-        $this->addToAssertionCount(1);
+        $this->assertFalse($this->app->bound('one.time.password'));
     }
 
     protected function registerCustomQueuePayload(ApplicationContract $app): void

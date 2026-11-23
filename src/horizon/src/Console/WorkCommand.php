@@ -45,6 +45,7 @@ class WorkCommand extends BaseWorkCommand
     public function handle(): ?int
     {
         if (config()->boolean('horizon.fast_termination')) {
+            // @phpstan-ignore hypervel.nativeRequestApi (In the CLI it stops the worker dying on its next output after its terminal goes away.)
             ignore_user_abort(true);
         }
 

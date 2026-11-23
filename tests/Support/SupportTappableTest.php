@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Error;
 use Hypervel\Support\Traits\Tappable;
 use Hypervel\Tests\TestCase;
 
@@ -32,16 +33,17 @@ class SupportTappableTest extends TestCase
 
     public function testTappableClassWithNoneInvokableClass(): void
     {
-        $this->expectException('Error');
+        $this->expectException(Error::class);
 
-        $name = TappableClass::make()->tap(new class {
-            public function setName($tappable)
+        TappableClass::make()->tap(new class {
+            /**
+             * Set the tapped object's name.
+             */
+            public function setName(TappableClass $tappable): void
             {
                 $tappable->setName('MyName');
             }
         })->getName();
-
-        $this->assertSame('MyName', $name);
     }
 
     public function testTappableClassWithoutCallback(): void

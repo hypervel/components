@@ -9,7 +9,10 @@ use Closure;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Tappable;
@@ -21,6 +24,7 @@ use Traversable;
  * @template TKey of array-key
  *
  * @template-covariant TValue
+ * @template-covariant TCollection of Collection = Collection<array-key, mixed> the stored collection, kept as given
  *
  * @mixin Collection<TKey, TValue>
  */
@@ -284,7 +288,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param array<class-string, array<int, string>> $relations
+     * @phpstan-template TRelations of array
+     *
+     * @param array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
+     * @phpstan-param morph-eager-loads<TRelations> $relations
      * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
@@ -298,7 +305,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param array<class-string, array<int, string>> $relations
+     * @phpstan-template TRelations of array
+     *
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @phpstan-param morph-aggregates<TRelations> $relations
      * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
@@ -343,7 +353,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      * @param callable(TValue, TKey): TMapValue $callback
      * @return $this
      *
-     * @phpstan-this-out static<TKey, TMapValue>
+     * @phpstan-this-out static<TKey, TMapValue, Collection<TKey, TMapValue>>
      */
     public function through(callable $callback): static
     {
@@ -469,9 +479,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the current request path resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator's path lookup.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent paginator's path lookup.
      */
+    #[BootOnly]
     public static function currentPathResolver(Closure $resolver): void
     {
         static::$currentPathResolver = $resolver;
@@ -492,9 +503,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the current page resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator's page lookup.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent paginator's page lookup.
      */
+    #[BootOnly]
     public static function currentPageResolver(Closure $resolver): void
     {
         static::$currentPageResolver = $resolver;
@@ -515,9 +527,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set with query string resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator's query-string lookup.
+     * The resolver persists in a static property for the worker lifetime and
+     * runs on every subsequent paginator's query-string lookup.
      */
+    #[BootOnly]
     public static function queryStringResolver(Closure $resolver): void
     {
         static::$queryStringResolver = $resolver;
@@ -534,9 +547,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the view factory resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator render.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent paginator render.
      */
+    #[BootOnly]
     public static function viewFactoryResolver(Closure $resolver): void
     {
         static::$viewFactoryResolver = $resolver;
@@ -545,9 +559,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the default pagination view.
      *
-     * Boot-only. The view name persists in a static property for the worker
-     * lifetime and applies to every subsequent paginator render.
+     * The view name persists in a static property for the worker lifetime
+     * and applies to every subsequent paginator render.
      */
+    #[BootOnly]
     public static function defaultView(string $view): void
     {
         static::$defaultView = $view;
@@ -556,9 +571,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the default "simple" pagination view.
      *
-     * Boot-only. The view name persists in a static property for the worker
-     * lifetime and applies to every subsequent simple-paginator render.
+     * The view name persists in a static property for the worker lifetime
+     * and applies to every subsequent simple-paginator render.
      */
+    #[BootOnly]
     public static function defaultSimpleView(string $view): void
     {
         static::$defaultSimpleView = $view;
@@ -567,9 +583,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Indicate that Tailwind styling should be used for generated links.
      *
-     * Boot-only. Sets the default view names in static properties for the
-     * worker lifetime; applies to every subsequent paginator render.
+     * Sets the default view names in static properties for the worker
+     * lifetime; applies to every subsequent paginator render.
      */
+    #[BootOnly]
     public static function useTailwind(): void
     {
         static::defaultView(self::DEFAULT_VIEW);
@@ -628,7 +645,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Get the paginator's underlying collection.
      *
-     * @return Collection<TKey, TValue>
+     * @return Collection<TKey, TValue>&TCollection
      */
     public function getCollection(): Collection
     {
@@ -640,11 +657,12 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      *
      * @template TSetKey of array-key
      * @template TSetValue
+     * @template TSetCollection of Collection
      *
-     * @param Collection<TSetKey, TSetValue> $collection
+     * @param Collection<TSetKey, TSetValue>&TSetCollection $collection
      * @return $this
      *
-     * @phpstan-this-out static<TSetKey, TSetValue>
+     * @phpstan-this-out static<TSetKey, TSetValue, TSetCollection>
      */
     public function setCollection(Collection $collection): static
     {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 class ServerManager
 {
     protected static array $container = [];
@@ -11,10 +13,11 @@ class ServerManager
     /**
      * Add a server entry to the registry.
      *
-     * Boot-only. The registry is process-wide static state populated during
-     * server boot (before fork); runtime use mutates state shared across every
-     * coroutine in the worker.
+     * The registry is process-wide static state populated during server boot
+     * (before fork); runtime use mutates state shared across every coroutine
+     * in the worker.
      */
+    #[BootOnly]
     public static function add(string $name, array $value): void
     {
         static::$container[$name] = $value;

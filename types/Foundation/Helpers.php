@@ -7,10 +7,16 @@ use Hypervel\Config\Repository;
 use function PHPStan\Testing\assertType;
 
 assertType('Hypervel\Foundation\Application', app());
+assertType('Hypervel\Foundation\Application', app(null));
+assertType('Hypervel\Foundation\Application', app(abstract: null));
+assertType('Hypervel\Foundation\Application', app(parameters: []));
 assertType('mixed', app('foo'));
 assertType('Hypervel\Config\Repository', app(Repository::class));
+assertType('Hypervel\Config\Repository', app('config'));
 
-assertType('Hypervel\Contracts\Auth\Factory', auth());
+assertType('Hypervel\Auth\AuthManager', auth());
+assertType('Hypervel\Auth\AuthManager', auth(null));
+assertType('Hypervel\Auth\AuthManager', auth(guard: null));
 assertType('Hypervel\Contracts\Auth\Guard', auth('foo'));
 
 assertType('Hypervel\Cache\CacheManager', cache());
@@ -19,7 +25,10 @@ assertType('mixed', cache('foo', 42));
 
 assertType('Hypervel\Config\Repository', config());
 assertType('null', config(['foo' => 'bar']));
-assertType('mixed', config('foo'));
+// Unlike upstream, the PHPStan extension types an absent key as its null default.
+assertType('null', config('foo'));
+/** @var string $key */
+assertType('mixed', config($key));
 
 assertType('Hypervel\Log\Context\Repository', context());
 assertType('Hypervel\Log\Context\Repository', context(['foo' => 'bar']));
@@ -31,7 +40,8 @@ assertType('Symfony\Component\HttpFoundation\Cookie', cookie('foo'));
 assertType('Hypervel\Foundation\Bus\PendingDispatch', dispatch('foo'));
 assertType('Hypervel\Foundation\Bus\PendingClosureDispatch', dispatch(fn () => 1));
 
-assertType('Psr\Log\LoggerInterface', logger());
+// Helpers that resolve a contract from the container return its booted binding, as app() does.
+assertType('Hypervel\Log\LogManager', logger());
 assertType('null', logger('foo'));
 
 assertType('Hypervel\Log\LogManager', logs());
@@ -46,12 +56,13 @@ assertType('Hypervel\Http\RedirectResponse', redirect('foo'));
 
 assertType('mixed', resolve('foo'));
 assertType('Hypervel\Config\Repository', resolve(Repository::class));
+assertType('Hypervel\Config\Repository', resolve('config'));
 
 assertType('Hypervel\Http\Request', request());
 assertType('mixed', request('foo'));
 assertType('array<string, mixed>', request(['foo', 'bar']));
 
-assertType('Hypervel\Contracts\Routing\ResponseFactory', response());
+assertType('Hypervel\Routing\ResponseFactory', response());
 assertType('Hypervel\Http\Response', response('foo'));
 assertType('Hypervel\Http\Response', response(null));
 assertType('Hypervel\Http\Response', response(status: 204));
@@ -61,17 +72,19 @@ assertType('mixed', session('foo'));
 assertType('null', session(['foo' => 'bar']));
 
 assertType('Hypervel\Translation\Translator', trans());
-assertType('array|string', trans('foo'));
+assertType('(array|string)', trans('foo'));
 
-assertType('Hypervel\Contracts\Validation\Factory', validator());
+assertType('Hypervel\Validation\Factory', validator());
 assertType('Hypervel\Contracts\Validation\Validator', validator([]));
 assertType('Hypervel\Contracts\Validation\Validator', validator(null));
 assertType('Hypervel\Contracts\Validation\Validator', validator(rules: ['name' => 'required']));
 
-assertType('Hypervel\Contracts\View\Factory', view());
-assertType('Hypervel\Contracts\View\View', view('foo'));
+assertType('Hypervel\View\Factory', view());
+assertType('Hypervel\Contracts\View\View', view('welcome'));
+assertType('Hypervel\Contracts\View\View', view(null));
+assertType('Hypervel\Contracts\View\View', view(data: []));
 
-assertType('Hypervel\Contracts\Routing\UrlGenerator', url());
+assertType('Hypervel\Routing\UrlGenerator', url());
 assertType('string', url('foo'));
 
 /**
@@ -84,7 +97,7 @@ assertType('string', url('foo'));
 function testFactoryHelperArguments(array $responseArguments, array $responseOptions, array $validationArguments): void
 {
     assertType('Hypervel\Http\Response', response('body', ...$responseOptions));
-    assertType('Hypervel\Contracts\Routing\ResponseFactory|Hypervel\Http\Response', response(...$responseArguments));
+    assertType('Hypervel\Http\Response|Hypervel\Routing\ResponseFactory', response(...$responseArguments));
     assertType('Hypervel\Contracts\Validation\Validator', validator([], ...$validationArguments));
-    assertType('Hypervel\Contracts\Validation\Factory|Hypervel\Contracts\Validation\Validator', validator(...$validationArguments));
+    assertType('Hypervel\Contracts\Validation\Validator|Hypervel\Validation\Factory', validator(...$validationArguments));
 }

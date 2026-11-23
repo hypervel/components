@@ -34,10 +34,15 @@ class PurgeSkeletonCommandTest extends TestCase
 
     private string $commandPath;
 
+    private string|false $originalVendorLink = false;
+
     #[Override]
     protected function setUp(): void
     {
         parent::setUp();
+
+        $vendorPath = $this->app->basePath('vendor');
+        $this->originalVendorLink = is_link($vendorPath) ? readlink($vendorPath) : false;
 
         $this->filesystem = new Filesystem;
         $this->commandPath = ParallelTesting::tempDir('PurgeSkeletonCommandTest');
@@ -55,6 +60,12 @@ class PurgeSkeletonCommandTest extends TestCase
     {
         TerminatingConsole::flush();
         $this->cleanUpPurgeSkeletonArtifacts();
+
+        // The worker's skeleton shares its dependency link with later tests.
+        if ($this->originalVendorLink !== false) {
+            $this->filesystem->link($this->originalVendorLink, $this->app->basePath('vendor'));
+        }
+
         $this->restorePreservedFiles();
         $this->filesystem->deleteDirectory($this->commandPath);
 

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Hypervel\Console\Command;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Str;
@@ -247,7 +248,7 @@ class AboutCommand extends Command
 
                 return [public_path($path) => static::format(is_link($link), console: $formatStorageLinkedStatus)];
             })
-            ->toArray();
+            ->all();
     }
 
     /**
@@ -263,9 +264,10 @@ class AboutCommand extends Command
     /**
      * Add additional data to the output of the "about" command.
      *
-     * Boot-only. The data resolver persists in a static property for the worker
-     * lifetime and affects every subsequent about command run.
+     * The data resolver persists in a static property for the worker lifetime
+     * and affects every subsequent about command run.
      */
+    #[BootOnly]
     public static function add(string $section, callable|string|array $data, ?string $value = null): void
     {
         static::$customDataResolvers[] = fn () => static::addToSection($section, $data, $value);

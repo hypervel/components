@@ -109,6 +109,18 @@ class BatchesControllerTest extends ControllerTestCase
         $this->assertSame('batch-1', $batches[1]->id);
     }
 
+    public function testZeroIsASearchTerm(): void
+    {
+        $this->setupBatchTable();
+        $this->seedBatches();
+        $this->insertBatch('batch-10', 'Archive');
+
+        $response = $this->actingAs(new User)->get('/horizon/api/batches?query=0');
+
+        $response->assertOk();
+        $this->assertSame(['batch-10'], array_column($response->original['batches'], 'id'));
+    }
+
     public function testSearchAppliesAZeroCursor(): void
     {
         $this->setupBatchTable();
@@ -135,10 +147,11 @@ class BatchesControllerTest extends ControllerTestCase
         Schema::connection('testing')->create('job_batches', static function ($table) {
             $table->string('id')->primary();
             $table->string('name');
+            $table->string('driver')->default('database');
             $table->integer('total_jobs');
             $table->integer('pending_jobs');
             $table->integer('failed_jobs');
-            $table->longText('failed_job_ids');
+            $table->integer('outstanding_failed_jobs');
             $table->mediumText('options')->nullable();
             $table->integer('cancelled_at')->nullable();
             $table->integer('created_at');
@@ -163,7 +176,7 @@ class BatchesControllerTest extends ControllerTestCase
                 'total_jobs' => 10,
                 'pending_jobs' => 0,
                 'failed_jobs' => 0,
-                'failed_job_ids' => '[]',
+                'outstanding_failed_jobs' => 0,
                 'options' => serialize([]),
                 'created_at' => time(),
                 'cancelled_at' => null,

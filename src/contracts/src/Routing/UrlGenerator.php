@@ -7,6 +7,7 @@ namespace Hypervel\Contracts\Routing;
 use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 
 interface UrlGenerator
@@ -75,5 +76,6 @@ interface UrlGenerator
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setRootControllerNamespace(string $rootNamespace): static;
 }

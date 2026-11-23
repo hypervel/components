@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\OpenTelemetry\Support;
 
+use Hypervel\Support\Attributes\BootOnly;
 use OpenTelemetry\Context\ContextInterface;
 use Throwable;
 use WeakMap;
@@ -20,8 +21,9 @@ class ExceptionContextRegistry
     /**
      * Enable exact exception-context handoff.
      *
-     * Boot-only. The registry remains enabled for the worker lifetime.
+     * The shared registry remains enabled for the worker lifetime.
      */
+    #[BootOnly(whenShared: true)]
     public function enable(): void
     {
         $this->enabled = true;
@@ -30,8 +32,11 @@ class ExceptionContextRegistry
     /**
      * Mark direct exception recording as registered on the exception handler.
      *
-     * Boot-only. The registration persists on the exception handler for the worker lifetime.
+     * On the shared registry, the mark persists for the worker lifetime and lets
+     * the log handler defer exceptions currently being reported by the exception
+     * handler to the direct recorder.
      */
+    #[BootOnly(whenShared: true)]
     public function markRecorderRegistered(): void
     {
         $this->recorderRegistered = true;

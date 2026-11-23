@@ -82,6 +82,8 @@ trait InteractsWithConsole
      *
      * When using this with traits like DatabaseMigrations, call this in setUp()
      * before parent::setUp() to ensure mock output is never bound.
+     *
+     * @return $this
      */
     protected function withoutMockingConsoleOutput(): static
     {

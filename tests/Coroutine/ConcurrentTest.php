@@ -13,7 +13,9 @@ use Hypervel\Coroutine\Exceptions\ChannelClosedException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine;
@@ -21,6 +23,8 @@ use Swoole\Coroutine\CanceledException;
 
 class ConcurrentTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -137,7 +141,7 @@ class ConcurrentTest extends TestCase
     #[DataProvider('creationMethods')]
     public function testCreationCancellationWhileStartupReportingYieldsReleasesItsSlotOnce(string $method): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $concurrent = new ConcurrentTestConcurrent(1);
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -148,10 +152,9 @@ class ConcurrentTest extends TestCase
         $childCoroutineId = null;
         $childBodyRan = false;
 
-        $handler->shouldReceive('report')
-            ->once()
-            ->with($hookFailure)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+        $handler->expects('report')
+            ->with(Argument::same($hookFailure))
+            ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);
                 $releaseReport->pop();

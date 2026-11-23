@@ -4,38 +4,40 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
-use Hypervel\Console\CommandMutex;
 use Hypervel\Database\Console\Migrations\StatusCommand;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationStatusCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPendingOptionReturnsConfiguredExitCodeAsInteger(): void
     {
         $app = new ApplicationDatabaseStatusStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new StatusCommand($migrator = m::mock(Migrator::class));
+        $command = new StatusCommand($migrator = Double::for(Migrator::class)->strict());
         $command->setHypervel($app);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $migrator->expects('usingConnection')->resolves(function ($name, $callback) {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
-        $migrator->shouldReceive('getRepository')->twice()->andReturn($repository);
-        $repository->shouldReceive('getRan')->once()->andReturn([]);
-        $repository->shouldReceive('getMigrationBatches')->once()->andReturn([]);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('getMigrationFiles')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'])->andReturn([
+        $migrator->expects('repositoryExists')->returns(true);
+        $migrator->expects('getRepository')->times(2)->returns($repository);
+        $repository->expects('getRan')->returns([]);
+        $repository->expects('getMigrationBatches')->returns([]);
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('getMigrationFiles')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'])->returns([
             '/tmp/2024_01_01_000000_create_users_table.php',
         ]);
-        $migrator->shouldReceive('getMigrationName')->once()->with('/tmp/2024_01_01_000000_create_users_table.php')->andReturn('2024_01_01_000000_create_users_table');
-        $migrator->shouldReceive('shouldSkip')->once()->with('/tmp/2024_01_01_000000_create_users_table.php')->andReturn(false);
+        $migrator->expects('getMigrationName')->with('/tmp/2024_01_01_000000_create_users_table.php')->returns('2024_01_01_000000_create_users_table');
+        $migrator->expects('shouldSkip')->with('/tmp/2024_01_01_000000_create_users_table.php')->returns(false);
 
         $code = $this->runCommand($command, ['--pending' => '5']);
 
@@ -52,10 +54,6 @@ class ApplicationDatabaseStatusStub extends Application
 {
     public function __construct(array $data = [])
     {
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
-        $this->instance(CommandMutex::class, $mutex);
         $this->instance('env', 'development');
 
         foreach ($data as $abstract => $instance) {

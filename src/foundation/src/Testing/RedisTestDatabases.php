@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Support\Env;
 use RuntimeException;
 
 class RedisTestDatabases
@@ -37,7 +38,8 @@ class RedisTestDatabases
      */
     public static function configuredSecondaryDatabase(): ?int
     {
-        $value = env('REDIS_TEST_SECONDARY_DB');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Redis integration tests are configured through the test process environment)
+        $value = Env::get('REDIS_TEST_SECONDARY_DB');
 
         return $value === null
             ? null
@@ -137,7 +139,8 @@ class RedisTestDatabases
      */
     public static function integerEnvironment(string $key, int $default): int
     {
-        $value = env($key);
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Redis integration tests are configured through the test process environment)
+        $value = Env::get($key);
 
         if ($value === null) {
             return $default;

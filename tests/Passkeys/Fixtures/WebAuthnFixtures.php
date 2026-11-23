@@ -98,6 +98,7 @@ PEM;
         string $origin,
         int $signCount,
         ?string $rpId = null,
+        ?string $userHandle = null,
     ): AuthenticatorAssertionResponse {
         $clientDataPayload = [
             'type' => 'webauthn.get',
@@ -134,7 +135,7 @@ PEM;
             clientDataJSON: $clientData,
             authenticatorData: $authenticatorData,
             signature: $signature,
-            userHandle: null,
+            userHandle: $userHandle,
         );
     }
 

@@ -11,7 +11,7 @@ use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Http\Controllers\QueueBatchesController;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class QueueBatchesControllerTest extends FeatureTestCase
 {
@@ -25,11 +25,10 @@ class QueueBatchesControllerTest extends FeatureTestCase
             'type' => EntryType::BATCH,
         ]);
 
-        $batchRepository = m::mock(BatchRepository::class);
-        $batchRepository->shouldReceive('find')
-            ->once()
+        $batchRepository = Double::for(BatchRepository::class)->strict();
+        $batchRepository->expects('find')
             ->with($batchId)
-            ->andReturnNull();
+            ->returns(null);
         $this->app->instance(BatchRepository::class, $batchRepository);
 
         $result = $this->app->make(QueueBatchesController::class)->show(

@@ -7,6 +7,7 @@ namespace Hypervel\OpenTelemetry\Instrumentation;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\LogContextScopeFactory;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
@@ -20,6 +21,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\OutboxBatchDelivered;
@@ -43,8 +45,6 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter;
 use OpenTelemetry\Context\Propagation\TextMapPropagatorInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\MessagingIncubatingAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakMap;
 
@@ -52,6 +52,8 @@ class QueueInstrumentation extends AbstractInstrumentation
 {
     use LogsMessagesTrait;
 
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
     protected const string SENT_MESSAGES_METRIC = 'messaging.client.sent.messages';
 
     protected const string SEND_DURATION_METRIC = 'messaging.client.operation.duration';
@@ -59,6 +61,24 @@ class QueueInstrumentation extends AbstractInstrumentation
     protected const string CONSUMED_MESSAGES_METRIC = 'messaging.client.consumed.messages';
 
     protected const string PROCESS_DURATION_METRIC = 'messaging.process.duration';
+
+    protected const string SYSTEM_NAME_ATTRIBUTE = 'messaging.system.name';
+
+    protected const string DESTINATION_NAME_ATTRIBUTE = 'messaging.destination.name';
+
+    protected const string OPERATION_NAME_ATTRIBUTE = 'messaging.operation.name';
+
+    protected const string OPERATION_TYPE_ATTRIBUTE = 'messaging.operation.type';
+
+    protected const string MESSAGE_ID_ATTRIBUTE = 'messaging.message.id';
+
+    protected const string MESSAGE_ENVELOPE_SIZE_ATTRIBUTE = 'messaging.message.envelope.size';
+
+    protected const string OPERATION_TYPE_SEND = 'send';
+
+    protected const string OPERATION_TYPE_PROCESS = 'process';
+
+    protected const string SYSTEM_NAME_AWS_SQS = 'aws.sqs';
 
     protected const string DEPTH_METRIC = 'hypervel.queue.jobs';
 
@@ -141,7 +161,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         $this->propagation = $this->options->enabled('propagation');
 
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.queue');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.queue', schemaUrl: $this->schemaUrl());
         }
 
         $this->registerMetrics();
@@ -175,7 +195,15 @@ class QueueInstrumentation extends AbstractInstrumentation
                 $this->finishProducer($event->payload);
             });
             $this->events->listen(JobQueueingFailed::class, function (JobQueueingFailed $event): void {
-                $this->finishProducer($event->payload, $event->exception);
+                $this->finishProducer($event->payload, $event->exception, $event->sendAttempted);
+            });
+            $this->events->listen(JobQueueingCanceled::class, function (JobQueueingCanceled $event): void {
+                // A queued job keeps its success; otherwise only a cleanup failure carrying the cancellation is one.
+                $this->finishProducer(
+                    $event->payload,
+                    $event->exception ?? ($event->queued || $this->isDirectCancellation($event->cancellation) ? null : $event->cancellation),
+                    $event->sendAttempted,
+                );
             });
         }
 
@@ -218,16 +246,16 @@ class QueueInstrumentation extends AbstractInstrumentation
         $meter = null;
 
         if ($this->metricEnabled(self::SENT_MESSAGES_METRIC)) {
-            $meter = $this->meterProvider->getMeter('hypervel.queue');
+            $meter = $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->sentMessages = $meter->createCounter(
                 self::SENT_MESSAGES_METRIC,
                 '{message}',
-                'The number of messages sent to a messaging system.',
+                'The number of messages the producer attempted to send.',
             );
         }
 
         if ($this->metricEnabled(self::SEND_DURATION_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->sendDuration = $meter->createHistogram(
                 self::SEND_DURATION_METRIC,
                 's',
@@ -237,7 +265,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::CONSUMED_MESSAGES_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->consumedMessages = $meter->createCounter(
                 self::CONSUMED_MESSAGES_METRIC,
                 '{message}',
@@ -246,7 +274,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::PROCESS_DURATION_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->processDuration = $meter->createHistogram(
                 self::PROCESS_DURATION_METRIC,
                 's',
@@ -264,12 +292,12 @@ class QueueInstrumentation extends AbstractInstrumentation
         $meter = null;
 
         if ($this->metricEnabled(self::OUTBOX_DELIVERED_METRIC)) {
-            $meter = $this->meterProvider->getMeter('hypervel.queue');
+            $meter = $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->outboxDelivered = $meter->createCounter(self::OUTBOX_DELIVERED_METRIC, '{message}', 'Outbox messages confirmed by their destination queue.');
         }
 
         if ($this->metricEnabled(self::OUTBOX_DURATION_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->outboxDuration = $meter->createHistogram(
                 self::OUTBOX_DURATION_METRIC,
                 's',
@@ -279,7 +307,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::OUTBOX_LATENCY_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->outboxLatency = $meter->createHistogram(
                 self::OUTBOX_LATENCY_METRIC,
                 's',
@@ -333,7 +361,7 @@ class QueueInstrumentation extends AbstractInstrumentation
                 $event->connectionName,
                 $event->queue,
                 'enqueue',
-                MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_SEND,
+                self::OPERATION_TYPE_SEND,
             )
             : [];
         $startedAt = 0;
@@ -367,26 +395,22 @@ class QueueInstrumentation extends AbstractInstrumentation
 
             if ($span?->isRecording()) {
                 if ($uuid !== null) {
-                    $span->setAttribute(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $uuid);
+                    $span->setAttribute(self::MESSAGE_ID_ATTRIBUTE, $uuid);
                 }
 
                 $span->setAttribute(
-                    MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE,
+                    self::MESSAGE_ENVELOPE_SIZE_ATTRIBUTE,
                     strlen($finalPayload),
                 );
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($span !== null) {
-                $span->recordException($exception);
-                $span->setStatus(StatusCode::STATUS_ERROR);
-                $this->exceptionContexts->associate(
-                    $exception,
-                    $context,
-                    $this->origins->resolve($context, $this->identity),
+            // The job never reached the queue backend, and no later event can find this state.
+            if ($span !== null || $this->sendDuration !== null) {
+                $this->completeProducer(
+                    new QueueProducerState($startedAt, $context, $span, $attributes, $uuid),
+                    $this->isDirectCancellation($exception) ? null : $exception,
+                    sendAttempted: false,
                 );
-                $span->end();
             }
 
             throw $exception;
@@ -403,7 +427,7 @@ class QueueInstrumentation extends AbstractInstrumentation
     /**
      * Complete persistent producer telemetry.
      */
-    protected function finishProducer(string $payload, ?Throwable $exception = null): void
+    protected function finishProducer(string $payload, ?Throwable $exception = null, bool $sendAttempted = true): void
     {
         $store = QueueProducerStateStore::current();
         $state = $store->take($payload);
@@ -416,6 +440,14 @@ class QueueInstrumentation extends AbstractInstrumentation
             return;
         }
 
+        $this->completeProducer($state, $exception, $sendAttempted);
+    }
+
+    /**
+     * Complete producer telemetry from its started state.
+     */
+    protected function completeProducer(QueueProducerState $state, ?Throwable $exception, bool $sendAttempted): void
+    {
         $finishedAt = $state->span === null && $this->sendDuration === null
             ? 0
             : $this->clock->now();
@@ -436,7 +468,10 @@ class QueueInstrumentation extends AbstractInstrumentation
                 );
             }
 
-            $this->sentMessages?->add(1, $attributes, $state->context);
+            if ($sendAttempted) {
+                $this->sentMessages?->add(1, $attributes, $state->context);
+            }
+
             $this->sendDuration?->record(
                 ($finishedAt - $state->startedAt) / ClockInterface::NANOS_PER_SECOND,
                 $attributes,
@@ -527,7 +562,7 @@ class QueueInstrumentation extends AbstractInstrumentation
                 $event->connectionName,
                 $queue,
                 'process',
-                MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_PROCESS,
+                self::OPERATION_TYPE_PROCESS,
             );
         }
 
@@ -554,11 +589,11 @@ class QueueInstrumentation extends AbstractInstrumentation
 
             if ($span->isRecording()) {
                 if (($uuid = $event->job->uuid()) !== null) {
-                    $span->setAttribute(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $uuid);
+                    $span->setAttribute(self::MESSAGE_ID_ATTRIBUTE, $uuid);
                 }
 
                 $span->setAttribute(
-                    MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE,
+                    self::MESSAGE_ENVELOPE_SIZE_ATTRIBUTE,
                     strlen($event->job->getRawBody()),
                 );
             }
@@ -625,7 +660,8 @@ class QueueInstrumentation extends AbstractInstrumentation
         $state->completed = true;
         unset($this->consumerStates[$event->job]);
 
-        if ($state->errorType === null && $event->exception !== null) {
+        // A directly canceled attempt did not fail.
+        if ($state->errorType === null && $event->exception !== null && ! $this->isDirectCancellation($event->exception)) {
             $state->exception = $event->exception;
             $state->errorType = $event->exception::class;
         }
@@ -684,7 +720,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         /** @var array<string, list<string>> $targets */
         $targets = $this->options->get('depth_queues');
         $this->meterProvider
-            ->getMeter('hypervel.queue')
+            ->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl())
             ->createObservableGauge(
                 self::DEPTH_METRIC,
                 '{job}',
@@ -695,9 +731,11 @@ class QueueInstrumentation extends AbstractInstrumentation
                         foreach ($queues as $queue) {
                             try {
                                 $size = $this->queues->connection($connection)->size($queue);
-                            } catch (CanceledException $exception) {
-                                throw $exception;
                             } catch (Throwable $exception) {
+                                if (Coroutine::causedByCancellation($exception)) {
+                                    throw $exception;
+                                }
+
                                 self::logError('OpenTelemetry queue depth collection failed.', [
                                     'exception' => $exception,
                                     'connection' => $connection,
@@ -709,7 +747,7 @@ class QueueInstrumentation extends AbstractInstrumentation
 
                             $observer->observe($size, [
                                 self::CONNECTION_ATTRIBUTE => $connection,
-                                MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME => $queue,
+                                self::DESTINATION_NAME_ATTRIBUTE => $queue,
                             ]);
                         }
                     }
@@ -729,10 +767,10 @@ class QueueInstrumentation extends AbstractInstrumentation
         string $operationType,
     ): array {
         return array_filter([
-            MessagingIncubatingAttributes::MESSAGING_SYSTEM => $this->connectionDrivers[$connection] ?? 'unknown',
-            MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME => $queue,
-            MessagingIncubatingAttributes::MESSAGING_OPERATION_NAME => $operation,
-            MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE => $operationType,
+            self::SYSTEM_NAME_ATTRIBUTE => $this->connectionDrivers[$connection] ?? 'unknown',
+            self::DESTINATION_NAME_ATTRIBUTE => $queue,
+            self::OPERATION_NAME_ATTRIBUTE => $operation,
+            self::OPERATION_TYPE_ATTRIBUTE => $operationType,
             self::CONNECTION_ATTRIBUTE => $connection,
         ], static fn (?string $value): bool => $value !== null);
     }
@@ -752,7 +790,7 @@ class QueueInstrumentation extends AbstractInstrumentation
             if (is_string($connection) && is_string($driver)) {
                 $drivers[$connection] = match ($driver) {
                     'beanstalkd' => 'beanstalk',
-                    'sqs' => MessagingIncubatingAttributes::MESSAGING_SYSTEM_VALUE_AWS_SQS,
+                    'sqs' => self::SYSTEM_NAME_AWS_SQS,
                     default => $driver,
                 };
             }

@@ -27,7 +27,7 @@ trait HasAnnotations
 
             $this->validateAnnotationUsage($attribute);
 
-            $annotations[$attribute->key()] = $attribute->value; // @phpstan-ignore property.notFound
+            $annotations[$attribute->key()] = $attribute->value; // @phpstan-ignore property.notFound (annotation attributes expose a public value property)
         }
 
         return $annotations;

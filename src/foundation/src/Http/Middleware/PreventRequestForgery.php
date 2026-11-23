@@ -16,6 +16,7 @@ use Hypervel\Http\Exceptions\OriginMismatchException;
 use Hypervel\Http\Request;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\InteractsWithTime;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
@@ -213,9 +214,10 @@ class PreventRequestForgery
     /**
      * Indicate that the given URIs should be excluded from CSRF verification.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function except(array|string $uris): void
     {
         static::$neverVerify = array_values(array_unique(
@@ -226,9 +228,10 @@ class PreventRequestForgery
     /**
      * Indicate that requests from the same site should be allowed.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function allowSameSite(bool $allow = true): void
     {
         static::$allowSameSite = $allow;
@@ -237,9 +240,10 @@ class PreventRequestForgery
     /**
      * Indicate that only origin verification should be used.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function useOriginOnly(bool $originOnly = true): void
     {
         static::$originOnly = $originOnly;

@@ -63,7 +63,7 @@ trait TestViews
             $compiler = $this->app->make('blade.compiler');
 
             (function () use ($path) {
-                $this->cachePath = $path; /* @phpstan-ignore property.notFound */
+                $this->cachePath = $path; /* @phpstan-ignore property.notFound (the closure is bound to the Blade compiler) */
             })->bindTo($compiler, $compiler)();
         }
     }

@@ -6,6 +6,7 @@ namespace Hypervel\Validation;
 
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
+use Hypervel\Support\UndefinedValue;
 
 class ValidationData
 {
@@ -155,7 +156,12 @@ class ValidationData
             return $data;
         }
 
-        return data_set($data, $attribute, null, true);
+        // Unlike upstream, fill only the copied arrays. data_set() would write through objects shared with the caller's input.
+        foreach (static::expandWildcardKeys($attribute, $data) as $key) {
+            Arr::set($data, $key, null);
+        }
+
+        return $data;
     }
 
     /**
@@ -193,9 +199,9 @@ class ValidationData
     {
         $results = [];
 
-        $value = Arr::get($masterData, $attribute, '__missing__');
+        $value = Arr::get($masterData, $attribute, new UndefinedValue);
 
-        if ($value !== '__missing__') {
+        if (! $value instanceof UndefinedValue) {
             Arr::set($results, $attribute, $value);
         }
 

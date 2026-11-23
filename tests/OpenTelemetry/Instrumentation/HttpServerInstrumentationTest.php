@@ -8,6 +8,7 @@ use ArrayObject;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
@@ -21,7 +22,8 @@ use Hypervel\OpenTelemetry\Support\RequestTelemetryState;
 use Hypervel\OpenTelemetry\Support\UserContextResolver;
 use Hypervel\Routing\Route;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\Span;
@@ -50,13 +52,15 @@ use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Metrics\HttpIncubatingMetrics;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class HttpServerInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Dispatcher $events;
@@ -96,7 +100,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->meterProvider = (new MeterProviderBuilder)
             ->addReader($this->metricReader)
             ->build();
-        $this->userContexts = m::mock(UserContextResolver::class);
+        $this->userContexts = Double::for(UserContextResolver::class)->strict();
     }
 
     protected function tearDownInCoroutine(): void
@@ -121,7 +125,7 @@ class HttpServerInstrumentationTest extends TestCase
             'response_headers' => ['x-response'],
             'metrics' => [
                 HttpMetrics::HTTP_SERVER_REQUEST_DURATION => true,
-                HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS => true,
+                'http.server.active_requests' => true,
             ],
         ]));
 
@@ -176,8 +180,8 @@ class HttpServerInstrumentationTest extends TestCase
         $this->assertSame('/users/{user}', $attributes[HttpAttributes::HTTP_ROUTE]);
         $this->assertSame(201, $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE]);
         $this->assertSame('safe=yes&token=REDACTED', $attributes[UrlAttributes::URL_QUERY]);
-        $this->assertSame(12, $attributes[HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE]);
-        $this->assertSame(5, $attributes[HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE]);
+        $this->assertSame(12, $attributes['http.request.body.size']);
+        $this->assertSame(5, $attributes['http.response.body.size']);
         $this->assertArrayNotHasKey(NetworkAttributes::NETWORK_PROTOCOL_NAME, $attributes);
         $this->assertSame('1.1', $attributes[NetworkAttributes::NETWORK_PROTOCOL_VERSION]);
         $this->assertArrayNotHasKey(ServerAttributes::SERVER_ADDRESS, $attributes);
@@ -199,7 +203,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->assertNull($durationPoints[0]->attributes->get(ServerAttributes::SERVER_ADDRESS));
         $this->assertNull($durationPoints[0]->attributes->get(ServerAttributes::SERVER_PORT));
 
-        $activeRequests = $this->metric(HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS);
+        $activeRequests = $this->metric('http.server.active_requests');
         $this->assertInstanceOf(Sum::class, $activeRequests->data);
         $activePoints = $activeRequests->data->dataPoints;
         $this->assertIsArray($activePoints);
@@ -255,6 +259,50 @@ class HttpServerInstrumentationTest extends TestCase
         $lowercaseAttributes = $lowercaseSpan->getAttributes()->toArray();
         $this->assertSame('GET', $lowercaseAttributes[HttpAttributes::HTTP_REQUEST_METHOD]);
         $this->assertSame('get', $lowercaseAttributes[HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL]);
+    }
+
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    #[TestWith(['sent'])]
+    #[TestWith(['failure'])]
+    public function testCanceledRequestEndsItsSpanWithTheKnownOutcomeAndReleasesTheActiveRequest(string $case): void
+    {
+        $this->instrumentation()->register($this->options([
+            'metrics' => [
+                HttpMetrics::HTTP_SERVER_REQUEST_DURATION => true,
+                'http.server.active_requests' => true,
+            ],
+        ]));
+        $request = Request::create('/users', 'GET', server: ['HTTP_HOST' => 'example.test']);
+        $cancellation = $case === 'wrapped'
+            ? new RuntimeException('Cleanup failed.', previous: new CanceledException)
+            : new CanceledException;
+        $failure = $case === 'failure' ? new RuntimeException('Handled listener failed.') : null;
+
+        $this->events->dispatch(new RequestReceived($request, null));
+        $this->events->dispatch(new RequestCanceled(
+            $request,
+            $case === 'sent' ? new Response('OK') : null,
+            $cancellation,
+            $failure,
+        ));
+
+        $spans = $this->spanExporter->getSpans();
+        $this->assertCount(1, $spans);
+        $expectedError = match ($case) {
+            'wrapped' => RuntimeException::class,
+            'failure' => RuntimeException::class,
+            default => null,
+        };
+        $this->assertSame($expectedError, $spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame(
+            $expectedError === null ? StatusCode::STATUS_UNSET : StatusCode::STATUS_ERROR,
+            $spans[0]->getStatus()->getCode(),
+        );
+        $this->assertSame($case === 'sent' ? 200 : null, $spans[0]->getAttributes()->get(HttpAttributes::HTTP_RESPONSE_STATUS_CODE));
+        $this->metricReader->collect();
+        $this->assertSame(0, $this->metric('http.server.active_requests')->data->dataPoints[0]->value);
+        $this->assertCount(1, $this->metric(HttpMetrics::HTTP_SERVER_REQUEST_DURATION)->data->dataPoints);
     }
 
     public function testExcludedRequestsPerformNoTelemetryWork(): void
@@ -350,7 +398,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->instrumentation()->register($this->options([
             'metrics' => [
                 HttpMetrics::HTTP_SERVER_REQUEST_DURATION => false,
-                HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS => true,
+                'http.server.active_requests' => true,
             ],
         ]));
         $request = CompletionDetailTrapRequest::create('/users', 'GET');
@@ -361,7 +409,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->assertSame([], $this->spanExporter->getSpans());
         $this->assertSame(3_000_000_000, $this->clock->timestamp);
         $this->metricReader->collect();
-        $activeRequests = $this->metric(HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS);
+        $activeRequests = $this->metric('http.server.active_requests');
         $this->assertSame(0, $activeRequests->data->dataPoints[0]->value);
     }
 
@@ -384,8 +432,8 @@ class HttpServerInstrumentationTest extends TestCase
     private function instrumentation(
         ?ResponsePropagatorInterface $responsePropagator = null,
     ): HttpServerInstrumentation {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new HttpServerInstrumentation(
             $this->events,
@@ -422,7 +470,7 @@ class HttpServerInstrumentationTest extends TestCase
             'response_headers' => [],
             'metrics' => [
                 HttpMetrics::HTTP_SERVER_REQUEST_DURATION => true,
-                HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS => false,
+                'http.server.active_requests' => false,
             ],
         ], $overrides);
     }

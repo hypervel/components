@@ -6,6 +6,9 @@ namespace Hypervel\Contracts\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Queue\Jobs\InspectedJob;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Collection;
 use UnitEnum;
 
 interface Queue
@@ -31,9 +34,71 @@ interface Queue
     public function reservedSize(UnitEnum|string|null $queue = null): int;
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int;
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int;
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int;
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int;
+
+    /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
     public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int;
+
+    /**
+     * Get the pending jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection;
+
+    /**
+     * Get the delayed jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection;
+
+    /**
+     * Get the reserved jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection;
+
+    /**
+     * Get all pending jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allPendingJobs(): Collection;
+
+    /**
+     * Get all delayed jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allDelayedJobs(): Collection;
+
+    /**
+     * Get all reserved jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allReservedJobs(): Collection;
 
     /**
      * Push a new job onto the queue.
@@ -77,6 +142,9 @@ interface Queue
 
     /**
      * Set the connection name for the queue.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConnectionName(string $name): static;
 }

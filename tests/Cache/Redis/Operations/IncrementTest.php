@@ -14,7 +14,7 @@ class IncrementTest extends RedisCacheTestCase
     public function testIncrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('incrby')->once()->with('prefix:foo', 5)->andReturn(6);
+        $connection->client()->expects('incrby')->with('prefix:foo', 5)->returns(6);
 
         $redis = $this->createStore($connection);
         $result = $redis->increment('foo', 5);
@@ -25,7 +25,7 @@ class IncrementTest extends RedisCacheTestCase
     {
         // Redis INCRBY on non-existent key initializes to 0, then increments
         $connection = $this->mockConnection();
-        $connection->shouldReceive('incrby')->once()->with('prefix:counter', 1)->andReturn(1);
+        $connection->client()->expects('incrby')->with('prefix:counter', 1)->returns(1);
 
         $redis = $this->createStore($connection);
         $this->assertSame(1, $redis->increment('counter'));
@@ -34,7 +34,7 @@ class IncrementTest extends RedisCacheTestCase
     public function testIncrementWithLargeValue(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('incrby')->once()->with('prefix:foo', 1000000)->andReturn(1000005);
+        $connection->client()->expects('incrby')->with('prefix:foo', 1000000)->returns(1000005);
 
         $redis = $this->createStore($connection);
         $this->assertSame(1000005, $redis->increment('foo', 1000000));
@@ -43,7 +43,7 @@ class IncrementTest extends RedisCacheTestCase
     public function testIncrementReturnsFalseWhenRedisRejectsTheOperation(): void
     {
         $connection = $this->mockConnection();
-        $connection->expects('incrby')->with('prefix:foo', 1)->andReturnFalse();
+        $connection->client()->expects('incrby')->with('prefix:foo', 1)->returns(false);
 
         $redis = $this->createStore($connection);
 

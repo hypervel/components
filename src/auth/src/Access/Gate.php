@@ -18,6 +18,8 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -176,11 +178,14 @@ class Gate implements GateContract
     /**
      * Define a new ability.
      *
-     * Boot-only. The definition persists on the singleton Gate for the worker
-     * lifetime and affects authorization in every subsequent request.
+     * The definition persists on the singleton Gate for the worker lifetime
+     * and affects authorization in every subsequent request.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function define(UnitEnum|string $ability, array|callable|string $callback): static
     {
         $ability = (string) enum_value($ability);
@@ -205,9 +210,12 @@ class Gate implements GateContract
     /**
      * Define abilities for a resource.
      *
-     * Boot-only. The definitions persist on the singleton Gate for the worker
-     * lifetime and affect authorization in every subsequent request.
+     * The definitions persist on the singleton Gate for the worker lifetime
+     * and affect authorization in every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function resource(string $name, string $class, ?array $abilities = null): static
     {
         $abilities = $abilities ?: [
@@ -263,9 +271,12 @@ class Gate implements GateContract
     /**
      * Define a policy class for a given class type.
      *
-     * Boot-only. The policy persists on the singleton Gate for the worker
-     * lifetime and affects authorization in every subsequent request.
+     * The policy persists on the singleton Gate for the worker lifetime
+     * and affects authorization in every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function policy(string $class, string $policy): static
     {
         $this->policies[$class] = $policy;
@@ -280,9 +291,12 @@ class Gate implements GateContract
     /**
      * Register a callback to run before all Gate checks.
      *
-     * Boot-only. The callback persists on the singleton Gate for the worker
-     * lifetime and runs during authorization in every subsequent request.
+     * The callback persists on the singleton Gate for the worker lifetime
+     * and runs during authorization in every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function before(callable $callback): static
     {
         $this->beforeCallbacks[] = $callback;
@@ -293,9 +307,12 @@ class Gate implements GateContract
     /**
      * Register a callback to run after all Gate checks.
      *
-     * Boot-only. The callback persists on the singleton Gate for the worker
-     * lifetime and runs during authorization in every subsequent request.
+     * The callback persists on the singleton Gate for the worker lifetime
+     * and runs during authorization in every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function after(callable $callback): static
     {
         $this->afterCallbacks[] = $callback;
@@ -575,7 +592,9 @@ class Gate implements GateContract
      */
     protected function resolveAuthCallback(mixed $user, string $ability, array $arguments): callable
     {
+        // Gates also accept plain data; only classes and objects can identify a policy.
         if (isset($arguments[0])
+            && (is_object($arguments[0]) || is_string($arguments[0]))
             && ! is_null($policy = $this->getPolicyFor($arguments[0]))
             && $callback = $this->resolvePolicyCallback($user, $ability, $arguments, $policy)) {
             return $callback;
@@ -611,8 +630,20 @@ class Gate implements GateContract
             return $this->resolvePolicy($this->policies[$class]);
         }
 
-        $this->policyClassCache ??= new ArrayObject;
-        $policyClass = $this->policyClassCache[$class] ??= $this->resolvePolicyClass($class);
+        $policyClass = $this->policyClassCache[$class] ?? null;
+
+        if ($policyClass === null) {
+            // Cache only declared model names. Normalize other guesses so the container doesn't
+            // cache a policy instance per user-supplied spelling. Register policies explicitly
+            // when those inputs rely on container configuration for PHP class aliases.
+            $isDeclaredClass = class_exists($class) && (new ReflectionClass($class))->getName() === $class;
+            $policyClass = $this->resolvePolicyClass($class, $isDeclaredClass);
+
+            if ($isDeclaredClass) {
+                $this->policyClassCache ??= new ArrayObject;
+                $this->policyClassCache[$class] = $policyClass;
+            }
+        }
 
         return $policyClass !== false
             ? $this->resolvePolicy($policyClass)
@@ -628,7 +659,7 @@ class Gate implements GateContract
      *
      * @return class-string|false
      */
-    private function resolvePolicyClass(string $class): string|false
+    private function resolvePolicyClass(string $class, bool $isDeclaredClass): string|false
     {
         $policy = $this->getPolicyFromAttribute($class);
 
@@ -638,7 +669,7 @@ class Gate implements GateContract
 
         foreach ($this->guessPolicyName($class) as $guessedPolicy) {
             if (class_exists($guessedPolicy)) {
-                return $guessedPolicy;
+                return $isDeclaredClass ? $guessedPolicy : (new ReflectionClass($guessedPolicy))->getName();
             }
         }
 
@@ -704,9 +735,12 @@ class Gate implements GateContract
     /**
      * Specify a callback to be used to guess policy names.
      *
-     * Boot-only. The callback persists on the singleton Gate for the worker
-     * lifetime and affects policy discovery in every subsequent request.
+     * The callback persists on the singleton Gate for the worker lifetime
+     * and affects policy discovery in every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function guessPolicyNamesUsing(callable $callback): static
     {
         $this->guessPolicyNamesUsingCallback = $callback;
@@ -858,9 +892,12 @@ class Gate implements GateContract
     /**
      * Set the default denial response for gates and policies.
      *
-     * Boot-only. The response persists on the singleton Gate for the worker
-     * lifetime and affects authorization failures in every subsequent request.
+     * The response persists on the singleton Gate for the worker lifetime and
+     * affects authorization failures in every subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function defaultDenialResponse(Response $response): static
     {
         $this->defaultDenialResponse = $response;
@@ -871,10 +908,13 @@ class Gate implements GateContract
     /**
      * Set the container instance used by the gate.
      *
-     * Tests only. Swaps the container on the singleton Gate used by every
-     * coroutine; per-request use races across coroutines and breaks every
-     * concurrent authorization check.
+     * Swaps the container on the singleton Gate used by every coroutine;
+     * per-request use races across coroutines and breaks every concurrent
+     * authorization check.
+     *
+     * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

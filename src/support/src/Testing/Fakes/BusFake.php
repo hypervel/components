@@ -80,6 +80,8 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Specify the jobs that should be dispatched instead of faked.
+     *
+     * @return $this
      */
     public function except(array|string $jobsToDispatch): static
     {
@@ -330,7 +332,7 @@ class BusFake implements Fake, QueueingDispatcher
             $command = get_class($instance);
 
             $callback = function ($job) use ($instance) {
-                return serialize($this->resetChainPropertiesToDefaults($job)) === serialize($instance);
+                return Batch::matchesChainedJob($instance, serialize($this->resetChainPropertiesToDefaults($job)));
             };
         }
 
@@ -425,7 +427,7 @@ class BusFake implements Fake, QueueingDispatcher
                         if ($chain[$index] !== get_class(unserialize($serializedChainedJob))) {
                             return false;
                         }
-                    } elseif (serialize($chain[$index]) !== $serializedChainedJob) {
+                    } elseif (! Batch::matchesChainedJob($chain[$index], $serializedChainedJob)) {
                         return false;
                     }
                 }
@@ -749,6 +751,8 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Specify if commands should be serialized and restored when dispatched or batched.
+     *
+     * @return $this
      */
     public function serializeAndRestore(bool $serializeAndRestore = true): static
     {
@@ -775,6 +779,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Set the pipes commands should be piped through before dispatching.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
+     *
+     * @return $this
      */
     public function pipeThrough(array $pipes): static
     {
@@ -801,10 +809,42 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Map a command to a handler.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
+     *
+     * @return $this
      */
     public function map(array $map): static
     {
         $this->dispatcher->map($map);
+
+        return $this;
+    }
+
+    /**
+     * Allow dispatching after responses.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
+     *
+     * @return $this
+     */
+    public function withDispatchingAfterResponses(): static
+    {
+        $this->dispatcher->withDispatchingAfterResponses(); // @phpstan-ignore method.notFound (Laravel forwards this optional concrete dispatcher API.)
+
+        return $this;
+    }
+
+    /**
+     * Disable dispatching after responses.
+     *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
+     *
+     * @return $this
+     */
+    public function withoutDispatchingAfterResponses(): static
+    {
+        $this->dispatcher->withoutDispatchingAfterResponses(); // @phpstan-ignore method.notFound (Laravel forwards this optional concrete dispatcher API.)
 
         return $this;
     }

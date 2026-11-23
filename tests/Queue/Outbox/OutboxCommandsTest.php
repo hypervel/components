@@ -16,14 +16,17 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class OutboxCommandsTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -137,10 +140,10 @@ class OutboxCommandsTest extends TestCase
 
     public function testRetryRefusesCrossSourceUuidAmbiguityBeforeMutation(): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $repository->expects('getDatabases')->andReturn(['first', 'second']);
-        $repository->expects('find')->with('first', 'same')->andReturn((object) ['id' => 1]);
-        $repository->expects('find')->with('second', 'same')->andReturn((object) ['id' => 2]);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $repository->expects('getDatabases')->returns(['first', 'second']);
+        $repository->expects('find')->with('first', 'same')->returns((object) ['id' => 1]);
+        $repository->expects('find')->with('second', 'same')->returns((object) ['id' => 2]);
         $this->app->instance(DatabaseOutboxRepository::class, $repository);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Select one using --database');
@@ -216,8 +219,8 @@ class OutboxCommandsTest extends TestCase
                 'laravel_unique_job_lock_owner' => serialize($lock->owner()),
             ]],
         ], JSON_THROW_ON_ERROR)]);
-        $exceptions = m::mock(ExceptionHandler::class);
-        $exceptions->expects('report')->with(m::type(LogicException::class), m::on(fn (array $context): bool => $context['job_uuid'] === $uuid));
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
+        $exceptions->expects('report')->with(Argument::type(LogicException::class), Argument::satisfies(fn (array $context): bool => $context['job_uuid'] === $uuid));
         $this->app->instance(ExceptionHandler::class, $exceptions);
 
         $this->artisan('queue:outbox-forget', ['uuid' => $uuid])

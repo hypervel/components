@@ -31,7 +31,9 @@
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
+        "dragonmantank/cron-expression": "^3.4",
         "guzzlehttp/psr7": "^3.1",
+        "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
@@ -47,9 +49,10 @@
         "hypervel/di": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
-        "hypervel/guzzle": "^8.3",
+        "hypervel/guzzle": "^8.5.0.2",
         "hypervel/guzzle-promises": "^3.1",
         "hypervel/http": "^0.4",
+        "hypervel/http-server": "^0.4",
         "hypervel/log": "^0.4",
         "hypervel/notifications": "^0.4",
         "hypervel/object-pool": "^0.4",
@@ -64,7 +67,7 @@
         "psr/log": "^3.0",
         "sentry/sentry": "^4.34",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1",
+        "symfony/http-foundation": "^8.1.11",
         "vlucas/phpdotenv": "^5.6.1"
     },
     "config": {

@@ -100,24 +100,26 @@ trait PerformsDatabaseVectorSearch
 
         $baseQuery = $this->newSearchQuery($builder);
 
-        // Build the text query...
-        /** @var EloquentBuilder<Model&SearchableInterface> $textQuery */
-        $textQuery = $this->constrainSearchQuery($builder, $this->addTextSearchConstraints(
-            clone $baseQuery,
-            $builder,
-            array_keys($builder->model->toSearchableArray()),
-            $this->getPrefixColumns($builder),
-            $this->getFullTextColumns($builder)
-        )->take(1000));
+        $textResults = $this->searchWithTrigramFallback($builder, function (Builder $builder) use ($baseQuery): EloquentCollection {
+            /** @var EloquentBuilder<Model&SearchableInterface> $textQuery */
+            $textQuery = $this->constrainSearchQuery($builder, $this->addTextSearchConstraints(
+                clone $baseQuery,
+                $builder,
+                array_keys($builder->model->toSearchableArray()),
+                $this->getPrefixColumns($builder),
+                $this->getFullTextColumns($builder)
+            )->take(1000));
 
-        // Order the text query...
-        if (! $this->getFullTextColumns($builder)) {
-            $textQuery->orderBy($builder->model->getQualifiedKeyName(), 'desc');
-        } elseif ($this->shouldOrderByRelevance($builder)) {
-            $this->orderByRelevance($builder, $textQuery);
+            if (! $this->getFullTextColumns($builder)) {
+                $textQuery->orderBy($builder->model->getQualifiedKeyName(), 'desc');
+            } elseif ($this->shouldOrderByRelevance($builder)) {
+                $this->orderByRelevance($builder, $textQuery);
 
-            $textQuery->orderBy($builder->model->getQualifiedKeyName());
-        }
+                $textQuery->orderBy($builder->model->getQualifiedKeyName());
+            }
+
+            return $textQuery->get();
+        }, fn (EloquentCollection $models): bool => $models->isEmpty());
 
         // Build the semantic query...
         /** @var EloquentBuilder<Model&SearchableInterface> $semanticQuery */
@@ -129,7 +131,7 @@ trait PerformsDatabaseVectorSearch
 
         return $this->fuseSearchResults(
             $builder,
-            $textQuery->get(),
+            $textResults,
             $semanticQuery->get()
         )->take($limit)->values();
     }

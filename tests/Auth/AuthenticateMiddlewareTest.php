@@ -16,11 +16,14 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateMiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected AuthManager $auth;
 
     /**
@@ -157,7 +160,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->auth->extend(__CLASS__, function () use (&$boundTo): Guard {
             $boundTo = $this;
 
-            return m::mock(Guard::class);
+            return Double::for(Guard::class)->strict();
         });
 
         $this->auth->guard(__CLASS__);
@@ -167,7 +170,7 @@ class AuthenticateMiddlewareTest extends TestCase
 
     public function testCustomDriverStatic(): void
     {
-        $driver = m::mock(Guard::class);
+        $driver = Double::for(Guard::class)->strict();
 
         $this->auth->extend(__CLASS__, static fn (): Guard => $driver);
 
@@ -176,7 +179,7 @@ class AuthenticateMiddlewareTest extends TestCase
 
     public function testCustomInvokableDriver(): void
     {
-        $driver = m::mock(Guard::class);
+        $driver = Double::for(Guard::class)->strict();
         $creator = new AuthenticateMiddlewareTestCustomAuthDriver($driver);
 
         $this->auth->extend(__CLASS__, $creator(...));
@@ -262,8 +265,8 @@ class AuthenticateMiddlewareTest extends TestCase
     protected function createAuthDriver(string $name, bool $authenticated): RequestGuard
     {
         return new RequestGuard($name, function () use ($authenticated): ?Authenticatable {
-            return $authenticated ? m::mock(Authenticatable::class) : null;
-        }, Container::getInstance(), m::mock(EloquentUserProvider::class));
+            return $authenticated ? Double::for(Authenticatable::class)->strict() : null;
+        }, Container::getInstance(), Double::for(EloquentUserProvider::class)->strict());
     }
 
     /**

@@ -9,13 +9,13 @@ use Hypervel\Horizon\Connectors\RedisConnector;
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class RedisConnectorTest extends UnitTestCase
 {
     public function testConnectUsesOptionalMemberDefaultsWhenOmitted(): void
     {
-        $redis = m::mock(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $connector = new RedisConnector($redis, 'queue');
 
         $queue = $connector->connect([
@@ -33,7 +33,7 @@ class RedisConnectorTest extends UnitTestCase
 
     public function testConnectUsesConfiguredMigrationBatchSize(): void
     {
-        $queue = (new RedisConnector(m::mock(Redis::class)))->connect([
+        $queue = (new RedisConnector(Double::for(Redis::class)->strict()))->connect([
             'queue' => 'default',
             'migration_batch_size' => 100,
         ]);

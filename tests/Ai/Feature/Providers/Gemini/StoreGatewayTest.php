@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Gemini;
 
 use Hypervel\Ai\AiManager;
 use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Providers\GeminiProvider;
 use Hypervel\Ai\Stores;
 use Hypervel\Contracts\Foundation\Application;
@@ -456,5 +457,22 @@ class StoreGatewayTest extends TestCase
 
         Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
             && str_starts_with((string) $request->url(), 'https://generativelanguage.googleapis.com/v1beta/fileSearchStores/store123/documents/doc456%3Fforce%3Dfalse'));
+    }
+
+    public function testARejectedApiKeyHintsAtTheKey(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response(['error' => [
+                'code' => 400,
+                'message' => 'API key not valid. Please pass a valid API key.',
+                'status' => 'INVALID_ARGUMENT',
+                'details' => [['@type' => 'type.googleapis.com/google.rpc.ErrorInfo', 'reason' => 'API_KEY_INVALID']],
+            ]], 400),
+        ]);
+
+        $this->expectException(InvalidApiKeyException::class);
+        $this->expectExceptionMessage('Missing or invalid API key for AI provider [gemini].');
+
+        Stores::get('store123', provider: 'gemini');
     }
 }

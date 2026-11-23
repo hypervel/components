@@ -27,11 +27,13 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class ClientRegistrationTest extends PassportTestCase
 {
+    use VerifiesDoubles;
     use WithHypervelMigrations;
 
     protected bool $registrationEnabled = true;
@@ -139,8 +141,8 @@ class ClientRegistrationTest extends PassportTestCase
         config(['passport.issuer' => 'https://issuer.example', 'passport.replay.store' => 'database']);
         $material = (new SigningKeyFactory)->definition();
         $key = ParsedKey::fromPublicKey($material['public_key'])->getJwk();
-        $documents = m::mock(RemoteDocumentFetcher::class);
-        $documents->shouldReceive('fetch')->with('https://keys.example/jwks')->andReturn(['keys' => [[...$key, 'kid' => 'remote']]]);
+        $documents = Double::for(RemoteDocumentFetcher::class)->strict();
+        $documents->allows('fetch')->with('https://keys.example/jwks')->returns(['keys' => [[...$key, 'kid' => 'remote']]]);
         $this->app->instance(RemoteDocumentFetcher::class, $documents);
         $validator = $this->app->make(ClientMetadataValidator::class);
         $client = ClientFactory::new()->asClientCredentials()->create(['secret' => null]);

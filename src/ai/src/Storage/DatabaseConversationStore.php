@@ -29,6 +29,9 @@ use Hypervel\Ai\Responses\Data\Step;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult;
+use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Responses\StructuredAgentResponse;
+use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Support\ConversationPartition;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Pagination\CursorPaginator;
@@ -171,8 +174,9 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
             $now = now();
 
             $steps = $this->stepsFor($prompt, $response);
+            $content = $this->contentFor($response, $steps);
 
-            if ($prompt->hasApprovalDecisions() && blank($response->text) && $steps->every(fn (array $step) => $step['tool_calls'] === [])) {
+            if ($prompt->hasApprovalDecisions() && blank($content) && $steps->every(fn (array $step) => $step['tool_calls'] === [])) {
                 return null;
             }
 
@@ -181,7 +185,7 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
             $this->table($this->messagesTable())->insert($this->messageAttributes($messageId, $conversationId, $participantType, $participantId, $now, [
                 'agent' => $prompt->agent::class,
                 'role' => 'assistant',
-                'content' => $response->text,
+                'content' => $content,
                 'attachments' => '[]',
                 'steps' => $steps->toJson(),
                 'usage' => json_encode($response->usage),
@@ -321,23 +325,34 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
     protected function resumePausedRow(string $conversationId, object $paused, AgentPrompt $prompt, AgentResponse $response, ?Throwable $exception = null): string
     {
         $steps = $this->decodedSteps($paused);
+        $resumedSteps = $this->stepsFor($prompt, $response);
 
         if (($this->decoded($paused->meta)['provider'] ?? null) !== $response->meta->provider) {
             $steps = $this->withoutReplayBlocks($steps);
         }
 
         if ($response->steps->isNotEmpty()) {
-            $steps = $steps->concat($this->stepsFor($prompt, $response));
+            $steps = $steps->concat($resumedSteps);
         }
 
         if (! $response->hasPendingApprovals()) {
             $steps = $this->withoutReplayBlocks($steps);
         }
 
+        // Unlike upstream, a resume appends its own text to the paused content instead of rejoining every
+        // step, so text a response carries without steps, such as one an override supplies, is kept.
+        $content = $response instanceof StructuredAgentResponse
+            ? $response->text
+            : TextDelta::join([$paused->content, $this->contentFor($response, $resumedSteps)]);
+
+        if (blank($content)) {
+            $content = $paused->content;
+        }
+
         $now = now();
 
         $this->table($this->messagesTable())->where('id', $paused->id)->update([
-            'content' => blank($response->text) ? $paused->content : $response->text,
+            'content' => $content,
             'steps' => $steps->toJson(),
             'usage' => json_encode(TextUsage::fromArray($this->decoded($paused->usage))->add($response->usage)),
             'meta' => json_encode($this->mergedMeta($paused, $response, $exception)),
@@ -428,6 +443,23 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
                 ...$result?->resultId === null ? [] : ['result_id' => $result->resultId],
             ];
         })->values()->all();
+    }
+
+    /**
+     * Join the text of the turn's steps the way TextDelta::combine() joins a stream.
+     *
+     * @param Collection<int, array{content: string, tool_calls: array}> $steps
+     */
+    protected function contentFor(AgentResponse $response, Collection $steps): string
+    {
+        // A streamed response's text is already the joined text its caller saw.
+        if ($response instanceof StructuredAgentResponse || $response instanceof StreamedAgentResponse) {
+            return $response->text;
+        }
+
+        return TextDelta::join($steps
+            ->chunkWhile(fn (array $step, int $key, Collection $previous): bool => $previous->last()['tool_calls'] === [])
+            ->map(fn (Collection $steps): string => $steps->pluck('content')->join('')));
     }
 
     /**

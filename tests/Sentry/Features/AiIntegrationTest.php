@@ -152,18 +152,24 @@ use Hypervel\Tests\Sentry\Features\AiStubs\TestAgent;
 use Hypervel\Tests\Sentry\Features\AiStubs\TestAgentWithConfig;
 use Hypervel\Tests\Sentry\Features\AiStubs\WeatherLookup;
 use Hypervel\Tests\Sentry\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
 use Sentry\Tracing\Transaction;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class AiIntegrationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string PROVIDER_URL = 'https://api.openai.com/v1';
 
     protected array $defaultSetupConfig = [
@@ -666,6 +672,39 @@ class AiIntegrationTest extends TestCase
         $this->assertCount(1, $output);
     }
 
+    #[TestWith([false], 'ordinary schema failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testToolSchemaCancellationEscapesTracing(bool $canceled): void
+    {
+        $this->resetApplicationWithConfig(['sentry.send_default_pii' => true]);
+        $this->startTransaction();
+        [$prompt] = $this->makePromptAndResponse();
+        $failure = new RuntimeException('Schema failed.', previous: $canceled ? new CanceledException : null);
+        $tool = Double::for(new WeatherLookup)->passthru();
+        $tool->expects('schema')->throws($failure);
+        $this->dispatchHypervelEvent(new PromptingAgent('schema', $prompt));
+        $caught = null;
+
+        try {
+            $this->dispatchHypervelEvent(new StartingStep(
+                'schema',
+                0,
+                $prompt->agent,
+                $prompt->provider,
+                $prompt->model,
+                false,
+                [new UserMessage('Hello')],
+                new TextGenerationOptions,
+                'Instructions',
+                [$tool],
+            ));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($canceled ? $failure : null, $caught);
+    }
+
     public function testResolvedStepMetadataIsCollectedOnceAndToolDefinitionsAreBounded(): void
     {
         $this->resetApplicationWithConfig(['sentry.send_default_pii' => true]);
@@ -828,7 +867,7 @@ class AiIntegrationTest extends TestCase
     private function makeProvider(): OpenAiProvider
     {
         return new OpenAiProvider(
-            m::mock(Gateway::class),
+            Double::for(Gateway::class)->strict(),
             ['name' => 'openai', 'driver' => 'openai', 'key' => 'test-key'],
             $this->app->make('events')
         );

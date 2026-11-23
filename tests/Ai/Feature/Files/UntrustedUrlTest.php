@@ -20,8 +20,11 @@ use Hypervel\Tests\Ai\TestCase;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Socket;
+use Throwable;
 
 class UntrustedUrlTest extends TestCase
 {
@@ -434,20 +437,29 @@ class UntrustedUrlTest extends TestCase
         ];
     }
 
-    public function testCancellationDuringTransferCompletionTakesPrecedenceOverTheSizeFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancellationDuringTransferCompletionTakesPrecedenceOverTheSizeFailure(bool $wrapped): void
     {
         config(['ai.remote_files.allowed_hosts' => ['127.0.0.1'], 'ai.remote_files.max_size' => 1]);
         $server = LoopbackHttpServer::start([['body' => str_repeat('x', 1025)]]);
         $canceled = new CanceledException('Canceled while publishing transfer statistics.');
+
+        if ($wrapped) {
+            $canceled = new RuntimeException('Transfer callback cleanup failed.', previous: $canceled);
+        }
+
         Http::globalOptions(['on_stats' => static function () use ($canceled): void {
             throw $canceled;
         }]);
+        $caught = null;
 
         try {
             UntrustedUrl::fetch("http://127.0.0.1:{$server->port}/photo.png");
-            $this->fail('The cancellation was swallowed.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($canceled, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($canceled, $caught);
     }
 }

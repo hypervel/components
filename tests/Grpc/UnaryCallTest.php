@@ -226,7 +226,10 @@ class UnaryCallTest extends TestCase
         }
     }
 
-    public function testDroppingAnUnfinishedCallReleasesResourcesWithoutFinishingObservation(): void
+    #[TestWith([null])]
+    #[TestWith(['failure'], 'observer failure')]
+    #[TestWith(['cancellation'], 'observer cancellation')]
+    public function testDroppingAnUnfinishedCallFinishesObservationWithoutAResultAndReleasesResources(?string $observerFailure): void
     {
         $deadline = Deadline::fromTimeout(null);
         $state = $this->state($deadline);
@@ -235,6 +238,11 @@ class UnaryCallTest extends TestCase
             ++$abandonments;
         });
         $observer = new UnaryCallGrpcOperationObserverStub;
+        $observer->failure = match ($observerFailure) {
+            'failure' => new RuntimeException('observer failed'),
+            'cancellation' => new CanceledException,
+            default => null,
+        };
         $operationHandle = new GrpcOperationHandle(
             new UnaryCallGrpcOperationStub,
             [[$observer, null]],
@@ -245,8 +253,29 @@ class UnaryCallTest extends TestCase
 
         $this->assertSame(1, $abandonments);
         $this->assertTrue($state->isAbandoned());
-        $this->assertSame([], $observer->results);
-        $this->assertFalse($operationHandle->isFinished());
+        $this->assertCount(1, $observer->results);
+        $this->assertNull($observer->results[0]->status);
+        $this->assertNull($observer->results[0]->exception);
+        $this->assertTrue($operationHandle->isFinished());
+    }
+
+    public function testDroppingACompletedCallFinishesObservationWithItsTransportResult(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $state = $this->state($deadline);
+        $state->handle($this->trailersOnly(status: StatusCode::Unavailable));
+        $observer = new UnaryCallGrpcOperationObserverStub;
+        $call = $this->call(
+            $state,
+            $deadline,
+            operationHandle: new GrpcOperationHandle(new UnaryCallGrpcOperationStub, [[$observer, null]]),
+        );
+
+        unset($call);
+
+        $this->assertFalse($state->isAbandoned());
+        $this->assertCount(1, $observer->results);
+        $this->assertSame(StatusCode::Unavailable, $observer->results[0]->status?->code());
     }
 
     public function testWaitRejectsAResponseWithoutAMessage(): void
@@ -1110,6 +1139,8 @@ class UnaryCallGrpcOperationObserverStub implements GrpcOperationObserver
     /** @var list<GrpcOperationResult> */
     public array $results = [];
 
+    public ?Throwable $failure = null;
+
     public function starting(GrpcOperation $operation): null
     {
         return null;
@@ -1121,5 +1152,9 @@ class UnaryCallGrpcOperationObserverStub implements GrpcOperationObserver
         GrpcOperationResult $result,
     ): void {
         $this->results[] = $result;
+
+        if ($this->failure !== null) {
+            throw $this->failure;
+        }
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Reverb;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Coroutine\Http\Client;
 
 /**
@@ -610,11 +611,7 @@ class ServerTest extends ReverbIntegrationTestCase
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-ping-default-channel');
 
-        // Trigger inactive ping via test endpoint (ages connections + runs PingInactiveConnections)
-        $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
-        $httpClient->post('/_test/ping-inactive/' . $this->appId, '');
-        $this->assertSame(200, $httpClient->getStatusCode());
-        $httpClient->close();
+        $this->pingInactiveConnections();
 
         // Should receive a Pusher-level ping (not a WS control frame)
         $msg = $this->recv($client, 2);
@@ -649,11 +646,7 @@ class ServerTest extends ReverbIntegrationTestCase
         // Subscribe to a channel
         $this->subscribe($client, $socketId, 'test-ping-control-channel');
 
-        // Trigger inactive ping
-        $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
-        $httpClient->post('/_test/ping-inactive/' . $this->appId, '');
-        $this->assertSame(200, $httpClient->getStatusCode());
-        $httpClient->close();
+        $this->pingInactiveConnections();
 
         // Should receive a WS ping control frame (not Pusher-level)
         $frame = $client->recv(2);
@@ -668,35 +661,21 @@ class ServerTest extends ReverbIntegrationTestCase
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-prune-channel');
 
-        // Step 1: age + ping (marks connection as pinged)
-        $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
-        $httpClient->post('/_test/ping-inactive/' . $this->appId, '');
-        $this->assertSame(200, $httpClient->getStatusCode());
-        $httpClient->close();
+        $this->assertSame(1, $this->readSubscriptionCount($this->appId, 'test-prune-channel'));
 
-        // Receive the Pusher ping
-        $msg = $this->recv($client, 2);
-        $this->assertNotNull($msg);
-        $data = json_decode($msg, associative: true);
-        $this->assertSame('pusher:ping', $data['event']);
+        $this->assertPrunedAfterUnansweredPing($client);
 
-        // Do NOT respond with pong — connection is now pinged + inactive = stale
+        // onClose unsubscribes after the prune job releases the connection.
+        usleep(100_000);
 
-        // Step 2: prune stale connections (pinged but didn't respond)
-        $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
-        $httpClient->post('/_test/prune-stale/' . $this->appId, '');
-        $this->assertSame(200, $httpClient->getStatusCode());
-        $httpClient->close();
+        $this->assertSame(0, $this->readSubscriptionCount($this->appId, 'test-prune-channel'));
+    }
 
-        // Verify the connection receives a stale error and is disconnected
-        $msg = $this->recv($client, 2);
-        if ($msg !== null) {
-            $data = json_decode($msg, associative: true);
-            $this->assertSame('pusher:error', $data['event']);
-            $this->assertStringContainsString('4201', $data['data']);
-        }
+    public function testCanDisconnectInactiveConnectionsWithoutSubscriptions(): void
+    {
+        ['client' => $client] = $this->connect();
 
-        $client->close();
+        $this->assertPrunedAfterUnansweredPing($client);
     }
 
     // ── Client events (whisper) ────────────────────────────────────────
@@ -951,6 +930,9 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->assertSame('pusher:error', $data['event']);
         $this->assertStringContainsString('4009', $data['data']);
 
+        $client->recv(1);
+        $this->assertFalse($client->connected);
+
         $client->close();
     }
 
@@ -970,10 +952,15 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testCannotConnectWhenOverTheMaxConnectionLimit(): void
+    #[DataProvider('existingConnectionProvider')]
+    public function testCannotConnectWhenOverTheMaxConnectionLimit(bool $subscribed): void
     {
         // App 2 (654321) has max_connections=1
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect('reverb-key-2');
+
+        if ($subscribed) {
+            $this->subscribe($clientOne, $socketIdOne, 'test-channel');
+        }
 
         // Second connection should be rejected
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
@@ -988,8 +975,35 @@ class ServerTest extends ReverbIntegrationTestCase
         $errorData = json_decode($data['data'], associative: true);
         $this->assertSame(4004, $errorData['code']);
 
+        $client->recv(1);
+        $this->assertFalse($client->connected);
+
         $client->close();
         $this->disconnect($clientOne);
+    }
+
+    /**
+     * Provide whether the existing connection has a subscription.
+     */
+    public static function existingConnectionProvider(): array
+    {
+        return [
+            'subscribed' => [true],
+            'unsubscribed' => [false],
+        ];
+    }
+
+    public function testFreesConnectionQuotaWhenAConnectionCloses(): void
+    {
+        // App 2 (654321) has max_connections=1
+        ['client' => $client] = $this->connect('reverb-key-2');
+        $this->disconnect($client);
+
+        // Give the server a moment to handle the closed socket.
+        usleep(100_000);
+
+        ['client' => $client] = $this->connect('reverb-key-2');
+        $this->disconnect($client);
     }
 
     // ── HTTP API ───────────────────────────────────────────────────────
@@ -1361,6 +1375,50 @@ class ServerTest extends ReverbIntegrationTestCase
         ['client' => $newClient] = $this->connect('reverb-key-2');
 
         $this->disconnect($newClient);
+    }
+
+    /**
+     * Assert that an unanswered ping gets the client pruned.
+     */
+    protected function assertPrunedAfterUnansweredPing(Client $client): void
+    {
+        $this->pingInactiveConnections();
+
+        $this->assertSame('{"event":"pusher:ping"}', $this->recv($client, 2));
+
+        $this->pruneStaleConnections();
+
+        // The server's scheduled ping job may ping the inactive connection again before the error.
+        $this->assertSame(
+            ['event' => 'pusher:error', 'data' => '{"code":4201,"message":"Pong reply not received in time"}'],
+            $this->receiveEvent($client, 'pusher:error', 2),
+        );
+
+        $client->recv(1);
+        $this->assertFalse($client->connected);
+        $client->close();
+    }
+
+    /**
+     * Age this test app's connections and ping the inactive ones.
+     */
+    protected function pingInactiveConnections(): void
+    {
+        $httpClient = new Client($this->getServerHost(), $this->getServerPort());
+        $httpClient->post('/_test/ping-inactive/' . $this->appId, '');
+        $this->assertSame(200, $httpClient->getStatusCode());
+        $httpClient->close();
+    }
+
+    /**
+     * Prune the connections left stale by an unanswered ping.
+     */
+    protected function pruneStaleConnections(): void
+    {
+        $httpClient = new Client($this->getServerHost(), $this->getServerPort());
+        $httpClient->post('/_test/prune-stale', '');
+        $this->assertSame(200, $httpClient->getStatusCode());
+        $httpClient->close();
     }
 
     /**

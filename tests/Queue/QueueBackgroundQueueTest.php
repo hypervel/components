@@ -31,7 +31,9 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -41,6 +43,8 @@ use function Hypervel\Coroutine\run;
 
 class QueueBackgroundQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testPushShouldRunInBackground(): void
@@ -154,12 +158,12 @@ class QueueBackgroundQueueTest extends TestCase
         });
         $background->setConnectionName('background');
         $container = $this->getContainer();
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(4);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
         $background->setContainer($container);
@@ -187,9 +191,13 @@ class QueueBackgroundQueueTest extends TestCase
         $handler = new CancelingBackgroundQueueTestHandler;
         $handler->cleanupException = $cleanupThrows ? new RuntimeException('Job cleanup failed.') : null;
         $container->instance(CancelingBackgroundQueueTestHandler::class, $handler);
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->with(Argument::type(JobProcessing::class));
+        $events->expects('dispatch')->with(Argument::satisfies(
+            static fn (object $event): bool => $event instanceof JobAttempted && $event->canceled,
+        ));
         $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
         $background->setContainer($container);
@@ -212,9 +220,9 @@ class QueueBackgroundQueueTest extends TestCase
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $background->setContainer($container);
@@ -226,9 +234,9 @@ class QueueBackgroundQueueTest extends TestCase
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $background->setContainer($container);
@@ -240,10 +248,10 @@ class QueueBackgroundQueueTest extends TestCase
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new BackgroundQueueAfterCommitUniqueJob;
@@ -258,10 +266,10 @@ class QueueBackgroundQueueTest extends TestCase
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new BackgroundQueueAfterCommitDebouncedJob;
@@ -276,10 +284,10 @@ class QueueBackgroundQueueTest extends TestCase
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new BackgroundQueueAfterCommitInterfaceUniqueJob;
@@ -291,11 +299,10 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterSchedulesJobWithDelay(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -314,11 +321,10 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testBulkRespectsDelayAttribute(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
@@ -332,11 +338,10 @@ class QueueBackgroundQueueTest extends TestCase
     public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(bool $afterCommit): void
     {
         $scheduled = null;
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) use (&$scheduled) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) use (&$scheduled) {
                 $scheduled = $callback;
 
                 return 1;
@@ -374,11 +379,10 @@ class QueueBackgroundQueueTest extends TestCase
     {
         $afterCommit = null;
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) use (&$afterCommit) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) use (&$afterCommit) {
                 $afterCommit = $callback;
 
                 return null;
@@ -405,11 +409,10 @@ class QueueBackgroundQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(10.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(10.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -432,11 +435,10 @@ class QueueBackgroundQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(15.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(15.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -457,18 +459,17 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForAfterCommitJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
@@ -480,18 +481,17 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
@@ -503,22 +503,21 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForAfterCommitUniqueJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
         $job = new BackgroundQueueAfterCommitUniqueJob;
         DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
@@ -529,22 +528,21 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterAddsTransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
         $job = new BackgroundQueueAfterCommitDebouncedJob;
         DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
@@ -555,22 +553,21 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
         $job = new BackgroundQueueAfterCommitInterfaceUniqueJob;
         DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
@@ -581,8 +578,8 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterClampsNegativeIntegerDelay(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(0.0, Argument::type('Closure'))->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
@@ -595,8 +592,8 @@ class QueueBackgroundQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(0.0, Argument::type('Closure'))->returns(1);
 
         $background = new BackgroundQueue(timer: $timer);
         $background->setConnectionName('background');
@@ -613,11 +610,10 @@ class QueueBackgroundQueueTest extends TestCase
 
         $result = null;
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -628,12 +624,12 @@ class QueueBackgroundQueueTest extends TestCase
         });
         $background->setConnectionName('background');
         $container = $this->getContainer();
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(4);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
         $background->setContainer($container);
@@ -656,11 +652,10 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertNotNull($metadata);
 
         $callback = null;
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $scheduledCallback) use (&$callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $scheduledCallback) use (&$callback) {
                 $callback = $scheduledCallback;
 
                 return 1;
@@ -688,7 +683,7 @@ class QueueBackgroundQueueTest extends TestCase
     protected function getContainer(): Container
     {
         $container = new Container;
-        $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(Cache::class, Double::for(Cache::class)->strict());
         $container->instance(Dispatcher::class, new EventsDispatcher($container));
         Container::setInstance($container);
 

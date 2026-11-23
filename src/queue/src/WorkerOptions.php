@@ -7,10 +7,17 @@ namespace Hypervel\Queue;
 class WorkerOptions
 {
     /**
+     * The number of seconds to wait before retrying a job that encountered an uncaught exception, or a schedule of them.
+     *
+     * @var int|int[]
+     */
+    public array|int $backoff;
+
+    /**
      * Create a new worker options instance.
      *
      * @param string $name the name of the worker
-     * @param int|int[] $backoff
+     * @param int|int[]|string $backoff the seconds to wait before retrying a failed job, or a schedule as a list or comma-separated string
      * @param float|string $memory the maximum RAM in megabytes or a percentage of PHP's memory limit
      * @param int $timeout the maximum number of seconds a child worker may run
      * @param float $sleep the number of seconds to wait in between polling the queue
@@ -27,7 +34,7 @@ class WorkerOptions
      */
     public function __construct(
         public string $name = 'default',
-        public array|int $backoff = 0,
+        array|int|string $backoff = 0,
         public float|string $memory = 128,
         public int $timeout = 60,
         public float $sleep = 3,
@@ -42,5 +49,9 @@ class WorkerOptions
         public int $monitorInterval = 1,
         public array $coroutineContext = [],
     ) {
+        // Console options arrive as strings, where a comma-separated schedule such as Horizon's becomes a list of delays.
+        $this->backoff = is_string($backoff)
+            ? (str_contains($backoff, ',') ? array_map(intval(...), explode(',', $backoff)) : (int) $backoff)
+            : $backoff;
     }
 }

@@ -76,7 +76,7 @@ class TaskCallback
                 $this->dispatcher->dispatch(new TaskTerminated($server, $task));
             }
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($workerContext !== null) {

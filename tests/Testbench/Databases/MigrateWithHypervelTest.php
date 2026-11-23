@@ -14,7 +14,8 @@ use Hypervel\Testbench\Attributes\DefineDatabase;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Database\MigrateProcessor;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
@@ -25,6 +26,8 @@ use function Hypervel\Testbench\join_paths;
 #[WithConfig('database.default', 'testing')]
 class MigrateWithHypervelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[Test]
     #[DefineDatabase('loadApplicationMigrations')]
     public function itLoadsTheMigrations(): void
@@ -92,10 +95,10 @@ class MigrateWithHypervelTest extends TestCase
     public function itDetachesProcessorsAndContinuesMigrationCleanupAfterFailure(): void
     {
         $failure = new RuntimeException('First rollback failed.');
-        $first = m::mock(MigrateProcessor::class);
-        $first->shouldReceive('rollback')->once()->andThrow($failure);
-        $second = m::mock(MigrateProcessor::class);
-        $second->shouldReceive('rollback')->once()->andReturnSelf();
+        $first = Double::for(MigrateProcessor::class)->strict();
+        $first->expects('rollback')->throws($failure);
+        $second = Double::for(MigrateProcessor::class)->strict();
+        $second->expects('rollback')->returns($second);
         $this->cachedTestMigratorProcessors = [$first, $second];
 
         try {

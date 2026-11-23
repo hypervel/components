@@ -13,12 +13,16 @@ use Hypervel\Dogfood\Mcp\Conformance\Resources\StaticTextResource;
 use Hypervel\Dogfood\Mcp\Conformance\Resources\TemplateResource;
 use Hypervel\Dogfood\Mcp\Conformance\Resources\WatchedResource;
 use Hypervel\Dogfood\Mcp\Conformance\Tools\AudioContentTool;
+use Hypervel\Dogfood\Mcp\Conformance\Tools\CustomHeaderTool;
 use Hypervel\Dogfood\Mcp\Conformance\Tools\EmbeddedResourceTool;
 use Hypervel\Dogfood\Mcp\Conformance\Tools\ErrorHandlingTool;
 use Hypervel\Dogfood\Mcp\Conformance\Tools\ImageContentTool;
+use Hypervel\Dogfood\Mcp\Conformance\Tools\JsonSchema202012Tool;
+use Hypervel\Dogfood\Mcp\Conformance\Tools\LoggingTool;
 use Hypervel\Dogfood\Mcp\Conformance\Tools\MultipleContentTypesTool;
 use Hypervel\Dogfood\Mcp\Conformance\Tools\ProgressTool;
 use Hypervel\Dogfood\Mcp\Conformance\Tools\SimpleTextTool;
+use Hypervel\Dogfood\Mcp\Conformance\Tools\StreamingElicitationTool;
 use Hypervel\Mcp\Server;
 
 class ConformanceServer extends Server
@@ -41,6 +45,10 @@ class ConformanceServer extends Server
         MultipleContentTypesTool::class,
         ErrorHandlingTool::class,
         ProgressTool::class,
+        JsonSchema202012Tool::class,
+        CustomHeaderTool::class,
+        LoggingTool::class,
+        StreamingElicitationTool::class,
     ];
 
     public array $resources = [

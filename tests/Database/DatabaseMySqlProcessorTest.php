@@ -40,6 +40,7 @@ class DatabaseMySqlProcessorTest extends TestCase
             [
                 'name' => 'users_active_index',
                 'columns' => ['account_id', 'archived_at'],
+                'key_columns' => ['account_id', 'archived_at'],
                 'type' => 'btree',
                 'unique' => false,
                 'primary' => false,
@@ -48,14 +49,43 @@ class DatabaseMySqlProcessorTest extends TestCase
             [
                 'name' => 'primary',
                 'columns' => ['id'],
+                'key_columns' => ['id'],
                 'type' => 'btree',
                 'unique' => true,
                 'primary' => true,
                 'partial' => false,
             ],
         ], $processor->processIndexes([
-            ['name' => 'Users_Active_Index', 'columns' => 'account_id,archived_at', 'type' => 'BTREE', 'unique' => false],
-            ['name' => 'PRIMARY', 'columns' => 'id', 'type' => 'BTREE', 'unique' => true],
+            ['name' => 'Users_Active_Index', 'column_name' => 'account_id', 'type' => 'BTREE', 'unique' => false],
+            ['name' => 'Users_Active_Index', 'column_name' => 'archived_at', 'type' => 'BTREE', 'unique' => false],
+            ['name' => 'PRIMARY', 'column_name' => 'id', 'type' => 'BTREE', 'unique' => true],
+        ]));
+    }
+
+    public function testIndexKeysPreserveCommasAndExpressionPositions(): void
+    {
+        $processor = new MySqlProcessor;
+        $indexes = $processor->processIndexes([
+            (object) ['name' => 'mixed', 'column_name' => 'tenant,id', 'type' => 'BTREE', 'unique' => true],
+            (object) ['name' => 'mixed', 'column_name' => null, 'type' => 'BTREE', 'unique' => true],
+            (object) ['name' => 'plain', 'column_name' => 'tenant,id', 'type' => 'BTREE', 'unique' => false],
+        ]);
+
+        $this->assertSame([], $indexes[0]['columns']);
+        $this->assertSame(['tenant,id', null], $indexes[0]['key_columns']);
+        $this->assertSame(['tenant,id'], $indexes[1]['columns']);
+    }
+
+    public function testForeignKeyPairsPreserveNamesAndOrder(): void
+    {
+        $processor = new MySqlProcessor;
+        $metadata = ['name' => 'parent_fk', 'foreign_schema' => 'app', 'foreign_table' => 'parents', 'on_update' => 'CASCADE', 'on_delete' => 'RESTRICT'];
+
+        $this->assertSame([
+            ['name' => 'parent_fk', 'columns' => ['tenant,id', 'parent_id'], 'foreign_schema' => 'app', 'foreign_table' => 'parents', 'foreign_columns' => ['tenant,id', 'id'], 'on_update' => 'cascade', 'on_delete' => 'restrict'],
+        ], $processor->processForeignKeys([
+            $metadata + ['column_name' => 'tenant,id', 'foreign_column_name' => 'tenant,id'],
+            $metadata + ['column_name' => 'parent_id', 'foreign_column_name' => 'id'],
         ]));
     }
 }

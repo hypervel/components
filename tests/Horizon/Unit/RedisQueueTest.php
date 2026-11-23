@@ -19,12 +19,14 @@ use Hypervel\Horizon\Events\JobsMigrated;
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Horizon\UnitTestCase;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
-use Mockery as m;
+use JMac\Testing\Double;
 use PHPUnit\Framework\Attributes\TestWith;
 use RedisException;
 use RuntimeException;
@@ -116,13 +118,19 @@ class RedisQueueTest extends UnitTestCase
         $this->assertTrue($cache->lock(UniqueLock::getKey($job))->isLocked());
     }
 
-    public function testPostPushCancellationStopsNotificationsWithoutReplacingCancellation(): void
+    public function testPostPushCancellationStillPublishesTheQueuedOutcome(): void
     {
         $stored = [];
         [$queue, $events] = $this->publishingQueue($stored);
         $cancellation = new CanceledException;
         $events->listen(JobPushed::class, static fn () => throw $cancellation);
-        $events->listen([JobQueued::class, JobQueueingFailed::class], static fn () => throw new RuntimeException('Must not run after cancellation.'));
+        $queued = $unqueued = [];
+        $events->listen(JobQueued::class, static function (JobQueued $event) use (&$queued): void {
+            $queued[] = $event->job;
+        });
+        $events->listen([JobQueueingFailed::class, JobQueueingCanceled::class], static function (object $event) use (&$unqueued): void {
+            $unqueued[] = $event;
+        });
 
         try {
             $queue->push('job');
@@ -132,17 +140,18 @@ class RedisQueueTest extends UnitTestCase
         }
 
         $this->assertCount(1, $stored);
+        $this->assertSame(['job'], $queued);
+        $this->assertSame([], $unqueued);
     }
 
     public function testReadyNowReadsTheClusterSafeQueueKey(): void
     {
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
-        $connection->shouldReceive('lLen')->once()->with('queues:{critical}')->andReturn(3);
-        $connection->shouldReceive('lLen')->once()->with('queues:{0}')->andReturn(4);
+        [$connection, $client] = $this->redisConnection(cluster: true);
+        $client->expects('lLen')->with('queues:{critical}')->returns(3);
+        $client->expects('lLen')->with('queues:{0}')->returns(4);
 
-        $redis = m::mock(Factory::class);
-        $redis->shouldReceive('connection')->times(3)->with('default')->andReturn($connection);
+        $redis = Double::for(Factory::class)->strict();
+        $redis->expects('connection')->times(3)->with('default')->returns($connection);
 
         $queue = new RedisQueue($redis, 'default', 'default');
 
@@ -154,21 +163,20 @@ class RedisQueueTest extends UnitTestCase
     #[TestWith(['{critical}'])]
     public function testMigrationEventsReportTheQueueNameOnCluster(string $name): void
     {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::create(2026, 1, 1));
         $key = 'queues:{critical}';
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->andReturnTrue();
-        $connection->shouldReceive('eval')
-            ->twice()
-            ->with(LuaScripts::migrateExpiredJobs(), 3, $key . ':delayed', $key, $key . ':notify', m::type('int'), m::type('int'))
-            ->andReturn([]);
-        $connection->shouldReceive('eval')
-            ->once()
-            ->with(LuaScripts::migrateExpiredJobs(), 3, $key . ':reserved', $key, $key . ':notify', m::type('int'), m::type('int'))
-            ->andReturn([]);
-        $connection->shouldReceive('eval')
-            ->once()
-            ->with(LuaScripts::pop(), 3, $key, $key . ':reserved', $key . ':notify', m::type('int'))
-            ->andReturn([]);
+        [$connection, $client] = $this->redisConnection(cluster: true);
+        $client->allows('clearLastError')->returns(true);
+        $client->expects('eval')
+            ->times(2)
+            ->with(LuaScripts::migrateExpiredJobs(), [$key . ':delayed', $key, $key . ':notify', $now->getTimestamp(), RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE], 3)
+            ->returns([]);
+        $client->expects('eval')
+            ->with(LuaScripts::migrateExpiredJobs(), [$key . ':reserved', $key, $key . ':notify', $now->getTimestamp(), RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE], 3)
+            ->returns([]);
+        $client->expects('eval')
+            ->with(LuaScripts::pop(), [$key, $key . ':reserved', $key . ':notify', $now->getTimestamp() + RedisQueue::DEFAULT_RETRY_AFTER], 3)
+            ->returns([]);
 
         $queues = [];
         $queue = $this->queueRecordingMigrations($connection, $queues);
@@ -182,9 +190,9 @@ class RedisQueueTest extends UnitTestCase
 
     public function testConcurrentPopsReportTheirOwnQueueNames(): void
     {
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->andReturnTrue();
-        $connection->shouldReceive('eval')->andReturnUsing(function (): array {
+        [$connection, $client] = $this->redisConnection(cluster: true);
+        $client->allows('clearLastError')->returns(true);
+        $client->allows('eval')->resolves(function (): array {
             usleep(5000);
 
             return [];
@@ -203,17 +211,16 @@ class RedisQueueTest extends UnitTestCase
 
     public function testFailedPopDoesNotLeakItsQueueNameIntoLaterMigrations(): void
     {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::create(2026, 1, 1));
         $exception = new RedisException('Connection lost');
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->andReturnFalse();
-        $connection->shouldReceive('eval')
-            ->once()
-            ->with(LuaScripts::migrateExpiredJobs(), 3, 'queues:critical:delayed', 'queues:critical', 'queues:critical:notify', m::type('int'), m::type('int'))
-            ->andThrow($exception);
-        $connection->shouldReceive('eval')
-            ->once()
-            ->with(LuaScripts::migrateExpiredJobs(), 3, 'queues:low:delayed', 'queues:low', 'queues:low:notify', m::type('int'), m::type('int'))
-            ->andReturn([]);
+        [$connection, $client] = $this->redisConnection();
+        $client->allows('getLastError')->returns(null);
+        $client->expects('eval')
+            ->with(LuaScripts::migrateExpiredJobs(), ['queues:critical:delayed', 'queues:critical', 'queues:critical:notify', $now->getTimestamp(), RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE], 3)
+            ->throws($exception);
+        $client->expects('eval')
+            ->with(LuaScripts::migrateExpiredJobs(), ['queues:low:delayed', 'queues:low', 'queues:low:notify', $now->getTimestamp(), RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE], 3)
+            ->returns([]);
 
         $queues = [];
         $queue = $this->queueRecordingMigrations($connection, $queues);
@@ -235,8 +242,8 @@ class RedisQueueTest extends UnitTestCase
      */
     private function queueRecordingMigrations(RedisProxy $connection, array &$queues): RedisQueue
     {
-        $redis = m::mock(Factory::class);
-        $redis->shouldReceive('connection')->with('default')->andReturn($connection);
+        $redis = Double::for(Factory::class)->strict();
+        $redis->allows('connection')->with('default')->returns($connection);
 
         $container = new Container;
         $events = new Dispatcher($container);
@@ -259,9 +266,8 @@ class RedisQueueTest extends UnitTestCase
      */
     private function publishingQueue(array &$stored, ?RuntimeException $failure = null): array
     {
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->andReturnFalse();
-        $connection->expects('evalWithShaCache')->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$stored, $failure): int {
+        [$connection, , $rawConnection] = $this->redisConnection();
+        $rawConnection->expects('evalWithShaCache')->resolves(static function (string $script, array $keys, array $arguments) use (&$stored, $failure): int {
             if ($failure !== null) {
                 throw $failure;
             }
@@ -278,8 +284,8 @@ class RedisQueueTest extends UnitTestCase
 
             return 1;
         });
-        $redis = m::mock(Factory::class);
-        $redis->shouldReceive('connection')->with('default')->andReturn($connection);
+        $redis = Double::for(Factory::class)->strict();
+        $redis->allows('connection')->with('default')->returns($connection);
         $container = new Container;
         Container::setInstance($container);
         $container->instance('config', new ConfigRepository);

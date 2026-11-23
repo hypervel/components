@@ -148,6 +148,16 @@ class OpenGraphTest extends TestCase
         $this->assertStringNotContainsString('https://example.com/brand.png', $html);
     }
 
+    public function testMergesOgImagesFromSeveralDefaultsCalls(): void
+    {
+        Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head->ogImage('https://example.com/first.png'));
+        Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head->ogImage('https://example.com/second.png'));
+
+        $html = Head::toHtml();
+        $this->assertStringContainsString('property="og:image" content="https://example.com/first.png">', $html);
+        $this->assertStringContainsString('property="og:image" content="https://example.com/second.png">', $html);
+    }
+
     public function testReplacesDefaultMediaIndependentlyAcrossRouteAndPageLayers(): void
     {
         Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head
@@ -172,6 +182,9 @@ class OpenGraphTest extends TestCase
         Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head->ogImage('/first.png')->ogAudio('/audio.mp3'));
         Head::defaults(fn (HeadBuilder $head): HeadBuilder => $head->ogImage('/second.png')->ogVideo('/video.mp4'));
         Head::resolveDefaultsUsing(fn (HeadBuilder $head): HeadBuilder => $head->ogImage('/runtime.png'));
+
+        $this->assertSame([['url' => '/runtime.png']], Head::toArray()['openGraph']['images']);
+
         Head::ogImage('/page.png');
 
         $data = Head::toArray()['openGraph'];

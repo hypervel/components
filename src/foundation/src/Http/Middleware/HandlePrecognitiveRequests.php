@@ -50,8 +50,9 @@ class HandlePrecognitiveRequests
      */
     protected function appendVaryHeader(Request $request, Response $response): Response
     {
+        // Content negotiation can add separate Vary lines; retain all of them.
         return tap($response, fn () => $response->headers->set('Vary', implode(', ', array_filter([
-            $response->headers->get('Vary'),
+            ...$response->headers->all('Vary'),
             'Precognition',
         ]))));
     }

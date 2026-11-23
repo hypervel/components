@@ -30,7 +30,8 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-swoole": "^6.3.0RC1",
+        "ext-swoole": "^6.3.0RC2",
+        "hypervel/attributes": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",

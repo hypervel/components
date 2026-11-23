@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Redis;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Redis\RedisCancellation;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RedisClusterException;
 use RedisException;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
+use Throwable;
 
 class RedisCancellationTest extends TestCase
 {
@@ -29,38 +31,58 @@ class RedisCancellationTest extends TestCase
         $this->assertNull(RedisCancellation::cancellationFrom(new RuntimeException('failed'), 'boundary canceled'));
     }
 
-    public function testItNormalizesOnlyNativePhpRedisFailuresAtTheCancellationBoundary(): void
+    #[TestWith([true, false], 'operation cancellation')]
+    #[TestWith([false, true], 'cleanup cancellation')]
+    #[TestWith([true, true], 'first cancellation')]
+    #[TestWith([false, false], 'ordinary cleanup precedence')]
+    public function testFailureSelectionPreservesWrappedCancellation(bool $operationCanceled, bool $cleanupCanceled): void
     {
-        $blocker = new Channel(1);
-        $cancellations = [];
+        $operation = new RuntimeException('Operation failed.', previous: $operationCanceled ? new CanceledException : null);
+        $cleanup = new RuntimeException('Cleanup failed.', previous: $cleanupCanceled ? new CanceledException : null);
+        $caught = null;
+
+        try {
+            RedisCancellation::throwOperationOrCleanupFailure($operation, $cleanup);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($operationCanceled ? $operation : $cleanup, $caught);
+    }
+
+    public function testItNormalizesOnlyPhpRedisFailuresCarryingACancellation(): void
+    {
         $failures = [
-            new RedisException('read canceled'),
-            new RedisClusterException('cluster read canceled'),
+            new RedisException('read canceled', previous: new CanceledException),
+            new RedisClusterException('cluster read canceled', previous: new CanceledException),
         ];
 
-        $coroutine = Coroutine::create(function () use ($blocker, $failures, &$cancellations): void {
-            try {
-                $blocker->pop();
-            } catch (CanceledException) {
-                foreach ($failures as $failure) {
-                    $cancellations[] = RedisCancellation::cancellationFrom($failure, 'Reading from Redis was canceled.');
-                }
+        foreach ($failures as $failure) {
+            $cancellation = RedisCancellation::cancellationFrom($failure, 'Reading from Redis was canceled.');
 
-                $cancellations[] = RedisCancellation::cancellationFrom(
-                    new RuntimeException('failed'),
-                    'Reading from Redis was canceled.',
-                );
-            }
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertSame('Reading from Redis was canceled.', $cancellation->getMessage());
+            $this->assertSame($failure, $cancellation->getPrevious());
+        }
+
+        $this->assertNull(RedisCancellation::cancellationFrom(
+            new RuntimeException('failed', previous: new CanceledException),
+            'Reading from Redis was canceled.',
+        ));
+    }
+
+    public function testItDoesNotClassifyAFailureAfterAHandledCancellation(): void
+    {
+        $coroutine = Coroutine::id();
+        Coroutine::create(static function () use ($coroutine): void {
+            usleep(10000);
+            Coroutine::cancelById($coroutine);
         });
 
-        $this->assertTrue(Coroutine::cancelById($coroutine->getId(), throwException: true));
-        $this->assertCount(3, $cancellations);
-        $this->assertInstanceOf(CanceledException::class, $cancellations[0]);
-        $this->assertSame('Reading from Redis was canceled.', $cancellations[0]->getMessage());
-        $this->assertSame($failures[0], $cancellations[0]->getPrevious());
-        $this->assertInstanceOf(CanceledException::class, $cancellations[1]);
-        $this->assertSame('Reading from Redis was canceled.', $cancellations[1]->getMessage());
-        $this->assertSame($failures[1], $cancellations[1]->getPrevious());
-        $this->assertNull($cancellations[2]);
+        $this->assertFalse((new Channel(1))->pop(1));
+        $this->assertTrue(Coroutine::isCanceled());
+        swoole_clear_error();
+
+        $this->assertNull(RedisCancellation::cancellationFrom(new RedisException('failed'), 'Reading from Redis was canceled.'));
     }
 }

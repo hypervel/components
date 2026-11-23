@@ -466,6 +466,7 @@ class AgentMiddlewareTest extends TestCase
 
         $this->assertSame([null, 'resp_1'], $run(fn (PendingStep $step, Closure $next): StepResult => $next($step)));
         $this->assertSame([null, null], $run(fn (PendingStep $step, Closure $next): StepResult => $next($step->withMessages(array_slice($step->messages, -1)))));
+        $this->assertSame([null, null], $run(fn (PendingStep $step, Closure $next): StepResult => $next($step->isFirstStep() ? $step->withMessages([new UserMessage('Summarized')]) : $step)));
         $this->assertSame([null, null], $run(fn (PendingStep $step, Closure $next): StepResult => $next($step->isFirstStep() ? $step : $step->withModel('cheaper-model'))));
         $this->assertSame([null, null], $run(fn (PendingStep $step, Closure $next): StepResult => $next($step->isFirstStep() ? $step->withModel('cheaper-model') : $step)));
         $this->assertSame([null, 'resp_1'], $run(fn (PendingStep $step, Closure $next): StepResult => $next($step->withModel('cheaper-model'))));

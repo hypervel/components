@@ -180,6 +180,11 @@ class Config extends Fluent implements ConfigContract
     ];
 
     /**
+     * The directory the configuration was loaded from.
+     */
+    protected ?string $configurationPath = null;
+
+    /**
      * The cached configuration used during tests.
      *
      * @var null|static
@@ -260,7 +265,10 @@ class Config extends Fluent implements ConfigContract
             $config['workbench']['discovers'] ??= [];
         }
 
-        return new static($config);
+        $configuration = new static($config);
+        $configuration->configurationPath = $workingPath;
+
+        return $configuration;
     }
 
     /**
@@ -284,6 +292,14 @@ class Config extends Fluent implements ConfigContract
         $this->attributes['providers'] = array_values(array_unique(array_merge($this->attributes['providers'], $providers)));
 
         return $this;
+    }
+
+    /**
+     * Get the directory the configuration was loaded from, or null when it was not loaded from one.
+     */
+    public function getConfigurationPath(): ?string
+    {
+        return $this->configurationPath;
     }
 
     /**

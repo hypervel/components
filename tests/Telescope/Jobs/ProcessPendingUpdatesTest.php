@@ -8,7 +8,8 @@ use Hypervel\Support\Facades\Bus;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 class ProcessPendingUpdatesTest extends FeatureTestCase
 {
@@ -22,13 +23,12 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
         ]);
 
         $failedUpdates = collect();
-        $repository = m::mock(EntriesRepository::class);
+        $repository = Double::for(EntriesRepository::class)->strict();
 
         $repository
-            ->shouldReceive('update')
-            ->once()
-            ->with($pendingUpdates)
-            ->andReturn($failedUpdates);
+            ->expects('update')
+            ->with(Argument::same($pendingUpdates))
+            ->returns($failedUpdates);
 
         (new ProcessPendingUpdates($pendingUpdates))->handle($repository);
 
@@ -47,13 +47,12 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
             $pendingUpdates->get(1),
         ]);
 
-        $repository = m::mock(EntriesRepository::class);
+        $repository = Double::for(EntriesRepository::class)->strict();
 
         $repository
-            ->shouldReceive('update')
-            ->once()
-            ->with($pendingUpdates)
-            ->andReturn($failedUpdates);
+            ->expects('update')
+            ->with(Argument::same($pendingUpdates))
+            ->returns($failedUpdates);
 
         (new ProcessPendingUpdates($pendingUpdates))->handle($repository);
 
@@ -74,13 +73,12 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
             $pendingUpdates->get(1),
         ]);
 
-        $repository = m::mock(EntriesRepository::class);
+        $repository = Double::for(EntriesRepository::class)->strict();
 
         $repository
-            ->shouldReceive('update')
-            ->once()
-            ->with($pendingUpdates)
-            ->andReturn($failedUpdates);
+            ->expects('update')
+            ->with(Argument::same($pendingUpdates))
+            ->returns($failedUpdates);
 
         (new ProcessPendingUpdates($pendingUpdates, 2))->handle($repository);
 
@@ -95,11 +93,10 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
             ['id' => 1, 'content' => 'foo'],
         ]);
 
-        $repository = m::mock(EntriesRepository::class);
-        $repository->shouldReceive('update')
-            ->once()
-            ->with($pendingUpdates)
-            ->andReturnNull();
+        $repository = Double::for(EntriesRepository::class)->strict();
+        $repository->expects('update')
+            ->with(Argument::same($pendingUpdates))
+            ->returns(null);
 
         (new ProcessPendingUpdates($pendingUpdates))->handle($repository);
 

@@ -18,7 +18,8 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Di\Fixtures\ProxySources;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Hypervel\Tests\Telescope\Fixtures\ProxyFrameQueryWatcher;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
 use ReflectionClass;
 use TypeError;
 
@@ -156,10 +157,9 @@ SQL,
             'select * from records where external_id = ?',
             ['=ABC001'],
         );
-        $connection->shouldReceive('escape')
-            ->once()
+        $connection->expects('escape')
             ->with('=ABC001')
-            ->andReturn('FILEMAKER_STRING[=ABC001]');
+            ->returns('FILEMAKER_STRING[=ABC001]');
 
         $sql = $this->app->make(QueryWatcher::class)->replaceBindings($event);
 
@@ -220,14 +220,13 @@ TEXT;
         $quotedBinding = <<<'TEXT'
 'O''Reilly \\ café $1 \1'
 TEXT;
-        [$event, $connection] = $this->queryEvent('select ?', [$binding]);
-        $connection->shouldReceive('escape')
-            ->once()
+        [$event, $connection] = $this->queryEvent('select ?, ?', [$binding, 1.234567890123456]);
+        $connection->expects('escape')
             ->with($binding)
-            ->andReturn($quotedBinding);
+            ->returns($quotedBinding);
 
         $this->assertSame(
-            'select ' . $quotedBinding,
+            'select ' . $quotedBinding . ', 1.234567890123456',
             $this->app->make(QueryWatcher::class)->replaceBindings($event),
         );
     }
@@ -298,7 +297,7 @@ TEXT;
     {
         [$event, $connection] = $this->queryEvent('select ?', ['value']);
         $failure = new TypeError('Broken driver.');
-        $connection->shouldReceive('escape')->once()->andThrow($failure);
+        $connection->expects('escape')->throws($failure);
 
         try {
             $this->app->make(QueryWatcher::class)->replaceBindings($event);
@@ -360,13 +359,13 @@ TEXT;
     /**
      * Create a query event and its test connection.
      *
-     * @return array{QueryExecuted, Connection}
+     * @return array{QueryExecuted, Connection&DoubleInterface}
      */
     private function queryEvent(string $sql, array $bindings): array
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('filemaker');
-        $connection->shouldReceive('prepareBindings')->once()->with($bindings)->andReturn($bindings);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getName')->returns('filemaker');
+        $connection->expects('prepareBindings')->with($bindings)->returns($bindings);
 
         return [new QueryExecuted($sql, $bindings, 500, $connection), $connection];
     }

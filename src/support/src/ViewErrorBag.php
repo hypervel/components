@@ -49,6 +49,8 @@ class ViewErrorBag implements Countable, Stringable, Transient
 
     /**
      * Add a new MessageBag instance to the bags.
+     *
+     * @return $this
      */
     public function put(string $key, MessageBagContract $bag): static
     {

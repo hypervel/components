@@ -7,19 +7,36 @@ namespace Hypervel\Data\Attributes\Validation;
 use Attribute;
 use BackedEnum;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
+use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Support\Arr;
+use Hypervel\Validation\Rules\Contains as BaseContains;
 
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
-class Contains extends StringValidationAttribute
+class Contains extends ObjectValidationAttribute
 {
     protected array $values;
 
     /**
      * Create a contains rule attribute.
      */
-    public function __construct(array|int|string|BackedEnum|ExternalReference ...$values)
+    public function __construct(array|int|string|float|bool|BackedEnum|BaseContains|ExternalReference|null ...$values)
     {
         $this->values = Arr::flatten($values);
+    }
+
+    /**
+     * Get the Validator rule object without stringifying its values.
+     */
+    public function getRule(ValidationPath $path): object|string
+    {
+        $values = Arr::flatten(array_map(
+            fn (mixed $value): mixed => $this->normalizePossibleExternalReferenceParameter($value),
+            Arr::flatten($this->parameters()),
+        ));
+
+        return count($values) === 1 && $values[0] instanceof BaseContains
+            ? $values[0]
+            : new BaseContains($values);
     }
 
     /**
@@ -36,5 +53,13 @@ class Contains extends StringValidationAttribute
     public function parameters(): array
     {
         return [$this->values];
+    }
+
+    /**
+     * Create the attribute from normalized membership parameters.
+     */
+    public static function create(?string ...$parameters): static
+    {
+        return new static(...$parameters);
     }
 }

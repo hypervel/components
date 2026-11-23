@@ -131,6 +131,8 @@ class ClassificationMessageFormatter
 
     /**
      * Encode a complete evaluation message without truncating JSON.
+     *
+     * @param array<string, mixed> $message
      */
     private static function encode(array $message): ?string
     {

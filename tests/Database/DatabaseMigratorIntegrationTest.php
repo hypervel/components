@@ -12,10 +12,13 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class DatabaseMigratorIntegrationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Migrator $migrator;
 
     protected function defineEnvironment(Application $app): void
@@ -56,10 +59,10 @@ class DatabaseMigratorIntegrationTest extends TestCase
             new Filesystem
         );
 
-        $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('write');
-        $output->shouldReceive('writeln');
-        $output->shouldReceive('newLinesWritten');
+        $output = Double::for(OutputStyle::class)->strict();
+        $output->allows('write');
+        $output->allows('writeln');
+        $output->allows('newLinesWritten');
 
         $this->migrator->setOutput($output);
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ServerProcess;
 
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\ServerProcess\AbstractProcess;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
@@ -12,18 +12,20 @@ use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\ServerProcess\Listeners\LogAfterProcessStoppedListener;
 use Hypervel\ServerProcess\Listeners\LogBeforeProcessStartListener;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class LoggingListenerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLogBeforeProcessStartLogsViaStdoutLogger(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('info')->once()->with('Process[my-worker.2] start.');
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('info')->with('Process[my-worker.2] start.');
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
+        $container = new Container;
+        $container->instance(StdoutLoggerInterface::class, $logger);
 
         $listener = new LogBeforeProcessStartListener($container);
         $event = new BeforeProcessHandle($this->createProcess('my-worker'), 2);
@@ -33,12 +35,11 @@ class LoggingListenerTest extends TestCase
 
     public function testLogAfterProcessStoppedLogsViaStdoutLogger(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('info')->once()->with('Process[scheduler.0] stopped.');
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('info')->with('Process[scheduler.0] stopped.');
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
+        $container = new Container;
+        $container->instance(StdoutLoggerInterface::class, $logger);
 
         $listener = new LogAfterProcessStoppedListener($container);
         $event = new AfterProcessHandle($this->createProcess('scheduler'), 0);
@@ -48,8 +49,7 @@ class LoggingListenerTest extends TestCase
 
     public function testLogBeforeProcessStartFallsBackToEchoWhenNoLogger(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
+        $container = new Container;
 
         $listener = new LogBeforeProcessStartListener($container);
         $event = new BeforeProcessHandle($this->createProcess('queue'), 1);
@@ -63,8 +63,7 @@ class LoggingListenerTest extends TestCase
 
     public function testLogAfterProcessStoppedFallsBackToEchoWhenNoLogger(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
+        $container = new Container;
 
         $listener = new LogAfterProcessStoppedListener($container);
         $event = new AfterProcessHandle($this->createProcess('queue'), 1);
@@ -76,12 +75,15 @@ class LoggingListenerTest extends TestCase
         $this->assertSame("Process[queue.1] stopped.\n", $output);
     }
 
+    /**
+     * Create a named process without an event dispatcher.
+     */
     private function createProcess(string $name): AbstractProcess
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->andReturn(false);
-
-        $process = new class($container) extends AbstractProcess {
+        $process = new class(new Container) extends AbstractProcess {
+            /**
+             * Handle the test process.
+             */
             public function handle(): void
             {
             }

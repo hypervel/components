@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Watcher;
 
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Watcher\Driver\DriverInterface;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -37,15 +37,14 @@ class Watcher
             try {
                 $callback();
             } catch (Throwable $throwable) {
-                if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $throwable;
-                }
+                $exception = FrameworkCoroutine::preferCancellation($exception, $throwable);
             }
         };
 
         try {
             $this->strategy?->start();
 
+            // @phpstan-ignore hypervel.rawCoroutine (the callback catches every Throwable, including cancellation, and the command rethrows it)
             Coroutine::create(function () use ($channel, $driverFinished, &$driverFailure, &$driverStarted): void {
                 $driverStarted = true;
 
@@ -100,7 +99,7 @@ class Watcher
             $capture(fn () => $this->strategy?->stop());
             $capture(fn () => $channel->close());
 
-            if (! $exception instanceof CanceledException) {
+            if ($exception === null || ! FrameworkCoroutine::causedByCancellation($exception)) {
                 $capture(function () use ($driverStarted, $driverFinished): void {
                     if ($driverStarted && ! $driverFinished->wait(1.0)) {
                         throw new RuntimeException('The file watcher did not stop within one second.');

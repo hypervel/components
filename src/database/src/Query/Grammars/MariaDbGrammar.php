@@ -7,6 +7,7 @@ namespace Hypervel\Database\Query\Grammars;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
+use Hypervel\Support\Attributes\Unsupported;
 use Override;
 use RuntimeException;
 
@@ -26,6 +27,7 @@ class MariaDbGrammar extends MySqlGrammar
     /**
      * Compile a "lateral join" clause.
      */
+    #[Unsupported]
     public function compileJoinLateral(JoinLateralClause $join, string $expression): string
     {
         throw new RuntimeException('This database engine does not support lateral joins.');
@@ -72,6 +74,17 @@ class MariaDbGrammar extends MySqlGrammar
     }
 
     /**
+     * Compile one JSON boolean membership comparison.
+     */
+    protected function compileJsonBooleanInValue(string $column, bool $value): string
+    {
+        // JSON_VALUE exposes booleans as 1/0. Retain its index while checking the original JSON type.
+        // JSON_TYPE needs the raw JSON value, without this grammar's binary cast.
+        return '(' . $this->wrap($column) . ' = ' . $this->quoteString($value ? '1' : '0')
+            . ' and json_type(' . parent::wrapJsonBooleanSelector($column) . ") = 'BOOLEAN')";
+    }
+
+    /**
      * Wrap the given JSON selector.
      */
     protected function wrapJsonSelector(string $value): string
@@ -79,5 +92,22 @@ class MariaDbGrammar extends MySqlGrammar
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
         return 'json_value(' . $field . $path . ')';
+    }
+
+    /**
+     * Wrap the given JSON selector for boolean values.
+     */
+    protected function wrapJsonBooleanSelector(string $value): string
+    {
+        // Unlike Laravel's inherited MySQL selector, prevent MariaDB from unquoting and coercing JSON values.
+        return 'cast(' . parent::wrapJsonBooleanSelector($value) . ' as binary)';
+    }
+
+    /**
+     * Wrap the given JSON boolean value.
+     */
+    protected function wrapJsonBooleanValue(string $value): string
+    {
+        return $this->quoteString($value);
     }
 }

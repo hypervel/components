@@ -279,7 +279,7 @@ Head::ogImage('/images/cover.jpg', alt: 'Draft cover')
 <meta property="og:image:alt" content="Gallery image">
 ```
 
-Open Graph media inherited from your defaults acts as a fallback. When route, runtime, or error metadata defines its own media of the same type, the default media is replaced instead of merged, so a page's `og:image` takes precedence over a site-wide default image.
+Open Graph media inherited from your defaults acts as a fallback. When route, runtime, or error metadata defines its own media of the same type, the default media is replaced instead of merged, so a page's `og:image` takes precedence over a site-wide default image. Media added across several `defaults` calls is combined.
 
 You may fluently define conditional metadata using the `when` and `unless` methods:
 
@@ -641,7 +641,7 @@ Head::schema(
 );
 ```
 
-Passing a string to `location` creates a `Place` with that name. You may also pass another schema object, such as `Schema::virtualLocation()->url($event->stream_url)`. The `performer` method accepts a person, an organization, or a list of those builders, and `image` accepts a URL or a list of URLs.
+Google requires an address for a physical location, so `location` accepts a `Place` rather than a venue name. For online events, pass another schema object, such as `Schema::virtualLocation()->url($event->stream_url)`. The `performer` method accepts a person, an organization, or a list of those builders, and `image` accepts a URL or a list of URLs.
 
 For raw values or shapes outside the typed helpers, every schema builder provides a `set` method. For example, `$eventSchema->set('location', [$place, $virtualLocation])` defines multiple locations, and `$eventSchema->set('location', 'Venue')` preserves a plain text location.
 
@@ -825,9 +825,4 @@ Applications that need the resolved metadata as structured data instead of rende
 <a name="static-analysis"></a>
 ### Static Analysis
 
-Head includes editor declarations for its route macros and a PHPStan extension for checking their named arguments and fluent return types. PHPStan's extension installer discovers the extension automatically. Without extension discovery, include it in your PHPStan configuration:
-
-```neon
-includes:
-    - vendor/hypervel/head/extension.neon
-```
+Head includes editor declarations for its route macros. The [`hypervel/phpstan`](/docs/{{version}}/static-analysis) extension checks their named arguments and fluent return types.

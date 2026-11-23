@@ -31,6 +31,7 @@
     "require": {
         "php": "^8.4",
         "ext-fileinfo": "*",
+        "hypervel/attributes": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
@@ -44,10 +45,10 @@
     "suggest": {
         "ext-gd": "Required to use the GD image driver.",
         "ext-imagick": "Required to use the Imagick image driver.",
-        "intervention/image": "Required to use the GD and Imagick image drivers (^4.0)."
+        "intervention/image": "Required to use the GD and Imagick image drivers (^4.2)."
     },
     "conflict": {
-        "intervention/image": "<4.0 || >=5.0"
+        "intervention/image": "<4.2 || >=5.0"
     },
     "config": {
         "sort-packages": true

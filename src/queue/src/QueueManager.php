@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -16,6 +17,7 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Connectors\FailoverConnector;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -28,6 +30,9 @@ use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 use UnitEnum;
@@ -40,6 +45,7 @@ use function Hypervel\Support\enum_value;
 class QueueManager implements FactoryContract, MonitorContract
 {
     use HasPoolProxy;
+    use InteractsWithTime;
     use ResolvesQueueRoutes;
 
     /**
@@ -83,9 +89,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register an event listener for the before job event.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching queue event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
      */
+    #[BootOnly]
     public function before(mixed $callback): void
     {
         $this->app->make('events')
@@ -95,9 +102,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register an event listener for the after job event.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching queue event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
      */
+    #[BootOnly]
     public function after(mixed $callback): void
     {
         $this->app->make('events')
@@ -107,9 +115,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register an event listener for the exception occurred job event.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching queue event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
      */
+    #[BootOnly]
     public function exceptionOccurred(mixed $callback): void
     {
         $this->app->make('events')
@@ -119,9 +128,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register an event listener for the daemon queue loop.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching queue event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
      */
+    #[BootOnly]
     public function looping(mixed $callback): void
     {
         $this->app->make('events')
@@ -131,9 +141,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register an event listener for the failed job event.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching queue event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
      */
+    #[BootOnly]
     public function failing(mixed $callback): void
     {
         $this->app->make('events')
@@ -143,9 +154,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register an event listener for the daemon queue starting.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching queue event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
      */
+    #[BootOnly]
     public function starting(mixed $callback): void
     {
         $this->app->make('events')
@@ -155,9 +167,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register an event listener for the daemon queue stopping.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching queue event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
      */
+    #[BootOnly]
     public function stopping(mixed $callback): void
     {
         $this->app->make('events')
@@ -165,13 +178,40 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Register a callback to be invoked when a job runs for longer than a given amount of time.
+     *
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching queue event.
+     */
+    #[BootOnly]
+    public function whenJobRunsLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
+    {
+        $threshold = $threshold instanceof DateTimeInterface
+            ? $this->secondsUntil($threshold) * 1000
+            : $threshold;
+
+        $threshold = $threshold instanceof CarbonInterval
+            ? $threshold->totalMilliseconds
+            : $threshold;
+
+        $this->app->make('events')
+            ->listen(JobAttempted::class, function (JobAttempted $event) use ($threshold, $handler): void {
+                // Application callbacks do not run in a canceled or killed attempt.
+                if (! $event->canceled && ! is_null($event->duration) && $event->duration > $threshold) {
+                    $handler($event->job, $event->duration);
+                }
+            });
+    }
+
+    /**
      * Register the default queue route for a given class.
      *
-     * Boot-only. The route persists on the singleton QueueRoutes registry for
-     * the worker lifetime and affects every subsequent dispatch of that class.
+     * The route persists on the singleton QueueRoutes registry for the worker
+     * lifetime and affects every subsequent dispatch of that class.
      *
      * @param array|class-string $class
      */
+    #[BootOnly]
     public function route(array|string $class, UnitEnum|string|null $queue = null, UnitEnum|string|null $connection = null): void
     {
         $this->queueRoutes()->set($class, $queue, $connection);
@@ -180,11 +220,12 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Forward the given queue to another queue and/or connection.
      *
-     * Boot-only. Forwards persist on the singleton QueueRoutes registry for
-     * the worker lifetime and affect every subsequent dispatch and queue operation.
+     * Forwards persist on the singleton QueueRoutes registry for the worker
+     * lifetime and affect every subsequent dispatch and queue operation.
      *
      * @param array<array-key, string|UnitEnum>|string|UnitEnum $queue
      */
+    #[BootOnly]
     public function forward(array|string|UnitEnum $queue, UnitEnum|string|null $to = null, UnitEnum|string|null $connection = null): void
     {
         $this->queueRoutes()->forward($queue, $to, $connection);
@@ -332,12 +373,13 @@ class QueueManager implements FactoryContract, MonitorContract
             return array_values($queues);
         }
 
+        // A list keeps keyed input from being read as key/default pairs.
         $keys = array_map(
             static fn (string $queue): string => "illuminate:queue:paused:{$connection}:{$queue}",
-            $queues,
+            array_values($queues),
         );
 
-        $states = $cache->many($keys);
+        $states = $cache->get($keys);
 
         return array_values(array_filter(
             $queues,
@@ -350,9 +392,10 @@ class QueueManager implements FactoryContract, MonitorContract
      *
      * This prevents the workers from hitting the application cache to determine if they need to pause or restart.
      *
-     * Boot-only. Mutates process-global worker flags; runtime use races across
-     * coroutines and changes every concurrent worker pause or restart check.
+     * Mutates process-global worker flags; runtime use races across coroutines
+     * and changes every concurrent worker pause or restart check.
      */
+    #[BootOnly]
     public function withoutInterruptionPolling(): void
     {
         Worker::$restartable = false;
@@ -489,9 +532,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Add a queue connection resolver.
      *
-     * Boot-only. The resolver persists in the singleton's connectors array for
-     * the worker lifetime and applies to every subsequent connection.
+     * The resolver persists in the singleton's connectors array for the worker
+     * lifetime and applies to every subsequent connection.
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $resolver): void
     {
         $this->addConnector($driver, $resolver);
@@ -500,9 +544,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Add a queue connection resolver.
      *
-     * Boot-only. The resolver persists in the singleton's connectors array for
-     * the worker lifetime and applies to every subsequent connection.
+     * The resolver persists in the singleton's connectors array for the worker
+     * lifetime and applies to every subsequent connection.
      */
+    #[BootOnly(whenShared: true)]
     public function addConnector(string $driver, Closure $resolver): void
     {
         $this->connectors[$driver] = $resolver;
@@ -539,8 +584,9 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Set the name of the default queue connection.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultDriver(UnitEnum|string $name): void
     {
         $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
@@ -561,9 +607,8 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Disconnect a queue connection and close its shared resource pool.
      *
-     * Boot or tests only, plus operational recovery of broken pooled
-     * resources. Other connections sharing the pool transparently acquire a
-     * fresh pool on their next operation.
+     * Use this to recover broken pooled resources. Other connections sharing
+     * the pool transparently acquire a fresh pool on their next operation.
      */
     public function purge(?string $name = null): void
     {
@@ -609,10 +654,13 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the container reference on the singleton and on every
-     * cached queue connection; per-request use races across coroutines and
-     * breaks every concurrent dispatch.
+     * Swaps the container reference on the singleton and on every cached
+     * queue connection; per-request use races across coroutines and breaks
+     * every concurrent dispatch.
+     *
+     * @return $this
      */
+    #[TestsOnly]
     public function setApplication(Container $app): static
     {
         $this->app = $app;
@@ -634,10 +682,11 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Register a callback to be executed when creating job payloads.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every subsequent payload creation across all
-     * coroutines. Passing null clears the registry.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every subsequent payload creation across all coroutines.
+     * Passing null clears the registry.
      */
+    #[BootOnly]
     public function createPayloadUsing(?callable $callback): void
     {
         Queue::createPayloadUsing($callback);

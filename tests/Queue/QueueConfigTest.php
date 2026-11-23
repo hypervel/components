@@ -22,11 +22,14 @@ use Hypervel\Queue\RedisQueue;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Pheanstalk\Pheanstalk;
 
 class QueueConfigTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConcurrencyNumberIsLoadedAsIntegerFromEnvironment(): void
     {
         $this->withEnvironment(['QUEUE_CONCURRENCY' => '5'], function (): void {
@@ -72,13 +75,13 @@ class QueueConfigTest extends TestCase
                 'sync' => new SyncConnector,
                 'background' => new BackgroundConnector,
                 'deferred' => new DeferredConnector,
-                'database' => new DatabaseConnector(m::mock(ConnectionResolverInterface::class)),
+                'database' => new DatabaseConnector(Double::for(ConnectionResolverInterface::class)->strict()),
                 'beanstalkd' => new BeanstalkdConnector,
                 'sqs' => new SqsConnector,
-                'redis' => new RedisConnector(m::mock(RedisFactory::class)),
+                'redis' => new RedisConnector(Double::for(RedisFactory::class)->strict()),
                 'failover' => new FailoverConnector(
-                    m::mock(QueueManager::class),
-                    m::mock(Dispatcher::class),
+                    Double::for(QueueManager::class)->strict(),
+                    Double::for(Dispatcher::class)->strict(),
                 ),
             };
             $constructionConfig = $connection;
@@ -96,7 +99,7 @@ class QueueConfigTest extends TestCase
 
     public function testConnectorOptionalMemberOmissionUsesOwnedDefaults(): void
     {
-        $databaseQueue = (new DatabaseConnector(m::mock(ConnectionResolverInterface::class)))->connect([
+        $databaseQueue = (new DatabaseConnector(Double::for(ConnectionResolverInterface::class)->strict()))->connect([
             'table' => 'jobs',
             'queue' => 'default',
         ]);
@@ -115,7 +118,7 @@ class QueueConfigTest extends TestCase
         $this->assertSame(Pheanstalk::DEFAULT_TTR, $beanstalkdQueueProperties->timeToRun);
         $this->assertSame(0, $beanstalkdQueueProperties->blockFor);
 
-        $redisQueue = (new RedisConnector(m::mock(RedisFactory::class)))->connect([
+        $redisQueue = (new RedisConnector(Double::for(RedisFactory::class)->strict()))->connect([
             'queue' => 'default',
         ]);
         $redisQueueProperties = new ClassInvoker($redisQueue);

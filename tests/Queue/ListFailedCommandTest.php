@@ -8,7 +8,8 @@ use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\ListFailedCommand;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -17,6 +18,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class ListFailedCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItDisplaysEmptyFailedJobsAsJson(): void
     {
         $output = $this->runCommandWithFailedJobs([], ['--json' => true]);
@@ -116,10 +119,10 @@ class ListFailedCommandTest extends TestCase
     protected function runCommandWithFailedJobs(array $failedJobs, array $arguments = [], bool $decorated = false): string
     {
         $container = new Application;
-        $failer = m::mock(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $container->instance(FailedJobProviderInterface::class, $failer);
 
-        $failer->expects('all')->andReturn($failedJobs);
+        $failer->expects('all')->returns($failedJobs);
 
         $command = new ListFailedCommand;
         $command->setHypervel($container);

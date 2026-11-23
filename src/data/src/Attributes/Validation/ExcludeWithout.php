@@ -12,13 +12,18 @@ class ExcludeWithout extends StringValidationAttribute
 {
     protected FieldReference $field;
 
+    /** @var array<array-key, FieldReference> */
+    protected array $fields;
+
     /**
      * Create a new exclude-without validation attribute.
      */
     public function __construct(
         string|FieldReference $field,
+        string|FieldReference ...$fields,
     ) {
         $this->field = $this->parseFieldReference($field);
+        $this->fields = array_map($this->parseFieldReference(...), $fields);
     }
 
     /**
@@ -36,6 +41,7 @@ class ExcludeWithout extends StringValidationAttribute
     {
         return [
             $this->field,
+            $this->fields,
         ];
     }
 }

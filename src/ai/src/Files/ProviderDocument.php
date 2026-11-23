@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Files;
 use Hypervel\Ai\Contracts\Files\HasProviderId;
 use Hypervel\Ai\Files\Concerns\CanBeRetrievedOrDeletedFromProvider;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 use JsonSerializable;
 
@@ -34,6 +35,7 @@ class ProviderDocument extends Document implements Arrayable, HasProviderId, Jso
      *
      * @throws InvalidArgumentException
      */
+    #[Unsupported]
     public function content(): string
     {
         throw new InvalidArgumentException(

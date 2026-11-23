@@ -22,7 +22,8 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\ScheduleWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 #[WithConfig('telescope.watchers', [
@@ -206,8 +207,8 @@ class ScheduleWatcherTest extends FeatureTestCase
         config(['telescope.ignore_commands' => ['schedule:run']]);
         Telescope::stopRecording();
 
-        $task = m::mock(Event::class);
-        $task->shouldNotReceive('getOutput');
+        $task = Double::for(Event::class)->strict();
+        $task->expects('getOutput')->never();
         $events = $this->app->make(Dispatcher::class);
         $events->dispatch(new ScheduledTaskStarting($task));
         $events->dispatch(new ScheduledTaskFinished($task, 0.1));
@@ -279,17 +280,17 @@ class ScheduleWatcherTest extends FeatureTestCase
         int $outputCalls = 1,
         ?string $output = null,
     ): Event {
-        $task = m::mock(Event::class);
+        $task = Double::for(Event::class)->strict();
         $task->command = $command;
         $task->description = $command . ' description';
         $task->expression = '* * * * *';
         $task->timezone = 'UTC';
-        $task->shouldReceive('exitCode')->andReturn($exitCode);
-        $task->shouldReceive('wasSkippedDueToOverlapping')->andReturn($skippedBecauseOverlapping);
-        $task->shouldReceive('getOutput')
+        $task->allows('exitCode')->returns($exitCode);
+        $task->allows('wasSkippedDueToOverlapping')->returns($skippedBecauseOverlapping);
+        $task->expects('getOutput')
             ->times($outputCalls)
-            ->with($this->app)
-            ->andReturn($output ?? $command . ' output');
+            ->with(Argument::same($this->app))
+            ->returns($output ?? $command . ' output');
 
         return $task;
     }

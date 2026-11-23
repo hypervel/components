@@ -7,11 +7,14 @@ namespace Hypervel\Tests\ServerProcess;
 use Hypervel\Contracts\ServerProcess\ProcessInterface;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class ProcessManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testIsNotRunningInitially(): void
     {
         $this->assertFalse(ProcessManager::isRunning());
@@ -33,7 +36,7 @@ class ProcessManagerTest extends TestCase
 
     public function testRegisterProcess(): void
     {
-        $process = m::mock(ProcessInterface::class);
+        $process = Double::for(ProcessInterface::class)->strict();
 
         ProcessManager::register($process);
 
@@ -43,8 +46,8 @@ class ProcessManagerTest extends TestCase
 
     public function testRegisterMultipleProcesses(): void
     {
-        $process1 = m::mock(ProcessInterface::class);
-        $process2 = m::mock(ProcessInterface::class);
+        $process1 = Double::for(ProcessInterface::class)->strict();
+        $process2 = Double::for(ProcessInterface::class)->strict();
 
         ProcessManager::register($process1);
         ProcessManager::register($process2);
@@ -56,7 +59,7 @@ class ProcessManagerTest extends TestCase
 
     public function testFlushState(): void
     {
-        ProcessManager::register(m::mock(ProcessInterface::class));
+        ProcessManager::register(Double::for(ProcessInterface::class)->strict());
         ProcessManager::setRunning(true);
         $this->assertCount(1, ProcessManager::all());
         $this->assertTrue(ProcessManager::isRunning());
@@ -73,7 +76,7 @@ class ProcessManagerTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIsOrContains('Processes are running');
 
-        ProcessManager::register(m::mock(ProcessInterface::class));
+        ProcessManager::register(Double::for(ProcessInterface::class)->strict());
     }
 
     public function testRegisterWorksAfterStoppingAndClearing(): void
@@ -81,7 +84,7 @@ class ProcessManagerTest extends TestCase
         ProcessManager::setRunning(true);
         ProcessManager::setRunning(false);
 
-        $process = m::mock(ProcessInterface::class);
+        $process = Double::for(ProcessInterface::class)->strict();
         ProcessManager::register($process);
 
         $this->assertCount(1, ProcessManager::all());

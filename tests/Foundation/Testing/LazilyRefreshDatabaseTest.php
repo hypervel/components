@@ -6,14 +6,18 @@ namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Foundation\Testing\Attributes\WithoutMigrationEvents;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Testing\Fixtures\ConsoleKernelSpy;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
+use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 #[ResetRefreshDatabaseState]
@@ -23,6 +27,7 @@ class LazilyRefreshDatabaseTest extends TestCase
     use LazilyRefreshDatabase {
         refreshTestDatabase as baseRefreshTestDatabase;
     }
+    use VerifiesDoubles;
 
     protected array $connectionsToTransact = ['testing', 'testing2'];
 
@@ -65,9 +70,9 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testDatabaseIsNotRefreshedWithoutInteraction(): void
     {
-        $kernel = m::mock(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $this->app->instance(KernelContract::class, $kernel);
-        $kernel->shouldNotReceive('call');
+        $kernel->expects('call')->never();
 
         $this->app->make('db')->getPdo();
 
@@ -153,6 +158,44 @@ class LazilyRefreshDatabaseTest extends TestCase
         $this->assertSame(1, $this->rollbackCount);
 
         RefreshDatabaseState::$lazilyRefreshed = false;
+    }
+
+    #[WithoutMigrationEvents]
+    public function testMigrationQueriesAreNotDispatchedToTheTestMethod(): void
+    {
+        $database = $this->app->make('db');
+
+        $this->app->instance(KernelContract::class, $kernel = new class($database) extends ConsoleKernelSpy {
+            /**
+             * Create a new console kernel spy.
+             */
+            public function __construct(protected DatabaseManager $database)
+            {
+            }
+
+            /**
+             * Run a query before calling the command.
+             */
+            public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
+            {
+                $this->database->connection('testing')->select('select 2');
+
+                return parent::call($command, $parameters, $outputBuffer);
+            }
+        });
+
+        $queries = [];
+
+        $database->listen(function ($query) use (&$queries) {
+            $queries[] = $query->sql;
+        });
+
+        $this->refreshDatabase();
+        $database->connection('testing')->select('select 1');
+
+        $this->assertSame(['select 1'], $queries);
+        // The refresh state is shared across tests, so prove the migration ran here.
+        $this->assertCount(1, $kernel->calls);
     }
 
     protected function refreshTestDatabase(): void

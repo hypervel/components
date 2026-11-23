@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 class Timebox
@@ -32,9 +32,11 @@ class Timebox
 
         try {
             $result = $callback($this);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $caught) {
+            if (Coroutine::causedByCancellation($caught)) {
+                throw $caught;
+            }
+
             $exception = $caught;
         }
 
@@ -53,6 +55,8 @@ class Timebox
 
     /**
      * Indicate that the timebox can return early.
+     *
+     * @return $this
      */
     public function returnEarly(): static
     {
@@ -63,6 +67,8 @@ class Timebox
 
     /**
      * Indicate that the timebox cannot return early.
+     *
+     * @return $this
      */
     public function dontReturnEarly(): static
     {

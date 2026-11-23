@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Responses;
 
 use ArrayAccess;
 use Countable;
+use Hypervel\Ai\Responses\Concerns\HasRawResponse;
 use Hypervel\Ai\Responses\Data\Answer;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
@@ -19,6 +20,8 @@ use Traversable;
 
 class ClassificationResponse implements Arrayable, ArrayAccess, Countable, IteratorAggregate, JsonSerializable
 {
+    use HasRawResponse;
+
     /**
      * Create a new classification response instance.
      *

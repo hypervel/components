@@ -7,6 +7,7 @@ namespace Hypervel\Contracts\Engine;
 use ArrayObject;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
+use Hypervel\Support\Attributes\BootOnly;
 
 interface CoroutineInterface
 {
@@ -43,9 +44,10 @@ interface CoroutineInterface
     /**
      * Set the process-wide coroutine configuration.
      *
-     * Boot-only. The configuration affects every coroutine subsequently
-     * created in the worker process.
+     * The configuration affects every coroutine subsequently created in
+     * the worker process.
      */
+    #[BootOnly]
     public static function set(array $config): void;
 
     /**

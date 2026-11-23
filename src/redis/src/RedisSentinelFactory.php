@@ -18,7 +18,7 @@ class RedisSentinelFactory
     public function create(array $options = []): RedisSentinel
     {
         // https://github.com/phpredis/phpredis/blob/develop/sentinel.md#examples-for-version-60-or-later
-        return new RedisSentinel($options); // @phpstan-ignore arguments.count, argument.type
+        return new RedisSentinel($options);
     }
 
     /**
@@ -57,6 +57,8 @@ class RedisSentinelFactory
             }
 
             try {
+                swoole_clear_error();
+
                 $options = [
                     'host' => $hasScheme
                         ? "{$resolved['scheme']}://{$resolved['host']}"

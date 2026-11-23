@@ -7,15 +7,18 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Console\MigrationGeneratorCommand;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class MigrationGeneratorCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testGlobFailureIsReported(): void
     {
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('glob')->once()->with('/app/database/migrations/*.php')->andReturnFalse();
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('glob')->with('/app/database/migrations/*.php')->returns(false);
 
         $command = new TestMigrationGeneratorCommand($files);
 

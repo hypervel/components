@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
@@ -15,7 +16,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class QueueConnectionIsReachable extends Diagnostic
@@ -68,15 +68,19 @@ class QueueConnectionIsReachable extends Diagnostic
             foreach ($connections as $name) {
                 try {
                     $this->probe($name, $this->configuration($name));
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $unhealthy[] = "[{$name}]: {$exception->getMessage()}";
                 }
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->fail('unreachable', ['connection' => $connection])
                 ->withDetails($e->getMessage());
         }

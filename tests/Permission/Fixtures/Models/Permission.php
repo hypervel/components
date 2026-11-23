@@ -12,7 +12,7 @@ class Permission extends BasePermission
 {
     use SoftDeletes;
 
-    protected string $primaryKey = 'permission_test_id';
+    protected ?string $primaryKey = 'permission_test_id';
 
     protected array $visible = [
         'permission_test_id',

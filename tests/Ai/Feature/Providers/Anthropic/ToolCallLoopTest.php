@@ -4,12 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
+use Closure;
+use Hypervel\Ai\Attributes\MaxSteps;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasProviderOptions;
+use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\Messages\UserMessage;
+use Hypervel\Ai\PendingStep;
+use Hypervel\Ai\Promptable;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
 use function Hypervel\Ai\agent;
@@ -89,6 +101,257 @@ class ToolCallLoopTest extends TestCase
 
         $this->assertTrue($hasAssistantWithToolUse, 'Follow-up request should include assistant message with tool_use block');
         $this->assertTrue($hasToolResult, 'Follow-up request should include user message with tool_result block');
+    }
+
+    public function testToolCallsRunWhenTheMessageEndsWithEndTurn(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response([
+                    'id' => 'msg_tool_123',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Let me generate a number.'],
+                        ['type' => 'tool_use', 'id' => 'toolu_123', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'stop_reason' => 'end_turn',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                $this->fakeTextResponse('The number is 72019'),
+            ]),
+        ]);
+
+        $response = (new ToolUsingAgent(fixed: true))->prompt(
+            'Generate a random number',
+            provider: 'anthropic',
+        );
+
+        $this->assertCount(2, Http::recorded());
+        $this->assertSame('The number is 72019', $response->text);
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['instructions'])]
+    #[TestWith(['messages'])]
+    public function testTheCodeExecutionContainerIsReusedByTheFollowUpRequest(?string $edit): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response([
+                    'id' => 'msg_tool_123',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'tool_use', 'id' => 'toolu_123', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'container' => ['id' => 'container_123', 'expires_at' => '2026-11-08T11:00:00Z'],
+                    'stop_reason' => 'tool_use',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                $this->fakeTextResponse('The number is 72019'),
+            ]),
+        ]);
+
+        (new ToolUsingAgent(fixed: true))->withMiddleware([
+            fn (PendingStep $step, Closure $next): StepResult => $next(match ($edit) {
+                'instructions' => $step->isFirstStep() ? $step : $step->withInstructions('Wrap up.'),
+                'messages' => $step->isFirstStep() ? $step->withMessages([new UserMessage('Summarized')]) : $step,
+                default => $step,
+            }),
+        ])->prompt(
+            'Generate a random number',
+            provider: 'anthropic',
+        );
+
+        $recorded = Http::recorded();
+
+        $this->assertCount(2, $recorded);
+        $this->assertArrayNotHasKey('container', $recorded[0][0]->data());
+        $this->assertSame('container_123', $recorded[1][0]->data()['container']);
+
+        if ($edit === 'instructions') {
+            $this->assertSame('Wrap up.', $recorded[1][0]->data()['system']);
+        }
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['container_override'])]
+    public function testTheContainerAStepRanInCarriesOverWhenItsResponseOmitsIt(?string $override): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response([
+                    'id' => 'msg_code',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'container' => ['id' => 'container_123', 'expires_at' => '2026-11-08T11:00:00Z'],
+                    'stop_reason' => 'tool_use',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                Http::response([
+                    'id' => 'msg_local_tool',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'tool_use', 'id' => 'toolu_2', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'stop_reason' => 'tool_use',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                $this->fakeTextResponse('The number is 72019'),
+            ]),
+        ]);
+
+        $steps = 0;
+
+        (new #[MaxSteps(3)] class(fixed: true) extends ToolUsingAgent {})->withMiddleware([
+            function (PendingStep $step, Closure $next) use (&$steps, $override): StepResult {
+                return $next(++$steps === 2 && $override !== null ? $step->withProviderOptions(['container' => $override]) : $step);
+            },
+        ])->prompt('Generate two random numbers', provider: 'anthropic');
+
+        $recorded = Http::recorded();
+
+        $this->assertCount(3, $recorded);
+        $this->assertSame($override ?? 'container_123', $recorded[1][0]->data()['container']);
+        $this->assertSame($override ?? 'container_123', $recorded[2][0]->data()['container']);
+    }
+
+    public function testTheCodeExecutionContainerIsReusedWhenAPausedTurnResumes(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response([
+                    'id' => 'msg_pause',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'server_tool_use', 'id' => 'srvtoolu_1', 'name' => 'bash_code_execution', 'input' => (object) ['command' => 'ls']],
+                    ],
+                    'container' => ['id' => 'container_123', 'expires_at' => '2026-11-08T11:00:00Z'],
+                    'stop_reason' => 'pause_turn',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                $this->fakeTextResponse('Done'),
+            ]),
+        ]);
+
+        (new ToolUsingAgent(fixed: true))->prompt('Ask', provider: 'anthropic');
+
+        $recorded = Http::recorded();
+
+        $this->assertCount(2, $recorded);
+        $this->assertSame('container_123', $recorded[1][0]->data()['container']);
+    }
+
+    #[DataProvider('providedContainers')]
+    public function testAContainerSetWithProviderOptionsCarriesOverToTheFollowUpRequest(array|string $container, array|string $followUp): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response([
+                    'id' => 'msg_tool_123',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'tool_use', 'id' => 'toolu_123', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'container' => ['id' => 'container_123', 'expires_at' => '2026-11-08T11:00:00Z'],
+                    'stop_reason' => 'tool_use',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                $this->fakeTextResponse('The number is 72019'),
+            ]),
+        ]);
+
+        $agent = new class($container) implements Agent, HasProviderOptions, HasTools {
+            use Promptable;
+
+            /**
+             * Create an agent that sends the given container.
+             */
+            public function __construct(protected array|string $container)
+            {
+            }
+
+            /**
+             * Get the agent's instructions.
+             */
+            public function instructions(): string
+            {
+                return 'You are a helpful assistant.';
+            }
+
+            /**
+             * Get the agent's tools.
+             */
+            public function tools(): iterable
+            {
+                return [new FixedNumberGenerator];
+            }
+
+            /**
+             * Get the provider options.
+             */
+            public function providerOptions(Lab|string $provider): array
+            {
+                return ['container' => $this->container];
+            }
+        };
+
+        $agent->prompt('Generate a random number', provider: 'anthropic');
+
+        $recorded = Http::recorded();
+
+        $this->assertCount(2, $recorded);
+        $this->assertSame($container, $recorded[0][0]->data()['container']);
+        $this->assertSame($followUp, $recorded[1][0]->data()['container']);
+    }
+
+    /**
+     * Provide containers set through provider options and the container each follow-up sends.
+     */
+    public static function providedContainers(): array
+    {
+        return [
+            'skills' => [
+                ['skills' => [['type' => 'anthropic', 'skill_id' => 'xlsx', 'version' => 'latest']]],
+                ['skills' => [['type' => 'anthropic', 'skill_id' => 'xlsx', 'version' => 'latest']], 'id' => 'container_123'],
+            ],
+            'container id' => ['container_user', 'container_user'],
+        ];
+    }
+
+    public function testToolCallsDoNotRunWhenTheMessageEndsWithMaxTokens(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_tool_123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-sonnet-4-6',
+                'content' => [
+                    ['type' => 'text', 'text' => 'Let me generate a number.'],
+                    ['type' => 'tool_use', 'id' => 'toolu_123', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                ],
+                'stop_reason' => 'max_tokens',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        (new ToolUsingAgent(fixed: true))->prompt('Generate a random number', provider: 'anthropic');
+
+        $this->assertCount(1, Http::recorded());
     }
 
     public function testServerToolUseInputIsSerializedAsObjectOnFollowUpReplay(): void

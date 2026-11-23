@@ -16,14 +16,20 @@ return new class extends Migration
         Schema::create('{{table}}', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('name');
+            $table->string('driver')->default('database');
             $table->integer('total_jobs');
             $table->integer('pending_jobs');
             $table->integer('failed_jobs');
-            $table->json('failed_job_ids');
+            $table->integer('outstanding_failed_jobs');
             $table->mediumText('options')->nullable();
             $table->integer('cancelled_at')->nullable();
             $table->integer('created_at');
             $table->integer('finished_at')->nullable();
+            $table->integer('previous_finished_at')->nullable();
+            $table->integer('previous_finished_total')->nullable();
+            $table->integer('previous_first_pass_total')->nullable();
+            $table->integer('previous_success_total')->nullable();
+            $table->index(['finished_at', 'created_at']);
         });
     }
 

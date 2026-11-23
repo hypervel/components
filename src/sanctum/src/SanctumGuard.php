@@ -282,7 +282,7 @@ class SanctumGuard implements GuardContract
      */
     protected function getExplicitUserContextKey(): string
     {
-        return "__auth.guards.{$this->name}.user.explicit";
+        return $this->contextKey('user.explicit');
     }
 
     /**
@@ -291,10 +291,10 @@ class SanctumGuard implements GuardContract
     protected function getContextKeyForToken(?string $token): string
     {
         if ($token === null || $token === '') {
-            return "__auth.guards.{$this->name}.user.default";
+            return $this->contextKey('user.default');
         }
 
-        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token);
+        return $this->contextKey('user.' . hash('xxh128', $token));
     }
 
     /**

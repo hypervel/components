@@ -10,7 +10,9 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Core\Bootstrap\WorkerExitCallback;
 use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -18,6 +20,8 @@ use Swoole\Server;
 
 class WorkerExitCallbackTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     #[RunInSeparateProcess]
@@ -26,17 +30,15 @@ class WorkerExitCallbackTest extends TestCase
         SwooleCoroutine::set(['max_coroutine' => 1]);
 
         SwooleCoroutine\run(function (): void {
-            $dispatcher = m::mock(Dispatcher::class);
-            $dispatcher->shouldReceive('hasListeners')
-                ->once()
+            $dispatcher = Double::for(Dispatcher::class)->strict();
+            $dispatcher->expects('hasListeners')
                 ->with(OnWorkerExit::class)
-                ->andReturnTrue();
-            $dispatcher->shouldReceive('dispatch')
-                ->once()
-                ->with(m::type(OnWorkerExit::class));
+                ->returns(true);
+            $dispatcher->expects('dispatch')
+                ->with(Argument::type(OnWorkerExit::class));
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
             $callback = new WorkerExitCallback($dispatcher);
-            $server = m::mock(Server::class);
+            $server = Double::for(Server::class)->strict();
 
             $callback->onWorkerExit($server, 3);
             $callback->onWorkerExit($server, 3);
@@ -50,17 +52,16 @@ class WorkerExitCallbackTest extends TestCase
     public function testWorkerExitResumesCoordinationWithoutListeners(): void
     {
         SwooleCoroutine\run(function (): void {
-            $dispatcher = m::mock(Dispatcher::class);
-            $dispatcher->shouldReceive('hasListeners')
-                ->once()
+            $dispatcher = Double::for(Dispatcher::class)->strict();
+            $dispatcher->expects('hasListeners')
                 ->with(OnWorkerExit::class)
-                ->andReturnFalse();
-            $dispatcher->shouldNotReceive('dispatch');
+                ->returns(false);
+            $dispatcher->expects('dispatch')->never();
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
             $callback = new WorkerExitCallback($dispatcher);
 
-            $callback->onWorkerExit(m::mock(Server::class), 3);
-            $callback->onWorkerExit(m::mock(Server::class), 3);
+            $callback->onWorkerExit(Double::for(Server::class)->strict(), 3);
+            $callback->onWorkerExit(Double::for(Server::class)->strict(), 3);
 
             $this->assertTrue($coordinator->isClosing());
         });
@@ -71,15 +72,14 @@ class WorkerExitCallbackTest extends TestCase
     {
         SwooleCoroutine\run(function (): void {
             $failure = new RuntimeException('worker exit listener failed');
-            $dispatcher = m::mock(Dispatcher::class);
-            $dispatcher->shouldReceive('hasListeners')
-                ->once()
+            $dispatcher = Double::for(Dispatcher::class)->strict();
+            $dispatcher->expects('hasListeners')
                 ->with(OnWorkerExit::class)
-                ->andReturnTrue();
-            $dispatcher->shouldReceive('dispatch')->once()->andThrow($failure);
+                ->returns(true);
+            $dispatcher->expects('dispatch')->throws($failure);
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
             $callback = new WorkerExitCallback($dispatcher);
-            $server = m::mock(Server::class);
+            $server = Double::for(Server::class)->strict();
 
             try {
                 $callback->onWorkerExit($server, 3);

@@ -10,13 +10,18 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class DatabaseFailedJobProviderTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected ?DatabaseFailedJobProvider $provider = null;
 
@@ -59,6 +64,19 @@ class DatabaseFailedJobProviderTest extends TestCase
 
         $this->assertCount(4, $this->provider->ids());
         $this->assertSame([4, 3, 2, 1], $this->provider->ids());
+    }
+
+    public function testNonIntegerFailedJobIdsAreCastToStrings(): void
+    {
+        $builder = Double::for(Builder::class)->strict();
+        $builder->allows('when')->returns($builder);
+        $builder->allows('orderBy');
+        $builder->allows('pluck')->with('id')->returns(new Collection([new Stringable('4'), 3]));
+
+        $provider = Double::for($this->provider)->passthru();
+        $provider->allows('getTable')->returns($builder);
+
+        $this->assertSame(['4', 3], $provider->ids());
     }
 
     public function testCanGetAllFailedJobs(): void

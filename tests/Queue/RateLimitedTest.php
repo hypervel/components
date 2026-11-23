@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Container\Container;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\RateLimited;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 enum RateLimitedTestStringEnum: string
@@ -37,6 +41,8 @@ enum RateLimitedTestStore: string
 
 class RateLimitedTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConstructorAcceptsStringsAndEnums(): void
     {
         $this->mockRateLimiter();
@@ -60,16 +66,15 @@ class RateLimitedTest extends TestCase
     public function testNamedLimiterUsesItsRegisteredStoreAndLimiterName(): void
     {
         $policy = Limit::perMinute(10)->by('user-1');
-        $store = m::mock(Limiter::class);
-        $store->shouldReceive('consumeMany')
-            ->once()
+        $store = Double::for(Limiter::class)->strict();
+        $store->expects('consumeMany')
             ->with([$policy], 'uploads')
-            ->andReturn([new LimitResult(true, 10, 9, 0, 60_000_000)]);
+            ->returns([new LimitResult(true, 10, 9, 0, 60_000_000)]);
 
         $manager = $this->mockRateLimiter();
-        $manager->shouldReceive('limiter')->with('uploads')->once()->andReturn(fn () => $policy);
-        $manager->shouldReceive('limiterStore')->with('uploads')->once()->andReturn('redis');
-        $manager->shouldReceive('store')->with('redis')->once()->andReturn($store);
+        $manager->expects('limiter')->with('uploads')->returns(fn () => $policy);
+        $manager->expects('limiterStore')->with('uploads')->returns('redis');
+        $manager->expects('store')->with('redis')->returns($store);
 
         $nextCalls = 0;
         $result = (new RateLimited('uploads'))->handle(
@@ -88,16 +93,15 @@ class RateLimitedTest extends TestCase
     public function testExplicitStoreOverridesTheNamedLimiterStoreAndSurvivesSerialization(): void
     {
         $policy = Limit::perMinute(10);
-        $store = m::mock(Limiter::class);
-        $store->shouldReceive('consumeMany')
-            ->once()
+        $store = Double::for(Limiter::class)->strict();
+        $store->expects('consumeMany')
             ->with([$policy], 'uploads')
-            ->andReturn([new LimitResult(true, 10, 9, 0, 60_000_000)]);
+            ->returns([new LimitResult(true, 10, 9, 0, 60_000_000)]);
 
         $manager = $this->mockRateLimiter();
-        $manager->shouldReceive('limiter')->with('uploads')->once()->andReturn(fn () => $policy);
-        $manager->shouldReceive('limiterStore')->never();
-        $manager->shouldReceive('store')->with('redis')->once()->andReturn($store);
+        $manager->expects('limiter')->with('uploads')->returns(fn () => $policy);
+        $manager->expects('limiterStore')->never();
+        $manager->expects('store')->with('redis')->returns($store);
 
         $middleware = unserialize(serialize(
             (new RateLimited('uploads'))->store(RateLimitedTestStore::Redis)
@@ -107,46 +111,82 @@ class RateLimitedTest extends TestCase
         $this->assertSame('handled', $middleware->handle(new stdClass, fn (): string => 'handled'));
     }
 
-    public function testDeniedJobUsesDecisionRetryTimeAndThreeSecondBuffer(): void
-    {
+    #[DataProvider('retryDelayProvider')]
+    public function testDeniedJobUsesConfiguredRetryDelayAfterSerialization(
+        int $retryMicroseconds,
+        ?int $padding,
+        ?int $fixedDelay,
+        int $expectedDelay,
+    ): void {
         $policy = Limit::perMinute(1);
-        $store = m::mock(Limiter::class);
-        $store->shouldReceive('consumeMany')
-            ->once()
+        $store = Double::for(Limiter::class)->strict();
+        $store->expects('consumeMany')
             ->with([$policy], 'uploads')
-            ->andReturn([new LimitResult(false, 1, 0, 7_000_000, 7_000_000)]);
+            ->returns([new LimitResult(false, 1, 0, $retryMicroseconds, $retryMicroseconds)]);
 
         $manager = $this->mockRateLimiter();
-        $manager->shouldReceive('limiter')->andReturn(fn () => $policy);
-        $manager->shouldReceive('limiterStore')->andReturnNull();
-        $manager->shouldReceive('store')->with(null)->andReturn($store);
+        $manager->allows('limiter')->returns(fn () => $policy);
+        $manager->allows('limiterStore')->returns(null);
+        $manager->allows('store')->with(null)->returns($store);
 
-        $job = m::mock();
-        $job->shouldReceive('release')->once()->with(10)->andReturnNull();
+        $job = Double::for(RateLimitedTestJob::class)->strict();
+        $job->expects('release')->with($expectedDelay)->returns(null);
 
-        $this->assertNull((new RateLimited('uploads'))->handle($job, fn () => 'handled'));
+        $middleware = new RateLimited('uploads');
+
+        if ($padding !== null) {
+            $this->assertSame($middleware, $middleware->releasePadding($padding));
+        }
+
+        if ($fixedDelay !== null) {
+            $middleware->releaseAfter($fixedDelay);
+        }
+
+        $middleware = unserialize(serialize($middleware));
+
+        $this->assertNull($middleware->handle($job, fn () => 'handled'));
+    }
+
+    public static function retryDelayProvider(): array
+    {
+        return [
+            'default padding' => [7_000_000, null, null, 10],
+            'custom padding' => [7_000_000, 5, null, 12],
+            'zero padding preserves rounding' => [100_000, 0, null, 1],
+            'zero padding preserves long delays' => [3_600_000_000, 0, null, 3600],
+            'fixed delay overrides padding' => [7_000_000, 5, 60, 60],
+            'fixed zero overrides padding' => [7_000_000, 5, 0, 0],
+        ];
+    }
+
+    public function testNegativeReleasePaddingIsRejected(): void
+    {
+        $this->mockRateLimiter();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Release padding must not be negative.');
+
+        (new RateLimited('uploads'))->releasePadding(-1);
     }
 
     public function testGroupUsesTheFirstDeniedPolicyToReleaseTheJob(): void
     {
         $first = Limit::perMinute(2)->by('first');
         $second = Limit::perMinute(1)->by('second');
-        $store = m::mock(Limiter::class);
-        $store->shouldReceive('consumeMany')
-            ->once()
+        $store = Double::for(Limiter::class)->strict();
+        $store->expects('consumeMany')
             ->with([$first, $second], 'uploads')
-            ->andReturn([
+            ->returns([
                 new LimitResult(true, 2, 2, 0, 0),
                 new LimitResult(false, 1, 0, 60_000_000, 60_000_000),
             ]);
 
         $manager = $this->mockRateLimiter();
-        $manager->shouldReceive('limiter')->andReturn(fn () => [$first, $second]);
-        $manager->shouldReceive('limiterStore')->andReturnNull();
-        $manager->shouldReceive('store')->andReturn($store);
+        $manager->allows('limiter')->returns(fn () => [$first, $second]);
+        $manager->allows('limiterStore')->returns(null);
+        $manager->allows('store')->returns($store);
 
-        $job = m::mock();
-        $job->shouldReceive('release')->once()->with(63)->andReturnNull();
+        $job = Double::for(RateLimitedTestJob::class)->strict();
+        $job->expects('release')->with(63)->returns(null);
 
         $nextCalls = 0;
         (new RateLimited('uploads'))->handle($job, function () use (&$nextCalls): void {
@@ -159,8 +199,8 @@ class RateLimitedTest extends TestCase
     public function testUnlimitedNamedQueueLimiterBypassesStorage(): void
     {
         $manager = $this->mockRateLimiter();
-        $manager->shouldReceive('limiter')->with('uploads')->once()->andReturn(fn () => Limit::none());
-        $manager->shouldReceive('store')->never();
+        $manager->expects('limiter')->with('uploads')->returns(fn () => Limit::none());
+        $manager->expects('store')->never();
 
         $result = (new RateLimited('uploads'))->handle(
             new stdClass,
@@ -173,14 +213,19 @@ class RateLimitedTest extends TestCase
     /**
      * Create a mock RateLimiter and set up the container.
      */
-    protected function mockRateLimiter(): RateLimiter&MockInterface
+    protected function mockRateLimiter(): DoubleInterface
     {
-        $limiter = m::mock(RateLimiter::class);
+        $limiter = Double::for(RateLimiter::class, override: true)->strict();
 
         $container = new Container;
-        $container->instance(RateLimiter::class, $limiter);
+        $container->instance(RateLimiter::class, $limiter->instance());
         Container::setInstance($container);
 
         return $limiter;
     }
+}
+
+class RateLimitedTestJob
+{
+    use InteractsWithQueue;
 }

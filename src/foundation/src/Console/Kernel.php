@@ -17,17 +17,18 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
 use SplFileInfo;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\ConsoleEvents;
@@ -80,6 +81,13 @@ class Kernel implements KernelContract
     protected array $loadedPaths = [];
 
     /**
+     * The commands registered through the "load" and "command" methods.
+     *
+     * @var array<int, class-string<SymfonyCommand>|SymfonyCommand>
+     */
+    protected array $kernelCommands = [];
+
+    /**
      * All of the registered command duration handlers.
      */
     protected array $commandLifecycleDurationHandlers = [];
@@ -122,6 +130,7 @@ class Kernel implements KernelContract
      * Re-route the Symfony command events to their Hypervel counterparts.
      *
      * @internal
+     * @return $this
      */
     public function rerouteSymfonyCommandEvents(): static
     {
@@ -175,21 +184,23 @@ class Kernel implements KernelContract
             $this->bootstrap();
 
             return $this->getArtisan()->run($input, $output);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             // Keep the original in flight while it is handled, so a failure in
             // reporting or rendering carries it as that failure's previous. The
             // return suppresses it once the command status is produced.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $e;
             } finally {
                 $this->reportException($e);
 
                 $this->renderException($output, $e);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return 1;
             }
         }
@@ -207,31 +218,38 @@ class Kernel implements KernelContract
             if ($this->events->hasListeners(Terminating::class)) {
                 $this->events->dispatch(new Terminating);
             }
-        } catch (CanceledException $throwable) {
-            $cancellation = $throwable;
         } catch (Throwable $throwable) {
-            $exception = $throwable;
+            if (Coroutine::causedByCancellation($throwable)) {
+                $cancellation = $throwable;
+            } else {
+                $exception = $throwable;
+            }
         }
 
         if ($cancellation === null) {
             try {
                 $this->app->terminate();
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
         if ($cancellation === null && $this->commandStartedAt !== null) {
             try {
+                // Resolving config runs application callbacks, whose cleanup can wrap cancellation.
                 $this->commandStartedAt = $this->commandStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
 
             if ($cancellation === null) {
@@ -242,11 +260,13 @@ class Kernel implements KernelContract
                         if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
                             $handler($this->commandStartedAt, $input, $status);
                         }
-                    } catch (CanceledException $throwable) {
-                        $cancellation = $throwable;
-
-                        break;
                     } catch (Throwable $throwable) {
+                        if (Coroutine::causedByCancellation($throwable)) {
+                            $cancellation = $throwable;
+
+                            break;
+                        }
+
                         $exception ??= $throwable;
                     }
                 }
@@ -335,15 +355,20 @@ class Kernel implements KernelContract
 
     /**
      * Register a Closure based command with the application.
+     *
+     * Commands remain registered for the kernel's lifetime.
+     *
+     * @param-closure-this ClosureCommand $callback
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function command(string $signature, Closure $callback): ClosureCommand
     {
         $command = new ClosureCommand($signature, $callback);
+        $this->kernelCommands[] = $command;
 
-        if ($this->commandsLoaded) {
-            $this->getArtisan()->add($command);
-        } else {
-            ConsoleApplication::starting(fn (ConsoleApplication $artisan) => $artisan->add($command));
+        // Late registrations must also reach an already-created console application.
+        if (isset($this->artisan)) {
+            $this->artisan->add($command);
         }
 
         return $command;
@@ -385,9 +410,7 @@ class Kernel implements KernelContract
         };
 
         foreach ($this->findCommands($paths)->filter($filterCommands) as $file) {
-            ConsoleApplication::starting(function (ConsoleApplication $artisan) use ($file, $possibleCommands) {
-                $artisan->resolve($possibleCommands[$file]);
-            });
+            $this->kernelCommands[] = $possibleCommands[$file];
         }
     }
 
@@ -542,7 +565,7 @@ class Kernel implements KernelContract
         $this->bootstrap();
 
         $artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
-            ->resolveCommands($this->commands)
+            ->resolveCommands([...$this->kernelCommands, ...$this->commands])
             ->setContainerCommandLoader();
 
         if ($this->symfonyDispatcher instanceof EventDispatcher) {
@@ -573,6 +596,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the Artisan commands provided by the application.
+     *
+     * @return $this
      */
     public function addCommands(array $commands): static
     {
@@ -587,6 +612,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan commands automatically discovered.
+     *
+     * @return $this
      */
     public function addCommandPaths(array $paths): static
     {
@@ -597,6 +624,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan "routes" automatically discovered.
+     *
+     * @return $this
      */
     public function addCommandRoutePaths(array $paths): static
     {

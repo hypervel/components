@@ -6,6 +6,8 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Queue\Worker;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 
 /**
@@ -44,21 +46,32 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static \Hypervel\Queue\QueueManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static void starting(mixed $callback)
  * @method static void stopping(mixed $callback)
+ * @method static void whenJobRunsLongerThan(\DateTimeInterface|\Carbon\CarbonInterval|int|float $threshold, callable $handler)
  * @method static void withoutInterruptionPolling()
+ * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allDelayedJobs()
+ * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allPendingJobs()
+ * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allReservedJobs()
  * @method static mixed bulk(array $jobs, mixed $data = '', \UnitEnum|string|null $queue = null)
  * @method static int|null creationTimeOfOldestPendingJob(\UnitEnum|string|null $queue = null)
+ * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> delayedJobs(\UnitEnum|string|null $queue = null)
  * @method static int delayedSize(\UnitEnum|string|null $queue = null)
  * @method static string getConnectionName()
  * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, object|string $job, mixed $data = '', \UnitEnum|string|null $queue = null)
  * @method static mixed laterOn(\UnitEnum|string|null $queue, \DateInterval|\DateTimeInterface|int $delay, object|string $job, mixed $data = '')
+ * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> pendingJobs(\UnitEnum|string|null $queue = null)
  * @method static int pendingSize(\UnitEnum|string|null $queue = null)
  * @method static \Hypervel\Contracts\Queue\Job|null pop(\UnitEnum|string|null $queue = null)
  * @method static mixed push(object|string $job, mixed $data = '', \UnitEnum|string|null $queue = null)
  * @method static mixed pushOn(\UnitEnum|string|null $queue, object|string $job, mixed $data = '')
  * @method static mixed pushRaw(string $payload, \UnitEnum|string|null $queue = null, array $options = [])
+ * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> reservedJobs(\UnitEnum|string|null $queue = null)
  * @method static int reservedSize(\UnitEnum|string|null $queue = null)
  * @method static \Hypervel\Contracts\Queue\Queue setConnectionName(string $name)
  * @method static int size(\UnitEnum|string|null $queue = null)
+ * @method static int totalDelayedSize()
+ * @method static int totalPendingSize()
+ * @method static int totalReservedSize()
+ * @method static int totalSize()
  * @method static void flushState()
  * @method static array getConfig()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
@@ -69,9 +82,6 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static \Hypervel\Queue\Queue setConfig(array $config)
  * @method static \Hypervel\Queue\Queue setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake afterPushing(callable $callback)
- * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allDelayedJobs()
- * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allPendingJobs()
- * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allReservedJobs()
  * @method static void assertClosureNotPushed(null|array<string, mixed>|callable $callback = null)
  * @method static void assertClosurePushed(null|array<string, mixed>|callable|int $callback = null)
  * @method static void assertCount(int $expectedCount)
@@ -85,24 +95,17 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static void assertPushedWithoutChain(string $job, null|array<string, mixed>|callable $callback = null)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake beforePushing(callable $callback)
  * @method static void clearReserved()
- * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> delayedJobs(\UnitEnum|string|null $queue = null)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake except(array|string $jobsToBeQueued)
  * @method static bool hasPushed(string $job)
  * @method static \Hypervel\Support\Collection listenersPushed(string $listenerClass, callable|null $callback = null)
- * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> pendingJobs(\UnitEnum|string|null $queue = null)
  * @method static \Hypervel\Support\Collection pushed(string $job, null|array<string, mixed>|callable $callback = null)
  * @method static array pushedJobs()
  * @method static \Hypervel\Support\Collection<int, mixed> pushedRaw(null|\Closure $callback = null)
  * @method static array<int, mixed> rawPushes()
  * @method static void releaseUniqueJobLocks()
  * @method static void reserve(object|string $job, \UnitEnum|string|null $queue = null)
- * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> reservedJobs(\UnitEnum|string|null $queue = null)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake serializeAndRestore(bool $serializeAndRestore = true)
  * @method static bool shouldFakeJob(object|string $job)
- * @method static int totalDelayedSize()
- * @method static int totalPendingSize()
- * @method static int totalReservedSize()
- * @method static int totalSize()
  *
  * @see \Hypervel\Queue\QueueManager
  * @see \Hypervel\Queue\Queue
@@ -112,15 +115,22 @@ class Queue extends Facade
 {
     /**
      * Register a callback to be executed to pick jobs.
+     *
+     * The callback persists for the worker lifetime and runs on every job pop
+     * for the named worker. Passing null removes the callback.
      */
-    public static function popUsing(string $workerName, callable $callback): void
+    #[BootOnly]
+    public static function popUsing(string $workerName, ?callable $callback): void
     {
         Worker::popUsing($workerName, $callback);
     }
 
     /**
      * Replace the bound instance with a fake.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(array|string $jobsToFake = []): QueueFake
     {
         $actualQueueManager = static::isFake()
@@ -140,7 +150,10 @@ class Queue extends Facade
 
     /**
      * Replace the bound instance with a fake that fakes all jobs except the given jobs.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fakeExcept(array|string $jobsToAllow): QueueFake
     {
         return static::fake()->except($jobsToAllow);
@@ -148,7 +161,10 @@ class Queue extends Facade
 
     /**
      * Replace the bound instance with a fake during the given callable's execution.
+     *
+     * Swaps the resolved facade instance worker-wide until the callable returns.
      */
+    #[TestsOnly]
     public static function fakeFor(callable $callable, array $jobsToFake = []): mixed
     {
         $originalQueueManager = static::getFacadeRoot();
@@ -168,7 +184,10 @@ class Queue extends Facade
 
     /**
      * Replace the bound instance with a fake during the given callable's execution.
+     *
+     * Swaps the resolved facade instance worker-wide until the callable returns.
      */
+    #[TestsOnly]
     public static function fakeExceptFor(callable $callable, array $jobsToAllow = []): mixed
     {
         $originalQueueManager = static::getFacadeRoot();

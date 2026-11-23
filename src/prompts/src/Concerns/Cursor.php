@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Concerns;
 
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+
 trait Cursor
 {
     /**
@@ -16,7 +18,7 @@ trait Cursor
      */
     public function hideCursor(): void
     {
-        if (! static::output()->isDecorated()) {
+        if (! static::canControlTerminal()) {
             return;
         }
 
@@ -32,7 +34,7 @@ trait Cursor
      */
     public function showCursor(): void
     {
-        if (! static::output()->isDecorated()) {
+        if (! static::canControlTerminal()) {
             static::$cursorHidden = false;
 
             return;
@@ -58,7 +60,7 @@ trait Cursor
      */
     public function moveCursor(int $x, int $y = 0): void
     {
-        if (! static::output()->isDecorated()) {
+        if (! static::canControlTerminal()) {
             return;
         }
 
@@ -84,7 +86,7 @@ trait Cursor
      */
     public function moveCursorToColumn(int $column): void
     {
-        if (! static::output()->isDecorated()) {
+        if (! static::canControlTerminal()) {
             return;
         }
 
@@ -96,7 +98,7 @@ trait Cursor
      */
     public function moveCursorUp(int $lines): void
     {
-        if (! static::output()->isDecorated()) {
+        if (! static::canControlTerminal()) {
             return;
         }
 
@@ -106,10 +108,10 @@ trait Cursor
     /**
      * Reset cursor state to defaults.
      *
-     * Boot or tests only. Clears worker-wide cursor visibility tracking;
-     * concurrent prompts may restore cursor state differently depending on
-     * timing.
+     * Clears worker-wide cursor visibility tracking; concurrent prompts
+     * may restore cursor state differently depending on timing.
      */
+    #[BootOrTestsOnly]
     public static function resetCursor(): void
     {
         static::$cursorHidden = false;

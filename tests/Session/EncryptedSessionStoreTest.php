@@ -7,16 +7,19 @@ namespace Hypervel\Tests\Session;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Session\EncryptedStore;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use SessionHandlerInterface;
 
 class EncryptedSessionStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSessionIsProperlyEncrypted(): void
     {
         $session = $this->getSession();
-        $session->getEncrypter()->expects('decrypt')->with(serialize([]))->andReturn(serialize([]));
-        $session->getHandler()->expects('read')->andReturn(serialize([]));
+        $session->getEncrypter()->expects('decrypt')->with(serialize([]))->returns(serialize([]));
+        $session->getHandler()->expects('read')->returns(serialize([]));
         $session->start();
         $session->put('foo', 'bar');
         $session->flash('baz', 'boom');
@@ -30,11 +33,11 @@ class EncryptedSessionStoreTest extends TestCase
                 'old' => ['baz'],
             ],
         ]);
-        $session->getEncrypter()->expects('encrypt')->with($serialized)->andReturn($serialized);
+        $session->getEncrypter()->expects('encrypt')->with($serialized)->returns($serialized);
         $session->getHandler()->expects('write')->with(
             $this->getSessionId(),
             $serialized
-        )->andReturnTrue();
+        )->returns(true);
         $session->save();
 
         $this->assertFalse($session->isStarted());
@@ -47,8 +50,8 @@ class EncryptedSessionStoreTest extends TestCase
     {
         return new EncryptedStore(
             $this->getSessionName(),
-            m::mock(SessionHandlerInterface::class),
-            m::mock(Encrypter::class),
+            Double::for(SessionHandlerInterface::class)->strict(),
+            Double::for(Encrypter::class)->strict(),
             $this->getSessionId()
         );
     }

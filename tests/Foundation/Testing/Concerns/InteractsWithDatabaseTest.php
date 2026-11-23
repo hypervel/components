@@ -13,12 +13,14 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Fixtures\User;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionClass;
 
 class InteractsWithDatabaseTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -72,14 +74,14 @@ class InteractsWithDatabaseTest extends TestCase
     public function testCastAsJsonUsesSpecifiedConnection(): void
     {
         $database = DB::getFacadeRoot();
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
-        $connection->shouldReceive('getQueryGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('raw')->once()->andReturnUsing(
+        $connection->expects('getQueryGrammar')->returns($grammar);
+        $connection->expects('raw')->resolves(
             static fn (string $value): Expression => new Expression($value),
         );
-        $connection->shouldReceive('escape')->once()->andReturnUsing(
+        $connection->expects('escape')->resolves(
             static fn (string $value): string => "'{$value}'",
         );
 
@@ -204,15 +206,15 @@ class InteractsWithDatabaseTest extends TestCase
     protected function castAsJsonUsingGrammar(array|object|string $value, string $grammar): string
     {
         $database = DB::getFacadeRoot();
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $grammar . 'Grammar';
         $grammar = new $grammarClass($connection);
 
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
-        $connection->shouldReceive('raw')->andReturnUsing(
+        $connection->allows('getQueryGrammar')->returns($grammar);
+        $connection->allows('raw')->resolves(
             static fn (string $value): Expression => new Expression($value),
         );
-        $connection->shouldReceive('escape')->andReturnUsing(
+        $connection->allows('escape')->resolves(
             static fn (string $value): string => "'{$value}'",
         );
 

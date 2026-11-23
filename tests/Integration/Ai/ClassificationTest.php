@@ -54,6 +54,31 @@ class ClassificationTest extends TestCase
         Event::assertDispatched(Classified::class);
     }
 
+    #[DataProvider('urgencyCases')]
+    public function testBooleanCriteriaMayBeGivenAsArrays(string $provider, string $apiKey, string $state, bool $urgent): void
+    {
+        requiresApiKey($apiKey);
+
+        $response = Classification::of($state)
+            ->question('is_urgent', new Boolean('Is this urgent?', [
+                'true' => ['Money was lost.', 'The customer is blocked.'],
+                'false' => ['A question only.', 'Nothing is broken.'],
+            ]))->classify(provider: $provider);
+
+        $this->assertSame($urgent, $response['is_urgent']->isTrue());
+    }
+
+    /**
+     * Provide each classification service with an urgent and a non-urgent state.
+     */
+    public static function urgencyCases(): iterable
+    {
+        foreach (Providers::classification() as $name => $provider) {
+            yield $name . '-urgent' => [...$provider, 'I was charged twice for my order and now I cannot check out at all.', true];
+            yield $name . '-not-urgent' => [...$provider, 'Out of curiosity, do you offer gift wrapping?', false];
+        }
+    }
+
     #[DataProvider('imageProviders')]
     public function testImagesCanBeClassifiedAlongsideTheState(string $provider, string $apiKey, string $file, string $color): void
     {

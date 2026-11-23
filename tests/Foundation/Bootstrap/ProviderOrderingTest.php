@@ -143,7 +143,6 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 use ReflectionMethod;
 
 class ProviderOrderingTest extends TestCase
@@ -410,19 +409,7 @@ class ProviderOrderingTest extends TestCase
      */
     protected function createAppWithProviders(array $configProviders, array $discoveredProviders): Application
     {
-        $mergedProviders = null;
-
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
-            ->with('app.providers')
-            ->andReturnUsing(function () use ($configProviders, &$mergedProviders) {
-                return $mergedProviders ?? $configProviders;
-            });
-        $config->shouldReceive('set')
-            ->with('app.providers', m::type('array'))
-            ->andReturnUsing(function (string $key, array $value) use (&$mergedProviders) {
-                $mergedProviders = $value;
-            });
+        $config = new Repository(['app' => ['providers' => $configProviders]]);
 
         // Use an Application subclass that returns our test discovered providers
         $app = new TestApplication($this->app->basePath(), $discoveredProviders);

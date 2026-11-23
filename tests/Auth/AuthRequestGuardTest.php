@@ -10,14 +10,17 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class AuthRequestGuardTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCallbackReceivesRequestAndProvider(): void
     {
         $request = Request::create('/');
-        $provider = m::mock(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
         RequestContext::set($request);
 
         $receivedRequest = null;
@@ -27,7 +30,7 @@ class AuthRequestGuardTest extends TestCase
             $receivedRequest = $req;
             $receivedProvider = $prov;
 
-            return m::mock(Authenticatable::class);
+            return Double::for(Authenticatable::class)->strict();
         }, $this->app, $provider);
 
         $guard->user();
@@ -41,7 +44,7 @@ class AuthRequestGuardTest extends TestCase
         RequestContext::set(Request::create('/'));
 
         $callCount = 0;
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
 
         $guard = new RequestGuard('custom', function () use (&$callCount, $user) {
             ++$callCount;
@@ -75,7 +78,7 @@ class AuthRequestGuardTest extends TestCase
     {
         RequestContext::set(Request::create('/'));
 
-        $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $this->app);
+        $guard = new RequestGuard('custom', fn () => Double::for(Authenticatable::class)->strict(), $this->app);
         $guard->user();
 
         $this->assertTrue($guard->hasUser());
@@ -102,8 +105,8 @@ class AuthRequestGuardTest extends TestCase
     {
         RequestContext::set(Request::create('/'));
 
-        $originalUser = m::mock(Authenticatable::class);
-        $newUser = m::mock(Authenticatable::class);
+        $originalUser = Double::for(Authenticatable::class)->strict();
+        $newUser = Double::for(Authenticatable::class)->strict();
 
         $guard = new RequestGuard('custom', fn () => $originalUser, $this->app);
         $guard->user();
@@ -118,8 +121,8 @@ class AuthRequestGuardTest extends TestCase
     {
         RequestContext::set(Request::create('/first'));
 
-        $resolvedUser = m::mock(Authenticatable::class);
-        $explicitUser = m::mock(Authenticatable::class);
+        $resolvedUser = Double::for(Authenticatable::class)->strict();
+        $explicitUser = Double::for(Authenticatable::class)->strict();
         $guard = new RequestGuard('custom', fn () => $resolvedUser, $this->app);
 
         $guard->setUser($explicitUser);
@@ -132,7 +135,7 @@ class AuthRequestGuardTest extends TestCase
     {
         RequestContext::set(Request::create('/'));
 
-        $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $this->app);
+        $guard = new RequestGuard('custom', fn () => Double::for(Authenticatable::class)->strict(), $this->app);
         $guard->user();
 
         $this->assertTrue($guard->hasUser());
@@ -146,14 +149,33 @@ class AuthRequestGuardTest extends TestCase
     {
         RequestContext::set(Request::create('/'));
 
-        $user1 = m::mock(Authenticatable::class);
-        $user2 = m::mock(Authenticatable::class);
+        $user1 = Double::for(Authenticatable::class)->strict();
+        $user2 = Double::for(Authenticatable::class)->strict();
 
         $guard1 = new RequestGuard('guard_one', fn () => $user1, $this->app);
         $guard2 = new RequestGuard('guard_two', fn () => $user2, $this->app);
 
         $this->assertSame($user1, $guard1->user());
         $this->assertSame($user2, $guard2->user());
+    }
+
+    public function testNewGuardWithTheSameNameStartsWithoutThePreviousGuardsUsers(): void
+    {
+        RequestContext::set(Request::create('/'));
+        $previousGuard = new RequestGuard('custom', fn () => Double::for(Authenticatable::class)->strict(), $this->app);
+        $previousGuard->user();
+        $previousGuard->setUser(Double::for(Authenticatable::class)->strict());
+        $callCount = 0;
+
+        $guard = new RequestGuard('custom', function () use (&$callCount) {
+            ++$callCount;
+
+            return null;
+        }, $this->app);
+
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+        $this->assertSame(1, $callCount);
     }
 
     public function testReplacingRequestInContextChangesWhatGuardSees(): void
@@ -167,7 +189,7 @@ class AuthRequestGuardTest extends TestCase
         $guard = new RequestGuard('custom', function ($req) use (&$seenRequests) {
             $seenRequests[] = $req;
 
-            return m::mock(Authenticatable::class);
+            return Double::for(Authenticatable::class)->strict();
         }, $this->app);
 
         // First call sees request1
@@ -189,17 +211,17 @@ class AuthRequestGuardTest extends TestCase
         $guard = new RequestGuard('custom', fn () => null, $this->app);
 
         $this->assertSame([
-            '__auth.guards.custom.user.explicit',
+            (fn (): string => $this->getExplicitUserContextKey())->call($guard),
         ], $guard->getAuthContextKeys());
     }
 
     public function testValidateCallsCallbackWithCredentialsRequest(): void
     {
         $request = Request::create('/');
-        $provider = m::mock(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
 
         $guard = new RequestGuard('custom', function ($req) {
-            return $req instanceof Request ? m::mock(Authenticatable::class) : null;
+            return $req instanceof Request ? Double::for(Authenticatable::class)->strict() : null;
         }, $this->app, $provider);
 
         $this->assertTrue($guard->validate(['request' => $request]));

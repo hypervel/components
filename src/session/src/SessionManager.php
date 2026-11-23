@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Session\Contracts\CanManageUserSessions;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Manager;
 use InvalidArgumentException;
 use SessionHandlerInterface;
@@ -290,8 +291,9 @@ class SessionManager extends Manager
     /**
      * Set the default session driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultDriver(UnitEnum|string $name): void
     {
         if ($name instanceof UnitEnum) {

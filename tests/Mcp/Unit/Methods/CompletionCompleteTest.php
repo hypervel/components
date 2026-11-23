@@ -20,7 +20,10 @@ use Hypervel\Mcp\Support\UriTemplate;
 use Hypervel\Mcp\Transport\JsonRpcRequest;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CompletionMethodTestServer extends Server
 {
@@ -447,45 +450,73 @@ class CompletionCompleteTest extends TestCase
         $this->assertSame([], $this->app->make(CompletionMethodTestPrompt::class)->lastContext);
     }
 
-    #[DataProvider('invalidParameters')]
-    public function testRejectsMalformedParameters(array $overrides): void
+    #[DataProvider('wronglyTypedCompletionParams')]
+    public function testRejectsWronglyTypedCompletionParams(array $params, string $message): void
     {
-        $request = new JsonRpcRequest('1', 'completion/complete', array_replace([
-            'ref' => ['type' => 'ref/prompt', 'name' => 'completion-method-test-prompt'],
-            'argument' => ['name' => 'test', 'value' => ''],
-        ], $overrides));
+        $server = new CompletionMethodTestServer(new FakeTransporter);
 
         $this->expectException(JsonRpcException::class);
         $this->expectExceptionCode(-32602);
+        $this->expectExceptionMessage($message);
 
-        (new CompletionComplete)->handle($request, (new CompletionMethodTestServer(new FakeTransporter))->createContext());
+        (new CompletionComplete)->handle(new JsonRpcRequest('1', 'completion/complete', $params), $server->createContext());
     }
 
     /**
-     * Return invalid completion parameter shapes.
+     * Return wrongly typed completion parameters.
      */
-    public static function invalidParameters(): array
+    public static function wronglyTypedCompletionParams(): array
     {
         return [
-            'reference scalar' => [['ref' => 'prompt']],
-            'argument scalar' => [['argument' => 'test']],
-            'prompt name' => [['ref' => ['type' => 'ref/prompt', 'name' => []]]],
-            'resource URI' => [['ref' => ['type' => 'ref/resource', 'uri' => []]]],
-            'argument name' => [['argument' => ['name' => []]]],
-            'argument value' => [['argument' => ['name' => 'test', 'value' => []]]],
-            'context scalar' => [['context' => 'invalid']],
-            'context arguments' => [['context' => ['arguments' => 'invalid']]],
+            'ref' => [['ref' => 'x', 'argument' => ['name' => 'a']], 'The [ref] parameter must be an object with string [name] and [uri] members.'],
+            'argument' => [['ref' => ['type' => 'ref/prompt', 'name' => 'p'], 'argument' => 'x'], 'The [argument] parameter must be an object with string [name] and [value] members.'],
+            'ref name' => [['ref' => ['type' => 'ref/prompt', 'name' => ['x']], 'argument' => ['name' => 'a']], 'The [ref] parameter must be an object with string [name] and [uri] members.'],
+            'ref uri' => [['ref' => ['type' => 'ref/resource', 'uri' => 1], 'argument' => ['name' => 'a']], 'The [ref] parameter must be an object with string [name] and [uri] members.'],
+            'argument name' => [['ref' => ['type' => 'ref/prompt', 'name' => 'p'], 'argument' => ['name' => 1]], 'The [argument] parameter must be an object with string [name] and [value] members.'],
+            'argument value' => [['ref' => ['type' => 'ref/prompt', 'name' => 'p'], 'argument' => ['name' => 'a', 'value' => ['x']]], 'The [argument] parameter must be an object with string [name] and [value] members.'],
+            'context' => [['ref' => ['type' => 'ref/prompt', 'name' => 'p'], 'argument' => ['name' => 'a'], 'context' => 'x'], 'The [context] parameter must be an object whose [arguments] member contains strings.'],
+            'context arguments' => [['ref' => ['type' => 'ref/prompt', 'name' => 'p'], 'argument' => ['name' => 'a'], 'context' => ['arguments' => 'x']], 'The [context] parameter must be an object whose [arguments] member contains strings.'],
+            'context argument value' => [['ref' => ['type' => 'ref/prompt', 'name' => 'p'], 'argument' => ['name' => 'a'], 'context' => ['arguments' => ['b' => ['x']]]], 'The [context] parameter must be an object whose [arguments] member contains strings.'],
+            'blank ref' => [['ref' => ' ', 'argument' => ['name' => 'a']], 'The [ref] parameter must be an object with string [name] and [uri] members.'],
+            'blank context arguments' => [['ref' => ['type' => 'ref/prompt', 'name' => 'p'], 'argument' => ['name' => 'a'], 'context' => ['arguments' => '']], 'The [context] parameter must be an object whose [arguments] member contains strings.'],
         ];
     }
 
-    public function testCancellationIsNotConvertedToAnEmptyCompletion(): void
+    public function testRejectsWronglyTypedParamsForAPrimitiveWithoutCompletion(): void
+    {
+        $server = new class(new FakeTransporter) extends Server {
+            protected string $name = 'Test';
+
+            protected array $capabilities = ['completions' => []];
+
+            protected array $prompts = [NonCompletionPrompt::class];
+        };
+
+        $this->expectException(JsonRpcException::class);
+        $this->expectExceptionCode(-32602);
+        $this->expectExceptionMessage('The [argument] parameter must be an object with string [name] and [value] members.');
+
+        (new CompletionComplete)->handle(new JsonRpcRequest('1', 'completion/complete', [
+            'ref' => ['type' => 'ref/prompt', 'name' => 'non-completion-prompt'],
+            'argument' => ['name' => 'test', 'value' => ['x']],
+        ]), $server->createContext());
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancellationIsNotConvertedToAnEmptyCompletion(bool $wrapped): void
     {
         $exception = new CanceledException('Completion cancelled.');
+
+        if ($wrapped) {
+            $exception = new RuntimeException('Completion cleanup failed.', previous: $exception);
+        }
+
         $prompt = new class($exception) extends CompletionMethodTestPrompt {
             /**
              * Capture the cancellation to raise during completion.
              */
-            public function __construct(private CanceledException $exception)
+            public function __construct(private Throwable $exception)
             {
             }
 

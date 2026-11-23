@@ -262,11 +262,12 @@ class OpenGraph extends GroupedTagBuilder
             return $this;
         }
 
+        // Defaults defined across several calls merge; media a higher layer defines replaces them.
         $overlaid = new static(
             array_replace($base->properties, $this->properties),
-            $this->overlayMedia($base->images, $this->images, $base->imagesAreDefaults),
-            $this->overlayMedia($base->videos, $this->videos, $base->videosAreDefaults),
-            $this->overlayMedia($base->audios, $this->audios, $base->audiosAreDefaults),
+            $this->overlayMedia($base->images, $this->images, $base->imagesAreDefaults && ! $this->imagesAreDefaults),
+            $this->overlayMedia($base->videos, $this->videos, $base->videosAreDefaults && ! $this->videosAreDefaults),
+            $this->overlayMedia($base->audios, $this->audios, $base->audiosAreDefaults && ! $this->audiosAreDefaults),
         );
 
         // A page image must not turn inherited default video or audio into page media.

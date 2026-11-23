@@ -9,13 +9,18 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
-use Hypervel\Contracts\View\View;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\View\Component;
+use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\Factory;
+use Hypervel\View\View;
 use InvalidArgumentException;
 use ParseError;
 
@@ -44,6 +49,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
     use Concerns\CompilesTranslations;
     use Concerns\CompilesUseStatements;
     use ReflectsClosures;
+
+    public const string DEFAULT_ECHO_FORMAT = 'e(%s)';
 
     /**
      * Temporarily store the raw blocks found in the template.
@@ -122,7 +129,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * The "regular" / legacy echo string format.
      */
-    protected string $echoFormat = 'e(%s)';
+    protected string $echoFormat = self::DEFAULT_ECHO_FORMAT;
 
     /**
      * The array of anonymous component paths to search for components in.
@@ -320,6 +327,34 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public static function render(string $string, array $data = [], bool $deleteCachedView = false): string
     {
+        $container = Container::getInstance();
+        $factory = $container->make(ViewFactory::class);
+
+        // Each deletable render owns its source file, so deleting it cannot break another render of the same
+        // template. Factory implementations without temporary views keep the named render below.
+        if ($deleteCachedView && $factory instanceof Factory) {
+            $hash = hash('xxh128', $string);
+            $directory = $container->make('config')->string('view.compiled');
+            $path = $directory . '/' . $hash . '-' . bin2hex(random_bytes(8)) . '.blade.php';
+            $files = $container->make(Filesystem::class);
+            $view = null;
+
+            $files->ensureDirectoryExists($directory);
+
+            try {
+                $files->put($path, $string);
+                $view = $factory->makeFromTemporaryFile('__components::' . $hash, $path, $data);
+
+                return $view->render();
+            } finally {
+                @unlink($path);
+
+                if ($view instanceof View && ($engine = $view->getEngine()) instanceof CompilerEngine) {
+                    @unlink($engine->getCompiler()->getCompiledPath($path));
+                }
+            }
+        }
+
         $component = new class($string) extends Component {
             /**
              * Create a new inline Blade component instance.
@@ -349,9 +384,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             }
         };
 
-        $view = Container::getInstance()
-            ->make(ViewFactory::class)
-            ->make($component->resolveView(), $data);
+        $view = $factory->make($component->resolveView(), $data);
 
         return tap($view->render(), function () use ($component, $string, $view, $deleteCachedView) {
             if ($deleteCachedView) {
@@ -372,7 +405,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $view = value($component->resolveView(), $data);
 
-        if ($view instanceof View) {
+        if ($view instanceof ViewContract) {
             return $view->with($data)->render();
         }
         if ($view instanceof Htmlable) {
@@ -750,9 +783,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a custom Blade compiler.
      *
-     * Boot-only. The compiler persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
+     * The compiler persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function extend(callable $compiler): void
     {
         $this->extensions[] = $compiler;
@@ -769,10 +803,11 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register an "if" statement directive.
      *
-     * Boot-only. The condition and its generated directives persist on the
-     * singleton BladeCompiler for the worker lifetime and apply to every
-     * subsequent template compilation.
+     * The condition and its generated directives persist on the singleton
+     * BladeCompiler for the worker lifetime and apply to every subsequent
+     * template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function if(string $name, callable $callback): void
     {
         $this->conditions[$name] = $callback;
@@ -811,10 +846,11 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a class-based component alias directive.
      *
-     * Boot-only. The alias persists in the singleton BladeCompiler's class
-     * component aliases for the worker lifetime and applies to every subsequent
-     * template compilation.
+     * The alias persists in the singleton BladeCompiler's class component
+     * aliases for the worker lifetime and applies to every subsequent template
+     * compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function component(string $alias, ?string $class = null, string $prefix = ''): void
     {
         // Alias-first only — Laravel's class-first swap is intentionally not ported.
@@ -837,9 +873,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register an array of class-based components.
      *
-     * Boot-only. Delegates to component() per entry; all aliases persist on the
-     * singleton BladeCompiler for the worker lifetime.
+     * Delegates to component() per entry; all aliases persist on the singleton
+     * BladeCompiler for the worker lifetime.
      */
+    #[BootOnly(whenShared: true)]
     public function components(array $components, string $prefix = ''): void
     {
         foreach ($components as $key => $value) {
@@ -862,10 +899,11 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a new anonymous component path.
      *
-     * Boot-only. The path persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
-     * Also registers a namespace on the singleton ViewFactory.
+     * The path persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation. Also
+     * registers a namespace on the singleton ViewFactory.
      */
+    #[BootOnly]
     public function anonymousComponentPath(string $path, ?string $prefix = null): void
     {
         $prefixHash = hash('xxh128', $prefix ?: $path);
@@ -884,9 +922,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register an anonymous component namespace.
      *
-     * Boot-only. The namespace persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
+     * The namespace persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function anonymousComponentNamespace(string $directory, ?string $prefix = null): void
     {
         $prefix ??= $directory;
@@ -900,9 +939,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a class-based component namespace.
      *
-     * Boot-only. The namespace persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
+     * The namespace persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function componentNamespace(string $namespace, string $prefix): void
     {
         $this->classComponentNamespaces[$prefix] = $namespace;
@@ -935,9 +975,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a component alias directive.
      *
-     * Boot-only. Registers a directive on the singleton BladeCompiler for the
-     * worker lifetime.
+     * Registers a directive on the singleton BladeCompiler for the worker lifetime.
      */
+    #[BootOnly(whenShared: true)]
     public function aliasComponent(string $path, ?string $alias = null): void
     {
         $alias = $alias ?: array_last(explode('.', $path));
@@ -956,9 +996,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register an include alias directive.
      *
-     * Boot-only. Registers a directive on the singleton BladeCompiler for the
-     * worker lifetime.
+     * Registers a directive on the singleton BladeCompiler for the worker lifetime.
      */
+    #[BootOnly(whenShared: true)]
     public function include(string $path, ?string $alias = null): void
     {
         $this->aliasInclude($path, $alias);
@@ -967,9 +1007,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register an include alias directive.
      *
-     * Boot-only. Registers a directive on the singleton BladeCompiler for the
-     * worker lifetime.
+     * Registers a directive on the singleton BladeCompiler for the worker lifetime.
      */
+    #[BootOnly(whenShared: true)]
     public function aliasInclude(string $path, ?string $alias = null): void
     {
         $alias = $alias ?: array_last(explode('.', $path));
@@ -984,11 +1024,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a handler for custom directives, binding the handler to the compiler.
      *
-     * Boot-only. Delegates to directive() with bind=true; the handler persists
-     * on the singleton BladeCompiler for the worker lifetime.
+     * Delegates to directive() with bind=true; the handler persists on the
+     * singleton BladeCompiler for the worker lifetime.
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function bindDirective(string $name, callable $handler): void
     {
         $this->directive($name, $handler, bind: true);
@@ -997,12 +1038,13 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a handler for custom directives.
      *
-     * Boot-only. The handler persists in the singleton BladeCompiler's
+     * The handler persists in the singleton BladeCompiler's
      * customDirectives array for the worker lifetime and applies to every
      * subsequent template compilation.
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function directive(string $name, callable $handler, bool $bind = false): void
     {
         if (! preg_match('/^\w+(?:::\w+)?$/x', $name)) {
@@ -1023,9 +1065,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Indicate that the following callable should be used to prepare strings for compilation.
      *
-     * Boot-only. The callback persists on the singleton BladeCompiler for the
-     * worker lifetime and runs on every subsequent template compilation.
+     * The callback persists on the singleton BladeCompiler for the worker
+     * lifetime and runs on every subsequent template compilation.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function prepareStringsForCompilationUsing(callable $callback): static
     {
         $this->prepareStringsForCompilationUsing[] = $callback;
@@ -1036,12 +1081,29 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a new precompiler.
      *
-     * Boot-only. The precompiler persists on the singleton BladeCompiler for
-     * the worker lifetime and runs on every subsequent template compilation.
+     * The precompiler persists on the singleton BladeCompiler for the worker
+     * lifetime and runs on every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function precompiler(callable $precompiler): void
     {
         $this->precompilers[] = $precompiler;
+    }
+
+    /**
+     * Get the path to the compiled version of a view.
+     */
+    public function getCompiledPath(string $path): string
+    {
+        $compiled = parent::getCompiledPath($path);
+        $echoFormat = $this->getEchoFormat();
+
+        // Non-default echo formats need their own compiled file so cached views are not reused...
+        if ($echoFormat === self::DEFAULT_ECHO_FORMAT) {
+            return $compiled;
+        }
+
+        return Str::beforeLast($compiled, '.') . '_' . hash('xxh128', $echoFormat) . '.' . $this->compiledExtension;
     }
 
     /**
@@ -1067,9 +1129,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Set the echo format to be used by the compiler.
      *
-     * Boot-only. The format persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
+     * The format persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function setEchoFormat(string $format): void
     {
         $this->echoFormat = $format;
@@ -1086,9 +1149,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Set the "echo" format to double encode entities.
      *
-     * Boot-only. The format persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
+     * The format persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function withDoubleEncoding(): void
     {
         $this->setEchoFormat('e(%s, true)');
@@ -1097,9 +1161,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Set the "echo" format to not double encode entities.
      *
-     * Boot-only. The format persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
+     * The format persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function withoutDoubleEncoding(): void
     {
         $this->setEchoFormat('e(%s, false)');
@@ -1108,9 +1173,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Indicate that component tags should not be compiled.
      *
-     * Boot-only. The setting persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent template compilation.
+     * The setting persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent template compilation.
      */
+    #[BootOnly(whenShared: true)]
     public function withoutComponentTags(): void
     {
         $this->compilesComponentTags = false;

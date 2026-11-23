@@ -93,6 +93,12 @@ Of course, you may call the `paginate` method after setting other constraints on
 $users = User::where('votes', '>', 100)->paginate(15);
 ```
 
+If you already know the total number of matching records, pass it as the `total` argument to avoid a separate count query. This also works on relationship queries, including many-to-many and has-many-through relationships. You may pass an integer or a closure that returns the total:
+
+```php
+$roles = $user->roles()->paginate(15, total: $totalRoles);
+```
+
 You may also use the `simplePaginate` method when paginating Eloquent models:
 
 ```php
@@ -160,7 +166,8 @@ However, cursor pagination has the following limitations:
 
 - Like `simplePaginate`, cursor pagination can only be used to display "Next" and "Previous" links and does not support generating links with page numbers.
 - It requires that the ordering is based on at least one unique column or a combination of columns that are unique. Columns with `null` values are not supported.
-- Query expressions in "order by" clauses are supported only if they are aliased and added to the "select" clause as well.
+- Ordering added by a global scope is not part of the cursor, so the ordering set on the query itself must be unique.
+- Query expressions in "order by" clauses are supported only if each expression is selected in its own entry with an explicit `as` alias. For example, use `select('id')->selectRaw('id + 1 as next_id')` instead of `selectRaw('id, id + 1 as next_id')`. Aliases without `as` and ordered expressions within multi-column raw selections are not supported and may fail or skip rows.
 - Query expressions with parameters are not supported.
 
 <a name="manually-creating-a-paginator"></a>

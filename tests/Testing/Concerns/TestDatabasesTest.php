@@ -6,18 +6,22 @@ namespace Hypervel\Tests\Testing\Concerns;
 
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
+use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Testing\Concerns\TestDatabases;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
 class TestDatabasesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private mixed $originalParallelTesting;
 
     protected function setUp(): void
@@ -61,7 +65,7 @@ class TestDatabasesTest extends TestCase
     {
         $container = Container::getInstance();
 
-        $db = m::mock(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         $db->expects('purge');
         $container->instance('db', $db);
 
@@ -83,7 +87,7 @@ class TestDatabasesTest extends TestCase
     ): void {
         $container = Container::getInstance();
 
-        $db = m::mock(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         $db->expects('purge');
         $container->instance('db', $db);
 
@@ -329,16 +333,16 @@ class TestDatabasesTest extends TestCase
         array $configuration = [],
         bool $expectsConnectionLookup = true,
     ): void {
-        $db = m::mock(DatabaseManager::class);
+        $db = Double::for(Connection::class)->strict();
 
         if ($expectsConnectionLookup) {
-            $db->shouldReceive('getConfig')->with('database')->andReturn($database);
+            $db->allows('getConfig')->with('database')->returns($database);
 
             if (! $withoutDatabases) {
-                $db->shouldReceive('getConfig')->with('driver')->andReturn($driver);
+                $db->allows('getConfig')->with('driver')->returns($driver);
             }
         } else {
-            $db->shouldNotReceive('getConfig');
+            $db->expects('getConfig')->never();
         }
 
         Container::getInstance()->instance('db', $db);

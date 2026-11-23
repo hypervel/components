@@ -5,11 +5,27 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Pool;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Throwable;
 
 class PoolManager
 {
+    /**
+     * The sequence used to build unique per-manager context key prefixes.
+     */
+    // Do not reset this; live context entries may still use earlier prefixes.
+    private static int $contextKeySequence = 0;
+
+    /**
+     * The prefix of this manager's coroutine context keys.
+     *
+     * Proxies pin connections from this manager's pools in coroutine context.
+     * Another manager can own a pool with the same connection name, so the
+     * keys include this manager's own prefix.
+     */
+    private ?string $contextKeyPrefix = null;
+
     /**
      * @var array<string, RedisPool>
      */
@@ -26,41 +42,36 @@ class PoolManager
     /**
      * Remove all pools and close their connections.
      *
-     * Boot or tests only. Closes worker-shared pools; connections already
-     * checked out by concurrent coroutines are destroyed on release.
+     * Closes worker-shared pools; connections already checked out by
+     * concurrent coroutines are destroyed on release.
      */
+    #[BootOrTestsOnly]
     public function purgeAll(): void
     {
         $pools = $this->pools;
         $this->pools = [];
-        $firstException = null;
-        $firstCancellation = null;
+        $exception = null;
 
         foreach ($pools as $pool) {
             try {
                 $pool->close();
-            } catch (CanceledException $exception) {
-                $firstCancellation ??= $exception;
-            } catch (Throwable $exception) {
-                $firstException ??= $exception;
+            } catch (Throwable $throwable) {
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
-        if ($firstCancellation !== null) {
-            throw $firstCancellation;
-        }
-
-        if ($firstException !== null) {
-            throw $firstException;
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
     /**
      * Remove a pool and close its connections.
      *
-     * Boot or tests only. Closes a worker-shared pool; connections already
-     * checked out by concurrent coroutines are destroyed on release.
+     * Closes a worker-shared pool; connections already checked out by
+     * concurrent coroutines are destroyed on release.
      */
+    #[BootOrTestsOnly]
     public function purge(string $name): void
     {
         $pool = $this->pools[$name] ?? null;
@@ -92,12 +103,8 @@ class PoolManager
             } catch (Throwable $failure) {
                 try {
                     $pool->close();
-                } catch (CanceledException $cancellation) {
-                    if (! $failure instanceof CanceledException) {
-                        throw $cancellation;
-                    }
-                } catch (Throwable) {
-                    // Preserve the activation failure over an ordinary cleanup failure.
+                } catch (Throwable $cleanupFailure) {
+                    $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
                 }
 
                 throw $failure;
@@ -126,5 +133,15 @@ class PoolManager
     public function getPools(): array
     {
         return $this->pools;
+    }
+
+    /**
+     * Get this manager's coroutine context key for the given entry.
+     *
+     * @internal
+     */
+    public function contextKey(string $name): string
+    {
+        return ($this->contextKeyPrefix ??= '__redis.' . ++self::$contextKeySequence . '.') . $name;
     }
 }

@@ -1,0 +1,19 @@
+<?php
+
+namespace Hypervel\Contracts\Support;
+
+interface Htmlable
+{}
+
+/**
+ * @template-covariant TReturn of array = array<array-key, mixed>
+ */
+interface Arrayable
+{}
+
+interface Jsonable
+{}
+
+interface CanBeEscapedWhenCastToString
+{}
+

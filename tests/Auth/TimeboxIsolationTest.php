@@ -15,31 +15,35 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Timebox;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class TimeboxIsolationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('guardOperationProvider')]
     public function testGuardOperationsUseIndependentTimeboxes(string $operation): void
     {
         $recorder = new TimeboxOperationRecorder;
         $timebox = new TrackingTimebox($recorder);
-        $provider = m::mock(UserProvider::class);
-        $user = m::mock(Authenticatable::class);
+        $provider = Double::for(UserProvider::class)->strict();
+        $user = Double::for(Authenticatable::class)->strict();
 
-        $provider->shouldReceive('retrieveByCredentials')->twice()->andReturn($user, null);
-        $provider->shouldReceive('validateCredentials')->once()->with($user, ['email' => 'test@example.com'])->andReturn(true);
+        $provider->expects('retrieveByCredentials')->times(2)->returns($user, null);
+        $provider->expects('validateCredentials')->with(Argument::same($user), ['email' => 'test@example.com'])->returns(true);
 
         if ($operation !== 'validate') {
-            $provider->shouldReceive('rehashPasswordIfRequired')->once()->with($user, ['email' => 'test@example.com']);
+            $provider->expects('rehashPasswordIfRequired')->with(Argument::same($user), ['email' => 'test@example.com']);
         }
 
         $guard = new TrackingSessionGuard(
             'web',
             $provider,
-            m::mock(Session::class),
-            m::mock(Container::class),
+            Double::for(Session::class)->strict(),
+            Double::for(Container::class, override: true)->strict()->instance(),
             $timebox,
             timeboxDuration: 1_000_000,
         );
@@ -65,11 +69,11 @@ class TimeboxIsolationTest extends TestCase
     {
         $recorder = new TimeboxOperationRecorder;
         $timebox = new TrackingTimebox($recorder);
-        $users = m::mock(UserProvider::class);
-        $users->shouldReceive('retrieveByCredentials')->twice()->with(['email' => 'missing@example.com'])->andReturnNull();
+        $users = Double::for(UserProvider::class)->strict();
+        $users->expects('retrieveByCredentials')->times(2)->with(['email' => 'missing@example.com'])->returns(null);
 
         $broker = new PasswordBroker(
-            m::mock(TokenRepositoryInterface::class),
+            Double::for(TokenRepositoryInterface::class)->strict(),
             $users,
             'users',
             timebox: $timebox,
@@ -87,21 +91,21 @@ class TimeboxIsolationTest extends TestCase
     {
         $recorder = new TimeboxOperationRecorder;
         $timebox = new TrackingTimebox($recorder);
-        $tokens = m::mock(TokenRepositoryInterface::class);
-        $users = m::mock(UserProvider::class);
-        $user = m::mock(Authenticatable::class . ',' . CanResetPassword::class);
+        $tokens = Double::for(TokenRepositoryInterface::class)->strict();
+        $users = Double::for(UserProvider::class)->strict();
+        $user = Double::for(Authenticatable::class, CanResetPassword::class)->strict();
         $credentials = [
             'email' => 'test@example.com',
             'password' => 'secret',
             'token' => 'token',
         ];
 
-        $users->shouldReceive('retrieveByCredentials')
-            ->twice()
+        $users->expects('retrieveByCredentials')
+            ->times(2)
             ->with(['email' => 'test@example.com', 'password' => 'secret'])
-            ->andReturn($user, null);
-        $tokens->shouldReceive('exists')->once()->with($user, 'token')->andReturnTrue();
-        $tokens->shouldReceive('delete')->once()->with($user);
+            ->returns($user, null);
+        $tokens->expects('exists')->with(Argument::same($user), 'token')->returns(true);
+        $tokens->expects('delete')->with(Argument::same($user));
 
         $broker = new PasswordBroker(
             $tokens,

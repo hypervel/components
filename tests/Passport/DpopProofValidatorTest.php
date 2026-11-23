@@ -19,8 +19,10 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\JsonWebKeyPair;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use Mockery as m;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -28,6 +30,8 @@ use function Hypervel\Coroutine\parallel;
 
 class DpopProofValidatorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Enable proofs with a dedicated database replay store.
      */
@@ -50,10 +54,10 @@ class DpopProofValidatorTest extends TestCase
     {
         $this->freezeSecond();
         [$request, $thumbprint] = $this->proof(['htu' => 'HTTPS://AUTH.EXAMPLE:443/a/../oauth/%74oken?ignored=1#ignored'], algorithm: $algorithm);
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldReceive('consume')->once()->with(m::on(static fn (string $identifier): bool => json_decode($identifier, true) === [
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->with(Argument::satisfies(static fn (string $identifier): bool => json_decode($identifier, true) === [
             'dpop', $thumbprint, 'https://auth.example/oauth/token', hash('sha256', 'proof'),
-        ]), Date::now()->getTimestamp() + 120)->andReturnTrue();
+        ]), Date::now()->getTimestamp() + 120)->returns(true);
 
         $this->assertSame($thumbprint, $this->validator($replays)->validate($request));
     }
@@ -66,12 +70,12 @@ class DpopProofValidatorTest extends TestCase
     {
         $now = $this->freezeSecond()->getTimestamp();
         [$request, $thumbprint] = $this->proof(['iat' => $now + $offset]);
-        $replays = m::mock(ReplayCache::class);
+        $replays = Double::for(ReplayCache::class)->strict();
 
         if ($accepted) {
-            $replays->shouldReceive('consume')->once()->with(m::type('string'), (int) ceil($now + $offset + 120))->andReturnTrue();
+            $replays->expects('consume')->with(Argument::type('string'), (int) ceil($now + $offset + 120))->returns(true);
         } else {
-            $replays->shouldNotReceive('consume');
+            $replays->expects('consume')->never();
             $this->expectException(OAuthServerException::class);
         }
 
@@ -90,8 +94,8 @@ class DpopProofValidatorTest extends TestCase
     public function testInvalidClaimsDoNotConsumeReplayState(string $claim, mixed $value): void
     {
         [$request] = $this->proof([$claim => $value]);
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldNotReceive('consume');
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->never();
 
         $this->expectException(OAuthServerException::class);
         $this->validator($replays)->validate($request);
@@ -143,8 +147,8 @@ class DpopProofValidatorTest extends TestCase
             default => $invalidSignature === null ? $request
                 : $request->withHeader('DPoP', $parts[0] . '.' . $parts[1] . '.' . JWT::urlsafeB64Encode($invalidSignature)),
         };
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldNotReceive('consume');
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->never();
 
         $this->expectException(OAuthServerException::class);
         $this->validator($replays)->validate($request);
@@ -159,8 +163,8 @@ class DpopProofValidatorTest extends TestCase
             'n' => JWT::urlsafeB64Encode("\x80" . random_bytes($modulusBytes - 2) . "\x01"),
             'e' => JWT::urlsafeB64Encode("\x01" . str_repeat("\0", $exponentBytes - 2) . "\x01"),
         ]], algorithm: 'RS256');
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldNotReceive('consume');
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->never();
 
         try {
             $this->validator($replays)->validate($request);
@@ -177,12 +181,12 @@ class DpopProofValidatorTest extends TestCase
     public function testResourceProofsMustBindBothTheAccessTokenAndItsPublicKey(bool $matchingToken, bool $matchingKey): void
     {
         [$request, $thumbprint] = $this->proof(['ath' => JWT::urlsafeB64Encode(hash('sha256', 'access-token', true))]);
-        $replays = m::mock(ReplayCache::class);
+        $replays = Double::for(ReplayCache::class)->strict();
 
         if ($matchingToken && $matchingKey) {
-            $replays->shouldReceive('consume')->once()->andReturnTrue();
+            $replays->expects('consume')->returns(true);
         } else {
-            $replays->shouldNotReceive('consume');
+            $replays->expects('consume')->never();
             $this->expectException(OAuthServerException::class);
         }
 
@@ -241,8 +245,8 @@ class DpopProofValidatorTest extends TestCase
     {
         [$request, $thumbprint] = $this->proof();
         RequestContext::set(Request::create('https://auth.example/oauth/token', 'POST'));
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldReceive('consume')->twice()->andReturn(true, false);
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->times(2)->returns(true, false);
         $validator = $this->validator($replays);
         $this->assertSame($thumbprint, $validator->validate($request));
         $this->assertSame($thumbprint, $validator->validate($request));
@@ -263,13 +267,13 @@ class DpopProofValidatorTest extends TestCase
     {
         [$request, $thumbprint] = $this->proof();
         RequestContext::set(Request::create('https://auth.example/oauth/token', 'POST'));
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldReceive('settings')->andReturn(
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->allows('settings')->returns(
             new ServerSettings([], dpopReplayProtection: false),
             new ServerSettings([], dpopReplayProtection: true),
         );
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldReceive('consume')->once()->andReturnFalse();
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->returns(false);
         $validator = new DpopProofValidator($this->app->make(Repository::class), new JwkValidator, $replays, $servers);
         $this->assertSame($thumbprint, $validator->validate($request));
 
@@ -281,8 +285,8 @@ class DpopProofValidatorTest extends TestCase
     {
         [$first, $firstThumbprint] = $this->proof();
         [$second, $secondThumbprint] = $this->proof();
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldReceive('consume')->twice()->andReturnTrue();
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->times(2)->returns(true);
         $validator = $this->validator($replays);
         $validate = static function (ServerRequest $request) use ($validator): string {
             RequestContext::set(Request::create('https://auth.example/oauth/token', 'POST'));
@@ -302,8 +306,8 @@ class DpopProofValidatorTest extends TestCase
     {
         config(['passport.dpop.enabled' => false]);
         [$request] = $this->proof();
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldNotReceive('consume');
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->never();
 
         $this->expectException(OAuthServerException::class);
         $this->expectExceptionMessage('DPoP proof is invalid');
@@ -315,8 +319,8 @@ class DpopProofValidatorTest extends TestCase
      */
     protected function validator(ReplayCache $replays, ?ServerSettings $settings = null): DpopProofValidator
     {
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldReceive('settings')->andReturn($settings ?? new ServerSettings([]));
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->allows('settings')->returns($settings ?? new ServerSettings([]));
 
         return new DpopProofValidator($this->app->make(Repository::class), new JwkValidator, $replays, $servers);
     }

@@ -11,12 +11,14 @@ use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Support\PromptAnimation;
 use Hypervel\Prompts\Support\TaskFrame;
 use Hypervel\Prompts\Support\Utils;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
 class Task extends Prompt
 {
+    use Concerns\RendersAnimations;
     use Concerns\TracksTaskOutput;
 
     /**
@@ -153,7 +155,7 @@ class Task extends Prompt
 
             $this->capturePreviousNewLines();
 
-            if (! static::output()->isDecorated()) {
+            if ($this->shouldRenderStatically()) {
                 return $this->renderStatically($callback);
             }
 
@@ -534,6 +536,7 @@ class Task extends Prompt
 
                 $this->render();
                 ++$this->count;
+                // @phpstan-ignore hypervel.rawSleep (prompts does not depend on hypervel/support)
                 usleep($this->interval * 1000);
             }
 
@@ -590,13 +593,13 @@ class Task extends Prompt
         try {
             $this->restoreSignalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;
@@ -723,12 +726,12 @@ class Task extends Prompt
 
         $cleanupFailure = $this->settleOperation(success: $success);
 
-        if ($operationFailure !== null) {
-            throw $operationFailure;
+        if ($cleanupFailure !== null) {
+            throw Coroutine::preferCancellation($operationFailure, $cleanupFailure);
         }
 
-        if ($cleanupFailure !== null) {
-            throw $cleanupFailure;
+        if ($operationFailure !== null) {
+            throw $operationFailure;
         }
 
         return $result;
@@ -748,7 +751,7 @@ class Task extends Prompt
     {
         $animation = null;
         $result = null;
-        $operationFailure = null;
+        $failure = null;
         $success = false;
 
         try {
@@ -769,7 +772,7 @@ class Task extends Prompt
             $result = $callback($logger);
             $success = true;
         } catch (Throwable $exception) {
-            $operationFailure = $exception;
+            $failure = $exception;
         }
 
         $animationFailure = null;
@@ -777,21 +780,18 @@ class Task extends Prompt
         try {
             $animationFailure = $animation?->stop();
         } catch (Throwable $exception) {
-            $animationFailure = $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         $cleanupFailure = $this->settleOperation(renderFinalFrame: true, success: $success);
 
-        if ($operationFailure !== null) {
-            throw $operationFailure;
+        if ($cleanupFailure !== null && Coroutine::causedByCancellation($cleanupFailure)) {
+            $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
         }
 
-        if ($animationFailure !== null) {
-            throw $animationFailure;
-        }
-
-        if ($cleanupFailure !== null) {
-            throw $cleanupFailure;
+        $failure ??= $animationFailure ?? $cleanupFailure;
+        if ($failure !== null) {
+            throw $failure;
         }
 
         return $result;
@@ -813,7 +813,7 @@ class Task extends Prompt
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;
@@ -824,6 +824,7 @@ class Task extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use run() instead.')]
     public function prompt(): never
     {
         throw new RuntimeException('Task cannot be prompted.');

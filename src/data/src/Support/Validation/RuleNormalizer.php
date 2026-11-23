@@ -6,9 +6,12 @@ namespace Hypervel\Data\Support\Validation;
 
 use Closure;
 use Hypervel\Contracts\Validation\CompilableRules;
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\ValidationRule as ValidationRuleContract;
+use Hypervel\Data\Attributes\Validation\Contains;
 use Hypervel\Data\Attributes\Validation\Dimensions;
+use Hypervel\Data\Attributes\Validation\DoesntContain;
 use Hypervel\Data\Attributes\Validation\Enum;
 use Hypervel\Data\Attributes\Validation\Exclude;
 use Hypervel\Data\Attributes\Validation\Exists;
@@ -23,7 +26,10 @@ use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Exceptions\CouldNotCreateValidationRule;
 use Hypervel\Support\Arr;
 use Hypervel\Validation\ConditionalRules;
+use Hypervel\Validation\Rules\ArrayKeys as ArrayKeysRule;
+use Hypervel\Validation\Rules\Contains as ContainsRule;
 use Hypervel\Validation\Rules\Dimensions as DimensionsRule;
+use Hypervel\Validation\Rules\DoesntContain as DoesntContainRule;
 use Hypervel\Validation\Rules\Enum as EnumRule;
 use Hypervel\Validation\Rules\ExcludeIf as ExcludeIfRule;
 use Hypervel\Validation\Rules\Exists as ExistsRule;
@@ -33,6 +39,7 @@ use Hypervel\Validation\Rules\Password as PasswordRule;
 use Hypervel\Validation\Rules\ProhibitedIf as ProhibitedIfRule;
 use Hypervel\Validation\Rules\RequiredIf as RequiredIfRule;
 use Hypervel\Validation\Rules\Unique as UniqueRule;
+use Hypervel\Validation\ValidationRuleParser;
 use Stringable;
 use TypeError;
 use ValueError;
@@ -64,6 +71,18 @@ class RuleNormalizer
             return $this->resolveStringRule($rule);
         }
 
+        if (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
+            // Preserve the builder and its export overrides until validation runs.
+            return [match (true) {
+                $rule instanceof InRule => new In($rule),
+                $rule instanceof NotInRule => new NotIn($rule),
+                $rule instanceof ContainsRule => new Contains($rule),
+                $rule instanceof DoesntContainRule => new DoesntContain($rule),
+                $rule instanceof ArrayKeysRule => new Rule($rule),
+                default => $this->resolveRule($rule),
+            }];
+        }
+
         if ($rule instanceof Rule) {
             return $this->execute($rule->get());
         }
@@ -77,8 +96,6 @@ class RuleNormalizer
             $rule instanceof EnumRule => new Enum($rule),
             $rule instanceof ExcludeIfRule => new Exclude($rule),
             $rule instanceof ExistsRule => new Exists(rule: $rule),
-            $rule instanceof InRule => new In($rule),
-            $rule instanceof NotInRule => new NotIn($rule),
             $rule instanceof PasswordRule => new Password(rule: $rule),
             $rule instanceof ProhibitedIfRule => new Prohibited($rule),
             $rule instanceof RequiredIfRule => new Required($rule),
@@ -122,13 +139,21 @@ class RuleNormalizer
             ? [$rule]
             : explode('|', $rule);
         foreach ($subRules as $subRule) {
-            try {
-                $rules[] = $this->ruleFactory->create($subRule);
-            } catch (CouldNotCreateValidationRule|CannotBuildValidationRule|TypeError|ValueError) {
-                $rules[] = new Rule($subRule);
-            }
+            $rules[] = $this->resolveRule($subRule);
         }
 
         return $rules;
+    }
+
+    /**
+     * Convert a rule to its validation attribute, keeping it as written when no attribute can hold its parameters.
+     */
+    protected function resolveRule(string|ParameterizedRule $rule): ValidationRule
+    {
+        try {
+            return $this->ruleFactory->create($rule);
+        } catch (CouldNotCreateValidationRule|CannotBuildValidationRule|TypeError|ValueError) {
+            return new Rule($rule);
+        }
     }
 }

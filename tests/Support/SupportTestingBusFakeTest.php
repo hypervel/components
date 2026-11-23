@@ -6,18 +6,24 @@ namespace Hypervel\Tests\Support;
 
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\BatchRepositoryFake;
 use Hypervel\Support\Testing\Fakes\BusFake;
 use Hypervel\Support\Testing\Fakes\PendingBatchFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
@@ -25,19 +31,21 @@ use RuntimeException;
 
 class SupportTestingBusFakeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected BusFake $fake;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->fake = new BusFake(m::mock(QueueingDispatcher::class));
+        $this->fake = new BusFake(new BusDispatcher(new Container));
     }
 
     public function testItUsesCustomBusRepository(): void
     {
         $busRepository = new BatchRepositoryFake;
 
-        $fake = new BusFake(m::mock(QueueingDispatcher::class), [], $busRepository);
+        $fake = new BusFake(new BusDispatcher(new Container), [], $busRepository);
 
         $this->assertNull($fake->findBatch('non-existent-batch'));
 
@@ -158,7 +166,7 @@ class SupportTestingBusFakeTest extends TestCase
     public function testFakeDispatchMethodsAcceptDispatchLockOwnership(string $dispatchMethod): void
     {
         $command = new BusJobStub;
-        DispatchLockContext::registerUnique($command, m::mock(Cache::class), null, 'key', 'owner');
+        DispatchLockContext::registerUnique($command, Double::for(Cache::class)->strict(), null, 'key', 'owner');
 
         $this->assertTrue(DispatchLockContext::has($command));
 
@@ -691,17 +699,52 @@ class SupportTestingBusFakeTest extends TestCase
         }
     }
 
+    public function testFakeChainKeepsTheFirstJobsOwnSettings(): void
+    {
+        $this->fake->chain([(new ChainedJobStub)->onConnection('job-connection')->delay(5), new ChainedJobStub])->dispatch();
+        $this->fake->chain([new AttributedChainedJobStub, new ChainedJobStub])
+            ->onConnection('chain-connection')
+            ->onQueue('chain-queue')
+            ->delay(10)
+            ->dispatch();
+
+        $this->fake->assertDispatched(
+            ChainedJobStub::class,
+            fn (ChainedJobStub $job) => $job->connection === 'job-connection' && $job->delay === 5 && $job->chainConnection === null,
+        );
+        $this->fake->assertDispatched(
+            AttributedChainedJobStub::class,
+            fn (AttributedChainedJobStub $job) => $job->connection === null
+                && $job->queue === null
+                && $job->delay === null
+                && $job->chainConnection === 'chain-connection'
+                && $job->chainQueue === 'chain-queue',
+        );
+    }
+
+    public function testDispatchingAfterResponsesCanBeToggledOnTheFake(): void
+    {
+        $dispatcher = Double::for(BusDispatcher::class)->strict();
+        $dispatcher->expects('withoutDispatchingAfterResponses')->returns($dispatcher);
+        $dispatcher->expects('withDispatchingAfterResponses')->returns($dispatcher);
+
+        $fake = new BusFake($dispatcher);
+
+        $this->assertSame($fake, $fake->withoutDispatchingAfterResponses());
+        $this->assertSame($fake, $fake->withDispatchingAfterResponses());
+    }
+
     public function testAssertDispatchedWithIgnoreClass(): void
     {
-        $dispatcher = m::mock(QueueingDispatcher::class);
+        $dispatcher = Double::for(QueueingDispatcher::class)->strict();
 
         $job = new BusJobStub;
-        $dispatcher->expects('dispatch')->with($job);
-        $dispatcher->expects('dispatchNow')->with($job, null);
+        $dispatcher->expects('dispatch')->with(Argument::same($job));
+        $dispatcher->expects('dispatchNow')->with(Argument::same($job), null);
 
         $otherJob = new OtherBusJobStub;
-        $dispatcher->shouldReceive('dispatch')->never()->with($otherJob);
-        $dispatcher->shouldReceive('dispatchNow')->never()->with($otherJob, null);
+        $dispatcher->expects('dispatch')->never()->with(Argument::type(OtherBusJobStub::class));
+        $dispatcher->expects('dispatchNow')->never()->with(Argument::type(OtherBusJobStub::class), null);
 
         $fake = new BusFake($dispatcher, OtherBusJobStub::class);
 
@@ -717,19 +760,19 @@ class SupportTestingBusFakeTest extends TestCase
 
     public function testDispatchedFakingOnlyGivenJobs(): void
     {
-        $dispatcher = m::mock(QueueingDispatcher::class);
+        $dispatcher = Double::for(QueueingDispatcher::class)->strict();
 
         $job = new BusJobStub;
-        $dispatcher->shouldReceive('dispatch')->never()->with($job);
-        $dispatcher->shouldReceive('dispatchNow')->never()->with($job, null);
+        $dispatcher->expects('dispatch')->never()->with(Argument::type(BusJobStub::class));
+        $dispatcher->expects('dispatchNow')->never()->with(Argument::type(BusJobStub::class), null);
 
         $otherJob = new OtherBusJobStub;
-        $dispatcher->expects('dispatch')->with($otherJob);
-        $dispatcher->expects('dispatchNow')->with($otherJob, null);
+        $dispatcher->expects('dispatch')->with(Argument::same($otherJob));
+        $dispatcher->expects('dispatchNow')->with(Argument::same($otherJob), null);
 
         $thirdJob = new ThirdJob;
-        $dispatcher->shouldReceive('dispatch')->never()->with($thirdJob);
-        $dispatcher->shouldReceive('dispatchNow')->never()->with($thirdJob, null);
+        $dispatcher->expects('dispatch')->never()->with(Argument::type(ThirdJob::class));
+        $dispatcher->expects('dispatchNow')->never()->with(Argument::type(ThirdJob::class), null);
 
         $fake = (new BusFake($dispatcher))->except(OtherBusJobStub::class);
 
@@ -756,19 +799,20 @@ class SupportTestingBusFakeTest extends TestCase
 
     public function testAssertDispatchedWithIgnoreCallback(): void
     {
-        $dispatcher = m::mock(QueueingDispatcher::class);
+        $dispatcher = Double::for(QueueingDispatcher::class)->strict();
 
         $job = new BusJobStub;
-        $dispatcher->expects('dispatch')->with($job);
-        $dispatcher->expects('dispatchNow')->with($job, null);
-
         $otherJob = new OtherBusJobStub;
-        $dispatcher->expects('dispatch')->with($otherJob);
-        $dispatcher->expects('dispatchNow')->with($otherJob, null);
-
         $anotherJob = new OtherBusJobStub(1);
-        $dispatcher->shouldReceive('dispatch')->never()->with($anotherJob);
-        $dispatcher->shouldReceive('dispatchNow')->never()->with($anotherJob, null);
+
+        $dispatched = [];
+        $dispatcher->expects('dispatch')->times(2)->resolves(function ($command) use (&$dispatched): void {
+            $dispatched[] = $command;
+        });
+        $dispatcher->expects('dispatchNow')->times(2)->resolves(function ($command, $handler) use (&$dispatched): void {
+            $this->assertNull($handler);
+            $dispatched[] = $command;
+        });
 
         $fake = new BusFake($dispatcher, [
             function ($command) {
@@ -793,6 +837,8 @@ class SupportTestingBusFakeTest extends TestCase
         $fake->assertDispatched(OtherBusJobStub::class, function ($job) {
             return $job->id === 1;
         });
+
+        $this->assertSame([$job, $job, $otherJob, $otherJob], $dispatched);
     }
 
     public function testAssertNothingBatched(): void
@@ -885,7 +931,7 @@ class SupportTestingBusFakeTest extends TestCase
     {
         $batchRepository = new BatchRepositoryFake;
 
-        $fake = new BusFake(m::mock(QueueingDispatcher::class), [], $batchRepository);
+        $fake = new BusFake(new BusDispatcher(new Container), [], $batchRepository);
 
         $batch = $fake->batch([])->dispatch();
 
@@ -975,7 +1021,7 @@ class SupportTestingBusFakeTest extends TestCase
     public function testSerializedCommandAcceptanceUsesOriginalIdentity(): void
     {
         $command = new BusFakeJobWithSerialization('hello');
-        DispatchLockContext::registerUnique($command, m::mock(Cache::class), null, 'key', 'owner');
+        DispatchLockContext::registerUnique($command, Double::for(Cache::class)->strict(), null, 'key', 'owner');
         $serializingBusFake = (clone $this->fake)->serializeAndRestore();
 
         $serializingBusFake->dispatch($command);
@@ -990,7 +1036,7 @@ class SupportTestingBusFakeTest extends TestCase
     {
         $exception = new RuntimeException('Serialization failed.');
         $command = new BusFakeJobWithFailingSerialization($exception);
-        DispatchLockContext::registerUnique($command, m::mock(Cache::class), null, 'key', 'owner');
+        DispatchLockContext::registerUnique($command, Double::for(Cache::class)->strict(), null, 'key', 'owner');
         $serializingBusFake = (clone $this->fake)->serializeAndRestore();
 
         try {
@@ -1192,6 +1238,14 @@ class ChainedJobStub
     {
         $this->id = $id;
     }
+}
+
+#[Connection('job-connection')]
+#[QueueAttribute('job-queue')]
+#[Delay(30)]
+class AttributedChainedJobStub
+{
+    use Queueable;
 }
 
 class OtherBusJobStub

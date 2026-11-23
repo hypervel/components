@@ -5,33 +5,20 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Hypervel\Database\Eloquent\Attributes\Fillable;
+use Hypervel\Database\Eloquent\Attributes\Hidden;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Notifications\Notifiable;
 
+#[Fillable(['name', 'email', 'password'])]
+#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 
     use Notifiable;
-
-    /**
-     * The attributes that are mass assignable.
-     */
-    protected array $fillable = [
-        'name',
-        'email',
-        'password',
-    ];
-
-    /**
-     * The attributes that should be hidden for serialization.
-     */
-    protected array $hidden = [
-        'password',
-        'remember_token',
-    ];
 
     /**
      * Get the attributes that should be cast.

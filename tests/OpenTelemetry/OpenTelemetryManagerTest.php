@@ -23,8 +23,11 @@ use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\OpenTelemetry\Support\ProviderSet;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use JMac\Testing\OverriddenDouble;
 use LogicException;
-use Mockery as m;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\StatusCode;
@@ -45,6 +48,8 @@ use function Hypervel\Coroutine\go;
 
 class OpenTelemetryManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLogsSignalAvailabilityTracksTheBoundProviderLifecycle(): void
     {
         [$manager] = $this->manager();
@@ -102,7 +107,7 @@ class OpenTelemetryManagerTest extends TestCase
         $creatorCalls = 0;
         [$manager, $exporters, $container] = $this->manager(function (Container $resolvedContainer) use (&$creatorCalls, &$container, &$exporters): ExporterFactory {
             ++$creatorCalls;
-            $this->assertSame($container, $resolvedContainer);
+            $this->assertSame($container->instance(), $resolvedContainer);
 
             return $exporters;
         });
@@ -126,17 +131,13 @@ class OpenTelemetryManagerTest extends TestCase
         $identity = ProcessIdentity::eventWorker(2);
         [$manager, , $container] = $this->manager(configuration: $configuration);
         $instrumentation = new ManagerTestInstrumentation;
-        $container->shouldReceive('instance')
-            ->once()
-            ->with(ProcessIdentity::class, $identity)
-            ->andReturn($identity);
-        $container->shouldReceive('make')
-            ->once()
+        $container->expects('make')
             ->with(ManagerTestInstrumentation::class)
-            ->andReturn($instrumentation);
+            ->returns($instrumentation);
 
         $manager->bind($identity);
 
+        $container->received('instance')->with(ProcessIdentity::class, Argument::same($identity))->times(1);
         $this->assertSame(['metrics' => true, 'custom' => 'value'], $instrumentation->options);
         $manager->shutdown();
     }
@@ -159,13 +160,10 @@ class OpenTelemetryManagerTest extends TestCase
         $configuration['instrumentation'] = [];
         $identity = ProcessIdentity::cli();
         [$manager, , $container, $exceptionContexts] = $this->manager(configuration: $configuration);
-        $container->shouldReceive('instance')
-            ->once()
-            ->with(ProcessIdentity::class, $identity)
-            ->andReturn($identity);
         $exceptionContexts->enable();
 
         $manager->bind($identity);
+        $container->received('instance')->with(ProcessIdentity::class, Argument::same($identity))->times(1);
         $manager->shutdown();
         $expected = new RuntimeException('failure');
 
@@ -238,7 +236,7 @@ class OpenTelemetryManagerTest extends TestCase
         $manager->shutdown();
     }
 
-    public function testTraceDetachesAndRethrowsCancellationWithoutCompletingTheSpan(): void
+    public function testTraceEndsTheSpanWithoutAnErrorWhenCancellationStopsIt(): void
     {
         [$manager, $exporters] = $this->manager();
         $manager->bind(ProcessIdentity::cli());
@@ -246,7 +244,7 @@ class OpenTelemetryManagerTest extends TestCase
         $cancellation = new CanceledException;
 
         try {
-            $manager->trace('cancelled', static function () use ($cancellation): never {
+            $manager->trace('canceled', static function () use ($cancellation): never {
                 throw $cancellation;
             });
 
@@ -257,7 +255,11 @@ class OpenTelemetryManagerTest extends TestCase
 
         $this->assertSame($parent, Span::getCurrent());
         $this->assertTrue($manager->flush());
-        $this->assertSame([], $exporters->spanExporter->getSpans());
+        $spans = $exporters->spanExporter->getSpans();
+        $this->assertCount(1, $spans);
+        $this->assertSame('canceled', $spans[0]->getName());
+        $this->assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        $this->assertSame([], $spans[0]->getEvents());
 
         $manager->shutdown();
     }
@@ -324,18 +326,12 @@ class OpenTelemetryManagerTest extends TestCase
         $failingInstrumentation = new FailingManagerTestInstrumentation;
         $expected = new RuntimeException('Unable to register instrumentation.');
         $failingInstrumentation->exception = $expected;
-        $container->shouldReceive('instance')
-            ->once()
-            ->with(ProcessIdentity::class, $identity)
-            ->andReturn($identity);
-        $container->shouldReceive('make')
-            ->once()
+        $container->expects('make')
             ->with(ManagerTestInstrumentation::class)
-            ->andReturn($instrumentation);
-        $container->shouldReceive('make')
-            ->once()
+            ->returns($instrumentation);
+        $container->expects('make')
             ->with(FailingManagerTestInstrumentation::class)
-            ->andReturn($failingInstrumentation);
+            ->returns($failingInstrumentation);
 
         try {
             $manager->bind($identity);
@@ -346,6 +342,7 @@ class OpenTelemetryManagerTest extends TestCase
 
         $this->assertTrue($manager->isBound());
         $manager->bind($identity);
+        $container->received('instance')->with(ProcessIdentity::class, Argument::same($identity))->times(1);
         $this->assertSame(1, $instrumentation->registrations);
         $this->assertSame(1, $failingInstrumentation->registrations);
         $this->assertTrue($manager->shutdown());
@@ -358,12 +355,12 @@ class OpenTelemetryManagerTest extends TestCase
         $configuration['traces']['processors'] = ['custom.span.processor'];
         $configuration['logs']['processors'] = ['custom.log.processor'];
         [$manager, , $container] = $this->manager(configuration: $configuration);
-        $spanProcessor = m::mock(SpanProcessorInterface::class);
-        $spanProcessor->shouldReceive('shutdown')->once()->andReturnTrue();
-        $logProcessor = m::mock(LogRecordProcessorInterface::class);
-        $logProcessor->shouldReceive('shutdown')->once()->andReturnTrue();
-        $container->shouldReceive('make')->once()->with('custom.span.processor')->andReturn($spanProcessor);
-        $container->shouldReceive('make')->once()->with('custom.log.processor')->andReturn($logProcessor);
+        $spanProcessor = Double::for(SpanProcessorInterface::class)->strict();
+        $spanProcessor->expects('shutdown')->returns(true);
+        $logProcessor = Double::for(LogRecordProcessorInterface::class)->strict();
+        $logProcessor->expects('shutdown')->returns(true);
+        $container->expects('make')->with('custom.span.processor')->returns($spanProcessor);
+        $container->expects('make')->with('custom.log.processor')->returns($logProcessor);
         $manager->bind(ProcessIdentity::cli());
         $manager->shutdown();
 
@@ -378,17 +375,17 @@ class OpenTelemetryManagerTest extends TestCase
         $flushStarted = new Channel(1);
         $releaseFlush = new Channel(1);
         $flushFinished = new Channel(1);
-        $traces = m::mock(TracerProviderInterface::class);
-        $traces->shouldReceive('forceFlush')->once()->andReturnUsing(
+        $traces = Double::for(TracerProviderInterface::class)->strict();
+        $traces->expects('forceFlush')->resolves(
             static function () use ($flushStarted, $releaseFlush): bool {
                 $flushStarted->push(true);
 
                 return $releaseFlush->pop(1.0) === true;
             },
         );
-        $traces->shouldReceive('shutdown')->once()->andReturnTrue();
-        $providerFactory = m::mock(ProviderFactory::class);
-        $providerFactory->shouldReceive('create')->once()->andReturn(new ProviderSet(null, $traces, null));
+        $traces->expects('shutdown')->returns(true);
+        $providerFactory = Double::for(ProviderFactory::class)->strict();
+        $providerFactory->expects('create')->returns(new ProviderSet(null, $traces, null));
         [$manager] = $this->manager(providerFactory: $providerFactory);
         $manager->bind(ProcessIdentity::cli());
 
@@ -408,17 +405,17 @@ class OpenTelemetryManagerTest extends TestCase
         $releaseFlush = new Channel(1);
         $flushFinished = new Channel(1);
         $shutdownFinished = new Channel(1);
-        $traces = m::mock(TracerProviderInterface::class);
-        $traces->shouldReceive('forceFlush')->once()->andReturnUsing(
+        $traces = Double::for(TracerProviderInterface::class)->strict();
+        $traces->expects('forceFlush')->resolves(
             static function () use ($flushStarted, $releaseFlush): bool {
                 $flushStarted->push(true);
 
                 return $releaseFlush->pop(1.0) === true;
             },
         );
-        $traces->shouldReceive('shutdown')->once()->andReturnTrue();
-        $providerFactory = m::mock(ProviderFactory::class);
-        $providerFactory->shouldReceive('create')->once()->andReturn(new ProviderSet(null, $traces, null));
+        $traces->expects('shutdown')->returns(true);
+        $providerFactory = Double::for(ProviderFactory::class)->strict();
+        $providerFactory->expects('create')->returns(new ProviderSet(null, $traces, null));
         [$manager] = $this->manager(providerFactory: $providerFactory);
         $manager->bind(ProcessIdentity::cli());
 
@@ -436,27 +433,26 @@ class OpenTelemetryManagerTest extends TestCase
     /**
      * Create a manager with recording exporters.
      *
-     * @return array{OpenTelemetryManager, ManagerExporterFactory, Container, ExceptionContextRegistry}
+     * @return array{OpenTelemetryManager, ManagerExporterFactory, OverriddenDouble, ExceptionContextRegistry}
      */
     private function manager(
         ?callable $creator = null,
         ?array $configuration = null,
         ?ProviderFactory $providerFactory = null,
     ): array {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('instance')
-            ->byDefault()
-            ->andReturnUsing(static fn (string $abstract, mixed $instance): mixed => $instance);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->allows('instance')
+            ->resolves(static fn (string $abstract, mixed $instance): mixed => $instance);
         $exporters = new ManagerExporterFactory;
         $deferredMetrics = new DeferredMeterProvider;
         $deferredTraces = new DeferredTracerProvider;
         $deferredLogs = new DeferredLoggerProvider;
         $exceptionContexts = new ExceptionContextRegistry;
         $manager = new OpenTelemetryManager(
-            $container,
+            $container->instance(),
             new Repository(['opentelemetry' => $configuration ?? $this->configuration()]),
             new ConfigurationNormalizer,
-            $providerFactory ?? new ProviderFactory($container),
+            $providerFactory ?? new ProviderFactory($container->instance()),
             $exceptionContexts,
             new OperationOrigin,
             $deferredMetrics,

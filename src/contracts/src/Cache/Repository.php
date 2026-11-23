@@ -7,9 +7,13 @@ namespace Hypervel\Contracts\Cache;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use InvalidArgumentException;
 use Psr\SimpleCache\CacheInterface;
 use UnitEnum;
 
+/**
+ * Includes the shared public cache operations omitted by Laravel's contract so callers can depend on this interface.
+ */
 interface Repository extends CacheInterface
 {
     /**
@@ -21,6 +25,53 @@ interface Repository extends CacheInterface
     public function get(array|UnitEnum|string $key, mixed $default = null): mixed;
 
     /**
+     * Retrieve a string item from the cache.
+     *
+     * @param null|(Closure(): (null|string))|string $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function string(UnitEnum|string $key, callable|string|null $default = null): string;
+
+    /**
+     * Retrieve an integer item from the cache.
+     *
+     * @param null|(Closure(): (null|int))|int $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function integer(UnitEnum|string $key, callable|int|null $default = null): int;
+
+    /**
+     * Retrieve a float item from the cache.
+     *
+     * @param null|(Closure(): (null|float))|float $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function float(UnitEnum|string $key, callable|float|null $default = null): float;
+
+    /**
+     * Retrieve a boolean item from the cache.
+     *
+     * @param null|bool|(Closure(): (null|bool)) $default
+     *
+     * @throws InvalidArgumentException
+     */
+    public function boolean(UnitEnum|string $key, callable|bool|null $default = null): bool;
+
+    /**
+     * Retrieve an array item from the cache.
+     *
+     * @param null|array<array-key, mixed>|(Closure(): (null|array<array-key, mixed>)) $default
+     *
+     * @return array<array-key, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    public function array(UnitEnum|string $key, callable|array|null $default = null): array;
+
+    /**
      * Store an item in the cache.
      */
     public function set(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool;
@@ -29,6 +80,14 @@ interface Repository extends CacheInterface
      * Remove an item from the cache.
      */
     public function delete(UnitEnum|string $key): bool;
+
+    /**
+     * Retrieve multiple items from the cache by key.
+     *
+     * Numeric entries are requested keys, while string-keyed entries use their
+     * values as defaults. Missing keys without a default resolve to null.
+     */
+    public function many(array $keys): array;
 
     /**
      * Retrieve multiple items from the cache by key.
@@ -56,6 +115,11 @@ interface Repository extends CacheInterface
     public function has(array|UnitEnum|string $key): bool;
 
     /**
+     * Determine if an item doesn't exist in the cache.
+     */
+    public function missing(UnitEnum|string $key): bool;
+
+    /**
      * Retrieve an item from the cache and delete it.
      */
     public function pull(UnitEnum|string $key, mixed $default = null): mixed;
@@ -64,6 +128,11 @@ interface Repository extends CacheInterface
      * Store an item in the cache.
      */
     public function put(array|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool;
+
+    /**
+     * Store multiple items in the cache for a given number of seconds.
+     */
+    public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool;
 
     /**
      * Store an item in the cache if the key does not exist.
@@ -181,6 +250,11 @@ interface Repository extends CacheInterface
      * Remove an item from the cache.
      */
     public function forget(array|UnitEnum|string $key): bool;
+
+    /**
+     * Remove all items from the cache.
+     */
+    public function flush(): bool;
 
     /**
      * Get the cache store implementation.

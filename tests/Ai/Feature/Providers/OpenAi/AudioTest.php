@@ -66,12 +66,20 @@ class AudioTest extends TestCase
         Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['voice'] === 'ash');
     }
 
-    public function testAudioRequestPassesCustomVoiceIdThroughUnchanged(): void
+    public function testAudioRequestPassesBuiltInVoicesThroughUnchanged(): void
     {
         Http::fake(['*' => $this->fakeOpenAiAudioResponse()]);
         Audio::of('Hello')->voice('nova')->generate(provider: 'openai', model: 'gpt-4o-mini-tts');
 
         Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['voice'] === 'nova');
+    }
+
+    public function testAudioRequestSendsVoiceIdsAsAnObject(): void
+    {
+        Http::fake(['*' => $this->fakeOpenAiAudioResponse()]);
+        Audio::of('Hello')->voice('voice_1234')->generate(provider: 'openai', model: 'gpt-4o-mini-tts');
+
+        Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['voice'] === ['id' => 'voice_1234']);
     }
 
     public function testAudioRequestIncludesInstructionsWhenProvided(): void

@@ -34,6 +34,7 @@ class Consent extends Model
     /**
      * The database table used by the model.
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (a subclass's own #[Table] would drop this table name)
     protected ?string $table = 'oauth_consents';
 
     /**
@@ -41,6 +42,7 @@ class Consent extends Model
      *
      * @var array<string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Unguarded] would replace a $guarded = ['*'] a subclass constructor sets before parent::__construct())
     protected array $guarded = [];
 
     /**

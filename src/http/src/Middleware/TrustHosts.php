@@ -7,6 +7,7 @@ namespace Hypervel\Http\Middleware;
 use Closure;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\HttpFoundation\Response;
 
 class TrustHosts
@@ -102,11 +103,12 @@ class TrustHosts
     /**
      * Specify the hosts that should always be trusted.
      *
-     * Boot-only. The list persists in static properties for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in static properties for the worker lifetime and
+     * applies to every subsequent request.
      *
      * @param array<int, string>|(callable(): array<int, string>) $hosts
      */
+    #[BootOnly]
     public static function at(array|callable $hosts, bool $subdomains = true): void
     {
         static::$alwaysTrust = is_callable($hosts) ? $hosts(...) : $hosts;
@@ -116,11 +118,12 @@ class TrustHosts
     /**
      * Register a closure that resolves trusted hosts for the current request.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime
-     * and fully replaces the static trusted host list for every subsequent request.
+     * The callback persists in static state for the worker lifetime and fully
+     * replaces the static trusted host list for every subsequent request.
      *
      * @param null|Closure(Request): array<int, string> $callback
      */
+    #[BootOnly]
     public static function resolveHostsUsing(?Closure $callback): void
     {
         static::$hostsResolver = $callback;

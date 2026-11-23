@@ -11,6 +11,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -32,15 +33,64 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class QueueSyncQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    public function testBatchingCallsACustomBulkOverrideOnceAndRetainsAnUnacknowledgedSend(): void
+    {
+        $queue = new class extends SyncQueue {
+            public array $calls = [];
+
+            public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
+            {
+                $this->calls[] = [$jobs, $queue];
+                throw new RuntimeException('Lost the transport reply.');
+            }
+        };
+        $jobs = ['first', 'second'];
+        $result = $queue->bulkForBatch($jobs, static fn () => null, queue: 'imports');
+
+        $this->assertSame([[$jobs, 'imports']], $queue->calls);
+        $this->assertSame('Lost the transport reply.', $result->failure?->getMessage());
+        $this->assertSame([0, 1], $result->unknown);
+        $this->assertSame([], $result->rejected);
+    }
+
+    public function testCustomBulkReleasesDeferredJobsWhenTheQueueCannotBeReacquired(): void
+    {
+        $queue = new class extends SyncQueue {
+        };
+        $container = new Container;
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $queue->setContainer($container);
+        $failure = new RuntimeException('Queue unavailable.');
+        $queue->setAfterCommitDispatcher(static fn () => throw $failure);
+        $transactions->begin('owner', 1);
+        $rejected = [];
+        $queue->bulkForBatch(['first', 'second'], static function (array $offsets) use (&$rejected): void {
+            $rejected = $offsets;
+        }, batchTransactionConnection: 'owner');
+        try {
+            $transactions->commit('owner', 1, 0);
+            $this->fail('Expected queue reacquisition to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+        $this->assertSame([0, 1], $rejected);
+    }
+
     public function testInspectionReturnsEmptyCollections(): void
     {
         $queue = new SyncQueue;
@@ -51,6 +101,34 @@ class QueueSyncQueueTest extends TestCase
         $this->assertTrue($queue->allPendingJobs()->isEmpty());
         $this->assertTrue($queue->allDelayedJobs()->isEmpty());
         $this->assertTrue($queue->allReservedJobs()->isEmpty());
+    }
+
+    public function testBatchDispatchHonorsACustomPushAfterTheOwningCommit(): void
+    {
+        $queue = new class extends SyncQueue {
+            public array $sent = [];
+
+            public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
+            {
+                $this->sent[] = $job;
+                return null;
+            }
+        };
+        $container = new Container;
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $queue->setContainer($container);
+        $transactions->begin('owner', 1);
+
+        $result = $queue->bulkForBatch(['first', 'second'], static fn () => null, batchTransactionConnection: 'owner');
+        $this->assertNull($result->failure);
+        $this->assertSame([], $queue->sent);
+        $transactions->commit('owner', 1, 0);
+        $this->assertSame(['first', 'second'], $queue->sent);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('beforeCommit()');
+        $queue->ensureBatchCanBeEnqueued([(object) ['afterCommit' => false]], 'owner', true);
     }
 
     /**
@@ -134,11 +212,11 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcher::class);
-        $events->expects('hasListeners')->with(JobProcessing::class)->andReturnFalse();
-        $events->expects('hasListeners')->with(JobProcessed::class)->andReturnFalse();
-        $events->expects('hasListeners')->with(JobAttempted::class)->andReturnFalse();
-        $events->shouldReceive('dispatch')->never();
+        $events = Double::for(EventDispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(false);
+        $events->expects('hasListeners')->with(JobProcessed::class)->returns(false);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(false);
+        $events->expects('dispatch')->never();
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
@@ -185,7 +263,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $events = new EventsDispatcher($container);
         $dispatched = [];
-        $events->listen([JobProcessed::class, JobAttempted::class], function ($event) use (&$dispatched) {
+        $events->listen([JobProcessed::class, JobAttempted::class], function (JobProcessed|JobAttempted $event) use (&$dispatched): void {
             $dispatched[$event::class] = $event;
         });
         $container->instance('events', $events);
@@ -269,7 +347,7 @@ class QueueSyncQueueTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testCancellationEscapesWithoutFailedOrCompletionEvents(bool $cleanupThrows): void
+    public function testCancellationEscapesWithACanceledAttemptAndNoFailedOrCompletionEvent(bool $cleanupThrows): void
     {
         CancelingSyncQueueTestHandler::reset();
         $gate = $this->armCurrentCoroutineCancellation();
@@ -277,14 +355,16 @@ class QueueSyncQueueTest extends TestCase
         $cleanupException = $cleanupThrows ? new RuntimeException('Sync job cleanup failed.') : null;
         CancelingSyncQueueTestHandler::$cleanupException = $cleanupException;
         $dispatched = [];
+        $attempted = null;
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = new EventsDispatcher($container);
 
         foreach ([JobProcessing::class, JobProcessed::class, JobExceptionOccurred::class, JobAttempted::class, JobQueueingFailed::class] as $event) {
-            $events->listen($event, static function (object $event) use (&$dispatched): void {
+            $events->listen($event, static function (object $event) use (&$dispatched, &$attempted): void {
                 $dispatched[] = $event::class;
+                $attempted = $event instanceof JobAttempted ? $event : $attempted;
             });
         }
 
@@ -302,22 +382,53 @@ class QueueSyncQueueTest extends TestCase
             } else {
                 $this->assertInstanceOf(CanceledException::class, $exception);
             }
-            $this->assertSame([JobProcessing::class], $dispatched);
+            $this->assertSame([JobProcessing::class, JobAttempted::class], $dispatched);
+            $this->assertTrue($attempted->canceled);
+            $this->assertSame($exception, $attempted->exception);
+            $this->assertFalse($attempted->successful());
             $this->assertFalse(CancelingSyncQueueTestHandler::$failed);
         } finally {
             CancelingSyncQueueTestHandler::reset();
         }
     }
 
-    public function testWrappedCancellationDuringFailureObservationSkipsFailureAndCompletion(): void
+    public function testCanceledAttemptListenerFailureIsReportedWithoutReplacingTheCancellation(): void
+    {
+        CancelingSyncQueueTestHandler::reset();
+        CancelingSyncQueueTestHandler::$gate = $this->armCurrentCoroutineCancellation();
+        $listenerFailure = new RuntimeException('Attempt listener failed.');
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $events->listen(JobAttempted::class, static function () use ($listenerFailure): never {
+            throw $listenerFailure;
+        });
+        $container->instance('events', $events);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($listenerFailure));
+        $container->instance(ExceptionHandler::class, $handler);
+        $sync->setContainer($container);
+
+        try {
+            $sync->push(CancelingSyncQueueTestHandler::class);
+            $this->fail('Expected cancellation to escape the sync queue.');
+        } catch (CanceledException) {
+        } finally {
+            CancelingSyncQueueTestHandler::reset();
+        }
+    }
+
+    public function testWrappedCancellationDuringFailureObservationSkipsFailureAndPublishesACanceledAttempt(): void
     {
         $cleanupException = new RuntimeException('Failure observer cleanup failed.');
+        $jobFailure = new RuntimeException('Job failed.');
         $gate = $this->armCurrentCoroutineCancellation();
-        $events = m::mock(EventDispatcher::class);
-        $events->shouldReceive('hasListeners')->with(JobProcessing::class)->andReturnFalse();
-        $events->shouldReceive('hasListeners')->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldNotReceive('hasListeners')->with(JobAttempted::class);
-        $events->expects('dispatch')->with(m::type(JobExceptionOccurred::class))->andReturnUsing(static function () use ($gate, $cleanupException): never {
+        $events = Double::for(EventDispatcher::class)->strict();
+        $events->allows('hasListeners')->with(JobProcessing::class)->returns(false);
+        $events->allows('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
+        $events->allows('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->with(Argument::type(JobExceptionOccurred::class))->resolves(static function () use ($gate, $cleanupException): never {
             try {
                 $gate->push(true);
                 throw new RuntimeException('Cancellation was not delivered.');
@@ -326,13 +437,16 @@ class QueueSyncQueueTest extends TestCase
                 throw $cleanupException;
             }
         });
+        $events->expects('dispatch')->with(Argument::satisfies(
+            static fn (object $event): bool => $event instanceof JobAttempted && $event->canceled && $event->exception === $jobFailure,
+        ));
         $container = $this->getContainer();
         $container->instance('events', $events);
-        $job = m::mock(SyncJob::class);
-        $job->expects('fire')->andThrow(new RuntimeException('Job failed.'));
-        $job->shouldNotReceive('fail');
-        $sync = m::mock(SyncQueue::class)->makePartial()->shouldAllowMockingProtectedMethods();
-        $sync->shouldReceive('resolveJob')->andReturn($job);
+        $job = Double::for(SyncJob::class)->strict();
+        $job->expects('fire')->throws($jobFailure);
+        $job->expects('fail')->never();
+        $sync = Double::for(SyncQueue::class)->passthru(new SyncQueue);
+        $sync->allows('resolveJob')->returns($job);
         $sync->setConnectionName('sync');
         $sync->setContainer($container);
 
@@ -353,10 +467,8 @@ class QueueSyncQueueTest extends TestCase
         CancelingSerializationJob::$gate = $this->armCurrentCoroutineCancellation();
 
         try {
+            $this->expectException(CanceledException::class);
             $sync->push(new CancelingSerializationJob);
-            $this->fail('Expected cancellation to escape payload serialization.');
-        } catch (CanceledException) {
-            $this->addToAssertionCount(1);
         } finally {
             CancelingSerializationJob::$gate = null;
         }
@@ -415,10 +527,10 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->expects('addCallback')->andReturn(null);
-        $transactionManager->shouldNotReceive('addCallbackForRollback');
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->never();
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
@@ -430,10 +542,10 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->expects('addCallback')->andReturn(null);
-        $transactionManager->shouldNotReceive('addCallbackForRollback');
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->never();
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
@@ -445,10 +557,10 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->expects('addCallback')->andReturn(null);
-        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new SyncQueueAfterCommitUniqueJob;
@@ -463,10 +575,10 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->expects('addCallback')->andReturn(null);
-        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new SyncQueueAfterCommitDebouncedJob;
@@ -481,10 +593,10 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->expects('addCallback')->andReturn(null);
-        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new SyncQueueAfterCommitInterfaceUniqueJob;
@@ -499,10 +611,10 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->expects('addCallback')->andReturnNull();
-        $transactionManager->shouldReceive('addCallbackForRollback')->never();
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->never();
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
@@ -532,7 +644,7 @@ class QueueSyncQueueTest extends TestCase
     protected function getContainer(): Container
     {
         $container = new Container;
-        $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(Cache::class, Double::for(Cache::class)->strict());
         $container->instance(EventDispatcher::class, new EventsDispatcher($container));
         $container->instance(ContainerContract::class, $container);
         Container::setInstance($container);

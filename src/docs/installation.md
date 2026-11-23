@@ -31,19 +31,26 @@ The Hypervel framework has a few system requirements:
 
 - PHP >= 8.4
 - Composer
+- Ctype PHP Extension
 - cURL PHP Extension
+- DOM PHP Extension
 - Fileinfo PHP Extension
 - Filter PHP Extension
 - Hash PHP Extension
+- iconv PHP Extension
 - Intl PHP Extension
 - JSON PHP Extension
+- libxml PHP Extension
 - Mbstring PHP Extension
 - OpenSSL PHP Extension
 - PCNTL PHP Extension
+- PCRE PHP Extension
 - PDO PHP Extension
 - POSIX PHP Extension
 - Session PHP Extension
-- Swoole PHP Extension >= 6.3.0RC1
+- SimpleXML PHP Extension
+- Sockets PHP Extension
+- Swoole PHP Extension >= 6.3.0RC2
 - Tokenizer PHP Extension
 
 </div>
@@ -56,10 +63,10 @@ If your application uses Redis for cache, queues, sessions, or broadcasting, you
 You may install Swoole using [PIE](https://github.com/php/pie):
 
 ```shell
-pie install "swoole/swoole:^6.3.0@RC" --enable-openssl --enable-swoole-curl --enable-swoole-sqlite --enable-swoole-pgsql
+pie install "swoole/swoole:^6.3.0RC2@RC" --enable-openssl --enable-swoole-curl --enable-swoole-sqlite --enable-swoole-pgsql
 ```
 
-Swoole must be built with OpenSSL and native cURL support. The SQLite and PostgreSQL options are required to use those databases. Each option needs the matching development library (OpenSSL, libcurl, SQLite, or libpq) when Swoole is compiled.
+Swoole must be built with OpenSSL and native cURL support. The SQLite and PostgreSQL options are required to use those databases. Each option needs the matching development library (OpenSSL, libcurl, SQLite, or libpq) when Swoole is compiled. Applications using FTP disks also need `--enable-swoole-ftp`; see [FTP configuration](/docs/{{version}}/filesystem#ftp-driver-configuration).
 
 Once the Homebrew formula provides a Swoole version that meets the requirement above, macOS developers may install Swoole via Homebrew instead. The formula already includes the required build options. Replace `8.4` with your installed PHP version:
 
@@ -219,23 +226,7 @@ Hypervel's application skeleton includes the `swoole/ide-helper` package in deve
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The application skeleton includes PHPStan and `phpstan/extension-installer`, which loads Hypervel's extensions automatically. Run `composer analyse` to check your application. The database extension understands [Eloquent scopes and forwarded query methods](/docs/{{version}}/database#static-analysis), while the Foundation extension distinguishes factory calls such as `response()` from calls that create a response, such as `response(status: 204)`. If your application uses [Scout](/docs/{{version}}/scout), its extension understands the `searchable` and `unsearchable` query methods.
-
-For an existing application, install the extension installer and allow its Composer plugin when prompted:
-
-```shell
-composer require --dev phpstan/extension-installer
-```
-
-If you prefer to configure extensions manually, add these entries to your `phpstan.neon` file instead:
-
-```neon
-includes:
-    - vendor/hypervel/database/extension.neon
-    - vendor/hypervel/foundation/extension.neon
-```
-
-If your application uses Scout, also include `vendor/hypervel/scout/extension.neon`.
+The application skeleton includes PHPStan with the `hypervel/phpstan` extension, which boots your application so PHPStan understands its models, container services, configuration and other framework features. Run `composer analyse` to check your application. To add the extension to an existing application, or to learn about its checks and configuration, see the [static analysis documentation](/docs/{{version}}/static-analysis).
 
 <a name="next-steps"></a>
 ## Next Steps

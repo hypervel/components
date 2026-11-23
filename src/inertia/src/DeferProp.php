@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia;
 
-class DeferProp implements Deferrable, IgnoreFirstLoad, Mergeable, Onceable, Rescuable
+class DeferProp implements Deferrable, IgnoreFirstLoad, Mergeable, Onceable, Rescuable, SupportsLiveUpdates
 {
     use DefersProps;
+    use HasLiveUpdates;
     use MergesProps;
     use ResolvesCallables;
     use ResolvesOnce;

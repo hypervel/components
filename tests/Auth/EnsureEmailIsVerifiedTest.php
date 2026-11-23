@@ -9,12 +9,15 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\MustVerifyEmail;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EnsureEmailIsVerifiedTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItCanGenerateDefinitionViaStaticMethod(): void
     {
         $signature = EnsureEmailIsVerified::redirectTo('route.name');
@@ -23,11 +26,11 @@ class EnsureEmailIsVerifiedTest extends TestCase
 
     public function testVerifiedUserPassesThrough(): void
     {
-        $user = m::mock(Authenticatable::class . ',' . MustVerifyEmail::class);
-        $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
+        $user = Double::for(Authenticatable::class, MustVerifyEmail::class)->strict();
+        $user->allows('hasVerifiedEmail')->returns(true);
 
-        $request = m::mock(Request::class);
-        $request->shouldReceive('user')->andReturn($user);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
 
         $expectedResponse = new Response('ok');
         $middleware = new EnsureEmailIsVerified;
@@ -39,10 +42,10 @@ class EnsureEmailIsVerifiedTest extends TestCase
     public function testUserThatDoesNotImplementMustVerifyEmailPassesThrough(): void
     {
         // User implements Authenticatable but does not implement MustVerifyEmail.
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
 
-        $request = m::mock(Request::class);
-        $request->shouldReceive('user')->andReturn($user);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
 
         $expectedResponse = new Response('ok');
         $middleware = new EnsureEmailIsVerified;
@@ -53,9 +56,9 @@ class EnsureEmailIsVerifiedTest extends TestCase
 
     public function testGuestRequestReturnsJsonWhenExpectsJson(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('user')->andReturn(null);
-        $request->shouldReceive('expectsJson')->andReturnTrue();
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => null);
+        $request->headers->set('Accept', 'application/json');
 
         $this->expectException(HttpException::class);
 
@@ -65,12 +68,12 @@ class EnsureEmailIsVerifiedTest extends TestCase
 
     public function testUnverifiedUserReturnsJsonWhenExpectsJson(): void
     {
-        $user = m::mock(Authenticatable::class . ',' . MustVerifyEmail::class);
-        $user->shouldReceive('hasVerifiedEmail')->andReturnFalse();
+        $user = Double::for(Authenticatable::class, MustVerifyEmail::class)->strict();
+        $user->allows('hasVerifiedEmail')->returns(false);
 
-        $request = m::mock(Request::class);
-        $request->shouldReceive('user')->andReturn($user);
-        $request->shouldReceive('expectsJson')->andReturnTrue();
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
+        $request->headers->set('Accept', 'application/json');
 
         $this->expectException(HttpException::class);
 
@@ -83,12 +86,11 @@ class EnsureEmailIsVerifiedTest extends TestCase
         // Register a named route so URL::route() can resolve it
         $this->app->make('router')->get('/email/verify', fn () => 'verify')->name('verify.email');
 
-        $user = m::mock(Authenticatable::class . ',' . MustVerifyEmail::class);
-        $user->shouldReceive('hasVerifiedEmail')->andReturnFalse();
+        $user = Double::for(Authenticatable::class, MustVerifyEmail::class)->strict();
+        $user->allows('hasVerifiedEmail')->returns(false);
 
-        $request = m::mock(Request::class);
-        $request->shouldReceive('user')->andReturn($user);
-        $request->shouldReceive('expectsJson')->andReturnFalse();
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
 
         $middleware = new EnsureEmailIsVerified;
         $result = $middleware->handle($request, fn () => new Response('should not reach'), 'verify.email');
@@ -100,9 +102,8 @@ class EnsureEmailIsVerifiedTest extends TestCase
     {
         $this->app->make('router')->get('/email/verify', fn () => 'verify')->name('verify.email');
 
-        $request = m::mock(Request::class);
-        $request->shouldReceive('user')->andReturn(null);
-        $request->shouldReceive('expectsJson')->andReturnFalse();
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => null);
 
         $middleware = new EnsureEmailIsVerified;
         $result = $middleware->handle($request, fn () => new Response('should not reach'), 'verify.email');

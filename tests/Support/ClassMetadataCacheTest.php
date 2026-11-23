@@ -63,6 +63,22 @@ class ClassMetadataCacheTest extends TestCase
         $this->assertSame($first[0], $second[0]);
     }
 
+    public function testAllPropertiesFollowTheClassPropertiesWithEachParentsPrivateProperties(): void
+    {
+        $properties = ClassMetadataCache::allProperties(ClassMetadataCachePrivateChildFixture::class);
+
+        $this->assertSame(
+            [
+                ClassMetadataCachePrivateChildFixture::class . '::$shared',
+                ClassMetadataCachePrivateParentFixture::class . '::$inherited',
+                ClassMetadataCachePrivateParentFixture::class . '::$shared',
+                ClassMetadataCachePrivateGrandparentFixture::class . '::$grandparent',
+            ],
+            array_map(static fn (ReflectionProperty $property): string => $property->class . '::$' . $property->getName(), $properties),
+        );
+        $this->assertSame($properties, ClassMetadataCache::allProperties(ClassMetadataCachePrivateChildFixture::class));
+    }
+
     public function testClassAttributeMetadataIsCached(): void
     {
         $first = ClassMetadataCache::getAttribute(ClassMetadataCacheAttributedFixture::class, ClassMetadataCacheAttribute::class);
@@ -197,9 +213,11 @@ class ClassMetadataCacheTest extends TestCase
         ClassMetadataCache::hasClassAttribute(ClassMetadataCacheParentFixture::class, ClassMetadataCacheAttribute::class);
         ClassMetadataCache::hasClassAttribute(ClassMetadataCacheChildFixture::class, ClassMetadataCacheAttribute::class, ascend: true);
         ClassMetadataCache::usesTrait(ClassMetadataCacheTraitFixture::class, ClassMetadataCacheTrait::class);
+        ClassMetadataCache::allProperties(ClassMetadataCachePrivateChildFixture::class);
         ClassMetadataCache::flushState();
 
         $this->assertSame([], $this->staticProperty('methods'));
+        $this->assertSame([], $this->staticProperty('allProperties'));
         $this->assertSame([], $this->staticProperty('attributes'));
         $this->assertSame([], $this->staticProperty('classAttributePresence'));
         $this->assertSame([], $this->staticProperty('traits'));
@@ -295,6 +313,23 @@ class ClassMetadataCachePropertyFixture
     public string $marked = 'yes';
 
     public string $unmarked = 'no';
+}
+
+class ClassMetadataCachePrivateGrandparentFixture
+{
+    private string $grandparent = 'grandparent';
+}
+
+class ClassMetadataCachePrivateParentFixture extends ClassMetadataCachePrivateGrandparentFixture
+{
+    protected string $inherited = 'inherited';
+
+    private string $shared = 'parent';
+}
+
+class ClassMetadataCachePrivateChildFixture extends ClassMetadataCachePrivateParentFixture
+{
+    private string $shared = 'child';
 }
 
 class ClassMetadataCachePropertyChildFixture extends ClassMetadataCachePropertyFixture

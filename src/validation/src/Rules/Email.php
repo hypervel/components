@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Validation\Rules\Concerns\ClonesCustomRules;
 use InvalidArgumentException;
 
-class Email implements Rule, DataAwareRule, ValidatorAwareRule
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
+class Email implements Rule, DataAwareRule, ValidatorAwareRule, Transient
 {
     use Conditionable;
     use ClonesCustomRules;
@@ -65,15 +68,15 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
      *
      * If no arguments are passed, the default email rule configuration will be returned.
      *
-     * Boot-only when setting. The default callback persists in a static
-     * property for the worker lifetime and is used by every Email::default()
-     * call across all coroutines.
+     * A given callback persists in a static property for the worker lifetime
+     * and is used by every Email::default() call across all coroutines.
      *
      * @param null|callable|static $callback
      * @return ($callback is null ? static : null)
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenNotDefault: 'callback')]
     public static function defaults(mixed $callback = null): ?static
     {
         if (is_null($callback)) {
@@ -111,6 +114,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure that the email is an RFC compliant email address.
+     *
+     * @return $this
      */
     public function rfcCompliant(bool $strict = false): static
     {
@@ -125,6 +130,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure that the email is a strictly enforced RFC compliant email address.
+     *
+     * @return $this
      */
     public function strict(): static
     {
@@ -135,6 +142,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
      * Check the email domain's MX records, with A or AAAA records as a fallback.
      *
      * Requires the PHP intl extension.
+     *
+     * @return $this
      */
     public function validateMxRecord(): static
     {
@@ -145,6 +154,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure that the email address is not attempting to spoof another email address using invalid unicode characters.
+     *
+     * @return $this
      */
     public function preventSpoofing(): static
     {
@@ -155,6 +166,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure the email address is valid using PHP's native email validation functions.
+     *
+     * @return $this
      */
     public function withNativeValidation(bool $allowUnicode = false): static
     {
@@ -169,6 +182,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Specify additional validation rules that should be merged with the default rules during validation.
+     *
+     * @return $this
      */
     public function rules(array|string $rules): static
     {
@@ -187,8 +202,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
         $validator = Validator::make(
             $this->data,
             [$attribute => $this->buildValidationRules()],
-            $this->validator->customMessages, // @phpstan-ignore property.notFound
-            $this->validator->customAttributes // @phpstan-ignore property.notFound
+            $this->validator->customMessages, // @phpstan-ignore property.notFound (public property of the framework Validator)
+            $this->validator->customAttributes // @phpstan-ignore property.notFound (public property of the framework Validator)
         );
 
         if ($validator->fails()) {
@@ -250,6 +265,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(ValidatorContract $validator): static
     {
@@ -260,6 +277,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Set the current data under validation.
+     *
+     * @return $this
      */
     public function setData(array $data): static
     {

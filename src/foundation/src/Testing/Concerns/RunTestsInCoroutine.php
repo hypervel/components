@@ -64,6 +64,7 @@ trait RunTestsInCoroutine
             try {
                 $callback();
             } catch (Throwable $throwable) {
+                // @phpstan-ignore hypervel.cancellation.precedence (the test's own failure stays primary so PHPUnit can match its expected exception)
                 $exception ??= $throwable;
             }
         };
@@ -151,6 +152,7 @@ trait RunTestsInCoroutine
             $completed->push(true);
         });
 
+        // @phpstan-ignore hypervel.rawCoroutine (the test deadline watchdog runs no application code, catches the timeout it throws, and nothing cancels it)
         Coroutine::create(static function () use ($root, $deadline, $completed, &$timeoutException, &$rootCompleted): void {
             $current = Coroutine::getCid();
 

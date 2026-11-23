@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Support\Attributes\TestsOnly;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -33,6 +34,7 @@ use Mockery\MockInterface;
  * @method static mixed flexible(\UnitEnum|string $key, array $ttl, callable $callback, null|array $lock = null, bool $alwaysDefer = false)
  * @method static mixed flexibleNullable(\UnitEnum|string $key, array $ttl, callable $callback, null|array $lock = null, bool $alwaysDefer = false)
  * @method static float float(\UnitEnum|string $key, null|\Closure|float $default = null)
+ * @method static bool flush()
  * @method static bool flushLocks()
  * @method static void flushMacros()
  * @method static void flushState()
@@ -75,7 +77,6 @@ use Mockery\MockInterface;
  * @method static \Hypervel\Cache\TaggedCache tags(mixed $names)
  * @method static bool touch(\UnitEnum|string $key, \DateInterval|\DateTimeInterface|int $ttl)
  * @method static mixed withoutOverlapping(\UnitEnum|string $key, callable $callback, int $lockFor = 0, int $waitFor = 10, string|null $owner = null)
- * @method static bool flush()
  * @method static string getPrefix()
  * @method static \Hypervel\Contracts\Cache\Lock lock(string $name, int $seconds = 0, string|null $owner = null)
  * @method static \Hypervel\Contracts\Cache\Lock restoreLock(string $name, string $owner)
@@ -92,8 +93,9 @@ class Cache extends Facade
      * Uses a partial spy on the real instance so that methods like `memo()`
      * execute their real implementation while still recording calls.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function spy(): ?MockInterface
     {
         if (! static::isMock()) {

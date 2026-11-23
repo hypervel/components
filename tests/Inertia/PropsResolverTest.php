@@ -25,6 +25,7 @@ use Hypervel\View\ViewException;
 use JsonSerializable;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 
 class PropsResolverTest extends TestCase
 {
@@ -231,6 +232,24 @@ class PropsResolverTest extends TestCase
 
         $this->assertArrayNotHasKey('stats', $page['props']);
         $this->assertSame(['stats'], $page['rescuedProps']);
+    }
+
+    public function testRescuedDeferPropDoesNotRescueCancellation(): void
+    {
+        // A cleanup failure raised while the request is canceled still carries the cancellation
+        $failure = new RuntimeException('Cleanup failed', previous: new CanceledException('canceled'));
+
+        try {
+            $this->makePage($this->makePartialRequest('stats'), [
+                'stats' => Inertia::defer(function () use ($failure) {
+                    throw $failure;
+                }, rescue: true),
+            ]);
+
+            $this->fail('The cancellation was rescued.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 
     public function testExcludedPropsAreNotResolvedOnInitialLoad(): void

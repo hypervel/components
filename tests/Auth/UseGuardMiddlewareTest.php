@@ -14,17 +14,20 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response;
 
 use function Hypervel\Coroutine\parallel;
 
 class UseGuardMiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItSelectsTheGuardForTheCurrentRequest(): void
     {
-        $auth = m::mock(AuthFactory::class);
-        $auth->shouldReceive('shouldUse')->once()->with('admin');
+        $auth = Double::for(AuthFactory::class)->strict();
+        $auth->expects('shouldUse')->with('admin');
 
         $request = Request::create('/login');
         $response = new Response('ok');
@@ -87,7 +90,7 @@ class UseGuardMiddlewareTest extends TestCase
                 $guard,
                 static fn (): ?Authenticatable => null,
                 $container,
-                m::mock(EloquentUserProvider::class),
+                Double::for(EloquentUserProvider::class)->strict(),
             ));
         }
 

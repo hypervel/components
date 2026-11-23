@@ -12,12 +12,15 @@ use Hypervel\Support\Js;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class FoundationViteTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDir;
 
     protected Filesystem $filesystem;
@@ -678,9 +681,9 @@ class FoundationViteTest extends TestCase
     public function testItThrowsWhenHotFileDisappearsBeforeItCanBeRead(bool $existsBeforeRead): void
     {
         $this->withUnreadableViteStream(function (string $path) use ($existsBeforeRead): void {
-            $vite = m::mock(Vite::class . '[isRunningHot]');
+            $vite = Double::for(new Vite)->passthru();
             $vite->useHotFile($path . '/hot');
-            $vite->expects('isRunningHot')->twice()->andReturn(true, $existsBeforeRead);
+            $vite->expects('isRunningHot')->times(2)->returns(true, $existsBeforeRead);
 
             $this->expectException(ViteException::class);
             $this->expectExceptionMessageIsOrContains('Unable to read the Vite hot file');

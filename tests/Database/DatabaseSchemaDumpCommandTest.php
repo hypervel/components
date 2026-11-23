@@ -4,11 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Console\DumpCommand;
+use Hypervel\Database\Schema\SchemaState;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaDumpCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDumpCommandExitsWhenProhibited(): void
     {
         $path = database_path('schema/prohibited-dump.sql');
@@ -25,5 +34,49 @@ class DatabaseSchemaDumpCommandTest extends TestCase
 
         $this->assertFileDoesNotExist($path);
         $this->assertDirectoryExists(database_path('migrations'));
+    }
+
+    /**
+     * @param array<string, string> $options
+     */
+    #[DataProvider('connectionSelectionProvider')]
+    public function testDumpUsesAndIsNamedAfterTheMigrationConnection(array $options): void
+    {
+        $schemaPath = database_path('schema');
+
+        if (! is_dir($schemaPath)) {
+            $this->beforeApplicationDestroyed(fn () => $this->app->make('files')->deleteDirectory($schemaPath));
+        }
+
+        config([
+            'database.default' => 'pgsql-pooled',
+            'database.connections.pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
+            'database.connections.pgsql' => ['driver' => 'pgsql'],
+        ]);
+
+        $connection = Double::for(Connection::class)->strict();
+        $state = Double::for(SchemaState::class)->strict();
+        $connection->allows('getName')->returns('pgsql');
+        $connection->allows('getSchemaState')->returns($state);
+        $state->allows('withMigrationTable');
+        $state->allows('handleOutputUsing');
+        $state->expects('dump')->with(Argument::same($connection), database_path('schema/pgsql-schema.sql'));
+
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connections->expects('connection')->with('pgsql')->returns($connection);
+        $this->app->instance(ConnectionResolverInterface::class, $connections);
+
+        $this->artisan('schema:dump', $options)->assertSuccessful();
+    }
+
+    /**
+     * Provide the default and explicit selection of a connection that routes its migrations elsewhere.
+     *
+     * @return iterable<string, array{array<string, string>}>
+     */
+    public static function connectionSelectionProvider(): iterable
+    {
+        yield 'default connection' => [[]];
+        yield 'explicit connection' => [['--database' => 'pgsql-pooled']];
     }
 }

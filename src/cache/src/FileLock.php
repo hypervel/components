@@ -18,6 +18,22 @@ class FileLock extends CacheLock implements RefreshableLock
     }
 
     /**
+     * Release the lock without deleting another owner's replacement.
+     */
+    public function release(): bool
+    {
+        return $this->fileStore()->forgetIfOwned($this->name, $this->owner);
+    }
+
+    /**
+     * Return the current owner without deleting an expired lock record.
+     */
+    protected function getCurrentOwner(): ?string
+    {
+        return $this->fileStore()->getLockOwner($this->name);
+    }
+
+    /**
      * Refresh the lock's TTL if still owned by this process.
      *
      * @throws InvalidArgumentException If an explicit non-positive TTL is provided

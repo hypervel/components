@@ -10,6 +10,7 @@ use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use Algolia\AlgoliaSearch\Http\HttpClientInterface;
 use Algolia\AlgoliaSearch\Model\Search\GetTaskResponse;
 use GuzzleHttp\Client as GuzzleClient;
+use Hypervel\Support\Env;
 use RuntimeException;
 use Throwable;
 
@@ -45,8 +46,10 @@ trait InteractsWithAlgolia
      */
     protected function setUpInteractsWithAlgolia(): void
     {
-        $appId = env('ALGOLIA_APP_ID');
-        $secret = env('ALGOLIA_SECRET');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        $appId = Env::get('ALGOLIA_APP_ID');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        $secret = Env::get('ALGOLIA_SECRET');
 
         if ($appId === null || $secret === null || $appId === '' || $secret === '') {
             $this->markTestSkipped(
@@ -109,7 +112,8 @@ trait InteractsWithAlgolia
     protected function computeAlgoliaTestPrefix(): void
     {
         $base = 'test_';
-        $token = env('TEST_TOKEN', '');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parallel test runner sets each process's token in its environment)
+        $token = Env::get('TEST_TOKEN', '');
 
         $this->algoliaTestPrefix = $token !== '' ? "{$base}{$token}_" : $base;
     }

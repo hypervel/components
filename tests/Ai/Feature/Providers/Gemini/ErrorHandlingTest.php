@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Gemini;
 
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Exceptions\ProviderConnectionException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\GeminiHelpers;
@@ -192,5 +194,83 @@ class ErrorHandlingTest extends TestCase
         $response = (new AssistantAgent)->prompt('Hi', provider: ['primary', 'backup']);
 
         $this->assertSame('Recovered on the backup provider', $response->text);
+    }
+
+    #[DataProvider('rejectedApiKeys')]
+    public function testARejectedApiKeyHintsAtTheKey(int $status, array $body): void
+    {
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($body, $status)]);
+
+        $this->expectException(InvalidApiKeyException::class);
+        $this->expectExceptionMessage('Missing or invalid API key for AI provider [gemini].');
+
+        (new AssistantAgent)->prompt('Hi', provider: 'gemini');
+    }
+
+    /**
+     * Provide Gemini's rejected API key responses.
+     */
+    public static function rejectedApiKeys(): array
+    {
+        return [
+            'unauthenticated' => [401, ['error' => [
+                'code' => 'authentication',
+                'message' => 'Request had invalid authentication credentials.',
+            ]]],
+            'invalid key' => [400, [['error' => [
+                'code' => 400,
+                'message' => 'API key not valid. Please pass a valid API key.',
+                'status' => 'INVALID_ARGUMENT',
+                'details' => [['@type' => 'type.googleapis.com/google.rpc.ErrorInfo', 'reason' => 'API_KEY_INVALID']],
+            ]]]],
+            'missing key' => [403, [['error' => [
+                'code' => 403,
+                'message' => "Method doesn't allow unregistered callers (callers without established identity). Please use API Key or other form of API consumer identity to call this API.",
+                'status' => 'PERMISSION_DENIED',
+            ]]]],
+            'leaked key' => [403, [['error' => [
+                'code' => 403,
+                'message' => 'Your API key was reported as leaked. Please use another API key.',
+                'status' => 'PERMISSION_DENIED',
+            ]]]],
+        ];
+    }
+
+    #[DataProvider('nonJsonFailures')]
+    public function testANonJsonErrorBodyKeepsItsExceptionWhenDefaultDecodingThrows(int $status, string $exception): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_THROW_ON_ERROR;
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response('<html>Error</html>', $status)]);
+
+        $this->expectException($exception);
+
+        (new AssistantAgent)->prompt('Hi', provider: 'gemini');
+    }
+
+    /**
+     * Provide failures before and after the API key check reads the error body.
+     */
+    public static function nonJsonFailures(): array
+    {
+        return [[503, ProviderOverloadedException::class], [403, RequestException::class]];
+    }
+
+    public function testAPermissionErrorUnrelatedToTheApiKeyStaysARequestException(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([['error' => [
+                'code' => 403,
+                'message' => 'Your project has been denied access. Please contact support.',
+                'status' => 'PERMISSION_DENIED',
+            ]]], 403),
+        ]);
+
+        try {
+            (new AssistantAgent)->prompt('Hi', provider: 'gemini');
+
+            $this->fail('Expected a RequestException.');
+        } catch (RequestException $exception) {
+            $this->assertNotInstanceOf(InvalidApiKeyException::class, $exception);
+        }
     }
 }

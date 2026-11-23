@@ -14,11 +14,13 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
+use Hypervel\Sentry\Features\Concerns\WorksWithSpans;
 use Hypervel\Sentry\Integration;
 use Hypervel\Support\Str;
 use Sentry\Breadcrumb;
@@ -45,6 +47,7 @@ class QueueIntegration extends Feature
     use TracksPushedScopesAndSpans {
         pushScope as private pushScopeTrait;
     }
+    use WorksWithSpans;
 
     private const string QUEUE_SPAN_OP_QUEUE_PUBLISH = 'queue.publish';
 
@@ -82,6 +85,7 @@ class QueueIntegration extends Feature
             $dispatcher->listen(JobQueueing::class, [$this, 'handleJobQueueingEvent']);
             $dispatcher->listen(JobQueued::class, [$this, 'handleJobQueuedEvent']);
             $dispatcher->listen(JobQueueingFailed::class, [$this, 'handleJobQueueingFailedEvent']);
+            $dispatcher->listen(JobQueueingCanceled::class, [$this, 'handleJobQueueingCanceledEvent']);
         }
 
         if ($recordSpans || $recordBreadcrumbs) {
@@ -165,6 +169,18 @@ class QueueIntegration extends Feature
     public function handleJobQueueingFailedEvent(JobQueueingFailed $event): void
     {
         $this->maybeFinishLocalSpan($event->payload, SpanStatus::internalError());
+    }
+
+    /**
+     * Finish the publish span of the job whose queueing was canceled.
+     */
+    public function handleJobQueueingCanceledEvent(JobQueueingCanceled $event): void
+    {
+        // A queued job keeps its success; the cancellation came from a queued listener.
+        $this->maybeFinishLocalSpan(
+            $event->payload,
+            $event->queued ? SpanStatus::ok() : $this->cancellationStatus($event->cancellation, $event->exception),
+        );
     }
 
     /**
@@ -304,7 +320,8 @@ class QueueIntegration extends Feature
      * Mark the job attempt as ended.
      *
      * A failed job can keep running and dispatch other jobs, so a retained
-     * scope is only discarded once its attempt has ended.
+     * scope is only discarded once its attempt has ended. A canceled attempt
+     * skipped the processed and failed events, so its span finishes here.
      */
     public function handleJobAttemptedEvent(JobAttempted $event): void
     {
@@ -316,7 +333,17 @@ class QueueIntegration extends Feature
         }
 
         $frames[$index]['ended'] = true;
+        $finishSpan = $event->canceled && $frames[$index]['span'] !== null;
+
+        if ($finishSpan) {
+            $frames[$index]['span'] = null;
+        }
+
         CoroutineContext::set(self::JOB_FRAMES_CONTEXT_KEY, $frames);
+
+        if ($finishSpan) {
+            $this->maybeFinishSpan($event->exception === null ? null : $this->cancellationStatus($event->exception));
+        }
     }
 
     /**

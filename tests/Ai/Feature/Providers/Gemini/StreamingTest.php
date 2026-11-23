@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Gemini;
 
+use Closure;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Ai\Exceptions\StreamErrorException;
+use Hypervel\Ai\Gateway\StepResult;
+use Hypervel\Ai\Messages\UserMessage;
+use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
 use Hypervel\Ai\Streaming\Events\Error;
@@ -23,6 +27,7 @@ use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\ProviderOptionsWithToolsAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\StoredToolAgent;
 use Hypervel\Tests\Ai\Fixtures\GeminiHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
@@ -554,6 +559,79 @@ class StreamingTest extends TestCase
             'completed maps to Stop' => ['completed', FinishReason::Stop],
             'incomplete maps to Length' => ['incomplete', FinishReason::Length],
         ];
+    }
+
+    public function testAStoredStreamIsContinuedWithPreviousInteractionId(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push(...$this->geminiStream([
+                    $this->stepStart(0, ['type' => 'function_call', 'id' => 'call_1', 'name' => 'FixedNumberGenerator']),
+                    $this->stepStop(0),
+                    $this->interactionCompleted(),
+                ]))
+                ->push(...$this->geminiStream([
+                    $this->stepDelta(0, 'text', 'The number is 72019'),
+                    $this->interactionCompleted(),
+                ])),
+        ]);
+
+        $this->collectStreamEvents(agent: new StoredToolAgent);
+
+        $followUp = Http::recorded()[1][0]->data();
+
+        $this->assertSame('int_123', $followUp['previous_interaction_id']);
+        $this->assertCount(1, $followUp['input']);
+        $this->assertSame('function_result', $followUp['input'][0]['type']);
+        $this->assertSame('call_1', $followUp['input'][0]['call_id']);
+    }
+
+    public function testAStoredStreamWithoutAnInteractionIdReplaysTheFullHistory(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push(...$this->geminiStream([
+                    $this->stepStart(0, ['type' => 'function_call', 'id' => 'call_1', 'name' => 'FixedNumberGenerator']),
+                    $this->stepStop(0),
+                    ['event_type' => 'interaction.completed', 'status' => 'completed'],
+                ]))
+                ->push(...$this->geminiStream([
+                    $this->stepDelta(0, 'text', 'Done'),
+                    $this->interactionCompleted(),
+                ])),
+        ]);
+
+        $this->collectStreamEvents(agent: new StoredToolAgent);
+
+        $followUp = Http::recorded()[1][0]->data();
+
+        $this->assertArrayNotHasKey('previous_interaction_id', $followUp);
+        $this->assertSame(['user_input', 'function_call', 'function_result'], array_column($followUp['input'], 'type'));
+    }
+
+    public function testAStoredStreamWhoseFirstStepEditedItsMessagesReplaysTheFullHistory(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push(...$this->geminiStream([
+                    $this->stepStart(0, ['type' => 'function_call', 'id' => 'call_1', 'name' => 'FixedNumberGenerator']),
+                    $this->stepStop(0),
+                    $this->interactionCompleted(),
+                ]))
+                ->push(...$this->geminiStream([
+                    $this->stepDelta(0, 'text', 'Done'),
+                    $this->interactionCompleted(),
+                ])),
+        ]);
+
+        $this->collectStreamEvents(agent: (new StoredToolAgent)->withMiddleware([
+            fn (PendingStep $step, Closure $next): StepResult => $next($step->isFirstStep() ? $step->withMessages([new UserMessage('Summarized')]) : $step),
+        ]));
+
+        $followUp = Http::recorded()[1][0]->data();
+
+        $this->assertArrayNotHasKey('previous_interaction_id', $followUp);
+        $this->assertSame(['user_input', 'function_call', 'function_result'], array_column($followUp['input'], 'type'));
     }
 }
 

@@ -7,6 +7,7 @@ namespace Hypervel\Support;
 use Countable;
 use Doctrine\Inflector\Inflector;
 use Doctrine\Inflector\InflectorFactory;
+use Hypervel\Support\Attributes\BootOnly;
 
 class Pluralizer
 {
@@ -104,10 +105,11 @@ class Pluralizer
     /**
      * Specify the language that should be used by the inflector.
      *
-     * Boot-only. The language and inflector instance persist in static
-     * properties for the worker lifetime and are used by every Str::plural() /
-     * Str::singular() call across all coroutines.
+     * The language and inflector instance persist in static properties for the
+     * worker lifetime and are used by every Str::plural() / Str::singular()
+     * call across all coroutines.
      */
+    #[BootOnly]
     public static function useLanguage(string $language): void
     {
         static::$language = $language;

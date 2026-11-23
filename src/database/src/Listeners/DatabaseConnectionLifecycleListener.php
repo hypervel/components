@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database\Listeners;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\PoolManager;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class DatabaseConnectionLifecycleListener
@@ -59,11 +59,7 @@ class DatabaseConnectionLifecycleListener
             try {
                 $this->container->make(PoolManager::class)->purgeAll();
             } catch (Throwable $throwable) {
-                if ($exception === null
-                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)
-                ) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

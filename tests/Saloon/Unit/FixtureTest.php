@@ -13,11 +13,14 @@ use Hypervel\Saloon\Http\Faking\Fixture;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class FixtureTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $files;
 
     protected string $fixturePath;
@@ -247,9 +250,9 @@ class FixtureTest extends TestCase
      */
     protected function bindManager(bool $throwOnMissing): void
     {
-        $manager = m::mock(SaloonManager::class);
-        $manager->shouldReceive('getFixturePath')->andReturn($this->fixturePath);
-        $manager->shouldReceive('throwsOnMissingFixtures')->andReturn($throwOnMissing);
+        $manager = Double::for(SaloonManager::class)->strict();
+        $manager->allows('getFixturePath')->returns($this->fixturePath);
+        $manager->allows('throwsOnMissingFixtures')->returns($throwOnMissing);
 
         $container = new Container;
         $container->instance('saloon', $manager);

@@ -232,4 +232,44 @@ class AppResourceTest extends TestCase
             'domain' => 'sandbox.example.com',
         ], $array['_meta']['ui']);
     }
+
+    public function testDoesNotIncludeTheDomainWhenAppMetaIsWithoutADomain(): void
+    {
+        $resource = new class extends AppResource {
+            /**
+             * Get the application metadata.
+             */
+            public function appMeta(): AppMeta
+            {
+                return AppMeta::make()->prefersBorder()->withoutDomain();
+            }
+
+            /**
+             * Handle the resource request.
+             */
+            public function handle(Request $request): Response
+            {
+                return Response::text('<html></html>');
+            }
+        };
+
+        $this->assertSame(['prefersBorder' => true], $resource->resolvedAppMeta());
+        $this->assertArrayNotHasKey('domain', $resource->toArray()['_meta']['ui']);
+    }
+
+    public function testDoesNotIncludeTheDomainWhenTheAttributeDisablesIt(): void
+    {
+        $resource = new #[AppMetaAttribute(prefersBorder: true, domain: false)] class extends AppResource {
+            /**
+             * Handle the resource request.
+             */
+            public function handle(Request $request): Response
+            {
+                return Response::text('<html></html>');
+            }
+        };
+
+        $this->assertSame(['prefersBorder' => true], $resource->resolvedAppMeta());
+        $this->assertArrayNotHasKey('domain', $resource->toArray()['_meta']['ui']);
+    }
 }

@@ -12,7 +12,8 @@ class EnsureRelativePaths
     public function __invoke(string $string): string
     {
         if (function_exists('app') && app()->has('path.base')) {
-            $string = str_replace(base_path() . '/', '', $string);
+            // Shorten standalone paths without removing part of another path or URL.
+            $string = (string) preg_replace('#(?<![^\s\[({<>\'"])' . preg_quote(base_path() . '/', '#') . '#', '', $string);
         }
 
         return $string;

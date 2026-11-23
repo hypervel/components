@@ -31,9 +31,10 @@ use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
 use Hypervel\Tests\Support\Fixtures\TestTraversableAndJsonSerializableObject;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use SortDirection;
@@ -47,6 +48,8 @@ use WeakMap;
 
 class SupportCollectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('collectionClassProvider')]
     public function testFirstReturnsFirstItemInCollection($collection): void
     {
@@ -738,10 +741,10 @@ class SupportCollectionTest extends TestCase
     #[DataProvider('collectionClassProvider')]
     public function testToArrayCallsToArrayOnEachItemInCollection(string $collection): void
     {
-        $item1 = m::mock(Arrayable::class);
-        $item1->expects('toArray')->andReturn(['foo.array']);
-        $item2 = m::mock(Arrayable::class);
-        $item2->expects('toArray')->andReturn(['bar.array']);
+        $item1 = Double::for(Arrayable::class)->strict();
+        $item1->expects('toArray')->returns(['foo.array']);
+        $item2 = Double::for(Arrayable::class)->strict();
+        $item2->expects('toArray')->returns(['bar.array']);
         $c = new $collection([$item1, $item2]);
         $results = $c->toArray();
 
@@ -763,10 +766,10 @@ class SupportCollectionTest extends TestCase
     #[DataProvider('collectionClassProvider')]
     public function testJsonSerializeCallsToArrayOrJsonSerializeOnEachItemInCollection(string $collection): void
     {
-        $item1 = m::mock(JsonSerializable::class);
-        $item1->expects('jsonSerialize')->andReturn('foo.json');
-        $item2 = m::mock(Arrayable::class);
-        $item2->expects('toArray')->andReturn(['bar.array']);
+        $item1 = Double::for(JsonSerializable::class)->strict();
+        $item1->expects('jsonSerialize')->returns('foo.json');
+        $item2 = Double::for(Arrayable::class)->strict();
+        $item2->expects('toArray')->returns(['bar.array']);
         $c = new $collection([$item1, $item2]);
         $results = $c->jsonSerialize();
 
@@ -2829,6 +2832,14 @@ class SupportCollectionTest extends TestCase
         ]);
 
         $this->assertEquals([['php', 'python'], ['php', 'asp', 'java']], $data->pluck('skill.backend')->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testPluckWithIntegerKeys($collection): void
+    {
+        $data = new $collection([['taylor', 'foo'], ['dayle', 'bar']]);
+
+        $this->assertEquals(['foo' => 'taylor', 'bar' => 'dayle'], $data->pluck(0, 1)->all());
     }
 
     #[DataProvider('collectionClassProvider')]

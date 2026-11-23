@@ -16,6 +16,7 @@ use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\View\Compilers\CompilerInterface;
 use RuntimeException;
 
@@ -149,7 +150,10 @@ abstract class ServiceProvider
      * Keys declared in mergeableOptions() get an additional one-level-deeper
      * merge so the app can add entries to collection arrays (stores, connections,
      * guards, etc.) without losing the package's default entries.
+     *
+     * Called later, the merge changes configuration every request in the worker shares.
      */
+    #[BootOnly]
     protected function mergeConfigFrom(string $path, string $key): void
     {
         $mergeableOptions = $this->mergeableOptions($key);
@@ -189,7 +193,10 @@ abstract class ServiceProvider
 
     /**
      * Replace the given configuration with the existing configuration recursively.
+     *
+     * Called later, the change reaches configuration every request in the worker shares.
      */
+    #[BootOnly]
     protected function replaceConfigRecursivelyFrom(string $path, string $key): void
     {
         $this->configureUsing(static function (Repository $config) use ($path, $key): void {
@@ -208,10 +215,11 @@ abstract class ServiceProvider
      * the rebuilt configuration rather than its first result kept. Cached
      * configuration already holds the result, so the callback does not run.
      *
-     * Boot-only. Called later, the change reaches configuration every request in the worker shares, and is not replayed.
+     * Called later, the change reaches configuration every request in the worker shares, and is not replayed.
      *
      * @param Closure(Repository): void $callback
      */
+    #[BootOnly]
     protected function configureUsing(Closure $callback): void
     {
         if ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached()) {
@@ -568,7 +576,10 @@ return [
 
     /**
      * Register the package's custom Artisan commands.
+     *
+     * The commands are added to every later console application the worker creates.
      */
+    #[BootOnly]
     public function commands(array $commands): void
     {
         Artisan::starting(function ($artisan) use ($commands) {
@@ -585,6 +596,7 @@ return [
      *
      * @param array<int, string>|string $aspects
      */
+    #[BootOnly]
     protected function aspects(string|array $aspects): void
     {
         $aspects = is_array($aspects) ? $aspects : func_get_args();
@@ -603,6 +615,7 @@ return [
      *
      * @param array<class-string, string> $map originalClass => replacementFilePath
      */
+    #[BootOnly]
     protected function classMap(array $map): void
     {
         ClassMapManager::add($map);

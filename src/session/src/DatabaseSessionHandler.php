@@ -13,6 +13,7 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Session\Concerns\ValidatesUserSessionArguments;
 use Hypervel\Session\Contracts\CanManageUserSessions;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
@@ -199,6 +200,8 @@ class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInt
 
     /**
      * Add the request information to the session payload.
+     *
+     * @return $this
      */
     protected function addRequestInformation(array &$payload): static
     {
@@ -352,10 +355,13 @@ class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInt
     /**
      * Set the application instance used by the handler.
      *
-     * Boot or tests only. Mutating the container on a shared handler during
-     * request handling can expose the wrong request or authentication state
-     * to concurrent coroutines.
+     * Mutating the container on a shared handler during request handling
+     * can expose the wrong request or authentication state to concurrent
+     * coroutines.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;
@@ -365,6 +371,8 @@ class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInt
 
     /**
      * Set the existence state for the session.
+     *
+     * @return $this
      */
     public function setExists(bool $value): static
     {
@@ -395,6 +403,8 @@ class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInt
 
     /**
      * Set whether the current session record is expired.
+     *
+     * @return $this
      */
     protected function setExpired(bool $value): static
     {

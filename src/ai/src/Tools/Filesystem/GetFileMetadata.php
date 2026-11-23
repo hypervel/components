@@ -37,15 +37,22 @@ class GetFileMetadata extends FilesystemTool
                 throw $exception;
             }
 
-            return "File [{$path}] does not exist.";
+            // Unlike upstream, a failed lookup of an existing file is reported instead of described as missing.
+            // Missing files and other failures throw the same exception, so only a failure checks existence...
+            if (! $this->fileExists($disk, $path)) {
+                return "File [{$path}] does not exist.";
+            }
+
+            report($exception);
+
+            return "Unable to get metadata for [{$path}].";
         }
 
         return (string) json_encode([
             'path' => $path,
             'size' => $size,
             'last_modified' => rescue(fn (): int => $disk->lastModified($path), report: false),
-            // The contract omits adapter metadata methods, which every shipped disk provides.
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore method.notFound (the contract omits adapter metadata methods, which every shipped disk provides)
             'mime_type' => rescue(fn (): false|string => $disk->mimeType($path), report: false),
             'visibility' => rescue(fn (): string => $disk->getVisibility($path), report: false),
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

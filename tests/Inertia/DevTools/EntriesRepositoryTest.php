@@ -11,10 +11,15 @@ use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Inertia\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class EntriesRepositoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $storagePath;
 
     /**
@@ -97,6 +102,28 @@ class EntriesRepositoryTest extends TestCase
         $repo = $this->makeRepository();
 
         $this->assertNull($repo->get('does-not-exist'));
+    }
+
+    public function testGetRethrowsCancellationWhileReadingTheEntry(): void
+    {
+        $payload = $this->envelope();
+        $id = $payload['__meta']['id'];
+
+        $this->makeRepository()->save($id, $payload);
+
+        $cancellation = new CanceledException('canceled');
+        $files = Double::for(Filesystem::class)->passthru();
+        $files->allows('get')->throws($cancellation);
+
+        $repo = new EntriesRepository(path: $this->storagePath, files: $files);
+
+        try {
+            $repo->get($id);
+
+            $this->fail('The cancellation was not rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testSaveRejectsInvalidEntryIds(): void

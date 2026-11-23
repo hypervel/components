@@ -8,14 +8,17 @@ use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Transformers\EnumTransformer;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class EnumTransformerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCanTransformEnums(): void
     {
         $transformer = new EnumTransformer;
-        $property = m::mock(DataProperty::class);
+        $property = Double::for(DataProperty::class)->strict();
         $context = new TransformationContext;
 
         $this->assertSame('ready', $transformer->transform($property, StringStatus::Ready, $context));

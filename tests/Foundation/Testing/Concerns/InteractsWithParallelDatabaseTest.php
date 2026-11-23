@@ -5,21 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Closure;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
+use Hypervel\Database\Schema\SchemaProxy;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class InteractsWithParallelDatabaseTest extends TestCase
 {
     use InteractsWithParallelDatabase;
+    use VerifiesDoubles;
 
     public function testParallelTestDatabaseAppendsTokenToName(): void
     {
@@ -125,11 +128,11 @@ class InteractsWithParallelDatabaseTest extends TestCase
     {
         $config = $this->app->make('config');
         $connection = $config->get('database.default');
-        $original = $config->get("database.connections.{$connection}.database");
+        $config->set("database.connections.{$connection}.database", 'testing.sqlite');
 
-        $this->configureParallelDatabaseName($this->app);
+        $this->withParallelEnvironment(null, false, fn () => $this->configureParallelDatabaseName($this->app));
 
-        $this->assertSame($original, $config->get("database.connections.{$connection}.database"));
+        $this->assertSame('testing.sqlite', $config->get("database.connections.{$connection}.database"));
     }
 
     public function testConfigureParallelDatabaseNameSkipsInMemorySqlite(): void
@@ -323,10 +326,12 @@ class InteractsWithParallelDatabaseTest extends TestCase
 
     public function testEnsureParallelDatabaseExistsIsNoOpWithoutTestToken(): void
     {
-        // Without TEST_TOKEN, should be a no-op (no exceptions)
-        $this->ensureParallelDatabaseExists();
+        $config = $this->app->make('config');
+        $connection = $config->get('database.default');
+        $config->set("database.connections.{$connection}.database", 'testing.sqlite');
+        $this->expectNoSchemaConnection();
 
-        $this->assertTrue(true);
+        $this->withParallelEnvironment(null, false, fn () => $this->ensureParallelDatabaseExists());
     }
 
     public function testEnsureParallelDatabaseExistsSkipsLateConfiguredSqliteMemoryUri(): void
@@ -335,11 +340,9 @@ class InteractsWithParallelDatabaseTest extends TestCase
         $connection = $config->get('database.default');
         $config->set("database.connections.{$connection}.database", 'file::memory:');
 
-        $this->withParallelEnvironment('7', false, function (): void {
-            $this->ensureParallelDatabaseExists();
+        $this->expectNoSchemaConnection();
 
-            $this->assertTrue(true);
-        });
+        $this->withParallelEnvironment('7', false, fn () => $this->ensureParallelDatabaseExists());
     }
 
     public function testEnsureParallelDatabaseExistsRejectsLateConfiguredSqliteFileUri(): void
@@ -367,11 +370,9 @@ class InteractsWithParallelDatabaseTest extends TestCase
         $connection = $config->get('database.default');
         $config->set("database.connections.{$connection}.database", 'file:/tmp/database.sqlite?mode=rwc');
 
-        $this->withParallelEnvironment('7', true, function (): void {
-            $this->ensureParallelDatabaseExists();
+        $this->expectNoSchemaConnection();
 
-            $this->assertTrue(true);
-        });
+        $this->withParallelEnvironment('7', true, fn () => $this->ensureParallelDatabaseExists());
     }
 
     public function testEnsureParallelDatabaseExistsRecoversFromTheCurrentSuffixedDatabase(): void
@@ -390,30 +391,28 @@ class InteractsWithParallelDatabaseTest extends TestCase
             [],
             new PDOException('Database does not exist.')
         );
-        $schemaBuilder = m::mock(SchemaBuilder::class);
-        $schemaBuilder->shouldReceive('hasTable')
-            ->once()
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
+        $schemaBuilder->expects('hasTable')
             ->with('__parallel_check')
-            ->andThrow($queryException);
-        $schemaBuilder->shouldReceive('createDatabase')
-            ->once()
+            ->throws($queryException);
+        $schemaBuilder->expects('createDatabase')
             ->with('analytics_test_data_test_7')
-            ->andReturn(true);
-        $databaseConnection = m::mock(ConnectionInterface::class);
-        $databaseConnection->shouldReceive('getSchemaBuilder')
-            ->twice()
-            ->andReturn($schemaBuilder);
+            ->returns(true);
+        $databaseConnection = Double::for(Connection::class)->strict();
+        $databaseConnection->expects('getSchemaBuilder')
+            ->times(2)
+            ->returns($schemaBuilder);
         $connectionCalls = 0;
-        $databaseManager = m::mock(DatabaseManager::class);
-        $databaseManager->shouldReceive('connection')
-            ->twice()
+        $databaseManager = Double::for(DatabaseManager::class)->strict();
+        $databaseManager->expects('connection')
+            ->times(2)
             ->with($connection)
-            ->andReturnUsing(function () use (
+            ->resolves(function () use (
                 &$connectionCalls,
                 $config,
                 $configurationPath,
                 $databaseConnection
-            ): ConnectionInterface {
+            ): Connection {
                 ++$connectionCalls;
 
                 if ($connectionCalls === 2) {
@@ -425,7 +424,7 @@ class InteractsWithParallelDatabaseTest extends TestCase
 
                 return $databaseConnection;
             });
-        $databaseManager->shouldReceive('purge')->twice()->with($connection);
+        $databaseManager->expects('purge')->times(2)->with($connection);
         $this->app->instance('db', $databaseManager);
         DB::clearResolvedInstance();
 
@@ -438,10 +437,20 @@ class InteractsWithParallelDatabaseTest extends TestCase
     }
 
     /**
+     * Verify that parallel setup never opens a schema connection.
+     */
+    private function expectNoSchemaConnection(): void
+    {
+        $schema = Double::for(SchemaProxy::class)->strict();
+        $schema->expects('connection')->never();
+        $this->app->instance('db.schema', $schema);
+    }
+
+    /**
      * Run a callback with an isolated parallel-testing environment.
      */
     private function withParallelEnvironment(
-        string $token,
+        ?string $token,
         bool $withoutDatabases,
         Closure $callback
     ): void {
@@ -456,9 +465,14 @@ class InteractsWithParallelDatabaseTest extends TestCase
         );
         $previousWithoutDatabases = $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES'] ?? null;
 
-        putenv("TEST_TOKEN={$token}");
-        $_SERVER['TEST_TOKEN'] = $token;
-        $_ENV['TEST_TOKEN'] = $token;
+        if ($token === null) {
+            putenv('TEST_TOKEN');
+            unset($_SERVER['TEST_TOKEN'], $_ENV['TEST_TOKEN']);
+        } else {
+            putenv("TEST_TOKEN={$token}");
+            $_SERVER['TEST_TOKEN'] = $token;
+            $_ENV['TEST_TOKEN'] = $token;
+        }
 
         if ($withoutDatabases) {
             $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES'] = 1;

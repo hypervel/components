@@ -21,6 +21,7 @@ use Hypervel\Ai\Streaming\Events\StreamStart;
 use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
+use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\Tests\Ai\Fixtures\BedrockHelpers;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
@@ -145,6 +146,44 @@ class StreamingTest extends TestCase
         ], $assistantTurn['content'][0]);
         $this->assertSame('t1', $assistantTurn['content'][1]['toolUse']['toolUseId']);
         $this->assertSame('FixedNumberGenerator', $assistantTurn['content'][1]['toolUse']['name']);
+    }
+
+    public function testStreamingRunsToolCallsWhenTheMessageEndsWithEndTurn(): void
+    {
+        $mock = new MockHandler([
+            new Result(['stream' => [
+                $this->contentBlockStart(0),
+                $this->contentBlockDelta(0, ['text' => 'Let me generate a number.']),
+                $this->contentBlockStop(0),
+                $this->contentBlockStart(1, ['toolUse' => ['toolUseId' => 't1', 'name' => 'FixedNumberGenerator']]),
+                $this->contentBlockDelta(1, ['toolUse' => ['input' => '{}']]),
+                $this->contentBlockStop(1),
+                $this->messageStop('end_turn'),
+            ]]),
+            new Result(['stream' => [
+                $this->contentBlockStart(0),
+                $this->contentBlockDelta(0, ['text' => 'The number is 72019']),
+                $this->contentBlockStop(0),
+                $this->messageStop('end_turn'),
+            ]]),
+        ]);
+
+        $events = iterator_to_array(
+            (new TextGenerationLoop($this->gatewayWithClient($this->bedrockClient($mock))))->stream(
+                'inv-1',
+                $this->bedrockProvider(),
+                'anthropic.claude-opus-4-7-v1:0',
+                null,
+                tools: [new FixedNumberGenerator],
+            ),
+            preserve_keys: false,
+        );
+
+        $toolResults = array_values(array_filter($events, fn (StreamEvent $event): bool => $event instanceof ToolResultEvent));
+
+        $this->assertCount(1, $toolResults);
+        $this->assertSame('t1', $toolResults[0]->toolResult->id);
+        $this->assertStringEndsWith('The number is 72019', TextDelta::combine($events));
     }
 
     public function testStreamingDoesNotRoundTripEmptyTextBlockOnFollowUpToolStep(): void

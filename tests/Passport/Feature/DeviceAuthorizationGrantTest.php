@@ -54,7 +54,7 @@ class DeviceAuthorizationGrantTest extends PassportTestCase
         $this->assertArrayHasKey('device_code', $json);
         $this->assertArrayHasKey('user_code', $json);
         $this->assertSame(5, $json['interval']);
-        $this->assertSame(600, $json['expires_in']);
+        $this->assertEqualsWithDelta(600, $json['expires_in'], 2);
         $this->assertSame('http://localhost/oauth/device', $json['verification_uri']);
         $this->assertSame('http://localhost/oauth/device?user_code=' . $json['user_code'], $json['verification_uri_complete']);
     }

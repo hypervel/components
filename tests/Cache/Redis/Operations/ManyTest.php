@@ -11,16 +11,12 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class ManyTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testRedisMultipleValuesAreReturned(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
-            ->andReturn([
+            ->returns([
                 serialize('bar'),
                 serialize('buzz'),
                 serialize('quz'),
@@ -36,9 +32,6 @@ class ManyTest extends RedisCacheTestCase
         $this->assertNull($results['null']);
     }
 
-    /**
-     * @test
-     */
     public function testManyReturnsEmptyArrayForEmptyKeys(): void
     {
         $connection = $this->mockConnection();
@@ -49,17 +42,13 @@ class ManyTest extends RedisCacheTestCase
         $this->assertSame([], $results);
     }
 
-    /**
-     * @test
-     */
     public function testManyMaintainsKeyIndexMapping(): void
     {
         $connection = $this->mockConnection();
         // Return values in same order as requested
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with(['prefix:a', 'prefix:b', 'prefix:c'])
-            ->andReturn([
+            ->returns([
                 serialize('value_a'),
                 null,
                 serialize('value_c'),

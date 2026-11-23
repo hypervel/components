@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Auth\Events\Verified;
-use Hypervel\Contracts\Auth\MustVerifyEmail;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\VerifyEmailResponse;
 use Hypervel\Fortify\Http\Requests\VerifyEmailRequest;
@@ -20,7 +19,6 @@ class VerifyEmailController extends Controller
      */
     public function __invoke(VerifyEmailRequest $request): VerifyEmailResponse
     {
-        /** @var MustVerifyEmail $user */
         $user = $request->user();
 
         if ($user->hasVerifiedEmail()) {

@@ -7,10 +7,8 @@ namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Doctor\Diagnostics\RedisConnectionsAreReachable;
 use Hypervel\Doctor\Results\Link;
-use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
 use RuntimeException;
 
 class RedisConnectionsAreReachableTest extends TestCase
@@ -146,7 +144,23 @@ class RedisConnectionsAreReachableTest extends TestCase
                 'connection' => 'default',
             ],
         ]);
-        Redis::shouldReceive('connection')->with('default')->andReturn(m::mock(RedisProxy::class, ['ping' => false]));
+        Redis::swap(new class {
+            /**
+             * Resolve a connection whose server rejects the probe.
+             */
+            public function connection(string $name): object
+            {
+                return new class {
+                    /**
+                     * Reject the reachability probe.
+                     */
+                    public function ping(): false
+                    {
+                        return false;
+                    }
+                };
+            }
+        });
 
         $result = (new RedisConnectionsAreReachable)->check();
 

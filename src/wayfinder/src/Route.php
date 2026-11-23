@@ -340,7 +340,7 @@ class Route
         }
 
         $uri = str($uri)
-            ->replace($defaultParams->keys()->toArray(), $defaultParams->values()->toArray())
+            ->replace($defaultParams->keys()->all(), $defaultParams->values()->all())
             ->toString();
 
         if ($uri !== '/') {

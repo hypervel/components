@@ -4,29 +4,43 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
-class Numeric implements Stringable
+class Numeric implements Stringable, Transient
 {
     use Conditionable;
 
     /**
      * The constraints for the number rule.
      */
-    protected array $constraints = ['numeric'];
+    protected array $constraints = [];
+
+    /**
+     * Create a numeric rule instance.
+     */
+    public function __construct(bool $strict = false)
+    {
+        $this->addRule($strict ? 'numeric:strict' : 'numeric');
+    }
 
     /**
      * The field under validation must have a size between the given min and max (inclusive).
+     *
+     * @return $this
      */
     public function between(float|int $min, float|int $max): static
     {
-        return $this->addRule('between:' . $min . ',' . $max);
+        return $this->addRule('between:' . Number::toString($min) . ',' . Number::toString($max));
     }
 
     /**
      * The field under validation must contain the specified number of decimal places.
+     *
+     * @return $this
      */
     public function decimal(int $min, ?int $max = null): static
     {
@@ -41,6 +55,8 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must have a different value than field.
+     *
+     * @return $this
      */
     public function different(string $field): static
     {
@@ -49,6 +65,8 @@ class Numeric implements Stringable
 
     /**
      * The integer under validation must have an exact number of digits.
+     *
+     * @return $this
      */
     public function digits(int $length): static
     {
@@ -57,6 +75,8 @@ class Numeric implements Stringable
 
     /**
      * The integer under validation must between the given min and max number of digits.
+     *
+     * @return $this
      */
     public function digitsBetween(int $min, int $max): static
     {
@@ -65,6 +85,8 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must be greater than the given field or value.
+     *
+     * @return $this
      */
     public function greaterThan(string $field): static
     {
@@ -73,6 +95,8 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must be greater than or equal to the given field or value.
+     *
+     * @return $this
      */
     public function greaterThanOrEqualTo(string $field): static
     {
@@ -81,6 +105,8 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must be an integer.
+     *
+     * @return $this
      */
     public function integer(bool $strict = false): static
     {
@@ -89,6 +115,8 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must be less than the given field.
+     *
+     * @return $this
      */
     public function lessThan(string $field): static
     {
@@ -97,6 +125,8 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must be less than or equal to the given field.
+     *
+     * @return $this
      */
     public function lessThanOrEqualTo(string $field): static
     {
@@ -105,14 +135,18 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must be less than or equal to a maximum value.
+     *
+     * @return $this
      */
     public function max(float|int $value): static
     {
-        return $this->addRule('max:' . $value);
+        return $this->addRule('max:' . Number::toString($value));
     }
 
     /**
      * The integer under validation must have a maximum number of digits.
+     *
+     * @return $this
      */
     public function maxDigits(int $value): static
     {
@@ -121,14 +155,18 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must have a minimum value.
+     *
+     * @return $this
      */
     public function min(float|int $value): static
     {
-        return $this->addRule('min:' . $value);
+        return $this->addRule('min:' . Number::toString($value));
     }
 
     /**
      * The integer under validation must have a minimum number of digits.
+     *
+     * @return $this
      */
     public function minDigits(int $value): static
     {
@@ -137,14 +175,18 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must be a multiple of the given value.
+     *
+     * @return $this
      */
     public function multipleOf(float|int $value): static
     {
-        return $this->addRule('multiple_of:' . $value);
+        return $this->addRule('multiple_of:' . Number::toString($value));
     }
 
     /**
      * The given field must match the field under validation.
+     *
+     * @return $this
      */
     public function same(string $field): static
     {
@@ -153,6 +195,8 @@ class Numeric implements Stringable
 
     /**
      * The field under validation must match the given value.
+     *
+     * @return $this
      */
     public function exactly(int $value): static
     {
@@ -179,6 +223,8 @@ class Numeric implements Stringable
 
     /**
      * Add custom rules to the validation rules array.
+     *
+     * @return $this
      */
     protected function addRule(array|string $rules): static
     {

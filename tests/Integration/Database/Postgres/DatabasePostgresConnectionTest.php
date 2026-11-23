@@ -9,9 +9,12 @@ use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use RuntimeException;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[RequiresPhpExtension('pdo_pgsql')]
@@ -200,5 +203,62 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
             'mixed keys' => [1, 'json_col->foo[1]->baz'],
             'null value' => [1, 'json_col->bar'],
         ];
+    }
+
+    public function testLastCommitReadAfterWrite(): void
+    {
+        $first = DB::getLastCommitId();
+        DB::table('json_table')->insert(['json_col' => '{"commit":"read-after-write"}']);
+        $second = DB::getLastCommitId();
+        $merged = DB::mergeCommitIds([$second, $first]);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($second, $merged);
+        $this->assertSame($second, DB::mergeCommitIds(array_unique([$first, $first, $second])));
+        $this->assertTrue(DB::hasCommitId($first));
+        $this->assertTrue(DB::hasCommitId($second));
+        $this->assertTrue(DB::hasCommitId($merged));
+        $this->assertFalse(DB::hasCommitId('FFFFFFFF/FFFFFFFF'));
+    }
+
+    public function testCommitIdChecksReturnBooleansWhenFetchesAreStringified(): void
+    {
+        config()->set('database.connections.pgsql_stringified', [
+            ...config()->array('database.connections.' . config()->string('database.default')),
+            'options' => [PDO::ATTR_STRINGIFY_FETCHES => true],
+        ]);
+        $connection = DB::connection('pgsql_stringified');
+
+        $this->assertTrue($connection->hasCommitId($connection->getLastCommitId()));
+        $this->assertFalse($connection->hasCommitId('FFFFFFFF/FFFFFFFF'));
+    }
+
+    public function testLastCommitIdIncludesAnAsynchronousCommit(): void
+    {
+        $beforeCommit = DB::transaction(function () {
+            DB::statement('set local synchronous_commit = off');
+            DB::table('json_table')->insert(['json_col' => '{"commit":"asynchronous"}']);
+
+            return DB::scalar('select pg_current_wal_insert_lsn()');
+        });
+
+        // The commit record follows the transaction's last insert, so a token that includes it must be later.
+        $this->assertTrue(DB::scalar('select ?::pg_lsn > ?::pg_lsn', [DB::getLastCommitId(), $beforeCommit]));
+    }
+
+    #[RequiresDatabase('pgsql', '<19')]
+    public function testWaitingForACommitIdRequiresPostgres19(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('PostgreSQL 19 or newer is required.');
+
+        DB::hasCommitId(DB::getLastCommitId(), 1);
+    }
+
+    #[RequiresDatabase('pgsql', '>=19')]
+    public function testWaitingForACommitIdOnThePrimaryFallsBackToTheImmediateCheck(): void
+    {
+        $this->assertTrue(DB::hasCommitId(DB::getLastCommitId(), 1));
+        $this->assertFalse(DB::hasCommitId('FFFFFFFF/FFFFFFFF', 1));
     }
 }

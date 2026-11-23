@@ -59,6 +59,8 @@ class Pipeline implements PipelineContract, Transient
 
     /**
      * Set the object being sent through the pipeline.
+     *
+     * @return $this
      */
     public function send(mixed $passable): static
     {
@@ -69,6 +71,8 @@ class Pipeline implements PipelineContract, Transient
 
     /**
      * Set the array of pipes.
+     *
+     * @return $this
      */
     public function through(mixed $pipes): static
     {
@@ -79,6 +83,8 @@ class Pipeline implements PipelineContract, Transient
 
     /**
      * Push additional pipes onto the pipeline.
+     *
+     * @return $this
      */
     public function pipe(mixed $pipes): static
     {
@@ -89,6 +95,8 @@ class Pipeline implements PipelineContract, Transient
 
     /**
      * Set the method to call on the pipes.
+     *
+     * @return $this
      */
     public function via(string $method): static
     {
@@ -146,6 +154,8 @@ class Pipeline implements PipelineContract, Transient
 
     /**
      * Set a final callback to be executed after the pipeline ends regardless of the outcome.
+     *
+     * @return $this
      */
     public function finally(Closure $callback): static
     {
@@ -249,6 +259,8 @@ class Pipeline implements PipelineContract, Transient
 
     /**
      * Execute each pipeline step within a database transaction.
+     *
+     * @return $this
      */
     public function withinTransaction(string|UnitEnum|false|null $withinTransaction = null): static
     {
@@ -271,6 +283,8 @@ class Pipeline implements PipelineContract, Transient
 
     /**
      * Set the container instance.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

@@ -162,6 +162,7 @@ class StripedLock
             }
 
             $spins = 0;
+            // @phpstan-ignore hypervel.rawSleep (spin-lock backoff across workers must really yield, not be faked)
             usleep(1);
         }
     }

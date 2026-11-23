@@ -12,7 +12,9 @@ use Hypervel\Database\Console\DbCommand;
 use Hypervel\Database\DatabaseCliManager;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -22,6 +24,8 @@ use UnexpectedValueException;
 
 class DatabaseDbCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: Laravel's ::direct and --pooled command routing. Select the configured endpoint by name.
 
     public function testDbCommandReadAndWriteOptionsUsePooledConnectionBranches(): void
@@ -400,8 +404,8 @@ class DatabaseDbCommandTest extends TestCase
         $application = $this->applicationWithConfig([
             'mysql' => $this->mysqlConfig(['host' => []]),
         ]);
-        $application->shouldReceive('make')->once()->with(DatabaseCliManager::class)->andReturn(new DatabaseCliManager);
-        $command->setHypervel($application);
+        $application->expects('make')->with(DatabaseCliManager::class)->returns(new DatabaseCliManager);
+        $command->setHypervel($application->instance());
 
         $input = $this->inputFor($command, []);
         $output = new BufferedOutput;
@@ -420,7 +424,7 @@ class DatabaseDbCommandTest extends TestCase
     private function getConnection(array $connections, array $input = []): array
     {
         $command = new DbCommand;
-        $command->setHypervel($this->applicationWithConfig($connections));
+        $command->setHypervel($this->applicationWithConfig($connections)->instance());
         $command->setInput($this->inputFor($command, $input));
 
         return $command->getConnection();
@@ -429,13 +433,12 @@ class DatabaseDbCommandTest extends TestCase
     /**
      * Create an application with the supplied connection configuration.
      */
-    private function applicationWithConfig(array $connections): Application&m\MockInterface
+    private function applicationWithConfig(array $connections): DoubleInterface
     {
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')
-            ->once()
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')
             ->with('config')
-            ->andReturn(new Repository([
+            ->returns(new Repository([
                 'database' => [
                     'default' => 'mysql',
                     'connections' => $connections,

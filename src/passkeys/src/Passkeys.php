@@ -12,6 +12,7 @@ use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 
 class Passkeys
@@ -67,10 +68,11 @@ class Passkeys
     /**
      * Register a callback to resolve the WebAuthn relying party ID for the current request.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
+     * The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
      *
      * @param null|(callable(Request): string) $callback
      */
+    #[BootOnly]
     public static function resolveRelyingPartyIdUsing(?callable $callback): void
     {
         self::$relyingPartyIdResolver = $callback === null
@@ -111,10 +113,11 @@ class Passkeys
     /**
      * Register a callback to resolve WebAuthn allowed origins for the current request.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
+     * The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
      *
      * @param null|(callable(Request): list<string>) $callback
      */
+    #[BootOnly]
     public static function resolveAllowedOriginsUsing(?callable $callback): void
     {
         self::$allowedOriginsResolver = $callback === null
@@ -160,10 +163,11 @@ class Passkeys
     /**
      * Set the passkey model class name.
      *
-     * Boot-only. The model class persists in static state for the worker lifetime and affects every subsequent passkey query.
+     * The model class persists in static state for the worker lifetime and affects every subsequent passkey query.
      *
      * @param class-string<Passkey> $model
      */
+    #[BootOnly]
     public static function usePasskeyModel(string $model): void
     {
         self::$passkeyModel = $model;
@@ -174,10 +178,11 @@ class Passkeys
     /**
      * Register a callback to authorize passkey logins before login.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent passkey login.
+     * The callback persists in static state for the worker lifetime and affects every subsequent passkey login.
      *
      * @param null|(callable(Request, PasskeyUser, Passkey): bool) $callback
      */
+    #[BootOnly]
     public static function authorizeLoginUsing(?callable $callback): void
     {
         self::$authorizeLoginUsing = $callback !== null
@@ -206,10 +211,11 @@ class Passkeys
     /**
      * Register a callback to resolve the successful login redirect path.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent successful passkey login response.
+     * The callback persists in static state for the worker lifetime and affects every subsequent successful passkey login response.
      *
      * @param null|(callable(Request): (null|string)) $callback
      */
+    #[BootOnly]
     public static function redirectUsing(?callable $callback): void
     {
         self::$redirectUsingCallback = $callback === null
@@ -270,8 +276,9 @@ class Passkeys
     /**
      * Configure Passkeys to not register its routes.
      *
-     * Boot-only. The route registration flag persists in static state for the worker lifetime and affects route bootstrapping.
+     * The route registration flag persists in static state for the worker lifetime and affects route bootstrapping.
      */
+    #[BootOnly]
     public static function ignoreRoutes(): void
     {
         self::$registersRoutes = false;

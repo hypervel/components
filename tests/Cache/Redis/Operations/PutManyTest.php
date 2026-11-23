@@ -6,36 +6,25 @@ namespace Hypervel\Tests\Cache\Redis\Operations;
 
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the PutMany operation.
  */
 class PutManyTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testPutManyUsesLuaScriptInStandardMode(): void
     {
         $connection = $this->mockConnection();
 
         // Standard mode (not cluster) uses Lua script via evalWithShaCache
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function ($script, $keys, $args) {
-                // Verify Lua script structure
-                $this->assertStringContainsString('SETEX', $script);
-                // Keys: prefix:foo, prefix:baz, prefix:bar
-                $this->assertCount(3, $keys);
-                $this->assertSame('prefix:foo', $keys[0]);
-                $this->assertSame('prefix:baz', $keys[1]);
-                $this->assertSame('prefix:bar', $keys[2]);
-                // Args: [ttl, val1, val2, val3]
-                $this->assertSame(60, $args[0]); // TTL
-
-                return true;
-            })
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->with(
+                Argument::capture($script),
+                ['prefix:foo', 'prefix:baz', 'prefix:bar'],
+                [60, serialize('bar'), serialize('qux'), serialize('norf')],
+            )
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->putMany([
@@ -44,17 +33,15 @@ class PutManyTest extends RedisCacheTestCase
             'bar' => 'norf',
         ], 60);
         $this->assertTrue($result);
+        $this->assertStringContainsString('SETEX', $script);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyUsesSequentialCommandsInClusterMode(): void
     {
-        [$redis, , $connection] = $this->createClusterStore();
+        [$redis, $client] = $this->createClusterStore();
 
-        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturnTrue();
-        $connection->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturnTrue();
+        $client->expects('setex')->with('prefix:foo', 60, serialize('bar'))->returns(true);
+        $client->expects('setex')->with('prefix:baz', 60, serialize('qux'))->returns(true);
 
         $result = $redis->putMany([
             'foo' => 'bar',
@@ -63,15 +50,12 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyClusterModeReturnsFalseOnFailure(): void
     {
-        [$redis, , $connection] = $this->createClusterStore();
+        [$redis, $client] = $this->createClusterStore();
 
-        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturnFalse();
-        $connection->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturnTrue();
+        $client->expects('setex')->with('prefix:foo', 60, serialize('bar'))->returns(false);
+        $client->expects('setex')->with('prefix:baz', 60, serialize('qux'))->returns(true);
 
         $result = $redis->putMany([
             'foo' => 'bar',
@@ -80,9 +64,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyReturnsTrueForEmptyValues(): void
     {
         $connection = $this->mockConnection();
@@ -93,17 +74,13 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyLuaFailureThrowsException(): void
     {
         $connection = $this->mockConnection();
 
         // evalWithShaCache throws LuaScriptException on failure
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andThrow(new LuaScriptException('Lua script execution failed'));
+        $connection->expects('evalWithShaCache')
+            ->throws(new LuaScriptException('Lua script execution failed'));
 
         $this->expectException(LuaScriptException::class);
 
@@ -114,24 +91,17 @@ class PutManyTest extends RedisCacheTestCase
         ], 60);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function ($script, $keys, $args) {
-                // TTL should be 1, not 0
-                $this->assertSame(1, $args[0]); // TTL is first arg
-                return true;
-            })
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::any(), Argument::any(), Argument::capture($args))
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->putMany(['foo' => 'bar'], 0);
         $this->assertTrue($result);
+        $this->assertSame(1, $args[0]);
     }
 }

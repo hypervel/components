@@ -7,6 +7,7 @@ namespace Hypervel\Sanctum\Http\Middleware;
 use Closure;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Http\Request;
+use Hypervel\Sanctum\Contracts\HasApiTokens;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -20,6 +21,7 @@ class CheckForAnyAbility
      */
     public function handle(Request $request, Closure $next, string ...$abilities): Response
     {
+        /** @var ?HasApiTokens $user */
         $user = $request->user();
 
         if (! $user || ! $user->currentAccessToken()) {

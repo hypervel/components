@@ -6,9 +6,8 @@ namespace Hypervel\Tests\Horizon\Unit;
 
 use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Horizon\RedisHorizonCommandQueue;
-use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class RedisHorizonCommandQueueTest extends UnitTestCase
 {
@@ -28,24 +27,16 @@ class RedisHorizonCommandQueueTest extends UnitTestCase
 
     private function createQueue(bool $cluster, string $method): RedisHorizonCommandQueue
     {
-        $pipeline = m::mock();
-        $pipeline->shouldReceive('lRange')->once()->with('commands:master', 0, 0);
-        $pipeline->shouldReceive('lTrim')->once()->with('commands:master', 1, -1);
+        [$connection, $client] = $this->redisConnection($cluster);
+        $client->expects('lLen')->with('commands:master')->returns(1);
+        $connection->expects($method === 'pipeline' ? 'transaction' : 'pipeline')->never();
+        $client->expects($cluster ? 'multi' : 'pipeline')->returns($client);
+        $client->expects('lRange')->with('commands:master', 0, 0)->returns($client);
+        $client->expects('lTrim')->with('commands:master', 1, -1)->returns($client);
+        $client->expects('exec')->returns([[json_encode(['command' => 'pause', 'options' => []])], true]);
 
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('lLen')->once()->with('commands:master')->andReturn(1);
-        $connection->shouldReceive('isCluster')->once()->andReturn($cluster);
-        $connection->shouldReceive($method)
-            ->once()
-            ->andReturnUsing(function (callable $callback) use ($pipeline): array {
-                $callback($pipeline);
-
-                return [[json_encode(['command' => 'pause', 'options' => []])], true];
-            });
-        $connection->shouldNotReceive($method === 'pipeline' ? 'transaction' : 'pipeline');
-
-        $redis = m::mock(Factory::class);
-        $redis->shouldReceive('connection')->twice()->with('horizon')->andReturn($connection);
+        $redis = Double::for(Factory::class)->strict();
+        $redis->expects('connection')->times(2)->with('horizon')->returns($connection);
 
         return new RedisHorizonCommandQueue($redis);
     }

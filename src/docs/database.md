@@ -9,6 +9,9 @@
         - [PostgreSQL Keepalives](#postgresql-keepalives)
         - [PostgreSQL Server Options](#postgresql-server-options)
     - [Read and Write Connections](#read-and-write-connections)
+        - [Preventing Stale Database Reads](#preventing-stale-database-reads)
+        - [Using the Write Connection for Reads](#using-the-write-connection-for-reads)
+        - [Waiting for Read Replicas](#waiting-for-read-replicas)
     - [Connection Pooling](#connection-pooling)
         - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
@@ -18,6 +21,7 @@
     - [Static Analysis](#static-analysis)
 - [Running SQL Queries](#running-queries)
     - [Using Multiple Database Connections](#using-multiple-database-connections)
+    - [Running Analytical Queries on Vitess](#running-analytical-queries-on-vitess)
     - [Listening for Query Events](#listening-for-query-events)
     - [Monitoring Cumulative Query Time](#monitoring-cumulative-query-time)
 - [Database Transactions](#database-transactions)
@@ -245,6 +249,100 @@ Eloquent models created or retrieved through `::write` retain that connection fo
 
 The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. If the write side can reach more than one server, the connection keeps its session after writing instead; see [releasing and pinning connections](#releasing-and-pinning-connections). Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
 
+A long-running queue worker gives each job its own coroutine, so one job's writes do not send later jobs' reads to the write connection.
+
+If you need to perform write operations without triggering stickiness for subsequent reads (for example, updating job progress or recording audit timestamps), you may execute the operations within the `withoutAffectingStickiness` method. Afterward, reads keep the routing they had before the callback, so a connection that was already sticky stays sticky:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::withoutAffectingStickiness(function () use ($jobId) {
+    DB::table('jobs')->where('id', $jobId)->update(['started_at' => now()]);
+});
+```
+
+<a name="preventing-stale-database-reads"></a>
+#### Preventing Stale Database Reads
+
+While the `sticky` option only affects the current request, the `Hypervel\Foundation\Http\Middleware\PreventStaleDatabaseReads` middleware allows subsequent requests in the same session to read recently written data from the write connection. This can help prevent users from seeing stale data while your read replicas catch up with the write database.
+
+To enable this behavior, append the middleware to the `web` middleware group in your application's `bootstrap/app.php` file:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Foundation\Http\Middleware\PreventStaleDatabaseReads;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->web(append: [
+        PreventStaleDatabaseReads::class,
+    ]);
+})
+```
+
+The middleware tracks writes to the default database connection in the user's session. By default, requests within two seconds of a write will use the write connection for reads on that connection. You may customize this duration using the middleware's `for` method:
+
+```php
+$middleware->web(append: [
+    PreventStaleDatabaseReads::for(5),
+]);
+```
+
+Since this middleware relies on the session, it must run after the `Hypervel\Session\Middleware\StartSession` middleware. It does not affect reads made by other sessions or on other database connections. Child coroutines resolve their own connections, so their reads and writes are not covered by this middleware.
+
+<a name="using-the-write-connection-for-reads"></a>
+#### Using the Write Connection for Reads
+
+If you need to ensure that all reads on a connection use the write database while executing a callback, you may use the connection's `usingWritePdo` method:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$users = DB::connection()->usingWritePdo(fn ($connection) => $connection->table('users')->get());
+```
+
+This also applies to Eloquent queries and relationship queries executed within the callback using the same connection. The method returns the callback's result and restores the connection's previous read preference when the callback finishes, even if an exception is thrown.
+
+<a name="waiting-for-read-replicas"></a>
+#### Waiting for Read Replicas
+
+Read replicas apply each write shortly after it is committed. When a later read must see a particular write, you may record the write's commit ID and check it before reading. Retrieve the ID using the `getLastCommitId` method once the write's transaction has committed:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::table('orders')->insert($order);
+
+$commitId = DB::getLastCommitId();
+```
+
+Commit IDs are strings, so you may store them in the user's session or pass them to a queued job. The `hasCommitId` method determines whether the read connection has applied the commit. Its optional `wait` argument specifies how many seconds to wait for the commit to arrive. If the replica has not caught up, you may read from the write connection instead:
+
+```php
+$order = DB::hasCommitId($commitId, wait: 2)
+    ? DB::table('orders')->find($orderId)
+    : DB::connection()->usingWritePdo(fn ($connection) => $connection->table('orders')->find($orderId));
+```
+
+If you have recorded several commit IDs, the `mergeCommitIds` method combines them into one ID that is applied once all of them are:
+
+```php
+$commitId = DB::mergeCommitIds([$profileCommitId, $orderCommitId]);
+```
+
+Commit IDs require MySQL with `log_bin` and `gtid_mode` enabled, MariaDB with its binary log enabled, or PostgreSQL. Waiting on PostgreSQL requires PostgreSQL 19 or newer and should happen before you start a transaction. Commit IDs can only be compared within the same replication setup.
+
+The check applies to the database session your connection currently holds. Since Hypervel may return idle sessions to the pool during [external calls](#releasing-and-pinning-connections), a later query may use a session on another replica. If reads after an external call depend on the check, perform the check and those reads within `withPinnedSession`:
+
+```php
+$connection = DB::connection();
+
+$connection->withPinnedSession(function () use ($connection, $commitId) {
+    $applied = $connection->hasCommitId($commitId, wait: 2);
+
+    // External calls, then reads that rely on $applied...
+});
+```
+
 <a name="connection-pooling"></a>
 ### Connection Pooling
 
@@ -366,7 +464,7 @@ $client->getHandlerList()->prependInit(
 
 Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
 
-When a connection's writes may reach different servers, because its write side lists several hosts or records, a connection that has modified records keeps its session until the execution ends. Sticky and write-routed reads then reach the server that took its writes. Calling `forgetRecordModificationState()` on the connection gives this up, along with sticky routing for those writes.
+When a connection's writes may reach different servers, because its write side lists several hosts or records, a connection that has modified records keeps its session until the execution ends. Sticky and write-routed reads then reach the server that took its writes. Calling `forgetRecordModificationState()` on the connection gives this up, along with sticky routing for those writes. Writes made within `withoutAffectingStickiness` likewise do not keep the session after the callback returns.
 
 If your code requires the same physical session across an external call, wrap the entire operation in `DB::withPinnedSession()`. For a named connection, call `withPinnedSession()` on that connection. For example, a PostgreSQL session-level advisory lock must be released on the session that acquired it:
 
@@ -526,6 +624,8 @@ If an active stream is explicitly closed, its next advancement must throw `Hyper
 
 Both execution methods construct database errors through the protected `newQueryException` method. Drivers whose parameter types need custom error formatting may override this method to return a `QueryException` subclass. Preserve the original query, bindings, and cause; exceptions that are not database failures may be rethrown unchanged. The base implementation continues to prepare bindings and enrich unique-constraint errors with the reported index or columns. It returns an `InvalidValueException` when the protected `isDataTypeError` method identifies an invalid or out-of-range value; override that method to classify your driver's errors.
 
+When a query has to re-establish a missing or lost connection first, a failure to reconnect is reported through `newQueryException` only if the protected `isDriverError` method recognizes it as your driver's exception. Override that method so connection failures reach callers as query exceptions, just like failures from the query itself. Other reconnect failures are thrown unchanged.
+
 Custom drivers used with database cache locks must identify unique-constraint violations through `isUniqueConstraintError` so lock contention can be handled without hiding other database failures.
 
 Query builders with statement-level options may override the protected `Query\Builder::prepareQueryForEmbedding` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member. Call the parent first, validate the returned query, and return it so callback preparation and the built-in rejection of embedded timeouts are preserved.
@@ -540,6 +640,10 @@ Schema builders may override the protected `selectMetadata(string $query): array
 
 The native `DatabaseTruncation` testing trait delegates to `Schema\Builder::truncateTables` after applying its table filters. It passes the complete list of selected schema-qualified names with the connection's table prefix temporarily disabled. The default implementation checks for rows on the write connection and truncates non-empty tables through the query builder, so replica lag cannot skip cleanup. Drivers with engine-specific reset behavior may override this bulk method while keeping `getTables` accurate and using the native testing traits. If a selected table cannot be safely reset, throw an exception instead of silently leaving test data behind.
 
+When overriding schema metadata queries, keep the grammar and processor formats together. MySQL, MariaDB and PostgreSQL return one row per index key, ordered by index name and key position. Each row contains `name`, `column_name` (null for an expression), `type` and `unique`; PostgreSQL also supplies `primary` and `partial`. Foreign-key queries return one row per column pair, ordered by constraint name and position, with `name`, `column_name`, `foreign_schema`, `foreign_table`, `foreign_column_name`, `on_update` and `on_delete`. PostgreSQL action values are native catalog codes; MySQL and MariaDB use action names. These formats preserve identifiers containing commas and avoid MySQL's aggregation length limit.
+
+SQLite column rows supply `auto_increment` from native rowid-alias metadata. Index rows retain their schema-rebuild metadata and add comma-separated hexadecimal `key_columns`, using `-` for expression positions. Foreign-key rows contain hexadecimal `columns` and `foreign_columns` lists, with a null target list when any implicit target cannot be resolved. They also retain an internal `implicit` flag so table rebuilds preserve references with omitted target columns. The processors decode these values into the public metadata arrays; the internal flag is excluded from public output.
+
 To add column modifiers, a `Schema\Blueprint` subclass may override the protected `newColumnDefinition(array $attributes)` method and return its own `ColumnDefinition` subclass. Declare `@extends Blueprint<YourColumnDefinition>` on the Blueprint subclass so static analysis recognizes the custom return type from inherited helpers such as `string`, `unsignedBigInteger`, and `timestamps`. Foreign-ID helpers retain their specialized definition and constraint methods. Column-list accessors continue to return base definitions because a Blueprint may contain several definition types.
 
 Custom query builders may declare their binding-slot names through the third `Query\Builder` template argument, after the result key and row types. Initialize the additional keys in the builder's `bindings` array; the existing binding methods validate those keys at runtime. The `newQuery`, `forNestedWhere`, and protected `cloneForPaginationCount` methods return `static`, retaining the concrete builder and its binding types. Overrides must preserve that return contract. The protected `forSubQuery` method returns a base query builder because a join's subquery belongs to its parent query, not the join itself.
@@ -549,33 +653,26 @@ Custom query builders may declare their binding-slot names through the third `Qu
 
 The default lost-connection and concurrency detectors recognize PDO failures. The lost-connection detector also recognizes the framework's `LostConnectionException` and native mysqlnd protocol warnings, which can occur even in exception mode. An application or HTTP exception does not become a database failure merely because its message contains database error text.
 
-For a non-PDO driver, bind a detector that recognizes that driver's failures. Extend the default detector to preserve recovery for built-in databases. For example, if your driver reports lost sessions using a `ConnectionLostException`, your application detector could be:
+You may recognize additional lost connections by registering a callback with `LostConnectionDetector::detectUsing` in a service provider's `boot` method. Returning `true` identifies a lost connection; returning `false` lets the default checks run. For example, a custom driver may report lost sessions using a `ConnectionLostException`:
 
 ```php
-namespace App\Database;
-
-use Hypervel\Database\LostConnectionDetector as BaseLostConnectionDetector;
+use Hypervel\Database\LostConnectionDetector;
 use Hypervel\Database\QueryException;
 use Throwable;
 use Vendor\Database\ConnectionLostException;
 
-class LostConnectionDetector extends BaseLostConnectionDetector
-{
-    /**
-     * Determine if the exception represents a lost database connection.
-     */
-    public function causedByLostConnection(Throwable $e): bool
-    {
-        while ($e instanceof QueryException && $e->getPrevious() !== null) {
-            $e = $e->getPrevious();
-        }
-
-        return $e instanceof ConnectionLostException || parent::causedByLostConnection($e);
+LostConnectionDetector::detectUsing(function (Throwable $e): bool {
+    while ($e instanceof QueryException && $e->getPrevious() !== null) {
+        $e = $e->getPrevious();
     }
-}
+
+    return $e instanceof ConnectionLostException;
+});
 ```
 
-Replace the example vendor exception with your driver's exception type. Register the detector in your service provider's `register` method:
+Replace the example vendor exception with your driver's exception type. The callback receives the exception supplied by the caller, which may be a `QueryException`. Unwrap it before matching a driver's exception or message: the SQL and bindings in the query wrapper are not evidence of a database failure. The callback is shared by all instances of the default detector for the worker's lifetime; pass `null` to remove it.
+
+To replace the detection policy, bind your own implementation of `Hypervel\Contracts\Database\LostConnectionDetector` in a service provider's `register` method. Extend the default detector and call its parent method to retain its callback and built-in checks:
 
 ```php
 $this->app->singleton(
@@ -584,7 +681,7 @@ $this->app->singleton(
 );
 ```
 
-Use the same approach with `Hypervel\Contracts\Database\ConcurrencyErrorDetector` and the default `Hypervel\Database\ConcurrencyErrorDetector` for retryable concurrency failures. Detectors may receive a query exception or the failure it wraps, so unwrap query exceptions before checking your driver's exception. The SQL and bindings in a query exception are not evidence of a database failure.
+Use the binding approach with `Hypervel\Contracts\Database\ConcurrencyErrorDetector` and the default `Hypervel\Database\ConcurrencyErrorDetector` for retryable concurrency failures. Custom detectors should also unwrap query exceptions before matching driver failures.
 
 A connection's protected recovery methods can customize its own behavior, but shared consumers such as queue workers and cache locks use the bound detectors. Queue workers only consult the detector for database exceptions and their causes, not every exception thrown by a job.
 
@@ -633,11 +730,7 @@ The pool retains modified sessions when the standard host, port and write settin
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The Hypervel database package includes a PHPStan extension that understands named scopes, soft deleting query methods such as `withTrashed` and `restore`, and query methods forwarded through Eloquent models, builders, and relationships. See the [static analysis setup instructions](/docs/{{version}}/installation#static-analysis) to enable it in your application.
-
-A scope that declares no return type, or declares `void`, `null`, or the query builder, stays chainable. Declaring a broader type such as `mixed` or `object` tells the analyzer the scope may return something else, so that type is preserved. When a scope declares a union containing the query builder, such as `Builder|int`, the builder becomes the chainable receiver and the remaining types are kept.
-
-Configure a [custom Eloquent builder](/docs/{{version}}/eloquent#custom-eloquent-builders) on the model, for example with `#[UseEloquentBuilder(YourBuilder::class)]`, then add the `HasBuilder` trait with `@use HasBuilder<YourBuilder<static>>` for static typing. The extension follows the model's declared `query()` return type, including through relationships. If your Eloquent builder also uses a custom query builder, declare that type on `getQuery()`. Forwarded methods retain the Eloquent builder or relationship when they are chainable, while custom Eloquent terminal methods retain their result types. Query builders declaring `TKey` and `TValue` templates preserve model-valued callback signatures during forwarding; direct `getQuery()` and `toBase()` calls keep their raw-row types.
+The `hypervel/phpstan` extension understands local scopes, soft deleting query methods such as `withTrashed` and `restore`, custom Eloquent builders, and query methods forwarded through Eloquent models, builders, and relationships. See the [static analysis documentation](/docs/{{version}}/static-analysis) to enable it in your application.
 
 <a name="running-queries"></a>
 ## Running SQL Queries
@@ -715,6 +808,13 @@ Instead of using `?` to represent your parameter bindings, you may execute a que
 ```php
 $results = DB::select('select * from users where id = :id', ['id' => 1]);
 ```
+
+<a name="binding-floating-point-values"></a>
+#### Binding Floating-Point Values
+
+PDO connections preserve finite floating-point values when converting them to query parameters, using PHP's default `serialize_precision=-1`. For example, `1.234567890123456` retains its digits instead of being rounded to PHP's display precision. SQL escaping uses the same conversion.
+
+Floating-point arithmetic remains approximate: `0.1 + 0.2` is sent as `0.30000000000000004`. Use decimal strings for exact decimal values, and round computed values explicitly when your application requires a fixed number of decimal places, including before equality comparisons. Eloquent's `decimal:2` cast rounds attributes when reading them; it does not round outgoing bindings.
 
 <a name="binding-binary-values"></a>
 #### Binding Binary Values
@@ -867,6 +967,31 @@ if ($connection instanceof PdoConnection) {
 The driver-neutral `Connection` class does not expose PDO methods because native and HTTP drivers do not have a PDO instance. Code that requires direct PDO access should accept or narrow to `PdoConnection` instead of a generic connection.
 
 If you are building a low-level PDO extension, you may use `getRawPdo` to access the connection parameter without resolving or configuring it. This value may be a PDO, a lazy connection closure, or `null`. Applications should use `getPdo` or Hypervel's query APIs instead.
+
+<a name="running-analytical-queries-on-vitess"></a>
+### Running Analytical Queries on Vitess
+
+When using a Vitess database, such as PlanetScale, you may use the `olap` method to execute analytical queries using the OLAP workload:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$totals = DB::connection('mysql')->olap(fn ($connection) => $connection->table('orders')
+    ->selectRaw('customer_id, sum(total) as total')
+    ->groupBy('customer_id')
+    ->get()
+);
+```
+
+Hypervel sets the workload on both the read and write connections, then resets it to OLTP when the callback finishes, even if an exception is thrown. The `olap` method returns the callback's result. On MySQL connections that are not using Vitess, the callback is executed without changing the workload.
+
+The connection remains [pinned](#releasing-and-pinning-connections) until the callback finishes, including while waiting for external services. Complete any lazy queries inside the callback. Nested `olap` calls share the outer scope, and a recovered connection receives the OLAP workload before queries resume.
+
+You may determine whether a MySQL connection is using Vitess via the `isVitess` method:
+
+```php
+$isVitess = DB::connection('mysql')->isVitess();
+```
 
 <a name="listening-for-query-events"></a>
 ### Listening for Query Events
@@ -1092,6 +1217,8 @@ $columns = Schema::getColumns('users');
 $indexes = Schema::getIndexes('users');
 $foreignKeys = Schema::getForeignKeys('users');
 ```
+
+Each index includes `columns`, containing its complete list of plain column names, and `key_columns`, preserving every key position with null for an expression. For an index on `(tenant_id, lower(email))`, `columns` is empty and `key_columns` is `['tenant_id', null]`. PostgreSQL `INCLUDE` columns are payloads and appear in neither list. The `partial` flag identifies indexes that cover only rows matching a predicate. Check it before treating a unique index as a guarantee for every row.
 
 To inspect a single column, use the `getColumn` method. An exact column name takes precedence over a case-insensitive match, and an empty array is returned if the column does not exist:
 

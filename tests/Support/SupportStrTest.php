@@ -18,9 +18,12 @@ use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
+use Throwable;
 use TypeError;
 use ValueError;
 
@@ -939,6 +942,9 @@ class SupportStrTest extends TestCase
             ['a0a2a2d2-0b87-4a18-83f2-2529882be2de', 1, false],
             ['a0a2a2d2-0b87-4a18-83f2-2529882be2de', 4, true],
             ['a0a2a2d2-0b87-4a18-83f2-2529882be2de', 42, false],
+            ['a0a2a2d2-0b87-4a18-03f2-2529882be2de', null, true],
+            ['a0a2a2d2-0b87-4a18-03f2-2529882be2de', 4, false],
+            ['A0A2A2D2-0B87-4A18-B3F2-2529882BE2DE', 4, true],
             ['d3b2b5a9-d433-5c58-b038-4fa13696e357', null, true],
             ['d3b2b5a9-d433-5c58-b038-4fa13696e357', 1, false],
             ['d3b2b5a9-d433-5c58-b038-4fa13696e357', 5, true],
@@ -1226,11 +1232,18 @@ class SupportStrTest extends TestCase
         $this->assertSame('?', Str::replaceArray('?', [(object) ['foo' => 'bar']], '?'));
     }
 
-    public function testReplaceArrayPreservesCancellationDuringStringConversion(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testReplaceArrayPreservesCancellationDuringStringConversion(bool $wrapped): void
     {
         $cancellation = new CanceledException('canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('String conversion cleanup failed.', previous: $cancellation);
+        }
+
         $replacement = new class($cancellation) {
-            public function __construct(private CanceledException $cancellation)
+            public function __construct(private Throwable $cancellation)
             {
             }
 
@@ -1244,7 +1257,7 @@ class SupportStrTest extends TestCase
             Str::replaceArray('?', [$replacement], '?');
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -1316,6 +1329,12 @@ class SupportStrTest extends TestCase
 
         $this->assertSame('ltý', Str::remove('ž', 'Žltý', false));
         $this->assertSame('žltý ', Str::remove('KÔŇ', 'žltý kôň', false));
+
+        $this->assertSame(['Fbar', 'Bar'], Str::remove('o', ['Foobar', 'Boar']));
+        $this->assertSame(['Fbar', 'Bar'], Str::remove('o', collect(['Foobar', 'Boar'])));
+        $this->assertSame(['Fbr', 'Br'], Str::remove(collect(['o', 'a']), collect(['Foobar', 'Boar'])));
+        $this->assertSame(['Fooar', 'oar'], Str::remove('b', collect(['Foobar', 'Boar']), false));
+        $this->assertSame(['ltý', 'ito'], Str::remove('ž', collect(['Žltý', 'žito']), false));
     }
 
     public function testReverse(): void
@@ -1649,6 +1668,15 @@ class SupportStrTest extends TestCase
         $this->assertSame(0, Str::substrCount('hypervelPHPFramework', 'a', 1, 2));
         $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'a', 1, -2));
         $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'a', -10, -3));
+
+        $this->assertSame(3, Str::substrCount('سلام سلام سلام', 'سلام'));
+        $this->assertSame(2, Str::substrCount('سلام سلام سلام', 'سلام', 5));
+        $this->assertSame(3, Str::substrCount('سلام سلام سلام', 'سلام', 0, 14));
+        $this->assertSame(1, Str::substrCount('سلام سلام سلام', 'سلام', 5, 4));
+        $this->assertSame(1, Str::substrCount('سلام سلام سلام', 'سلام', -4));
+        $this->assertSame(2, Str::substrCount('ab🙂cd🙂ef', '🙂', 0, 6));
+        $this->assertSame(1, Str::substrCount('ab🙂cd🙂ef', '🙂', 3));
+        $this->assertSame(2, Str::substrCount('ab🙂cd🙂ef', '🙂', 1, -1));
     }
 
     public function testPosition(): void

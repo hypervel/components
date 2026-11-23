@@ -54,6 +54,7 @@ abstract class Connection implements ConnectionContract
             }
 
             // Preserve the listener or logger cancellation over secondary cleanup failures.
+            // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is no cleanup failure; one carrying it is still logged)
             if (! $exception instanceof CanceledException) {
                 try {
                     $this->logger?->error((string) $exception);

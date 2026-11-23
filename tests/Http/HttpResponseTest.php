@@ -20,8 +20,9 @@ use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\HeaderBag;
@@ -30,6 +31,8 @@ use TypeError;
 
 class HttpResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConstructorInitializesStatusHeadersContentAndOriginalContent(): void
     {
         $response = new Response(['name' => 'Taylor'], 201, ['X-Test' => 'yes']);
@@ -296,8 +299,8 @@ class HttpResponseTest extends TestCase
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
         $session = new Store('test', new NullSessionHandler);
         $response->setSession($session);
-        $provider = m::mock(MessageProvider::class);
-        $provider->expects('getMessageBag')->andReturn(new MessageBag(['name' => ['required']]));
+        $provider = Double::for(MessageProvider::class)->strict();
+        $provider->expects('getMessageBag')->returns(new MessageBag(['name' => ['required']]));
         $response->withErrors($provider);
 
         $this->assertContains('errors', $session->get('_flash.new', []));

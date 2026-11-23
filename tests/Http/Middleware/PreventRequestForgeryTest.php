@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http\Middleware;
 
-use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Encryption\Encrypter;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Exceptions\OriginMismatchException;
 use Hypervel\Http\Request;
@@ -14,7 +14,6 @@ use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class PreventRequestForgeryTest extends TestCase
@@ -238,7 +237,7 @@ class PreventRequestForgeryTest extends TestCase
     protected function createMiddleware(): PreventRequestForgeryTestStub
     {
         return new PreventRequestForgeryTestStub(
-            m::mock(Application::class),
+            new Application,
             new Encrypter(str_repeat('a', 16))
         );
     }

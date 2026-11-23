@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Contracts\Providers;
 
 use Hypervel\Ai\Contracts\Gateway\RerankingGateway;
 use Hypervel\Ai\Responses\RerankingResponse;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface RerankingProvider extends Provider
 {
@@ -25,6 +26,7 @@ interface RerankingProvider extends Provider
     /**
      * Set the provider's reranking gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useRerankingGateway(RerankingGateway $gateway): self;
 
     /**

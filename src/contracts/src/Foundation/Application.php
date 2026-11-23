@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\Foundation;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -34,45 +35,62 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setBasePath(string $basePath): static;
 
     /**
      * Get the base path of the Hypervel installation.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function basePath(string $path = ''): string;
 
     /**
      * Get the path to the bootstrap directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function bootstrapPath(string $path = ''): string;
 
     /**
      * Get the path to the application "app" directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function path(string $path = ''): string;
 
     /**
      * Get the path to the application configuration files.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function configPath(string $path = ''): string;
 
     /**
      * Get the path to the database directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function databasePath(string $path = ''): string;
 
     /**
      * Get the path to the language files.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function langPath(string $path = ''): string;
 
     /**
      * Get the path to the public directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function publicPath(string $path = ''): string;
 
     /**
      * Get the path to the resources directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function resourcePath(string $path = ''): string;
 
@@ -80,11 +98,15 @@ interface Application extends Container
      * Get the path to the views directory.
      *
      * This method returns the first configured path in the array of view paths.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function viewPath(string $path = ''): string;
 
     /**
      * Get the path to the storage directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function storagePath(string $path = ''): string;
 
@@ -100,6 +122,8 @@ interface Application extends Container
 
     /**
      * Join the given paths together.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function joinPaths(?string $basePath, string $path = ''): string;
 
@@ -121,11 +145,13 @@ interface Application extends Container
     /**
      * Detect the application's current environment.
      */
+    #[BootOnly(whenShared: true)]
     public function detectEnvironment(Closure $callback): string;
 
     /**
      * Set the callback to resolve the application's environment.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveEnvironmentUsing(?callable $callback): void;
 
     /**
@@ -138,6 +164,7 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useEnvironmentPath(string $path): static;
 
     /**
@@ -145,6 +172,7 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function loadEnvironmentFrom(string $file): static;
 
     /**
@@ -193,11 +221,13 @@ interface Application extends Container
     /**
      * Register all of the configured providers.
      */
+    #[BootOnly(whenShared: true)]
     public function registerConfiguredProviders(): void;
 
     /**
      * Register a service provider with the application.
      */
+    #[BootOnly(whenShared: true)]
     public function register(ServiceProvider|string $provider, bool $force = false): ServiceProvider;
 
     /**
@@ -223,11 +253,13 @@ interface Application extends Container
     /**
      * Register a new boot listener.
      */
+    #[BootOnly(whenShared: true)]
     public function booting(callable $callback): void;
 
     /**
      * Register a new "booted" listener.
      */
+    #[BootOnly(whenShared: true)]
     public function booted(callable $callback): void;
 
     /**
@@ -315,6 +347,7 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function terminating(callable|string $callback): static;
 
     /**

@@ -81,14 +81,6 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
     }
 
     /**
-     * Retrieve data from the instance as an array.
-     */
-    public function array(array|string|null $key = null): array
-    {
-        return is_array($key) ? $this->only($key)->toArray() : (array) $this->data($key);
-    }
-
-    /**
      * Only include the given attribute from the attribute array.
      */
     public function only(mixed $keys): static

@@ -88,7 +88,7 @@ class ValidationProhibitedUnlessRuleTest extends TestCase
                 Rule::prohibitedUnless($condition);
                 $this->fail('The ProhibitedUnless constructor must not accept ' . gettype($condition));
             } catch (TypeError) {
-                $this->assertTrue(true);
+                $this->addToAssertionCount(1);
             }
         }
     }

@@ -8,42 +8,45 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\NullEngine;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Throwable;
 
 class NullEngineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUpdateDoesNothing(): void
     {
         $engine = new NullEngine;
-        $models = new EloquentCollection([m::mock(Model::class)]);
+        $model = Double::for(Model::class)->strict();
+        $models = new EloquentCollection([$model]);
 
-        // Should not throw any exception
         $engine->update($models);
-        $this->assertTrue(true);
+        $model->unused();
     }
 
     public function testDeleteDoesNothing(): void
     {
         $engine = new NullEngine;
-        $models = new EloquentCollection([m::mock(Model::class)]);
+        $model = Double::for(Model::class)->strict();
+        $models = new EloquentCollection([$model]);
 
-        // Should not throw any exception
         $engine->delete($models);
-        $this->assertTrue(true);
+        $model->unused();
     }
 
     public function testSearchReturnsEmptyArray(): void
     {
         $engine = new NullEngine;
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $result = $engine->search($builder);
 
@@ -54,7 +57,7 @@ class NullEngineTest extends TestCase
     public function testPaginateReturnsEmptyArray(): void
     {
         $engine = new NullEngine;
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $result = $engine->paginate($builder, 15, 1);
 
@@ -75,8 +78,8 @@ class NullEngineTest extends TestCase
     public function testMapReturnsEmptyEloquentCollection(): void
     {
         $engine = new NullEngine;
-        $builder = m::mock(Builder::class);
-        $model = m::mock(Model::class);
+        $builder = Double::for(Builder::class)->strict();
+        $model = Double::for(Model::class)->strict();
 
         $result = $engine->map($builder, [], $model);
 
@@ -87,8 +90,8 @@ class NullEngineTest extends TestCase
     public function testLazyMapReturnsEmptyLazyCollection(): void
     {
         $engine = new NullEngine;
-        $builder = m::mock(Builder::class);
-        $model = m::mock(Model::class);
+        $builder = Double::for(Builder::class)->strict();
+        $model = Double::for(Model::class)->strict();
 
         $result = $engine->lazyMap($builder, [], $model);
 
@@ -113,11 +116,10 @@ class NullEngineTest extends TestCase
     public function testFlushDoesNothing(): void
     {
         $engine = new NullEngine;
-        $model = m::mock(Model::class);
+        $model = Double::for(Model::class)->strict();
 
-        // Should not throw any exception
         $engine->flush($model);
-        $this->assertTrue(true);
+        $model->unused();
     }
 
     public function testCreateIndexReturnsEmptyArray(): void
@@ -143,13 +145,13 @@ class NullEngineTest extends TestCase
     public function testDeclinesObservationForEveryOperationEntryPoint(): void
     {
         $runner = new EngineOperationRunner;
-        $observer = m::mock(EngineOperationObserver::class);
-        $observer->shouldNotReceive('starting');
-        $observer->shouldNotReceive('finished');
+        $observer = Double::for(EngineOperationObserver::class)->strict();
+        $observer->expects('starting')->never();
+        $observer->expects('finished')->never();
         $runner->observe($observer);
         $engine = (new NullEngine)->setOperationRunner($runner, 'null');
-        $builder = m::mock(Builder::class);
-        $model = m::mock(Model::class);
+        $builder = Double::for(Builder::class)->strict();
+        $model = Double::for(Model::class)->strict();
         $models = new EloquentCollection([$model]);
 
         $this->assertSame([], $engine->runSearch($builder));
@@ -165,8 +167,8 @@ class NullEngineTest extends TestCase
 
     public function testSubclassWithRealOperationsCanOptIntoObservation(): void
     {
-        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
-        $model->shouldReceive('searchableAs')->andReturn('models');
+        $model = Double::for(SearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('models');
         $builder = new Builder($model, 'query');
         $runner = new EngineOperationRunner;
         $observer = new NullEngineOperationObserver;

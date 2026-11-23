@@ -17,7 +17,9 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testbench\Workbench\Workbench;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\Fixtures\Providers\MergedConfigServiceProvider;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\Test;
@@ -38,6 +40,7 @@ use function Hypervel\Testbench\uses_default_skeleton;
 class CommanderTest extends TestCase
 {
     use InteractsWithSqliteDatabaseFile;
+    use VerifiesDoubles;
 
     protected string $tempDir;
 
@@ -268,6 +271,8 @@ class CommanderTest extends TestCase
                 '0001_01_01_000007_testbench_create_failed_jobs_table',
                 '0001_01_01_000008_testbench_create_rate_limits_table',
                 '0001_01_01_000009_testbench_create_job_outbox_table',
+                '0001_01_01_000010_testbench_create_job_batch_results_table',
+                '0001_01_01_000011_testbench_create_job_batch_deletions_table',
                 '2013_07_26_182750_create_testbench_users_table',
             ], DB::connection('sqlite')->table('migrations')->pluck('migration')->all());
         });
@@ -299,9 +304,9 @@ class CommanderTest extends TestCase
         $errorOutput = new BufferedOutput;
         $output->setErrorOutput($errorOutput);
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->expects('report')->with($exception);
-        $handler->expects('renderForConsole')->with($errorOutput, $exception);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception));
+        $handler->expects('renderForConsole')->with(Argument::same($errorOutput), Argument::same($exception));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $commander = new CommanderThrowableHarness([], __DIR__);
@@ -315,9 +320,9 @@ class CommanderTest extends TestCase
     {
         $original = new RuntimeException('Application failure');
         $reportingFailure = new RuntimeException('Reporting failure');
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->expects('report')->with($original)->andThrow($reportingFailure);
-        $handler->shouldNotReceive('renderForConsole');
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($original))->throws($reportingFailure);
+        $handler->expects('renderForConsole')->never();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $commander = new CommanderThrowableHarness([], __DIR__);

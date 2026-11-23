@@ -5,39 +5,37 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Config\Repository;
-use Hypervel\Console\CommandMutex;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Console\WipeCommand;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseWipeCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
-
-        parent::tearDown();
-    }
+    use VerifiesDoubles;
 
     public function testWipeCommandDropsSchemaObjectsAndDisconnectsConnection(): void
     {
-        $schemaBuilder = m::mock();
-        $schemaBuilder->shouldReceive('dropAllViews')->once();
-        $schemaBuilder->shouldReceive('dropAllTables')->once();
-        $schemaBuilder->shouldReceive('dropAllTypes')->once();
+        $schemaBuilder = Double::for(Builder::class)->strict();
+        $schemaBuilder->expects('dropAllViews');
+        $schemaBuilder->expects('dropAllTables');
+        $schemaBuilder->expects('dropAllTypes');
 
-        $connection = m::mock();
-        $connection->shouldReceive('getSchemaBuilder')->times(3)->andReturn($schemaBuilder);
-        $connection->shouldReceive('disconnect')->once();
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaBuilder')->times(3)->returns($schemaBuilder);
+        $connection->expects('disconnect');
 
-        $db = m::mock();
-        $db->shouldReceive('connection')->times(4)->with('pgsql')->andReturn($connection);
-        $db->shouldNotReceive('purge');
+        $db = Double::for(DatabaseManager::class)->strict();
+        $db->expects('connection')->times(4)->with('pgsql')->returns($connection);
+        $db->expects('purge')->never();
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,
@@ -57,19 +55,19 @@ class DatabaseWipeCommandTest extends TestCase
 
     public function testWipeCommandRoutesToMigrationsConnection(): void
     {
-        $schemaBuilder = m::mock();
-        $schemaBuilder->shouldReceive('dropAllTables')->once();
+        $schemaBuilder = Double::for(Builder::class)->strict();
+        $schemaBuilder->expects('dropAllTables');
 
-        $connection = m::mock();
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schemaBuilder);
-        $connection->shouldReceive('disconnect')->once();
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaBuilder')->returns($schemaBuilder);
+        $connection->expects('disconnect');
 
-        $db = m::mock();
+        $db = Double::for(DatabaseManager::class)->strict();
         // db:wipe --database=pgsql-pooled should route to 'pgsql' because
         // pgsql-pooled has migrations_connection => 'pgsql'. Schema drops
         // need a direct (unpooled) connection.
-        $db->shouldReceive('connection')->twice()->with('pgsql')->andReturn($connection);
-        $db->shouldNotReceive('purge');
+        $db->expects('connection')->times(2)->with('pgsql')->returns($connection);
+        $db->expects('purge')->never();
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,
@@ -99,16 +97,16 @@ class DatabaseWipeCommandTest extends TestCase
         // should use the configured default — and if that default has a
         // migrations_connection, should route to it rather than dropping
         // tables on the pooled connection.
-        $schemaBuilder = m::mock();
-        $schemaBuilder->shouldReceive('dropAllTables')->once();
+        $schemaBuilder = Double::for(Builder::class)->strict();
+        $schemaBuilder->expects('dropAllTables');
 
-        $connection = m::mock();
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schemaBuilder);
-        $connection->shouldReceive('disconnect')->once();
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaBuilder')->returns($schemaBuilder);
+        $connection->expects('disconnect');
 
-        $db = m::mock();
-        $db->shouldReceive('connection')->twice()->with('pgsql')->andReturn($connection);
-        $db->shouldNotReceive('purge');
+        $db = Double::for(DatabaseManager::class)->strict();
+        $db->expects('connection')->times(2)->with('pgsql')->returns($connection);
+        $db->expects('purge')->never();
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,
@@ -137,16 +135,16 @@ class DatabaseWipeCommandTest extends TestCase
         // when an outer scope has set Context (e.g. via DB::usingConnection),
         // db:wipe with no --database must route to that Context target's
         // migrations_connection, not to the configured default's sibling.
-        $schemaBuilder = m::mock();
-        $schemaBuilder->shouldReceive('dropAllTables')->once();
+        $schemaBuilder = Double::for(Builder::class)->strict();
+        $schemaBuilder->expects('dropAllTables');
 
-        $connection = m::mock();
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schemaBuilder);
-        $connection->shouldReceive('disconnect')->once();
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaBuilder')->returns($schemaBuilder);
+        $connection->expects('disconnect');
 
-        $db = m::mock();
-        $db->shouldReceive('connection')->twice()->with('tenant-direct')->andReturn($connection);
-        $db->shouldNotReceive('purge');
+        $db = Double::for(DatabaseManager::class)->strict();
+        $db->expects('connection')->times(2)->with('tenant-direct')->returns($connection);
+        $db->expects('purge')->never();
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,
@@ -185,10 +183,6 @@ class ApplicationDatabaseWipeStub extends Application
 {
     public function __construct(array $data = [])
     {
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
-        $this->instance(CommandMutex::class, $mutex);
         $this->instance('env', 'development');
 
         foreach ($data as $abstract => $instance) {

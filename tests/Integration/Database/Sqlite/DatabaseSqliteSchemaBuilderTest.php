@@ -134,6 +134,7 @@ SQL);
         $this->assertSame([
             'name' => 'mixedcase_index',
             'columns' => [],
+            'key_columns' => [null],
             'type' => null,
             'unique' => false,
             'primary' => false,
@@ -144,6 +145,7 @@ SQL);
             'name' => 'mixedcase_index',
             'physical_name' => 'MixedCase_Index',
             'columns' => [],
+            'key_columns' => [null],
             'type' => null,
             'unique' => false,
             'primary' => false,

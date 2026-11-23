@@ -1,0 +1,5 @@
+includes:
+    - ../phpstan-rules.neon
+parameters:
+    squashedMigrationsPath:
+        - %rootDir%/../../../tests/PHPStan/Rules/data/unusable-schema-dumps

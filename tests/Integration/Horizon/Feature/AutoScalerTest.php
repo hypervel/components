@@ -13,11 +13,14 @@ use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakePool;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class AutoScalerTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testScalerAttemptsToGetCloserToProperBalanceOnEachIteration(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(20, [
@@ -146,8 +149,8 @@ class AutoScalerTest extends IntegrationTestCase
 
     public function testScalerWillNotScaleBelowMinimumWorkerThreshold(): void
     {
-        $external = m::mock(SystemProcessCounter::class);
-        $external->shouldReceive('get')->with('name')->andReturn(5);
+        $external = Double::for(SystemProcessCounter::class)->strict();
+        $external->allows('get')->with('name')->returns(5);
         $this->app->instance(SystemProcessCounter::class, $external);
 
         [$scaler, $supervisor] = $this->with_scaling_scenario(5, [
@@ -174,8 +177,8 @@ class AutoScalerTest extends IntegrationTestCase
     protected function with_scaling_scenario(int $maxProcesses, array $pools, array $extraOptions = []): array
     {
         // Mock dependencies...
-        $queueFactory = m::mock(QueueFactory::class);
-        $metrics = m::mock(MetricsRepository::class);
+        $queueFactory = Double::for(QueueFactory::class)->strict();
+        $metrics = Double::for(MetricsRepository::class)->strict();
 
         // Create scaler...
         $scaler = new AutoScaler($queueFactory, $metrics);
@@ -195,12 +198,12 @@ class AutoScalerTest extends IntegrationTestCase
         });
 
         // Set stats per pool...
-        $queue = m::mock(RedisQueue::class);
+        $queue = Double::for(RedisQueue::class)->strict();
         collect($pools)->each(function ($pool, $name) use ($queue, $metrics) {
-            $queue->shouldReceive('readyNow')->with($name)->andReturn($pool['size']);
-            $metrics->shouldReceive('runtimeForQueue')->with($name)->andReturn($pool['runtime']);
+            $queue->allows('readyNow')->with((string) $name)->returns($pool['size']);
+            $metrics->allows('runtimeForQueue')->with((string) $name)->returns($pool['runtime']);
         });
-        $queueFactory->shouldReceive('connection')->with('redis')->andReturn($queue);
+        $queueFactory->allows('connection')->with('redis')->returns($queue);
 
         return [$scaler, $supervisor];
     }
@@ -244,8 +247,8 @@ class AutoScalerTest extends IntegrationTestCase
 
     public function testScalerDoesNotPermitGoingToZeroProcessesDespiteExceedingMaxProcesses(): void
     {
-        $external = m::mock(SystemProcessCounter::class);
-        $external->shouldReceive('get')->with('name')->andReturn(5);
+        $external = Double::for(SystemProcessCounter::class)->strict();
+        $external->allows('get')->with('name')->returns(5);
         $this->app->instance(SystemProcessCounter::class, $external);
 
         [$scaler, $supervisor] = $this->with_scaling_scenario(15, [

@@ -63,6 +63,7 @@ class OutboxDeliveryTest extends TestCase
                 $migrations . '0001_01_01_000000_testbench_create_users_table.php',
                 $migrations . '0001_01_01_000005_testbench_create_job_batches_table.php',
                 $migrations . '0001_01_01_000009_testbench_create_job_outbox_table.php',
+                $migrations . '0001_01_01_000010_testbench_create_job_batch_results_table.php',
             ],
         ];
     }

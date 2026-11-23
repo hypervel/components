@@ -15,11 +15,15 @@ interface FailedJobProviderInterface
 
     /**
      * Get the IDs of all of the failed jobs.
+     *
+     * @return list<int|string>
      */
     public function ids(?string $queue = null): array;
 
     /**
      * Get a list of all of the failed jobs.
+     *
+     * @return list<object>
      */
     public function all(): array;
 

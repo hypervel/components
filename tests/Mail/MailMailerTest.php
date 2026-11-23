@@ -22,12 +22,15 @@ use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Exception\InvalidArgumentException as MimeInvalidArgumentException;
 
 class MailMailerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMailerSendSendsMessageWithProperViewContent(): void
     {
         $view = $this->viewFactory('rendered.view');
@@ -84,8 +87,8 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingHtmlStrings(): void
     {
-        $view = m::mock(ViewFactory::class);
-        $view->shouldNotReceive('make');
+        $view = Double::for(ViewFactory::class)->strict();
+        $view->expects('make')->never();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -104,8 +107,8 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingStringCallbacks(): void
     {
-        $view = m::mock(ViewFactory::class);
-        $view->shouldNotReceive('make');
+        $view = Double::for(ViewFactory::class)->strict();
+        $view->expects('make')->never();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -135,8 +138,8 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingHtmlMethod(): void
     {
-        $view = m::mock(ViewFactory::class);
-        $view->shouldNotReceive('make');
+        $view = Double::for(ViewFactory::class)->strict();
+        $view->expects('make')->never();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -347,11 +350,11 @@ class MailMailerTest extends TestCase
     {
         $view = $this->viewFactory('rendered.view');
 
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(MessageSending::class)->andReturn(false);
-        $events->expects('hasListeners')->with(MessageSent::class)->andReturn(false);
-        $events->shouldNotReceive('until');
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(MessageSending::class)->returns(false);
+        $events->expects('hasListeners')->with(MessageSent::class)->returns(false);
+        $events->expects('until')->never();
+        $events->expects('dispatch')->never();
 
         $mailer = new Mailer('array', $view, new ArrayTransport, $events);
 
@@ -366,7 +369,7 @@ class MailMailerTest extends TestCase
             return 'bar';
         });
 
-        $mailer = new Mailer('array', m::mock(ViewFactory::class), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class)->strict(), new ArrayTransport);
 
         $this->assertSame(
             'bar',
@@ -376,8 +379,8 @@ class MailMailerTest extends TestCase
 
     public function testSendQueuedMailableReturnsNull(): void
     {
-        $view = m::mock(ViewFactory::class);
-        $view->shouldNotReceive('make');
+        $view = Double::for(ViewFactory::class)->strict();
+        $view->expects('make')->never();
         $queueFake = new QueueFake($this->app);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -397,13 +400,16 @@ class MailMailerTest extends TestCase
      */
     protected function viewFactory(string ...$rendered): ViewFactory
     {
-        $factory = m::mock(ViewFactory::class);
+        $factory = Double::for(ViewFactory::class)->strict();
+        $views = [];
 
         foreach ($rendered as $contents) {
-            $view = m::mock(ViewContract::class);
-            $view->expects('render')->andReturn($contents);
-            $factory->expects('make')->andReturn($view);
+            $view = Double::for(ViewContract::class)->strict();
+            $view->expects('render')->returns($contents);
+            $views[] = $view;
         }
+
+        $factory->expects('make')->times(count($views))->returns(...$views);
 
         return $factory;
     }

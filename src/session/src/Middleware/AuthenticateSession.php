@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Session\Middleware\AuthenticatesSessions;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 
 class AuthenticateSession implements AuthenticatesSessions
 {
@@ -38,7 +39,7 @@ class AuthenticateSession implements AuthenticatesSessions
         }
 
         if ($this->guard()->viaRemember()) { // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
-            $passwordHashFromCookie = explode('|', $request->cookies->get($this->guard()->getRecallerName()))[2] ?? null; // @phpstan-ignore method.notFound
+            $passwordHashFromCookie = explode('|', $request->cookies->get($this->guard()->getRecallerName()))[2] ?? null; // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
 
             if (! $passwordHashFromCookie
                 || ! $this->validatePasswordHash($request->user()->getAuthPassword(), $passwordHashFromCookie)) {
@@ -57,7 +58,7 @@ class AuthenticateSession implements AuthenticatesSessions
         }
 
         return tap($next($request), function () use ($request) {
-            if (! is_null($this->guard()->user())) { // @phpstan-ignore method.notFound
+            if (! is_null($this->guard()->user())) {
                 $this->storePasswordHashInSession($request);
             }
         });
@@ -74,7 +75,7 @@ class AuthenticateSession implements AuthenticatesSessions
 
         $passwordHash = $request->user()->getAuthPassword();
 
-        $passwordHash = $this->guard()->hashPasswordForCookie($passwordHash); // @phpstan-ignore method.notFound
+        $passwordHash = $this->guard()->hashPasswordForCookie($passwordHash); // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
 
         $request->session()->put([
             'password_hash_' . $this->auth->getDefaultDriver() => $passwordHash,
@@ -91,7 +92,7 @@ class AuthenticateSession implements AuthenticatesSessions
     protected function validatePasswordHash(string $passwordHash, mixed $storedValue): bool
     {
         return is_string($storedValue)
-            && hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue); // @phpstan-ignore method.notFound
+            && hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue); // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
     }
 
     /**
@@ -101,7 +102,7 @@ class AuthenticateSession implements AuthenticatesSessions
      */
     protected function logout(Request $request): void
     {
-        $this->guard()->logoutCurrentDevice(); // @phpstan-ignore method.notFound
+        $this->guard()->logoutCurrentDevice(); // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
 
         $request->session()->flush();
 
@@ -135,9 +136,10 @@ class AuthenticateSession implements AuthenticatesSessions
     /**
      * Specify the callback that should be used to generate the redirect path.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every subsequent session-mismatch.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every subsequent session-mismatch.
      */
+    #[BootOnly]
     public static function redirectUsing(callable $redirectToCallback): void
     {
         static::$redirectToCallback = $redirectToCallback;

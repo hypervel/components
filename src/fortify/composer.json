@@ -26,6 +26,7 @@
     "require": {
         "php": "^8.4",
         "chillerlan/php-qrcode": "^6.0",
+        "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
@@ -51,7 +52,7 @@
         "psr/clock": "^1.0",
         "spomky-labs/otphp": "^11.0",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1"
+        "symfony/http-foundation": "^8.1.11"
     },
     "autoload": {
         "psr-4": {

@@ -16,6 +16,7 @@ use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\PathNormalizer;
 use League\Flysystem\WhitespacePathNormalizer;
@@ -694,6 +695,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Reject access to the inner Flysystem driver.
      */
+    #[Unsupported]
     public function getDriver(): never
     {
         throw $this->unsupportedMutationOrInternal(__FUNCTION__);
@@ -702,6 +704,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Reject access to the inner Flysystem adapter.
      */
+    #[Unsupported]
     public function getAdapter(): never
     {
         throw $this->unsupportedMutationOrInternal(__FUNCTION__);
@@ -710,6 +713,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Reject access to the inner driver client.
      */
+    #[Unsupported]
     public function getClient(): never
     {
         throw $this->unsupportedMutationOrInternal(__FUNCTION__);
@@ -718,6 +722,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Reject mutation of the shared inner disk's serve callback.
      */
+    #[Unsupported]
     public function serveUsing(?Closure $callback): never
     {
         throw $this->unsupportedMutationOrInternal(__FUNCTION__);
@@ -726,6 +731,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Reject mutation of the shared inner disk's temporary URL callback.
      */
+    #[Unsupported]
     public function buildTemporaryUrlsUsing(?Closure $callback): never
     {
         throw $this->unsupportedMutationOrInternal(__FUNCTION__);
@@ -734,6 +740,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Reject mutation of the shared inner disk's temporary upload URL callback.
      */
+    #[Unsupported]
     public function buildTemporaryUploadUrlsUsing(?Closure $callback): never
     {
         throw $this->unsupportedMutationOrInternal(__FUNCTION__);

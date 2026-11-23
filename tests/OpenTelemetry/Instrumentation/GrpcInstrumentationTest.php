@@ -22,8 +22,9 @@ use Hypervel\OpenTelemetry\Support\LogContextScopeFactory;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\Span;
@@ -58,6 +59,8 @@ use function Hypervel\Coroutine\parallel;
 
 class GrpcInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string CLIENT_DURATION_METRIC = 'rpc.client.call.duration';
 
     private const string SERVER_DURATION_METRIC = 'rpc.server.call.duration';
@@ -177,9 +180,10 @@ class GrpcInstrumentationTest extends TestCase
         $this->assertSame($ambient->getContext()->getSpanId(), $span->getParentSpanId());
         $this->assertSame($span->getTraceId(), explode('-', $traceparent)[1]);
         $this->assertSame($span->getSpanId(), explode('-', $traceparent)[2]);
+        $this->assertSame('https://opentelemetry.io/schemas/1.45.0', $span->getInstrumentationScope()->getSchemaUrl());
         $this->assertSame('grpc', $span->getAttributes()->get('rpc.system.name'));
         $this->assertSame('example.Echo/Say', $span->getAttributes()->get('rpc.method'));
-        $this->assertSame('OK', $span->getAttributes()->get('rpc.response.status_code'));
+        $this->assertSame('OK', $span->getAttributes()->get('rpc.status_code'));
         $this->assertSame('grpc.test', $span->getAttributes()->get(ServerAttributes::SERVER_ADDRESS));
         $this->assertSame(50051, $span->getAttributes()->get(ServerAttributes::SERVER_PORT));
         $this->assertSame(2, $span->getAttributes()->get('hypervel.grpc.attempt_count'));
@@ -187,7 +191,7 @@ class GrpcInstrumentationTest extends TestCase
         $this->metricReader->collect();
         $point = $this->histogramPoint(self::CLIENT_DURATION_METRIC);
         $this->assertSame(3, $point->sum);
-        $this->assertSame('OK', $point->attributes->get('rpc.response.status_code'));
+        $this->assertSame('OK', $point->attributes->get('rpc.status_code'));
         $this->assertNull($point->attributes->get('hypervel.grpc.attempt_count'));
     }
 
@@ -283,7 +287,7 @@ class GrpcInstrumentationTest extends TestCase
 
         $span = $this->exportedSpan('example.Echo/Say');
         $this->assertSame(TraceStatusCode::STATUS_ERROR, $span->getStatus()->getCode());
-        $this->assertSame('INVALID_ARGUMENT', $span->getAttributes()->get('rpc.response.status_code'));
+        $this->assertSame('INVALID_ARGUMENT', $span->getAttributes()->get('rpc.status_code'));
         $this->assertSame('INVALID_ARGUMENT', $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
 
         $this->metricReader->collect();
@@ -361,32 +365,24 @@ class GrpcInstrumentationTest extends TestCase
         );
     }
 
-    public function testRuntimeCancellationProducesNoFalseCompletionTelemetry(): void
+    public function testRuntimeCancellationEndsTheSpanWithoutAnRpcStatus(): void
     {
         $this->registerInstrumentation();
-        $cancellation = new CanceledException;
-        $debugScopesDisabled = $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] ?? null;
-        $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = 'true';
-
-        try {
-            // Terminal cancellation deliberately abandons the activated scope under test.
-            $handle = $this->operations->start($this->serverOperation());
-        } finally {
-            if ($debugScopesDisabled === null) {
-                unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
-            } else {
-                $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = $debugScopesDisabled;
-            }
-        }
-
         $activeSpanId = Span::getCurrent()->getContext()->getSpanId();
+        $handle = $this->operations->start($this->serverOperation());
 
-        $handle->finish(new GrpcOperationResult(null, $cancellation, 0));
+        $handle->finish(new GrpcOperationResult(null, new CanceledException, 0));
 
         $this->assertSame($activeSpanId, Span::getCurrent()->getContext()->getSpanId());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $span = $this->exportedSpan('example.Echo/Say');
+        $this->assertSame(TraceStatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertNull($span->getAttributes()->get('rpc.status_code'));
+        $this->assertNull($span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame([], $span->getEvents());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(self::SERVER_DURATION_METRIC)->data->dataPoints);
+        $point = $this->histogramPoint(self::SERVER_DURATION_METRIC);
+        $this->assertNull($point->attributes->get('rpc.status_code'));
+        $this->assertNull($point->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
     public function testMetricOnlyClientOutputDoesNoWorkForServerCalls(): void
@@ -484,8 +480,8 @@ class GrpcInstrumentationTest extends TestCase
      */
     private function instrumentation(?TextMapPropagatorInterface $propagator = null): GrpcInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new GrpcInstrumentation(
             $this->operations,

@@ -451,8 +451,7 @@ class PooledConnection implements PoolConnection
      */
     public function release(): void
     {
-        $cancellationFailure = null;
-        $ordinaryFailure = null;
+        $failure = null;
 
         try {
             if ($this->lease !== null) {
@@ -467,14 +466,12 @@ class PooledConnection implements PoolConnection
             $this->markInvalid();
 
             if (Coroutine::causedByCancellation($exception)) {
-                $cancellationFailure = $exception;
+                $failure = $exception;
             } else {
                 try {
                     $this->logger->error('Release connection failed: ' . $exception);
-                } catch (CanceledException $loggingCancellation) {
-                    $cancellationFailure = $loggingCancellation;
                 } catch (Throwable $loggingException) {
-                    $ordinaryFailure = $loggingException;
+                    $failure = $loggingException;
                 }
             }
         } finally {
@@ -490,27 +487,22 @@ class PooledConnection implements PoolConnection
                 $discard = true;
                 $this->logger->error('Database transaction was not committed or rolled back before release.');
             }
-        } catch (CanceledException $transactionCancellation) {
-            $discard = true;
-            $cancellationFailure ??= $transactionCancellation;
         } catch (Throwable $exception) {
             $discard = true;
-            $ordinaryFailure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         try {
             if (! $discard
-                && $cancellationFailure === null
+                && ($failure === null || ! Coroutine::causedByCancellation($failure))
                 && $this->connection !== null
                 && ! $this->connection->isReusable()
             ) {
                 $this->markInvalid();
                 $this->logger->warning('Database connection is not reusable, marking it as stale.');
             }
-        } catch (CanceledException $stateCancellation) {
-            $cancellationFailure = $stateCancellation;
         } catch (Throwable $exception) {
-            $ordinaryFailure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         $this->availableForReuse = ! $discard;
@@ -521,18 +513,12 @@ class PooledConnection implements PoolConnection
             } else {
                 $this->pool->release($this);
             }
-        } catch (CanceledException $releaseCancellation) {
-            $cancellationFailure ??= $releaseCancellation;
         } catch (Throwable $exception) {
-            $ordinaryFailure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
-        if ($cancellationFailure !== null) {
-            throw $cancellationFailure;
-        }
-
-        if ($ordinaryFailure !== null) {
-            throw $ordinaryFailure;
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 

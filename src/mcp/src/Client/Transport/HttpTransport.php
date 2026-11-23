@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\LineReader;
+use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Response as ClientResponse;
 use Hypervel\Mcp\Client\Contracts\IsolatesExchanges;
 use Hypervel\Mcp\Client\Contracts\Transport;
@@ -24,7 +25,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Http;
 use Psr\Http\Message\StreamInterface;
 use SensitiveParameter;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakMap;
 
@@ -105,14 +105,7 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             try {
                 $this->endExchange();
             } catch (Throwable $cleanupException) {
-                if (! isset($exception)
-                    || ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $cleanupException;
-                }
-            }
-
-            if (isset($exception)) {
-                throw $exception;
+                throw Coroutine::preferCancellation($exception ?? null, $cleanupException);
             }
         }
     }
@@ -143,6 +136,16 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
     public function withHeaders(array $headers): void
     {
         $this->customHeaders = array_merge($this->customHeaders, $headers);
+    }
+
+    /**
+     * Get the client's custom HTTP headers.
+     *
+     * @return array<string, string>
+     */
+    public function customHeaders(): array
+    {
+        return $this->customHeaders;
     }
 
     /**
@@ -183,7 +186,7 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
 
         try {
             try {
-                $response = Http::withHeaders($this->headers($headers))
+                $response = $this->request($headers)
                     ->withBody($message, 'application/json')
                     ->timeout($timeoutSeconds)
                     ->withOptions(['stream' => true])
@@ -200,18 +203,39 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
 
             $exchange->response = $response;
 
+            if ($response->redirect()) {
+                $this->resetFailedExchange($exchange);
+
+                throw new TransportException("The endpoint [{$this->url}] responded with a redirect [{$response->status()}], which is not followed.");
+            }
+
             if ($exchange->initializing && $exchange->generation === $this->generation) {
                 $this->captureSessionId($response);
             }
 
             if ($response->status() === 401 || $response->status() === 403) {
-                $challenge = WwwAuthenticateChallenge::parse($response->header('WWW-Authenticate'));
+                $challenge = $response->header('WWW-Authenticate');
+
+                // Unlike upstream, a 403 carrying a JSON-RPC error instead of a challenge, such as an
+                // Origin rejection, reaches the caller as a protocol error rather than an authorization prompt.
+                if ($response->status() === 403 && $challenge === '') {
+                    $content = trim($response->body());
+                    $exchange->ensureOpen();
+
+                    if ($this->hasJsonRpcError($content)) {
+                        $this->ensureResponseExpected($response, $message, $content);
+
+                        $this->queue[] = $content;
+
+                        return;
+                    }
+                }
 
                 $this->resetFailedExchange($exchange);
 
                 throw new AuthorizationRequiredException(
                     "The server responded with HTTP {$response->status()} for endpoint [{$this->url}]. Authorization is required.",
-                    $challenge,
+                    WwwAuthenticateChallenge::parse($challenge),
                 );
             }
 
@@ -224,6 +248,8 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             if (! $response->successful()) {
                 $content = trim($response->body());
                 $exchange->ensureOpen();
+
+                $this->ensureResponseExpected($response, $message, $content);
 
                 if ($this->hasJsonRpcError($content)) {
                     $this->queue[] = $content;
@@ -262,9 +288,7 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             try {
                 $this->endExchange();
             } catch (Throwable $cleanupException) {
-                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                    throw $cleanupException;
-                }
+                throw Coroutine::preferCancellation($exception, $cleanupException);
             }
 
             throw $exception;
@@ -336,6 +360,24 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
     }
 
     /**
+     * Throw when the server rejects a notification, since no response is read for one.
+     *
+     * The rejection does not end the session, so the negotiation is kept.
+     */
+    protected function ensureResponseExpected(ClientResponse $response, string $message, string $content): void
+    {
+        $outgoing = json_decode($message, true);
+
+        if (! is_array($outgoing) || ! isset($outgoing['method']) || array_key_exists('id', $outgoing)) {
+            return;
+        }
+
+        $error = Arr::get(json_decode($content, true), 'error.message');
+
+        throw new TransportException("The endpoint [{$this->url}] rejected the notification with HTTP status [{$response->status()}]" . (is_string($error) ? ": {$error}" : '.'));
+    }
+
+    /**
      * Build headers from the current connection and credentials.
      *
      * @param array<string, string> $mirrored
@@ -371,6 +413,16 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
         }
 
         return $headers;
+    }
+
+    /**
+     * Prepare a request that does not follow redirects.
+     *
+     * @param array<string, string> $headers
+     */
+    protected function request(array $headers = []): PendingRequest
+    {
+        return Http::withHeaders($this->headers($headers))->withoutRedirecting();
     }
 
     /**
@@ -503,12 +555,13 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
         }
 
         try {
-            Http::withHeaders($this->headers())
+            $this->request()
                 ->timeout($this->timeoutSeconds)
                 ->delete($this->url);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
     }
 

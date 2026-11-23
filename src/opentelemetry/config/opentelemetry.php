@@ -73,7 +73,8 @@ return [
     'traces' => [
         'provider' => null,
         'exporter' => Configuration::getList(Variables::OTEL_TRACES_EXPORTER, ['otlp']),
-        'sampler' => Configuration::getString(Variables::OTEL_TRACES_SAMPLER, 'parentbased_always_on'),
+        // SDK 1.17 reads this as a lowercase enum. The raw value preserves custom class and binding names.
+        'sampler' => Configuration::getMixed(Variables::OTEL_TRACES_SAMPLER, 'parentbased_always_on'),
         'sampler_arg' => Configuration::getFloat(Variables::OTEL_TRACES_SAMPLER_ARG, 1.0),
         'schedule_delay' => Configuration::getInt(Variables::OTEL_BSP_SCHEDULE_DELAY, 5000),
         'max_queue_size' => Configuration::getInt(Variables::OTEL_BSP_MAX_QUEUE_SIZE, 2048),
@@ -193,10 +194,10 @@ return [
         PoolInstrumentation::class => [
             'metrics' => [
                 'db.client.connection.count' => true,
-                'db.client.connection.max' => true,
+                'db.client.connection.limit' => true,
                 'db.client.connection.pending_requests' => true,
                 'hypervel.object_pool.objects' => true,
-                'hypervel.object_pool.max' => true,
+                'hypervel.object_pool.limit' => true,
                 'hypervel.object_pool.pending_requests' => true,
             ],
         ],

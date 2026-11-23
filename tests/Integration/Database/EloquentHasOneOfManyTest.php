@@ -55,6 +55,18 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
         $this->assertSame(2, $this->retrievedLogins);
     }
 
+    public function testItEagerLoadsSpecificColumns(): void
+    {
+        $user = User::create();
+        $user->latest_login()->create();
+        $latestLogin = $user->latest_login()->create();
+
+        $user = User::with('latest_login:id,user_id')->first();
+
+        $this->assertSame($latestLogin->id, $user->latest_login->id);
+        $this->assertSame(['id', 'user_id'], array_keys($user->latest_login->getAttributes()));
+    }
+
     public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId(): void
     {
         $user = User::create();

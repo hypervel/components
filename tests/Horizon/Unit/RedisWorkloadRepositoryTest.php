@@ -12,25 +12,25 @@ use Hypervel\Horizon\Repositories\RedisWorkloadRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class RedisWorkloadRepositoryTest extends UnitTestCase
 {
     public function testSplitQueueWorkloadsKeepNumericQueueNames(): void
     {
-        $queue = m::mock(RedisQueue::class);
-        $queue->shouldReceive('readyNow')->with('1')->andReturn(2);
-        $queue->shouldReceive('readyNow')->with('2')->andReturn(3);
+        $queue = Double::for(RedisQueue::class)->strict();
+        $queue->allows('readyNow')->with('1')->returns(2);
+        $queue->allows('readyNow')->with('2')->returns(3);
 
-        $queueFactory = m::mock(QueueFactory::class);
-        $queueFactory->shouldReceive('connection')->with('redis')->andReturn($queue);
+        $queueFactory = Double::for(QueueFactory::class)->strict();
+        $queueFactory->allows('connection')->with('redis')->returns($queue);
 
-        $supervisors = m::mock(SupervisorRepository::class);
-        $supervisors->shouldReceive('all')->andReturn([(object) ['processes' => ['redis:1,2' => 1]]]);
+        $supervisors = Double::for(SupervisorRepository::class)->strict();
+        $supervisors->allows('all')->returns([(object) ['processes' => ['redis:1,2' => 1]]]);
 
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('runtimeForQueue')->with('1')->andReturn(1000.0);
-        $metrics->shouldReceive('runtimeForQueue')->with('2')->andReturn(2000.0);
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->allows('runtimeForQueue')->with('1')->returns(1000.0);
+        $metrics->allows('runtimeForQueue')->with('2')->returns(2000.0);
 
         $repository = new RedisWorkloadRepository(
             $queueFactory,

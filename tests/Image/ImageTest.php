@@ -33,9 +33,14 @@ use Hypervel\Image\Transformations\Rotate;
 use Hypervel\Image\Transformations\Scale;
 use Hypervel\Image\Transformations\Sharpen;
 use Hypervel\Tests\TestCase;
+use Imagick;
+use ImagickException;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use ReflectionProperty;
 use RuntimeException;
 use Stringable;
@@ -44,6 +49,8 @@ use TypeError;
 
 class ImageTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCoverReturnsNewInstance(): void
     {
         $image = $this->makeImage();
@@ -172,6 +179,13 @@ class ImageTest extends TestCase
         $image = $this->makeImage();
 
         $this->assertNotSame($image, $image->toHeic());
+    }
+
+    public function testToJxlReturnsNewInstance(): void
+    {
+        $image = $this->makeImage();
+
+        $this->assertNotSame($image, $image->toJxl());
     }
 
     public function testToBmpReturnsNewInstance(): void
@@ -343,6 +357,42 @@ class ImageTest extends TestCase
         $this->assertSame('avif', $image->extension());
     }
 
+    #[RequiresPhpExtension('imagick')]
+    public function testExtensionReturnsJxlForJxl(): void
+    {
+        if (Imagick::queryFormats('JXL') === []) {
+            $this->markTestSkipped('The Imagick extension was not compiled with jxl support.');
+        }
+
+        $imagick = new Imagick;
+
+        try {
+            $imagick->newImage(10, 10, 'red');
+            $imagick->setImageFormat('jxl');
+            $contents = $imagick->getImageBlob();
+        } catch (ImagickException) {
+            // A registered format may still lack its encoding delegate.
+            $contents = '';
+        } finally {
+            $imagick->clear();
+            $imagick->destroy();
+        }
+
+        if ($contents === '') {
+            $this->markTestSkipped('The Imagick extension cannot encode jxl images.');
+        }
+
+        $mimeType = (new finfo(FILEINFO_MIME_TYPE))->buffer($contents);
+
+        if (! in_array($mimeType, ['image/jxl', 'image/x-jxl'], true)) {
+            $this->markTestSkipped('The installed fileinfo database does not recognize JXL.');
+        }
+
+        $image = new Image($contents);
+
+        $this->assertSame('jxl', $image->extension());
+    }
+
     public function testDimensionsReturnsWidthAndHeight(): void
     {
         $image = new Image($this->fakeImageContents(300, 200));
@@ -402,14 +452,28 @@ class ImageTest extends TestCase
         }
     }
 
+    public function testDimensionsDefersToTheDriverForJxlImages(): void
+    {
+        // A JXL signature is recognized by fileinfo but cannot be read by getimagesizefromstring().
+        $contents = "\xff\x0a\x00\x00";
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('dimensions')->with($contents)->returns([123, 45]);
+        $this->registerDrivers(['fake' => $driver]);
+
+        $image = (new Image($contents))->using('fake');
+
+        $this->assertSame([123, 45], $image->dimensions());
+        $this->assertSame(123, $image->width());
+        $this->assertSame(45, $image->height());
+    }
+
     public function testDimensionsPreservesDriverFailureForHeic(): void
     {
         $driverException = new ImageException('The driver cannot decode this image.');
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->once()
-            ->andReturn("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic");
-        $driver->expects('dimensions')->once()->andThrow($driverException);
+            ->returns("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic");
+        $driver->expects('dimensions')->throws($driverException);
         $this->registerDrivers(['fake' => $driver]);
 
         try {
@@ -441,9 +505,9 @@ class ImageTest extends TestCase
     public function testDimensionsDoesNotMaskDriverTypeErrorsForHeic(): void
     {
         $contents = "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic";
-        $driver = m::mock(Driver::class);
-        $driver->expects('process')->once()->andReturn($contents);
-        $driver->expects('dimensions')->once()->andThrow(new TypeError('broken dimensions'));
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('process')->returns($contents);
+        $driver->expects('dimensions')->throws(new TypeError('broken dimensions'));
         $this->registerDrivers(['fake' => $driver]);
 
         $this->expectExceptionObject(new TypeError('broken dimensions'));
@@ -455,8 +519,8 @@ class ImageTest extends TestCase
     {
         $contents = "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic";
         $cancellation = new CanceledException('Inspecting the image was canceled.');
-        $driver = m::mock(Driver::class);
-        $driver->expects('dimensions')->once()->with($contents)->andThrow($cancellation);
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('dimensions')->with($contents)->throws($cancellation);
         $this->registerDrivers(['fake' => $driver]);
 
         try {
@@ -469,15 +533,13 @@ class ImageTest extends TestCase
 
     public function testDominantColorReusesProcessedBytes(): void
     {
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->once()
-            ->with('source image', m::type(ImagePipeline::class))
-            ->andReturn('processed image');
+            ->with('source image', Argument::type(ImagePipeline::class))
+            ->returns('processed image');
         $driver->expects('dominantColor')
-            ->once()
             ->with('processed image')
-            ->andReturn('#123456');
+            ->returns('#123456');
         $this->registerDrivers(['fake' => $driver]);
 
         $image = (new Image('source image'))->using('fake')->blur();
@@ -709,6 +771,13 @@ class ImageTest extends TestCase
         $this->assertSame('heic', $this->getOptions($image->toHeic())->format);
     }
 
+    public function testToJxlSetsFormat(): void
+    {
+        $image = $this->makeImage();
+
+        $this->assertSame('jxl', $this->getOptions($image->toJxl())->format);
+    }
+
     public function testToBmpSetsFormat(): void
     {
         $image = $this->makeImage();
@@ -729,6 +798,7 @@ class ImageTest extends TestCase
             'avif' => 'avif',
             'heic' => 'heic',
             'heif' => 'heic',
+            'jxl' => 'jxl',
             'bmp' => 'bmp',
         ] as $format => $expected) {
             $this->assertSame($expected, $this->getOptions($image->toFormat($format))->format);
@@ -879,8 +949,8 @@ class ImageTest extends TestCase
 
     public function testProcessingDoesNotMaskDriverTypeErrors(): void
     {
-        $driver = m::mock(Driver::class);
-        $driver->expects('process')->once()->andThrow(new TypeError('broken process'));
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('process')->throws(new TypeError('broken process'));
         $this->registerDrivers(['fake' => $driver]);
 
         $this->expectExceptionObject(new TypeError('broken process'));
@@ -900,11 +970,10 @@ class ImageTest extends TestCase
 
     public function testToBytesProcessesARecipeOnlyOnce(): void
     {
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->once()
-            ->with('source image', m::type(ImagePipeline::class))
-            ->andReturn('processed image');
+            ->with('source image', Argument::type(ImagePipeline::class))
+            ->returns('processed image');
         $this->registerDrivers(['fake' => $driver]);
 
         $image = (new Image('source image'))->using('fake')->blur();
@@ -952,9 +1021,9 @@ class ImageTest extends TestCase
     public function testInstanceMetadataIsCachedAndInvalidatedOnClones(): void
     {
         $contents = $this->fakeImageContents(300, 200);
-        $driver = m::mock(Driver::class);
-        $driver->expects('process')->once()->andReturn($contents);
-        $driver->expects('dominantColor')->once()->with($contents)->andReturn('#123456');
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('process')->returns($contents);
+        $driver->expects('dominantColor')->with($contents)->returns('#123456');
         $this->registerDrivers(['fake' => $driver]);
 
         $image = (new Image('source image'))->using('fake')->blur();
@@ -1374,6 +1443,13 @@ class ImageTest extends TestCase
         $this->assertSame('heic', $this->getOptions($result)->format);
     }
 
+    public function testOptimizeAllowsJxl(): void
+    {
+        $result = $this->makeImage()->optimize('jxl');
+
+        $this->assertSame('jxl', $this->getOptions($result)->format);
+    }
+
     public function testOptimizeNormalizesHeifToHeic(): void
     {
         $result = $this->makeImage()->optimize('heif');
@@ -1435,10 +1511,10 @@ class ImageTest extends TestCase
     public function testMaterializedCloneReprocessesTheOriginalSourceWithTheFullRecipe(): void
     {
         $recipes = [];
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->twice()
-            ->andReturnUsing(static function (string $contents, ImagePipeline $pipeline) use (&$recipes): string {
+            ->times(2)
+            ->resolves(static function (string $contents, ImagePipeline $pipeline) use (&$recipes): string {
                 $recipes[] = [
                     $contents,
                     array_map(
@@ -1476,21 +1552,17 @@ class ImageTest extends TestCase
 
     public function testSwitchingDriversReprocessesTheRetainedRecipe(): void
     {
-        $firstDriver = m::mock(Driver::class);
+        $firstDriver = Double::for(Driver::class)->strict();
         $firstDriver->expects('process')
-            ->once()
-            ->withArgs(static fn (string $contents, ImagePipeline $pipeline): bool => $contents === 'source image'
-                && count($pipeline->transformations) === 1
-                && $pipeline->transformations[0] instanceof Blur)
-            ->andReturn('first output');
+            ->with('source image', Argument::satisfies(static fn (ImagePipeline $pipeline): bool => count($pipeline->transformations) === 1
+                && $pipeline->transformations[0] instanceof Blur))
+            ->returns('first output');
 
-        $secondDriver = m::mock(Driver::class);
+        $secondDriver = Double::for(Driver::class)->strict();
         $secondDriver->expects('process')
-            ->once()
-            ->withArgs(static fn (string $contents, ImagePipeline $pipeline): bool => $contents === 'source image'
-                && count($pipeline->transformations) === 1
-                && $pipeline->transformations[0] instanceof Blur)
-            ->andReturn('second output');
+            ->with('source image', Argument::satisfies(static fn (ImagePipeline $pipeline): bool => count($pipeline->transformations) === 1
+                && $pipeline->transformations[0] instanceof Blur))
+            ->returns('second output');
 
         $this->registerDrivers(['first' => $firstDriver, 'second' => $secondDriver], 'first');
 
@@ -1604,15 +1676,15 @@ class ImageTest extends TestCase
         array $options,
         bool|string $result = true,
     ): void {
-        $filesystem = m::mock(FilesystemContract::class);
+        $filesystem = Double::for(FilesystemContract::class)->strict();
         $filesystem->expects('put')
             ->with($path, $contents, $options)
-            ->andReturn($result);
+            ->returns($result);
 
-        $factory = m::mock(FilesystemFactory::class);
+        $factory = Double::for(FilesystemFactory::class)->strict();
         $factory->expects('disk')
             ->with($diskName)
-            ->andReturn($filesystem);
+            ->returns($filesystem);
 
         $container = new Container;
         $container->instance(FilesystemFactory::class, $factory);

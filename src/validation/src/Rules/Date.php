@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use DateTimeInterface;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Stringable;
 
-class Date implements Stringable
+class Date implements Stringable, Transient
 {
     use Conditionable;
     use Macroable;
@@ -145,6 +146,14 @@ class Date implements Stringable
     public function betweenOrEqual(DateTimeInterface|string $from, DateTimeInterface|string $to): static
     {
         return $this->afterOrEqual($from)->beforeOrEqual($to);
+    }
+
+    /**
+     * Ensure the date is equal to the given date or date field.
+     */
+    public function equals(DateTimeInterface|string $date): static
+    {
+        return $this->addRule('date_equals:' . $this->formatDate($date));
     }
 
     /**

@@ -10,7 +10,9 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -175,7 +177,12 @@ class EventListCommand extends Command
     {
         $reflection = new ReflectionFunction($rawListener);
 
-        $path = str_replace([base_path(), DIRECTORY_SEPARATOR], ['', '/'], $reflection->getFileName() ?: '');
+        // Relative labels must not look absolute when console components normalize their output.
+        $path = str_replace(
+            DIRECTORY_SEPARATOR,
+            '/',
+            Str::replaceStart(base_path() . DIRECTORY_SEPARATOR, '', $reflection->getFileName() ?: '')
+        );
 
         return 'Closure at: ' . $path . ':' . $reflection->getStartLine();
     }
@@ -229,9 +236,10 @@ class EventListCommand extends Command
     /**
      * Set a callback that should be used when resolving the events dispatcher.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent event:list run.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent event:list run.
      */
+    #[TestsOnly]
     public static function resolveEventsUsing(?Closure $resolver): void
     {
         static::$eventsResolver = $resolver;

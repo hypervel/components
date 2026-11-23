@@ -6,6 +6,7 @@ namespace Hypervel\Passkeys\Support;
 
 use Closure;
 use Hypervel\Passkeys\Passkeys;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -119,10 +120,11 @@ final class WebAuthn
     /**
      * Configure the ceremony step manager factory.
      *
-     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
+     * The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
      *
      * @param null|(callable(CeremonyStepManagerFactory): (null|CeremonyStepManagerFactory)) $callback
      */
+    #[BootOnly]
     public static function configureCeremonyStepManagerFactoryUsing(?callable $callback): void
     {
         self::$configureCeremonyStepManagerFactoryUsing = $callback === null

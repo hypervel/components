@@ -16,7 +16,9 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\ObjectPool\PoolRecycler;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
@@ -24,6 +26,8 @@ use Swoole\Coroutine\CanceledException;
 
 class PoolRecyclerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<PoolManager> */
     private array $poolManagers = [];
 
@@ -36,11 +40,11 @@ class PoolRecyclerTest extends TestCase
 
     public function testIdlePoolIsEvictedByIdentityAndExactInstance(): void
     {
-        $pool = m::mock(ObjectPool::class);
-        $pool->shouldReceive('isIdleExpired')->once()->andReturnTrue();
-        $manager = m::mock(Factory::class);
-        $manager->shouldReceive('getPools')->once()->andReturn(['idle' => $pool]);
-        $manager->shouldReceive('purge')->once()->with('idle', $pool)->andReturnTrue();
+        $pool = Double::for(ObjectPool::class)->strict();
+        $pool->expects('isIdleExpired')->returns(true);
+        $manager = Double::for(Factory::class)->strict();
+        $manager->expects('getPools')->returns(['idle' => $pool]);
+        $manager->expects('purge')->with('idle', Argument::same($pool))->returns(true);
 
         (new InspectablePoolRecycler($manager))->maintain();
     }
@@ -50,14 +54,13 @@ class PoolRecyclerTest extends TestCase
         $manager = $this->poolManager();
         $definition = $this->definition('shared');
         $replacement = $manager->getOrCreate($definition, static fn (): object => new stdClass);
-        $stale = m::mock(ObjectPool::class);
-        $stale->shouldReceive('isIdleExpired')->once()->andReturnTrue();
-        $snapshotManager = m::mock(Factory::class);
-        $snapshotManager->shouldReceive('getPools')->once()->andReturn(['shared' => $stale]);
-        $snapshotManager->shouldReceive('purge')
-            ->once()
-            ->with('shared', $stale)
-            ->andReturnUsing(fn (): bool => $manager->purge('shared', $stale));
+        $stale = Double::for(ObjectPool::class)->strict();
+        $stale->expects('isIdleExpired')->returns(true);
+        $snapshotManager = Double::for(Factory::class)->strict();
+        $snapshotManager->expects('getPools')->returns(['shared' => $stale]);
+        $snapshotManager->expects('purge')
+            ->with('shared', Argument::same($stale))
+            ->resolves(fn (): bool => $manager->purge('shared', $stale));
 
         (new InspectablePoolRecycler($snapshotManager))->maintain();
 
@@ -129,12 +132,12 @@ class PoolRecyclerTest extends TestCase
 
     public function testNonIdlePoolsAreSweptAndTrimmed(): void
     {
-        $pool = m::mock(ObjectPool::class);
-        $pool->shouldReceive('isIdleExpired')->once()->andReturnFalse();
-        $pool->shouldReceive('sweepExpired')->once()->ordered();
-        $pool->shouldReceive('trimIdle')->once()->ordered();
-        $manager = m::mock(Factory::class);
-        $manager->shouldReceive('getPools')->once()->andReturn(['active' => $pool]);
+        $pool = Double::for(ObjectPool::class)->strict();
+        $pool->expects('isIdleExpired')->returns(false);
+        $pool->expects('sweepExpired')->ordered();
+        $pool->expects('trimIdle')->ordered();
+        $manager = Double::for(Factory::class)->strict();
+        $manager->expects('getPools')->returns(['active' => $pool]);
 
         (new InspectablePoolRecycler($manager))->maintain();
     }
@@ -143,26 +146,25 @@ class PoolRecyclerTest extends TestCase
     {
         $failure = new RuntimeException('sweep failed');
         $reported = null;
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')
-            ->once()
-            ->andReturnUsing(function (RuntimeException $exception) use (&$reported): void {
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')
+            ->resolves(function (RuntimeException $exception) use (&$reported): void {
                 $reported = $exception;
             });
         $container = new Container;
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
-        $failingPool = m::mock(ObjectPool::class);
-        $failingPool->shouldReceive('isIdleExpired')->once()->andReturnFalse();
-        $failingPool->shouldReceive('sweepExpired')->once()->andThrow($failure);
-        $failingPool->shouldNotReceive('trimIdle');
-        $healthyPool = m::mock(ObjectPool::class);
-        $healthyPool->shouldReceive('isIdleExpired')->once()->ordered()->andReturnFalse();
-        $healthyPool->shouldReceive('sweepExpired')->once()->ordered();
-        $healthyPool->shouldReceive('trimIdle')->once()->ordered();
-        $manager = m::mock(Factory::class);
-        $manager->shouldReceive('getPools')->once()->andReturn([
+        $failingPool = Double::for(ObjectPool::class)->strict();
+        $failingPool->expects('isIdleExpired')->returns(false);
+        $failingPool->expects('sweepExpired')->throws($failure);
+        $failingPool->expects('trimIdle')->never();
+        $healthyPool = Double::for(ObjectPool::class)->strict();
+        $healthyPool->expects('isIdleExpired')->ordered()->returns(false);
+        $healthyPool->expects('sweepExpired')->ordered();
+        $healthyPool->expects('trimIdle')->ordered();
+        $manager = Double::for(Factory::class)->strict();
+        $manager->expects('getPools')->returns([
             'failing' => $failingPool,
             'healthy' => $healthyPool,
         ]);
@@ -176,14 +178,14 @@ class PoolRecyclerTest extends TestCase
 
     public function testStartIsIdempotentAndStopClearsTheTimer(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('tick')
-            ->twice()
-            ->with(1.0, m::type('Closure'))
-            ->andReturn(99, 100);
-        $timer->shouldReceive('clear')->once()->with(99);
-        $timer->shouldReceive('clear')->once()->with(100);
-        $recycler = new PoolRecycler(m::mock(Factory::class), 1.0, $timer);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('tick')
+            ->times(2)
+            ->with(1.0, Argument::type('Closure'))
+            ->returns(99, 100);
+        $timer->expects('clear')->with(99);
+        $timer->expects('clear')->with(100);
+        $recycler = new PoolRecycler(Double::for(Factory::class)->strict(), 1.0, $timer);
 
         $recycler->start();
         $recycler->start();
@@ -197,40 +199,40 @@ class PoolRecyclerTest extends TestCase
     public function testCancellationStopsMaintenanceWithoutReporting(bool $scheduled, string $operation): void
     {
         $cancellation = new CanceledException('maintenance canceled');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $container = new Container;
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
-        $pool = m::mock(ObjectPool::class);
-        $pool->shouldReceive('isIdleExpired')->once()->andReturn($operation === 'purge');
-        $manager = m::mock(Factory::class);
-        $manager->shouldReceive('getPools')->once()->andReturn([
+        $pool = Double::for(ObjectPool::class)->strict();
+        $pool->expects('isIdleExpired')->returns($operation === 'purge');
+        $manager = Double::for(Factory::class)->strict();
+        $manager->expects('getPools')->returns([
             'canceled' => $pool,
-            'later' => m::mock(ObjectPool::class),
+            'later' => Double::for(ObjectPool::class)->strict(),
         ]);
 
         if ($operation === 'purge') {
-            $manager->shouldReceive('purge')->once()->with('canceled', $pool)->andThrow($cancellation);
+            $manager->expects('purge')->with('canceled', Argument::same($pool))->throws($cancellation);
         } else {
-            $pool->shouldReceive('sweepExpired')->once()->andThrow($cancellation);
-            $pool->shouldNotReceive('trimIdle');
+            $pool->expects('sweepExpired')->throws($cancellation);
+            $pool->expects('trimIdle')->never();
         }
 
         $callback = null;
-        $timer = m::mock(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $recycler = new InspectablePoolRecycler($manager, timer: $timer);
 
         if ($scheduled) {
-            $timer->shouldReceive('tick')->once()->andReturnUsing(
+            $timer->expects('tick')->resolves(
                 function (float $interval, callable $scheduled) use (&$callback): int {
                     $callback = $scheduled;
 
                     return 99;
                 },
             );
-            $timer->shouldReceive('clear')->once()->with(99);
+            $timer->expects('clear')->with(99);
             $recycler->start();
             $this->assertIsCallable($callback);
         }
@@ -261,24 +263,23 @@ class PoolRecyclerTest extends TestCase
     public function testTimerReportsMaintenanceFailures(): void
     {
         $failure = new RuntimeException('maintenance failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($failure));
         $container = new Container;
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
-        $manager = m::mock(Factory::class);
-        $manager->shouldReceive('getPools')->once()->andThrow($failure);
+        $manager = Double::for(Factory::class)->strict();
+        $manager->expects('getPools')->throws($failure);
         $callback = null;
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('tick')
-            ->once()
-            ->andReturnUsing(function (float $interval, callable $scheduled) use (&$callback): int {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('tick')
+            ->resolves(function (float $interval, callable $scheduled) use (&$callback): int {
                 $callback = $scheduled;
 
                 return 99;
             });
-        $timer->shouldReceive('clear')->once()->with(99);
+        $timer->expects('clear')->with(99);
         $recycler = new PoolRecycler($manager, 1.0, $timer);
         $recycler->start();
 
@@ -296,7 +297,7 @@ class PoolRecyclerTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('The recycler interval must be a finite number greater than 0.');
 
-        new PoolRecycler(m::mock(Factory::class), $interval);
+        new PoolRecycler(Double::for(Factory::class)->strict(), $interval);
     }
 
     public static function invalidIntervals(): array
@@ -306,7 +307,7 @@ class PoolRecyclerTest extends TestCase
 
     public function testFinitePositiveIntervalCanBeConfiguredAtConstruction(): void
     {
-        $recycler = new PoolRecycler(m::mock(Factory::class), 2.5);
+        $recycler = new PoolRecycler(Double::for(Factory::class)->strict(), 2.5);
 
         $this->assertSame(2.5, $recycler->getInterval());
     }

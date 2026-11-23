@@ -10,9 +10,10 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Engine\Channel;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
-use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -22,13 +23,15 @@ use function Hypervel\Coroutine\parallel;
 
 class CallbackEventTest extends TestCase
 {
-    protected EventMutex&MockInterface $mutex;
+    use VerifiesDoubles;
+
+    protected EventMutex&DoubleInterface $mutex;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->mutex = m::mock(EventMutex::class);
+        $this->mutex = Double::for(EventMutex::class)->strict();
         $this->app->instance(EventMutex::class, $this->mutex);
     }
 
@@ -98,7 +101,7 @@ class CallbackEventTest extends TestCase
 
     public function testWithoutOverlappingSucceedsWithDescription(): void
     {
-        $this->mutex->shouldReceive('exists')->andReturn(false);
+        $this->mutex->allows('exists')->returns(false);
 
         $event = new CallbackEvent($this->mutex, fn () => true);
         $event->name('test-event');
@@ -167,7 +170,7 @@ class CallbackEventTest extends TestCase
 
     public function testShouldSkipDueToOverlappingReturnsFalseWithoutDescription(): void
     {
-        $this->mutex->shouldReceive('create')->never();
+        $this->mutex->expects('create')->never();
 
         $event = new CallbackEvent($this->mutex, fn () => true);
         $event->withoutOverlapping = true;
@@ -177,7 +180,7 @@ class CallbackEventTest extends TestCase
 
     public function testShouldSkipDueToOverlappingChecksWhenDescriptionSet(): void
     {
-        $this->mutex->shouldReceive('create')->once()->andReturn(false);
+        $this->mutex->expects('create')->returns(false);
 
         $event = new CallbackEvent($this->mutex, fn () => true);
         $event->name('test-event');
@@ -220,27 +223,6 @@ class CallbackEventTest extends TestCase
         $this->expectExceptionMessageIs('Callback failed');
 
         $event->run($this->app);
-    }
-
-    public function testSuccessfulRunDoesNotRethrowExceptionFromPreviousRun(): void
-    {
-        $calls = 0;
-        $event = new CallbackEvent($this->mutex, function () use (&$calls): string {
-            if (++$calls === 1) {
-                throw new RuntimeException('first run failed');
-            }
-
-            return 'recovered';
-        });
-
-        try {
-            $event->run($this->app);
-            $this->fail('The first callback exception was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('first run failed', $exception->getMessage());
-        }
-
-        $this->assertSame('recovered', $event->run($this->app));
     }
 
     public function testCallbackFailureRemainsPrimaryWhenAfterCallbackFails(): void

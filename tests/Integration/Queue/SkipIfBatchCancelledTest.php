@@ -13,10 +13,13 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\SkipIfBatchCancelled;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SkipIfBatchCancelledTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testJobsAreSkippedOnceBatchIsCancelled(): void
     {
         [$beforeCancelled] = (new SkipCancelledBatchableTestJob)->withFakeBatch();
@@ -52,12 +55,13 @@ class SkipIfBatchCancelledTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
+        $job = Double::for(Job::class)->strict();
 
-        $job->expects('uuid')->andReturn('simple-test-uuid');
-        $job->expects('hasFailed')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('payload')->returns([]);
+        $job->expects('uuid')->returns('simple-test-uuid');
+        $job->expects('hasFailed')->returns(false);
+        $job->allows('isReleased')->returns(false);
+        $job->expects('isDeletedOrReleased')->returns(false);
         $job->expects('delete');
 
         $instance->call($job, [

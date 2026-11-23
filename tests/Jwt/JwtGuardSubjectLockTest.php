@@ -16,18 +16,21 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\JwtGuard;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use SensitiveParameter;
 
 class JwtGuardSubjectLockTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMatchingProviderSubjectResolvesUser(): void
     {
         $user = new JwtGuardSubjectUser(42);
         $provider = new JwtGuardSubjectModelProvider(JwtGuardSubjectUser::class, $user);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->once()->andReturn([
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->returns([
             'sub' => 42,
             'prv' => hash('xxh128', JwtGuardSubjectUser::class),
         ]);
@@ -42,8 +45,8 @@ class JwtGuardSubjectLockTest extends TestCase
     {
         $provider = new JwtGuardSubjectModelProvider(JwtGuardSubjectUser::class, new JwtGuardSubjectUser(42));
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->once()->andReturn([
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->returns([
             'sub' => 42,
             'prv' => hash('xxh128', JwtGuardOtherSubjectUser::class),
         ]);
@@ -58,8 +61,8 @@ class JwtGuardSubjectLockTest extends TestCase
     {
         $provider = new JwtGuardSubjectModelProvider(JwtGuardSubjectUser::class, new JwtGuardSubjectUser(42));
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->once()->andReturn(['sub' => 42]);
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->returns(['sub' => 42]);
 
         $guard = $this->createGuard($provider, $jwtManager);
 
@@ -71,8 +74,8 @@ class JwtGuardSubjectLockTest extends TestCase
     {
         $provider = new JwtGuardSubjectModelProvider(JwtGuardSubjectUser::class, new JwtGuardSubjectUser(42));
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->once()->andReturn([
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->returns([
             'sub' => 42,
             'prv' => hash('xxh128', JwtGuardOtherSubjectUser::class),
         ]);
@@ -88,8 +91,8 @@ class JwtGuardSubjectLockTest extends TestCase
         $user = new JwtGuardSubjectUser(42);
         $provider = new JwtGuardSubjectProvider($user);
 
-        $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')->once()->andReturn(['sub' => 42]);
+        $jwtManager = Double::for(ManagerContract::class)->strict();
+        $jwtManager->expects('decode')->returns(['sub' => 42]);
 
         $guard = $this->createGuard($provider, $jwtManager);
 

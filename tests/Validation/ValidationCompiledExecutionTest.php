@@ -7,14 +7,26 @@ namespace Hypervel\Tests\Validation\ValidationCompiledExecutionTest;
 use Closure;
 use DateTimeImmutable;
 use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
+use Hypervel\Validation\Factory;
+use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Rule;
+use Hypervel\Validation\Rules\Concerns\FormatsParameters;
+use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Validator;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -25,6 +37,8 @@ use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 class ValidationCompiledExecutionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBasicPassFail(): void
     {
         $v = $this->makeValidator(['name' => 'John'], ['name' => 'required|string|max:255']);
@@ -42,6 +56,90 @@ class ValidationCompiledExecutionTest extends TestCase
         );
 
         $this->assertSame(['name' => 'John', 'age' => 30], $v->validate());
+    }
+
+    public function testDependentChecksAndValidatedLeavesDoNotRenderSharedBuilders(): void
+    {
+        $rule = new class(['active']) extends In {
+            public int $exports = 0;
+
+            /**
+             * Count canonical declaration reads.
+             */
+            public function toArray(): array
+            {
+                ++$this->exports;
+
+                return parent::toArray();
+            }
+        };
+        $factory = new Factory(new Translator(new ArrayLoader, 'en'));
+        $validator = $factory->make([
+            'items' => [
+                ['type' => 'active', 'detail' => 'first', 'unvalidated' => 'discard'],
+                ['type' => 'active', 'detail' => 'second', 'unvalidated' => 'discard'],
+            ],
+        ], [
+            'items' => 'array',
+            'items.*' => 'array',
+            'items.*.type' => [$rule],
+            'items.*.detail' => 'required_if:items.*.type,active',
+        ]);
+
+        $this->assertSame(['items' => [
+            ['type' => 'active', 'detail' => 'first'],
+            ['type' => 'active', 'detail' => 'second'],
+        ]], $validator->validate());
+        $this->assertSame(1, $rule->exports);
+    }
+
+    #[TestWith(['boolean'])]
+    #[TestWith(['bool'])]
+    public function testDependentChecksUseCapturedBooleanDeclarations(string $name): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $rule = new class($name) implements ParameterizedRule {
+                use FormatsParameters;
+
+                public int $exports = 0;
+
+                /**
+                 * Set the declared rule name.
+                 */
+                public function __construct(private string $name)
+                {
+                }
+
+                /**
+                 * Export a Boolean declaration without string transport.
+                 */
+                public function toArray(): array
+                {
+                    ++$this->exports;
+
+                    return [$this->name];
+                }
+            };
+            $validator = $this->makeValidator(
+                ['flag' => 0],
+                ['flag' => [$rule], 'detail' => 'required_if:flag,false'],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertArrayHasKey('RequiredIf', $validator->failed()['detail']);
+            $this->assertSame(1, $rule->exports);
+        }
+    }
+
+    public function testDependentMetadataReadsCurrentRulesBetweenRuns(): void
+    {
+        $validator = $this->makeValidator(['flag' => 0], ['flag' => 'boolean']);
+        $this->assertTrue($validator->passes());
+        $this->assertSame([[false], 0], $validator->parseDependentRuleParameters(['flag', 'false']));
+        $validator->setRules(['flag' => 'integer']);
+
+        $this->assertSame([['false'], 0], $validator->parseDependentRuleParameters(['flag', 'false']));
     }
 
     public function testFailedOutput(): void
@@ -148,6 +246,153 @@ class ValidationCompiledExecutionTest extends TestCase
         }
     }
 
+    #[DataProvider('preciseNumericRules')]
+    public function testNumericPrecisionMatchesCompiledAndDelegatedExecution(mixed $value, array $rules, bool $expected, array $other = []): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(['value' => $value, ...$other], ['value' => $rules], validatorClass: $validatorClass);
+
+            $this->assertSame($expected, $validator->passes(), $validatorClass);
+        }
+    }
+
+    /**
+     * Provide numeric inputs and operands whose significant digits must survive conversion.
+     */
+    public static function preciseNumericRules(): iterable
+    {
+        $number = 1.234567890123456;
+
+        yield 'fluent maximum' => ['1.23456789012348', [Rule::numeric()->max($number)], false];
+        yield 'native maximum' => ['1.23456789012348', ['numeric', ['max', $number]], false];
+        yield 'native minimum' => ['1.23456789012347', ['numeric', ['min', $number]], true];
+        yield 'native range' => ['1.234567890123456', ['numeric', ['between', $number, $number]], true];
+        yield 'native size' => ['1.234567890123456', ['numeric', ['size', $number]], true];
+        yield 'native divisor' => ['1.234567890123456', ['numeric', ['multiple_of', $number]], true];
+        yield 'float input maximum' => [$number, ['numeric', 'max:1.23456789012347'], true];
+        yield 'float input minimum' => [$number, ['numeric', 'min:1.23456789012347'], false];
+        yield 'float input range' => [$number, ['numeric', 'between:1.234567890123455,1.234567890123457'], true];
+        yield 'float input size' => [$number, ['numeric', 'size:1.234567890123456'], true];
+        yield 'float input multiple' => [$number, ['numeric', 'multiple_of:1.234567890123456'], true];
+        yield 'largest finite float fits default exponent policy' => [PHP_FLOAT_MAX, ['numeric', 'min:0'], true];
+        yield 'smallest positive float fits default exponent policy' => [PHP_FLOAT_MIN * PHP_FLOAT_EPSILON, ['numeric', 'between:0,1'], true];
+        yield 'explicit decimal arithmetic' => [0.1 + 0.2, ['numeric', 'multiple_of:0.1'], false];
+        yield 'decimal places retained' => [$number, ['decimal:15'], true];
+        yield 'decimal places not rounded' => [$number, ['decimal:13'], false];
+        yield 'NAN is not an integer' => [NAN, ['integer'], false];
+        yield 'infinite digits rejected' => [INF, ['digits:3'], false];
+        yield 'NAN decimal rejected' => [NAN, ['decimal:0'], false];
+        yield 'digit input is not trimmed' => ["123\0", ['digits:3'], false];
+        yield 'regex input is not trimmed' => [' 123', ['regex:/^\d+$/'], false];
+        yield 'fraction rejected by integer pattern' => [1.0000000000000002, ['regex:/^\d+$/'], false];
+        yield 'fraction passes not integer pattern' => [1.0000000000000002, ['not_regex:/^\d+$/'], true];
+        yield 'numeric text length retained' => [1.2345678901234567, ['max:15'], false];
+        yield 'microsecond date format' => [1700000000.123456, ['date_format:U.u'], true];
+        yield 'rounded date spelling is not used' => [9.514857900400147, ['date'], false];
+        yield 'microsecond date comparison literal' => [1700000000.123457, ['date_format:U.u', ['after', 1700000000.123456]], true];
+        yield 'microsecond date comparison field' => [1700000000.123457, ['date_format:U.u', 'after:other'], true, ['other' => 1700000000.123456]];
+
+        foreach (['integer', 'digits:3', 'digits_between:3,3', 'min_digits:3', 'max_digits:3'] as $rule) {
+            yield "fraction rejected by {$rule}" => [123.00000000000001, [$rule], false];
+            yield "integral float accepted by {$rule}" => [123.0, [$rule], true];
+        }
+
+        foreach (['alpha_num', 'alpha_num:ascii', 'alpha_dash', 'alpha_dash:ascii'] as $rule) {
+            yield "fraction rejected by {$rule}" => [1.0000000000000002, [$rule], false];
+        }
+
+        foreach (['starts_with:1.234567890123456' => true, 'ends_with:456' => true, 'doesnt_start_with:1.234567890123456' => false, 'doesnt_end_with:456' => false] as $rule => $expected) {
+            yield "precise {$rule}" => [$number, [$rule], $expected];
+        }
+
+        yield 'string membership retains float' => [$number, ['in:1.234567890123456'], true];
+        yield 'string membership rejects rounded arithmetic' => [0.1 + 0.2, ['in:0.3'], false];
+        yield 'fluent membership distinguishes floats' => [0.1 + 0.2, [Rule::in([0.3])], false];
+        yield 'negative fluent membership distinguishes floats' => [0.1 + 0.2, [Rule::notIn([0.3])], true];
+        yield 'contains retains float' => [[$number], [Rule::contains([$number])], true];
+        yield 'contains distinguishes floats' => [[0.1 + 0.2], [Rule::contains([0.3])], false];
+        yield 'doesnt contain distinguishes floats' => [[0.1 + 0.2], [Rule::doesntContain([0.3])], true];
+
+        foreach (['gt' => true, 'gte' => true, 'lt' => false, 'lte' => false] as $rule => $expected) {
+            yield "native {$rule} operand" => ['1.23456789012347', ['numeric', [$rule, $number]], $expected];
+            yield "float {$rule} fields" => [1.23456789012347, ['numeric', "{$rule}:other"], $expected, ['other' => $number]];
+        }
+    }
+
+    public function testNumericFailureMessagesPreserveOperandPrecision(): void
+    {
+        $number = 1.234567890123456;
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([
+                [2, ['max', $number], ':max', '1.234567890123456'],
+                [0, ['min', $number], ':min', '1.234567890123456'],
+                [0, ['size', $number], ':size', '1.234567890123456'],
+                [1, ['multiple_of', $number], ':value', '1.234567890123456'],
+                [0, ['between', $number, $number], ':min/:max', '1.234567890123456/1.234567890123456'],
+                [$number, ['min', 2], ':input', '1.234567890123456'],
+            ] as [$value, $rule, $message, $expected]) {
+                $validator = new $validatorClass(
+                    new Translator(new ArrayLoader, 'en'),
+                    ['value' => $value],
+                    ['value' => ['numeric', $rule]],
+                    ['value.' . $rule[0] => $message],
+                );
+
+                $this->assertFalse($validator->passes());
+                $this->assertSame($expected, $validator->errors()->first('value'));
+            }
+        }
+    }
+
+    public function testNativeDateFailureParametersRetainPrecision(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = new $validatorClass(
+                new Translator(new ArrayLoader, 'en'),
+                ['value' => 1700000000.123455],
+                ['value' => ['date_format:U.u', ['after', 1700000000.123456]]],
+                ['value.after' => 'After :date'],
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame('After 1700000000.123456', $validator->errors()->first('value'));
+            $this->assertSame(['After' => ['1700000000.123456']], $validator->failed()['value']);
+        }
+    }
+
+    public function testNativeConditionalFloatLiteralsRetainPrecision(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['other' => '1.234567890123456'],
+                ['value' => [['required_if', 'other', 1.234567890123456]]],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertArrayHasKey('RequiredIf', $validator->failed()['value']);
+        }
+    }
+
+    public function testNumericExponentCallbackReceivesOriginalFloat(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(['value' => 1.25e20], ['value' => 'numeric|max:2e20'], validatorClass: $validatorClass);
+            $received = [];
+            $validator->ensureExponentWithinAllowedRangeUsing(
+                static function (int $scale, string $attribute, float $value) use (&$received): bool {
+                    $received[] = [$scale, $attribute, $value];
+
+                    return true;
+                },
+            );
+
+            $this->assertTrue($validator->passes());
+            $this->assertSame([[20, 'value', 1.25e20]], $received);
+        }
+    }
+
     public function testNumericSizeChecksEnforceExponentPolicyExactlyOnce(): void
     {
         foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
@@ -172,6 +417,82 @@ class ValidationCompiledExecutionTest extends TestCase
                 $this->assertSame(1, $calls);
                 $this->assertSame([2, 'value', '1e2'], $arguments);
             }
+        }
+    }
+
+    public function testFieldComparisonsEnforceEachOperandsExponentPolicy(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach (['gt', 'gte', 'lt', 'lte'] as $rule) {
+                foreach (['value', 'other'] as $attribute) {
+                    $data = ['value' => '1e1001', 'other' => '1E-1001'];
+                    $validator = $this->makeValidator($data, ['value' => $rule . ':other'], validatorClass: $validatorClass);
+                    $seen = [];
+                    $validator->ensureExponentWithinAllowedRangeUsing(
+                        function (int $scale, string $field, mixed $input) use (&$seen, $attribute): bool {
+                            $seen[] = [$field, $input];
+
+                            return $field !== $attribute;
+                        },
+                    );
+
+                    $this->assertFalse($validator->passes());
+                    $this->assertContains([$attribute, $data[$attribute]], $seen);
+                }
+            }
+        }
+    }
+
+    public function testRejectedComparisonExponentsRemainPrintableInValidationMessages(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines(['validation.gt.numeric' => ':attribute must be greater than :value.'], 'en');
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = new $validatorClass($translator, ['value' => 5, 'other' => '1e1001'], ['value' => 'gt:other']);
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame('value must be greater than 1e1001.', $validator->messages()->first('value'));
+        }
+    }
+
+    public function testNumericInputBeyondTheDefaultExponentRangeFailsValidation(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([
+                [['value' => '1e1001', 'other' => 1], 'gt:other'],
+                [['value' => '1e1001', 'other' => 1], 'gte:other'],
+                [['value' => '1e-1001', 'other' => 1], 'lt:other'],
+                [['value' => '1e-1001', 'other' => 1], 'lte:other'],
+                [['value' => 1, 'other' => '1e-1001'], 'gt:other'],
+                [['value' => 1, 'other' => '1e-1001'], 'gte:other'],
+                [['value' => 1, 'other' => '1e1001'], 'lt:other'],
+                [['value' => 1, 'other' => '1e1001'], 'lte:other'],
+                [['value' => '1e1001'], 'multiple_of:1'],
+                [['value' => '1e-1001'], 'multiple_of:1e-1001'],
+                [['value' => "5\x0C"], 'multiple_of:1'],
+                [['value' => "\0" . '5'], 'multiple_of:1'],
+                [['value' => NAN], 'multiple_of:1'],
+            ] as [$data, $rule]) {
+                $this->assertFalse($this->makeValidator($data, ['value' => $rule], validatorClass: $validatorClass)->passes());
+            }
+        }
+    }
+
+    public function testMultipleOfHonorsExponentOverridesWithoutRestrictingRuleLiterals(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(['value' => '1e1001'], ['value' => 'multiple_of:1'], validatorClass: $validatorClass);
+            $arguments = [];
+            $validator->ensureExponentWithinAllowedRangeUsing(function (...$values) use (&$arguments): bool {
+                $arguments[] = $values;
+
+                return true;
+            });
+
+            $this->assertTrue($validator->passes());
+            $this->assertSame([[1001, 'value', '1e1001']], $arguments);
+            $this->assertTrue($this->makeValidator(['value' => 0], ['value' => 'multiple_of:1e1001'], validatorClass: $validatorClass)->passes());
         }
     }
 
@@ -419,6 +740,140 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->errors()->has('items.0.end'));
     }
 
+    #[DataProvider('literalConditionalRules')]
+    public function testConditionalComparisonValuesRemainLiteral(
+        string|ParameterizedRule $rule,
+        string $literal,
+        array $field,
+        bool $passesWhenMatching,
+    ): void {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([$literal, 'different'] as $other) {
+                $validator = $this->makeValidator(
+                    ['items' => [['other' => $other, ...$field]]],
+                    ['items.*.value' => $rule],
+                    validatorClass: $validatorClass,
+                );
+
+                $this->assertSame($other === $literal ? $passesWhenMatching : ! $passesWhenMatching, $validator->passes());
+            }
+        }
+    }
+
+    /**
+     * Provide conditional rules whose comparison values are not field references.
+     */
+    public static function literalConditionalRules(): iterable
+    {
+        yield 'accepted if' => ['accepted_if:items.*.other,*', '*', ['value' => false], false];
+        yield 'declined if' => ['declined_if:items.*.other,*', '*', ['value' => true], false];
+        yield 'missing if' => ['missing_if:items.*.other,*', '*', ['value' => 'present'], false];
+        yield 'missing unless' => ['missing_unless:items.*.other,*', '*', ['value' => 'present'], true];
+        yield 'present if' => ['present_if:items.*.other,*', '*', [], false];
+        yield 'present unless' => ['present_unless:items.*.other,*', '*', [], true];
+        yield 'required if' => ['required_if:items.*.other,*', '*', [], false];
+        yield 'required unless' => ['required_unless:items.*.other,*', '*', [], true];
+        yield 'prohibited if' => ['prohibited_if:items.*.other,*', '*', ['value' => 'present'], false];
+        yield 'prohibited unless' => ['prohibited_unless:items.*.other,*', '*', ['value' => 'present'], true];
+        yield 'exclude if' => ['exclude_if:items.*.other,*|integer', '*', ['value' => 'invalid'], true];
+        yield 'exclude unless' => ['exclude_unless:items.*.other,*|integer', '*', ['value' => 'invalid'], false];
+        yield 'builder multiple asterisks' => [Rule::acceptedIf('items.*.other', '**'), '**', ['value' => false], false];
+        yield 'builder escaped dot' => [Rule::acceptedIf('items.*.other', 'a\.b'), 'a\.b', ['value' => false], false];
+        yield 'builder percent' => [Rule::acceptedIf('items.*.other', '100%'), '100%', ['value' => false], false];
+    }
+
+    public function testArrayFormConditionalValuesKeepTheirStringComparisonSemantics(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([[true, 'x'], [null, 0]] as [$comparison, $other]) {
+                $validator = $this->makeValidator(
+                    ['other' => $other, 'value' => false],
+                    ['value' => [['accepted_if', 'other', $comparison]]],
+                    validatorClass: $validatorClass,
+                );
+
+                $this->assertTrue($validator->passes());
+            }
+        }
+    }
+
+    public function testDependentFieldsPreservePercentSigns(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['items' => ['50%' => ['discount%' => 10]]],
+                ['items.*.value' => [Rule::requiredWith('items.*.discount%')]],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame(['items.50%.value' => ['RequiredWith' => ['items.50%.discount%']]], $validator->failed());
+        }
+    }
+
+    public function testUniqueWhereValuesRemainLiteralWhileIgnoreFieldsResolve(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->with(
+                Argument::satisfies(static function (PresenceQuery $query): bool {
+                    $actual = get_object_vars($query);
+                    $actual['conditions'] = $query->conditions->toArray();
+                    return $actual === [
+                        'connection' => null,
+                        'collection' => 'users',
+                        'column' => 'email',
+                        'conditions' => [
+                            ['scope', '=', '*'],
+                            ['path', '=', 'a\.b'],
+                            ['discount', '=', '100%'],
+                        ],
+                        'excludeId' => '42',
+                        'idColumn' => 'id',
+                    ];
+                }),
+                'user@example.com',
+            )->returns(0);
+            $validator = $this->makeValidator(
+                ['items' => [['id' => 42, 'email' => 'user@example.com']]],
+                ['items.*.email' => [Rule::unique('users', 'email')->ignore('[items.*.id]')
+                    ->where('scope', '*')->where('path', 'a\.b')->where('discount', '100%')]],
+                validatorClass: $validatorClass,
+            );
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertTrue($validator->passes());
+        }
+    }
+
+    public function testFloatUniqueExclusionsRetainTheirValue(): void
+    {
+        $identifier = 123.00000000000001;
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([
+                Rule::unique('users', 'email')->ignore($identifier),
+                ['unique', 'users', 'email', $identifier],
+                Rule::unique('users', 'email')->ignore('[identifier]'),
+                ['unique', 'users', 'email', '[identifier]'],
+            ] as $rule) {
+                $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+                $verifier->expects('getCount')->with(
+                    Argument::satisfies(static fn (PresenceQuery $query): bool => $query->excludeId === '123.00000000000001'),
+                    'user@example.com',
+                )->returns(0);
+                $validator = $this->makeValidator(
+                    ['identifier' => $identifier, 'email' => 'user@example.com'],
+                    ['email' => [$rule]],
+                    validatorClass: $validatorClass,
+                );
+                $validator->setPresenceVerifier($verifier);
+
+                $this->assertTrue($validator->passes());
+            }
+        }
+    }
+
     public function testBooleanStrictDelegated(): void
     {
         $v = $this->makeValidator(['flag' => true], ['flag' => 'boolean:strict']);
@@ -582,14 +1037,20 @@ class ValidationCompiledExecutionTest extends TestCase
                     {
                     }
 
-                    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+                    /**
+                     * Count matching values in the requested store.
+                     */
+                    public function getCount(PresenceQuery $query, mixed $value): int
                     {
                         ++$this->calls;
 
                         return 0;
                     }
 
-                    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+                    /**
+                     * Count matching distinct values in the requested store.
+                     */
+                    public function getMultiCount(PresenceQuery $query, array $values): int
                     {
                         ++$this->calls;
 
@@ -631,14 +1092,20 @@ class ValidationCompiledExecutionTest extends TestCase
             {
             }
 
-            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            /**
+             * Count matching values in the requested store.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
             {
                 ++$this->presenceCalls;
 
                 return 1;
             }
 
-            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            /**
+             * Count matching distinct values in the requested store.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
             {
                 ++$this->presenceCalls;
 
@@ -673,12 +1140,18 @@ class ValidationCompiledExecutionTest extends TestCase
     public function testCustomPresenceVerifierDisablesBatching(): void
     {
         $customVerifier = new class implements PresenceVerifierInterface {
-            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            /**
+             * Count matching values in the requested store.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
             {
                 return $value === 'exists@example.com' ? 1 : 0;
             }
 
-            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            /**
+             * Count matching distinct values in the requested store.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
             {
                 return 0;
             }
@@ -741,12 +1214,18 @@ class ValidationCompiledExecutionTest extends TestCase
         $v = new Validator($translator, ['name' => 'test'], ['name' => 'required|string']);
 
         $originalVerifier = new class implements PresenceVerifierInterface {
-            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            /**
+             * Count matching values in the requested store.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
             {
                 return 0;
             }
 
-            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            /**
+             * Count matching distinct values in the requested store.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
             {
                 return 0;
             }
@@ -779,6 +1258,186 @@ class ValidationCompiledExecutionTest extends TestCase
 
         $this->assertNotSame($firstPlan, $secondPlan);
         $this->assertNotCount(count($firstPlan->checks), $secondPlan->checks);
+    }
+
+    public function testCachedBuilderPlansPreserveStructuredParametersAfterBuilderMutation(): void
+    {
+        $compiledPlans = new ReflectionProperty(Validator::class, 'compiledPlans');
+        $firstPlan = null;
+
+        foreach (['secret', 'secret', 'different'] as $confirmation) {
+            $rule = Rule::confirmed()->customField('repeat,field|value');
+            $validator = $this->makeValidator(
+                ['value' => 'secret', 'repeat,field|value' => $confirmation],
+                ['value' => [$rule]],
+            );
+
+            $this->assertSame($confirmation === 'secret', $validator->passes());
+
+            $plan = $compiledPlans->getValue($validator)['value'];
+            $firstPlan ??= $plan;
+            $this->assertSame($firstPlan, $plan);
+
+            $rule->customField('another_field');
+        }
+    }
+
+    public function testDatabaseDeclarationsAreCapturedOncePerRunAndCachedByValue(): void
+    {
+        $rule = new class('users', 'email') extends Exists {
+            public int $parameterReads = 0;
+
+            public int $conditionReads = 0;
+
+            public string $status = 'construction';
+
+            /**
+             * Export the subclass's canonical query header.
+             */
+            public function queryParameters(): array
+            {
+                ++$this->parameterReads;
+
+                return ['users', 'custom_email'];
+            }
+
+            /**
+             * Export the current declarative condition.
+             */
+            public function queryConditions(): DatabaseConditions
+            {
+                ++$this->conditionReads;
+
+                return new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, $this->status));
+            }
+        };
+        $validator = $this->makeValidator(
+            ['trigger' => 'present', 'emails' => ['user@example.com', 'user@example.com']],
+            ['trigger' => 'mutate', 'emails.*' => ['nullable', $rule]],
+        );
+        $validator->addExtension('mutate', static function () use ($rule): bool {
+            $rule->status = 'during validation';
+
+            return true;
+        });
+        $conditions = [];
+        $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+        $verifier->expects('getCount')->times(6)->resolves(function (PresenceQuery $query, mixed $value) use (&$conditions): int {
+            $this->assertSame('users', $query->collection);
+            $this->assertSame('custom_email', $query->column);
+            $this->assertSame('user@example.com', $value);
+            $conditions[] = $query->conditions->toArray();
+
+            return $query->conditions->all()[0]->value === 'active' ? 1 : 0;
+        });
+        $validator->setPresenceVerifier($verifier);
+        $compiledPlans = new ReflectionProperty(Validator::class, 'compiledPlans');
+        $plans = [];
+
+        foreach (['active', 'active', 'inactive'] as $status) {
+            $rule->status = $status;
+            $this->assertSame($status === 'active', $validator->passes());
+            $currentPlans = $compiledPlans->getValue($validator);
+            $plans[] = $currentPlans['emails.0'];
+            $this->assertSame($currentPlans['emails.0'], $currentPlans['emails.1']);
+        }
+
+        $this->assertSame(3, $rule->parameterReads);
+        $this->assertSame(3, $rule->conditionReads);
+        $this->assertSame([
+            [['status', '=', 'active']],
+            [['status', '=', 'active']],
+            [['status', '=', 'active']],
+            [['status', '=', 'active']],
+            [['status', '=', 'inactive']],
+            [['status', '=', 'inactive']],
+        ], $conditions);
+        $this->assertSame($plans[0], $plans[1]);
+        $this->assertNotSame($plans[0], $plans[2]);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testWildcardDeclarationsAreExportedOncePerRunAndDetachedFromReferences(bool $delegated): void
+    {
+        $rule = new class([]) extends In {
+            public int $exports = 0;
+
+            public string $allowed = 'before';
+
+            /**
+             * Export a referenced parameter to exercise run-start capture.
+             */
+            public function toArray(): array
+            {
+                ++$this->exports;
+
+                return ['in', &$this->allowed];
+            }
+        };
+        $arguments = [
+            new Translator(new ArrayLoader, 'en'),
+            ['trigger' => 'present', 'values' => ['before', 'before']],
+            ['trigger' => 'mutate', 'values.*' => [$rule]],
+        ];
+        $validator = $delegated ? new class(...$arguments) extends Validator {
+            public array $seenRules = [];
+
+            /**
+             * Inspect the original rule while executing its captured parameters.
+             */
+            public function validateIn(string $attribute, mixed $value, mixed $parameters): bool
+            {
+                $this->seenRules[] = $this->currentRule;
+
+                return parent::validateIn($attribute, $value, $parameters);
+            }
+        } : new Validator(...$arguments);
+        $validator->addExtension('mutate', static function () use ($rule): bool {
+            $rule->allowed = 'after';
+
+            return true;
+        });
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(1, $rule->exports);
+        $this->assertFalse($validator->passes());
+        $this->assertSame(2, $rule->exports);
+        $this->assertSame(['values.0', 'values.1'], array_keys($validator->failed()));
+        $plans = new ReflectionProperty(Validator::class, 'compiledPlans')->getValue($validator);
+        $this->assertSame($plans['values.0'], $plans['values.1']);
+
+        if ($delegated) {
+            $this->assertSame([$rule, $rule, $rule, $rule], $validator->seenRules);
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCustomValidatorsReceiveOriginalDatabaseRules(bool $wildcard): void
+    {
+        $rule = new Exists('users', 'email');
+        $data = $wildcard ? ['items' => [['email' => 'first'], ['email' => 'second']]] : ['email' => 'first'];
+        $rules = [$wildcard ? 'items.*.email' : 'email' => $rule];
+        $validator = new class(new Translator(new ArrayLoader, 'en'), $data, $rules) extends Validator {
+            public array $seenRules = [];
+
+            /**
+             * Inspect the caller's rule through the normal extension hook.
+             */
+            public function validateExists(string $attribute, mixed $value, mixed $parameters): bool
+            {
+                $this->seenRules[] = $this->currentRule;
+
+                return parent::validateExists($attribute, $value, $parameters);
+            }
+        };
+        $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+        $verifier->expects('getCount')->times($wildcard ? 2 : 1)->returns(1);
+        $validator->setPresenceVerifier($verifier);
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame($wildcard ? [$rule, $rule] : [$rule], $validator->seenRules);
     }
 
     #[DataProvider('guardedRuleCases')]

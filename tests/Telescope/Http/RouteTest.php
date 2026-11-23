@@ -148,6 +148,21 @@ class RouteTest extends FeatureTestCase
         TestResponse::macro('assertJsonExactFragment', $assertion);
     }
 
+    public function testMailPreviewIsSandboxed(): void
+    {
+        $entry = EntryModelFactory::new()->create([
+            'type' => EntryType::MAIL,
+            'content' => ['html' => '<script>alert(document.domain)</script>'],
+        ]);
+
+        $this->get("/telescope/telescope-api/mail/{$entry->uuid}/preview")
+            ->assertSuccessful()
+            ->assertHeader('Content-Security-Policy', 'sandbox allow-popups allow-popups-to-escape-sandbox')
+            ->assertHeader('Content-Type', 'text/html; charset=UTF-8')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertSee('<script>alert(document.domain)</script>', false);
+    }
+
     public function testNamedRoute(): void
     {
         $this->assertEquals(

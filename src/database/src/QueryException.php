@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use PDOException;
 use Throwable;
@@ -79,7 +80,10 @@ class QueryException extends PDOException
     ): string {
         $details = $this->formatConnectionDetails();
 
-        $sql = $maskBindings ? $sql : Str::replaceArray('?', $bindings, $sql);
+        $sql = $maskBindings ? $sql : Str::replaceArray('?', array_map(
+            static fn (mixed $binding): mixed => is_float($binding) ? Number::toString($binding) : $binding,
+            $bindings,
+        ), $sql);
 
         return $previous->getMessage() . ' (Connection: ' . $connectionName . $details . ', SQL: ' . $sql . ')';
     }

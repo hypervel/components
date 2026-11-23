@@ -26,6 +26,8 @@ use Hypervel\Passkeys\Support\Aaguids;
  * @property ?CarbonInterface $updated_at
  * @property-read null|PasskeyUser $user
  * @property-read null|string $authenticator
+ * @property-read null|string $authenticator_icon_light
+ * @property-read null|string $authenticator_icon_dark
  */
 class Passkey extends Model
 {
@@ -34,6 +36,7 @@ class Passkey extends Model
      *
      * @var list<string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Fillable] would merge with a subclass's $fillable instead of letting it replace this list)
     protected array $fillable = [
         'name',
         'credential_id',
@@ -45,6 +48,7 @@ class Passkey extends Model
      *
      * @var list<string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Appends] would merge with a subclass's $appends instead of letting it replace this list)
     protected array $appends = [
         'authenticator',
     ];
@@ -74,17 +78,53 @@ class Passkey extends Model
 
     /**
      * Get the authenticator name based on the AAGUID.
+     *
+     * @return Attribute<null|string, never>
      */
     protected function authenticator(): Attribute
     {
-        return Attribute::get(function (): ?string {
-            $aaguid = $this->credential['aaguid'] ?? null;
+        return Attribute::get(fn (): ?string => Aaguids::labelFor($this->resolvedAaguid() ?? ''));
+    }
 
-            if (! is_string($aaguid) || $aaguid === Aaguids::unknown()) {
-                return null;
-            }
+    /**
+     * Get the light-mode authenticator icon (data URI) based on the AAGUID.
+     *
+     * Not included in serialization by default. Opt in per instance via
+     * `$passkey->append('authenticator_icon_light')`, or globally by adding it to `$appends`
+     * on a custom model.
+     *
+     * @return Attribute<null|string, never>
+     */
+    protected function authenticatorIconLight(): Attribute
+    {
+        return Attribute::get(fn (): ?string => Aaguids::iconFor($this->resolvedAaguid() ?? '', 'light'));
+    }
 
-            return Aaguids::labelFor($aaguid);
-        });
+    /**
+     * Get the dark-mode authenticator icon (data URI) based on the AAGUID.
+     *
+     * Not included in serialization by default. Opt in per instance via
+     * `$passkey->append('authenticator_icon_dark')`, or globally by adding it to `$appends`
+     * on a custom model.
+     *
+     * @return Attribute<null|string, never>
+     */
+    protected function authenticatorIconDark(): Attribute
+    {
+        return Attribute::get(fn (): ?string => Aaguids::iconFor($this->resolvedAaguid() ?? '', 'dark'));
+    }
+
+    /**
+     * Get the AAGUID stored on the credential, ignoring the unknown sentinel.
+     */
+    protected function resolvedAaguid(): ?string
+    {
+        $aaguid = $this->credential['aaguid'] ?? null;
+
+        if (! is_string($aaguid) || $aaguid === Aaguids::unknown()) {
+            return null;
+        }
+
+        return $aaguid;
     }
 }

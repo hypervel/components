@@ -38,6 +38,8 @@ class DatabaseFailedJobProvider implements CountableFailedJobProvider, FailedJob
 
     /**
      * Get the IDs of all of the failed jobs.
+     *
+     * @return list<int|string>
      */
     public function ids(?string $queue = null): array
     {
@@ -45,11 +47,14 @@ class DatabaseFailedJobProvider implements CountableFailedJobProvider, FailedJob
             ->when(! is_null($queue), fn ($query) => $query->where('queue', $queue))
             ->orderBy('id', 'desc')
             ->pluck('id')
+            ->map(fn ($id) => is_int($id) ? $id : (string) $id)
             ->all();
     }
 
     /**
      * Get a list of all of the failed jobs.
+     *
+     * @return list<object>
      */
     public function all(): array
     {

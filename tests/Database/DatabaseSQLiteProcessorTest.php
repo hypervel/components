@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Query\Processors\SQLiteProcessor;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use UnexpectedValueException;
 
 class DatabaseSQLiteProcessorTest extends TestCase
@@ -15,10 +16,10 @@ class DatabaseSQLiteProcessorTest extends TestCase
         $processor = new SQLiteProcessor;
 
         $listing = [
-            ['name' => 'id', 'type' => 'INTEGER', 'nullable' => '0', 'default' => '', 'primary' => '1', 'extra' => 1],
-            ['name' => 'name', 'type' => 'varchar', 'nullable' => '1', 'default' => 'foo', 'primary' => '0', 'extra' => 1],
-            ['name' => 'is_active', 'type' => 'tinyint(1)', 'nullable' => '0', 'default' => '1', 'primary' => '0', 'extra' => 1],
-            ['name' => 'with/slash', 'type' => 'tinyint(1)', 'nullable' => '0', 'default' => '1', 'primary' => '0', 'extra' => 1],
+            ['name' => 'id', 'type' => 'INTEGER', 'nullable' => '0', 'default' => '', 'primary' => '1', 'extra' => 1, 'auto_increment' => 1],
+            ['name' => 'name', 'type' => 'varchar', 'nullable' => '1', 'default' => 'foo', 'primary' => '0', 'extra' => 1, 'auto_increment' => 0],
+            ['name' => 'is_active', 'type' => 'tinyint(1)', 'nullable' => '0', 'default' => '1', 'primary' => '0', 'extra' => 1, 'auto_increment' => 0],
+            ['name' => 'with/slash', 'type' => 'tinyint(1)', 'nullable' => '0', 'default' => '1', 'primary' => '0', 'extra' => 1, 'auto_increment' => 0],
         ];
         $expected = [
             ['name' => 'id', 'type_name' => 'integer', 'type' => 'integer', 'collation' => null, 'nullable' => false, 'default' => '', 'auto_increment' => true, 'comment' => null, 'generation' => null],
@@ -37,6 +38,31 @@ class DatabaseSQLiteProcessorTest extends TestCase
         $this->assertEquals($expected, $processor->processColumns($listing));
     }
 
+    #[DataProvider('typeNameProvider')]
+    public function testTypeNamesExcludeModifiersButKeepDeclaredNames(string $type, string $typeName): void
+    {
+        $column = (new SQLiteProcessor)->processColumns([
+            ['name' => 'value', 'type' => $type, 'nullable' => '1', 'default' => null, 'primary' => '0', 'extra' => 0, 'auto_increment' => 0],
+        ])[0];
+
+        $this->assertSame($typeName, $column['type_name']);
+        $this->assertSame(strtolower($type), $column['type']);
+    }
+
+    /**
+     * Provide declared SQLite types with their names.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function typeNameProvider(): iterable
+    {
+        yield 'spaced modifiers' => ['varchar (255)', 'varchar'];
+        yield 'modifiers' => ['NUMERIC(10, 2)', 'numeric'];
+        yield 'falsey quoted name' => ['0', '0'];
+        yield 'quoted name with a trailing space' => ['INTEGER ', 'integer '];
+        yield 'none' => ['', ''];
+    }
+
     public function testProcessIndexesIncludesPartialFlagAndPreservesSchemaStateMetadata(): void
     {
         $processor = new SQLiteProcessor;
@@ -44,6 +70,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             [
                 'name' => 'MixedCase_Index',
                 'columns' => '656D61696C',
+                'key_columns' => '656D61696C',
                 'unique' => 1,
                 'primary' => 0,
                 'partial' => 1,
@@ -54,13 +81,14 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'descending' => '0',
             ],
             [
-                'name' => 'sqlite_autoindex_users_1',
+                'name' => 'users_expression_index',
                 'columns' => null,
+                'key_columns' => '656D61696C,-',
                 'unique' => 1,
                 'primary' => 0,
                 'partial' => 0,
-                'sql' => null,
-                'origin' => 'u',
+                'sql' => 'CREATE UNIQUE INDEX users_expression_index ON users (email, lower(name))',
+                'origin' => 'c',
                 'reconstructible' => 0,
                 'collations' => null,
                 'descending' => null,
@@ -71,14 +99,16 @@ class DatabaseSQLiteProcessorTest extends TestCase
             [
                 'name' => 'mixedcase_index',
                 'columns' => ['email'],
+                'key_columns' => ['email'],
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
                 'partial' => true,
             ],
             [
-                'name' => 'sqlite_autoindex_users_1',
+                'name' => 'users_expression_index',
                 'columns' => [],
+                'key_columns' => ['email', null],
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
@@ -91,6 +121,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'name' => 'mixedcase_index',
                 'physical_name' => 'MixedCase_Index',
                 'columns' => ['email'],
+                'key_columns' => ['email'],
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
@@ -102,15 +133,16 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'descending' => [false],
             ],
             [
-                'name' => 'sqlite_autoindex_users_1',
-                'physical_name' => 'sqlite_autoindex_users_1',
+                'name' => 'users_expression_index',
+                'physical_name' => 'users_expression_index',
                 'columns' => [],
+                'key_columns' => ['email', null],
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
                 'partial' => false,
-                'sql' => null,
-                'origin' => 'u',
+                'sql' => 'CREATE UNIQUE INDEX users_expression_index ON users (email, lower(name))',
+                'origin' => 'c',
                 'reconstructible' => false,
                 'collations' => null,
                 'descending' => null,
@@ -124,6 +156,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
         $results = [[
             'name' => 'sqlite_autoindex_contacts_1',
             'columns' => '656D61696C2C61646472657373',
+            'key_columns' => '656D61696C2C61646472657373',
             'unique' => 1,
             'primary' => 0,
             'partial' => 0,
@@ -138,6 +171,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             'name' => 'sqlite_autoindex_contacts_1',
             'physical_name' => 'sqlite_autoindex_contacts_1',
             'columns' => ['email,address'],
+            'key_columns' => ['email,address'],
             'type' => null,
             'unique' => true,
             'primary' => false,
@@ -162,6 +196,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
         $processor->processIndexesForSchemaState([[
             'name' => 'contacts_index',
             'columns' => 'not-hexadecimal',
+            'key_columns' => 'not-hexadecimal',
             'unique' => 0,
             'primary' => 0,
             'partial' => 0,
@@ -183,6 +218,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             [
                 'name' => 'users_email_index',
                 'columns' => '656D61696C',
+                'key_columns' => '656D61696C',
                 'unique' => 0,
                 'primary' => 0,
                 'partial' => 0,
@@ -195,6 +231,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             [
                 'name' => 'primary',
                 'columns' => '74656E616E745F6964,6964',
+                'key_columns' => '74656E616E745F6964,6964',
                 'unique' => 1,
                 'primary' => 1,
                 'partial' => 0,
@@ -207,6 +244,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             [
                 'name' => 'sqlite_autoindex_users_1',
                 'columns' => '74656E616E745F6964,6964',
+                'key_columns' => '74656E616E745F6964,6964',
                 'unique' => 1,
                 'primary' => 1,
                 'partial' => 0,
@@ -227,5 +265,22 @@ class DatabaseSQLiteProcessorTest extends TestCase
 
         $this->assertTrue(array_is_list($publicIndexes));
         $this->assertSame(['users_email_index', 'sqlite_autoindex_users_1'], array_column($publicIndexes, 'name'));
+    }
+
+    public function testForeignKeyNamesPreserveCommasAndUnresolvedTargets(): void
+    {
+        $processor = new SQLiteProcessor;
+        $metadata = ['columns' => bin2hex('from,a') . ',' . bin2hex('from,b'), 'foreign_schema' => 'main', 'foreign_table' => 'parents', 'on_update' => 'CASCADE', 'on_delete' => 'RESTRICT', 'implicit' => 1];
+        $results = [
+            $metadata + ['foreign_columns' => bin2hex('id,one') . ',' . bin2hex('id,two')],
+            $metadata + ['foreign_columns' => null],
+        ];
+        $keys = $processor->processForeignKeys($results);
+
+        $this->assertSame(['from,a', 'from,b'], $keys[0]['columns']);
+        $this->assertSame(['id,one', 'id,two'], $keys[0]['foreign_columns']);
+        $this->assertSame([], $keys[1]['foreign_columns']);
+        $this->assertArrayNotHasKey('implicit', $keys[0]);
+        $this->assertSame($keys[0] + ['implicit' => true], $processor->processForeignKeysForSchemaState($results)[0]);
     }
 }

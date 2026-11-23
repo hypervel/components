@@ -21,8 +21,11 @@ use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -30,6 +33,8 @@ use Throwable;
 
 class ThrottlesExceptionsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCircuitIsOpenedForJobErrors(): void
     {
         $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
@@ -413,15 +418,16 @@ class ThrottlesExceptionsTest extends TestCase
     #[TestWith([true])]
     public function testCancellationBypassesFailurePolicyAndRateLimitAccounting(bool $cleanupThrows): void
     {
-        $limiter = m::mock(Limiter::class);
+        $limiter = Double::for(Limiter::class)->strict();
         $limiter->expects('inspect')
-            ->with(m::type(Limit::class))
-            ->andReturn(new LimitResult(true, 10, 10, 0, 0));
-        $limiter->shouldNotReceive('clear', 'consume');
+            ->with(Argument::type(Limit::class))
+            ->returns(new LimitResult(true, 10, 10, 0, 0));
+        $limiter->expects('clear')->never();
+        $limiter->expects('consume')->never();
 
-        $rateLimiter = m::mock(RateLimiter::class);
-        $rateLimiter->expects('store')->with(null)->andReturn($limiter);
-        $this->app->instance(RateLimiter::class, $rateLimiter);
+        $rateLimiter = Double::for(RateLimiter::class, override: true)->strict();
+        $rateLimiter->expects('store')->with(null)->returns($limiter);
+        $this->app->instance(RateLimiter::class, $rateLimiter->instance());
 
         $callbacksCalled = false;
         $middleware = (new ThrottlesExceptions)
@@ -446,8 +452,10 @@ class ThrottlesExceptionsTest extends TestCase
 
                 return false;
             });
-        $job = m::mock();
-        $job->shouldNotReceive('release', 'delete', 'fail');
+        $job = Double::for(CircuitBreakerTestJob::class)->strict();
+        $job->expects('release')->never();
+        $job->expects('delete')->never();
+        $job->expects('fail')->never();
         $gate = $this->armCurrentCoroutineCancellation();
         $cleanupException = new RuntimeException('Cleanup failed.');
 
@@ -480,13 +488,13 @@ class ThrottlesExceptionsTest extends TestCase
     {
         $job = (new CircuitBreakerTestJob)->withFakeQueueInteractions();
         $failure = new ChildCancellationException(previous: new CanceledException);
-        $limiter = m::mock(Limiter::class);
-        $limiter->expects('inspect')->with(m::type(Limit::class))->andReturn(new LimitResult(true, 10, 10, 0, 0));
-        $limiter->expects('consume')->with(m::type(Limit::class))->andReturn(new LimitResult(true, 10, 9, 0, 0));
-        $limiter->shouldNotReceive('clear');
-        $rateLimiter = m::mock(RateLimiter::class);
-        $rateLimiter->expects('store')->with(null)->andReturn($limiter);
-        $this->app->instance(RateLimiter::class, $rateLimiter);
+        $limiter = Double::for(Limiter::class)->strict();
+        $limiter->expects('inspect')->with(Argument::type(Limit::class))->returns(new LimitResult(true, 10, 10, 0, 0));
+        $limiter->expects('consume')->with(Argument::type(Limit::class))->returns(new LimitResult(true, 10, 9, 0, 0));
+        $limiter->expects('clear')->never();
+        $rateLimiter = Double::for(RateLimiter::class, override: true)->strict();
+        $rateLimiter->expects('store')->with(null)->returns($limiter);
+        $this->app->instance(RateLimiter::class, $rateLimiter->instance());
         $this->spy(ExceptionHandler::class)->expects('report')->with($failure, []);
 
         (new ThrottlesExceptions)->backoff(1)->report()->handle($job, static fn () => throw $failure);
@@ -530,10 +538,7 @@ class ThrottlesExceptionsTest extends TestCase
 
     public function testReportingExceptions(): void
     {
-        $this->spy(ExceptionHandler::class)
-            ->expects('report')
-            ->times(2)
-            ->with(m::type(RuntimeException::class), []);
+        Exceptions::fake();
 
         $job = new class {
             /**
@@ -558,6 +563,9 @@ class ThrottlesExceptionsTest extends TestCase
 
         $middleware->report(fn (): bool => false);
         $middleware->handle($job, $next);
+
+        Exceptions::assertReported(RuntimeException::class);
+        Exceptions::assertReportedCount(2);
     }
 
     public function testCallbacksReceiveTheSelectedPackageLimiter(): void

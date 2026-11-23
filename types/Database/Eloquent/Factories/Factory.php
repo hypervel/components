@@ -76,17 +76,17 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $factory->createM
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $factory->createManyQuietly(3));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $factory->createManyQuietly());
 
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->create());
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->create(['string' => 'string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->create(function ($attributes) {
+assertType('User', $factory->create());
+assertType('User', $factory->create(['string' => 'string']));
+assertType('User', $factory->create(function ($attributes) {
     assertType('array<string, mixed>', $attributes);
 
     return ['string' => 'string'];
 }));
 
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->createQuietly());
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->createQuietly(['string' => 'string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->createQuietly(function ($attributes) {
+assertType('User', $factory->createQuietly());
+assertType('User', $factory->createQuietly(['string' => 'string']));
+assertType('User', $factory->createQuietly(function ($attributes) {
     assertType('array<string, mixed>', $attributes);
 
     return ['string' => 'string'];
@@ -103,9 +103,9 @@ assertType('User', $factory->makeOne(function ($attributes) {
     return ['string' => 'string'];
 }));
 
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->make());
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->make(['string' => 'string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>|User', $factory->make(function ($attributes) {
+assertType('User', $factory->make());
+assertType('User', $factory->make(['string' => 'string']));
+assertType('User', $factory->make(function ($attributes) {
     assertType('array<string, mixed>', $attributes);
 
     return ['string' => 'string'];

@@ -12,6 +12,8 @@ trait CreatesRegularExpressionRouteConstraints
 {
     /**
      * Specify that the given route parameters must be alphabetic.
+     *
+     * @return $this
      */
     public function whereAlpha(array|string $parameters): static
     {
@@ -20,6 +22,8 @@ trait CreatesRegularExpressionRouteConstraints
 
     /**
      * Specify that the given route parameters must be alphanumeric.
+     *
+     * @return $this
      */
     public function whereAlphaNumeric(array|string $parameters): static
     {
@@ -28,6 +32,8 @@ trait CreatesRegularExpressionRouteConstraints
 
     /**
      * Specify that the given route parameters must be numeric.
+     *
+     * @return $this
      */
     public function whereNumber(array|string $parameters): static
     {
@@ -36,6 +42,8 @@ trait CreatesRegularExpressionRouteConstraints
 
     /**
      * Specify that the given route parameters must be ULIDs.
+     *
+     * @return $this
      */
     public function whereUlid(array|string $parameters): static
     {
@@ -44,6 +52,8 @@ trait CreatesRegularExpressionRouteConstraints
 
     /**
      * Specify that the given route parameters must be UUIDs.
+     *
+     * @return $this
      */
     public function whereUuid(array|string $parameters): static
     {
@@ -52,6 +62,8 @@ trait CreatesRegularExpressionRouteConstraints
 
     /**
      * Specify that the given route parameters must be one of the given values.
+     *
+     * @return $this
      */
     public function whereIn(array|string $parameters, array $values): static
     {
@@ -65,6 +77,8 @@ trait CreatesRegularExpressionRouteConstraints
 
     /**
      * Apply the given regular expression to the given parameters.
+     *
+     * @return $this
      */
     protected function assignExpressionToParameters(array|string $parameters, string $expression): static
     {

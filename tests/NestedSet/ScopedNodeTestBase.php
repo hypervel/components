@@ -112,6 +112,8 @@ abstract class ScopedNodeTestBase extends TestCase
 
     /**
      * Assert that the selected menu's tree has no structural errors.
+     *
+     * countErrors() uses window functions, which MySQL supports from 8.0.
      */
     protected function assertTreeNotBroken(int $menuId): void
     {

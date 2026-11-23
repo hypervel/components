@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Integration\Console\Events;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\EventListCommand;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\Testing\ParallelTesting;
 
 class EventListCommandTest extends \Hypervel\Testbench\TestCase
 {
@@ -47,6 +49,37 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('⇂ Hypervel\Tests\Integration\Console\Events\ExampleBroadcastListener')
             ->expectsOutputToContain('Hypervel\Tests\Integration\Console\Events\ExampleEvent')
             ->expectsOutputToContain('⇂ Closure at: ' . $unixFilePath . ':' . $closureLineNumber);
+    }
+
+    public function testClosurePathRemovesOnlyTheLeadingApplicationDirectory(): void
+    {
+        $root = ParallelTesting::tempDir('EventListPaths');
+        $base = $root . '/app';
+        $path = $base . '/nested' . $base . '/listener.php';
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $originalBasePath = $this->app->basePath();
+
+        try {
+            $files->ensureDirectoryExists(dirname($path));
+            $files->put($path, '<?php return static fn () => null;');
+            $this->dispatcher->listen('example.event', require $path);
+            $this->app->setBasePath($base);
+
+            $this->withoutMockingConsoleOutput()->artisan(EventListCommand::class, ['--json' => true]);
+
+            $expected = 'Closure at: nested' . $base . '/listener.php:1';
+            $this->assertSame(
+                $expected,
+                json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR)[0]['listeners'][0],
+            );
+
+            $this->withoutMockingConsoleOutput()->artisan(EventListCommand::class);
+            $this->assertStringContainsString($expected, Artisan::output());
+        } finally {
+            $this->app->setBasePath($originalBasePath);
+            $files->deleteDirectory($root);
+        }
     }
 
     public function testDisplayFilteredEvent(): void

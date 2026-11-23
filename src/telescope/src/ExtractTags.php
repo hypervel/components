@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionException;
@@ -113,7 +114,8 @@ class ExtractTags
     protected static function modelsFor(array $targets): Collection
     {
         return Collection::make($targets)->map(function ($target) {
-            return Collection::make((new ReflectionClass($target))->getProperties())->map(function ($property) use ($target) {
+            // Unlike Laravel, a parent's private properties are read too, since the target holds them.
+            return Collection::make(ClassMetadataCache::allProperties($target))->map(function ($property) use ($target) {
                 if (! is_object($target) || $property->isInitialized($target)) {
                     return static::resolveValue($property->getValue($target));
                 }

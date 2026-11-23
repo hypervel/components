@@ -4,45 +4,74 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\ClassInvoker;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionProperty;
+use stdClass;
 
-/**
- * Tests for RedisStore core functionality.
- *
- * Operation-specific tests have been moved to the Operations/ directory.
- * This file contains only store-level tests (prefix, connection, tags, locks).
- */
 class RedisStoreTest extends RedisCacheTestCase
 {
-    public function testGetAndSetPrefix(): void
+    public function testSerializableClassesControlRedisValues(): void
+    {
+        $denyingConnection = $this->mockConnection();
+        $denyingConnection->client()->expects('get')
+            ->with('prefix:object')
+            ->returns(serialize(new stdClass));
+        $allowingConnection = $this->mockConnection();
+        $allowingConnection->client()->expects('get')
+            ->with('prefix:object')
+            ->returns(serialize(new stdClass));
+
+        $denyingStore = new RedisStore(
+            $this->createRedisFactory($denyingConnection),
+            'prefix:',
+            'default',
+            false,
+        );
+        $allowingStore = new RedisStore(
+            $this->createRedisFactory($allowingConnection),
+            'prefix:',
+            'default',
+            serializableClasses: [stdClass::class],
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
+    }
+
+    public function testSerializableClassPolicyControlsRedisValues(): void
     {
         $connection = $this->mockConnection();
-        $redis = $this->createStore($connection);
+        $connection->client()->expects('get')
+            ->with('prefix:object')
+            ->returns(serialize(new stdClass));
+        $store = new RedisStore(
+            $this->createRedisFactory($connection),
+            'prefix:',
+            'default',
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
 
-        $this->assertSame('prefix:', $redis->getPrefix());
-        $redis->setPrefix('foo:');
-        $this->assertSame('foo:', $redis->getPrefix());
-        $redis->setPrefix('');
-        $this->assertEmpty($redis->getPrefix());
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('object'));
     }
 
     public function testCounterFailuresAreReturnedWithoutCoercion(): void
     {
         $connection = $this->mockConnection();
-        $connection->expects('incrby')->with('prefix:increment', 2)->andReturnFalse();
-        $connection->expects('decrby')->with('prefix:decrement', 3)->andReturnFalse();
+        $connection->client()->expects('incrby')->with('prefix:increment', 2)->returns(false);
+        $connection->client()->expects('decrby')->with('prefix:decrement', 3)->returns(false);
         $redis = $this->createStore($connection);
 
         $this->assertFalse($redis->increment('increment', 2));
@@ -52,24 +81,22 @@ class RedisStoreTest extends RedisCacheTestCase
     public function testSetConnectionClearsCachedInstances(): void
     {
         $connection1 = $this->mockConnection();
-        $connection1->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('value1'));
+        $connection1->client()->expects('get')->with('prefix:foo')->returns(serialize('value1'));
 
         $connection2 = $this->mockConnection();
-        $connection2->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('value2'));
+        $connection2->client()->expects('get')->with('prefix:foo')->returns(serialize('value2'));
 
-        $redisProxy1 = m::mock(RedisProxy::class);
-        $redisProxy1->shouldReceive('withConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback($connection1));
+        $redisProxy1 = Double::for(RedisProxy::class)->strict();
+        $redisProxy1->expects('withConnection')
+            ->resolves(fn (callable $callback) => $callback($connection1->shouldTransform(false)));
 
-        $redisProxy2 = m::mock(RedisProxy::class);
-        $redisProxy2->shouldReceive('withConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback($connection2));
+        $redisProxy2 = Double::for(RedisProxy::class)->strict();
+        $redisProxy2->expects('withConnection')
+            ->resolves(fn (callable $callback) => $callback($connection2->shouldTransform(false)));
 
-        $redisFactory = m::mock(Redis::class);
-        $redisFactory->shouldReceive('connection')->once()->with('conn1')->andReturn($redisProxy1);
-        $redisFactory->shouldReceive('connection')->once()->with('conn2')->andReturn($redisProxy2);
+        $redisFactory = Double::for(Redis::class)->strict();
+        $redisFactory->expects('connection')->with('conn1')->returns($redisProxy1);
+        $redisFactory->expects('connection')->with('conn2')->returns($redisProxy2);
 
         $redis = new RedisStore($redisFactory, 'prefix:', 'conn1');
 
@@ -83,8 +110,8 @@ class RedisStoreTest extends RedisCacheTestCase
     public function testSetPrefixClearsCachedOperations(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('old'));
-        $connection->shouldReceive('get')->once()->with('newprefix:foo')->andReturn(serialize('new'));
+        $connection->client()->expects('get')->with('prefix:foo')->returns(serialize('old'));
+        $connection->client()->expects('get')->with('newprefix:foo')->returns(serialize('new'));
 
         $redis = $this->createStore($connection);
 
@@ -261,10 +288,9 @@ class RedisStoreTest extends RedisCacheTestCase
     public function testTouchUsesPlainExpireInAllMode(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('expire')
-            ->once()
+        $connection->client()->expects('expire')
             ->with('prefix:key', 60)
-            ->andReturn(1);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
 
@@ -274,9 +300,8 @@ class RedisStoreTest extends RedisCacheTestCase
     public function testTouchUsesAnyTagMetadataOperationInAnyMode(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(true);
+        $connection->expects('evalWithShaCache')
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
@@ -287,10 +312,9 @@ class RedisStoreTest extends RedisCacheTestCase
     public function testForgetUsesPlainDeleteInAllMode(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with('prefix:key')
-            ->andReturn(1);
+            ->returns(1);
 
         $redis = $this->createStore($connection);
 
@@ -300,9 +324,8 @@ class RedisStoreTest extends RedisCacheTestCase
     public function testForgetUsesAnyTagMetadataOperationInAnyMode(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturn(1);
+        $connection->expects('evalWithShaCache')
+            ->returns(1);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
@@ -312,9 +335,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testLockReturnsRedisLockInstance(): void
     {
-        $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(Redis::class);
-        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
+        $redisFactory = Double::for(Redis::class)->strict();
+        $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -329,9 +352,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testLockWithOwner(): void
     {
-        $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(Redis::class);
-        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
+        $redisFactory = Double::for(Redis::class)->strict();
+        $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -346,9 +369,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testRestoreLockReturnsRedisLockInstance(): void
     {
-        $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(Redis::class);
-        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
+        $redisFactory = Double::for(Redis::class)->strict();
+        $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -373,11 +396,11 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testLockUsesLockConnectionWhenSet(): void
     {
-        $redisProxy = m::mock(RedisProxy::class);
-        $lockProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(Redis::class);
-        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
-        $redisFactory->shouldReceive('connection')->with('locks')->andReturn($lockProxy);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
+        $lockProxy = Double::for(RedisProxy::class)->strict();
+        $redisFactory = Double::for(Redis::class)->strict();
+        $redisFactory->allows('connection')->with('default')->returns($redisProxy);
+        $redisFactory->allows('connection')->with('locks')->returns($lockProxy);
 
         $redis = new RedisStore(
             $redisFactory,
@@ -393,7 +416,7 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testGetRedisReturnsRedis(): void
     {
-        $redisFactory = m::mock(Redis::class);
+        $redisFactory = Double::for(Redis::class)->strict();
 
         $redis = new RedisStore(
             $redisFactory,
@@ -406,9 +429,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testConnectionReturnsRedisProxy(): void
     {
-        $redisProxy = m::mock(RedisProxy::class);
-        $redisFactory = m::mock(Redis::class);
-        $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
+        $redisFactory = Double::for(Redis::class)->strict();
+        $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 
         $redis = new RedisStore(
             $redisFactory,

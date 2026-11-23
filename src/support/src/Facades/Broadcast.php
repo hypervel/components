@@ -7,7 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
 
 /**
- * @method static \Ably\AblyRest ably(array $config)
+ * @method static \Ably\AblyRest|\Ably\PubSub\PubSubHttpClient ably(array $config)
  * @method static \Hypervel\Broadcasting\BroadcastManager addPoolableDriver(string $driver)
  * @method static void channelRoutes(array|null $attributes = null)
  * @method static \Hypervel\Contracts\Broadcasting\Broadcaster connection(\UnitEnum|string|null $name = null)
@@ -40,6 +40,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
  * @method static void authorizeChannelsUsing(\Closure|null $callback)
  * @method static void broadcast(array $channels, string $event, array $payload = [])
  * @method static \Hypervel\Broadcasting\Broadcasters\Broadcaster channel(\Hypervel\Contracts\Broadcasting\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])
+ * @method static \Closure|null channelFormatter()
  * @method static void flushState()
  * @method static void formatChannelsUsing(\Closure|null $callback)
  * @method static \Hypervel\Support\Collection getChannels()

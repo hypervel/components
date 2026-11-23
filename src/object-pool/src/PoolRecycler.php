@@ -7,9 +7,11 @@ namespace Hypervel\ObjectPool;
 use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\ObjectPool\Recycler;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class PoolRecycler implements Recycler
@@ -44,9 +46,10 @@ class PoolRecycler implements Recycler
     /**
      * Start periodic pool maintenance.
      *
-     * Boot-only. Starting during a request schedules worker-wide maintenance
-     * that affects every subsequently registered pool.
+     * Starting during a request schedules worker-wide maintenance that
+     * affects every subsequently registered pool.
      */
+    #[BootOnly]
     public function start(): void
     {
         if ($this->timerId !== null) {
@@ -58,9 +61,11 @@ class PoolRecycler implements Recycler
             function (): void {
                 try {
                     $this->maintainPools();
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     PoolErrorReporter::report($exception);
                 }
             },
@@ -70,9 +75,9 @@ class PoolRecycler implements Recycler
     /**
      * Stop periodic pool maintenance.
      *
-     * Boot or tests only. Stopping disables automatic maintenance for every
-     * pool in the worker.
+     * Stopping disables automatic maintenance for every pool in the worker.
      */
+    #[BootOrTestsOnly]
     public function stop(): void
     {
         if ($this->timerId !== null) {
@@ -98,9 +103,11 @@ class PoolRecycler implements Recycler
 
                 $pool->sweepExpired();
                 $pool->trimIdle();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 PoolErrorReporter::report(new RuntimeException(
                     "Pool maintenance failed for [{$identity}].",
                     previous: $exception,

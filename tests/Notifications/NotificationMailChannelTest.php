@@ -12,18 +12,21 @@ use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
 use Symfony\Component\Mime\Email;
 
 class NotificationMailChannelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBuildMessageAddsTagsAndStringifiesMetadata(): void
     {
         $channel = new MailChannel(
-            m::mock(MailFactory::class),
-            m::mock(Markdown::class),
+            Double::for(MailFactory::class)->strict(),
+            Double::for(Markdown::class)->strict(),
         );
         $message = new Email;
         $notifiable = new class {

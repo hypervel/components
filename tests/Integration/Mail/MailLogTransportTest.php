@@ -9,7 +9,8 @@ use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Psr\Log\LoggerInterface;
@@ -19,13 +20,15 @@ use Symfony\Component\Mime\Email;
 
 class MailLogTransportTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->instance('view', m::mock(ViewFactory::class));
+        $this->app->instance('view', Double::for(ViewFactory::class)->strict());
     }
 
     public function testGetLogTransportWithConfiguredChannel(): void

@@ -5,25 +5,37 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use __PHP_Incomplete_Class;
+use Closure;
 use Exception;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SerializableClassPolicy;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Cache\Fixtures\CanceledDeserialization;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\MockObject\MockObject;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Process\Process;
+use Throwable;
 
 class CacheFileStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDir;
 
     protected Filesystem $filesystem;
@@ -58,6 +70,105 @@ class CacheFileStoreTest extends TestCase
         $this->assertNull($value);
     }
 
+    public function testLockInspectionDoesNotDeleteAReplacementOwner(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        $files = new class extends Filesystem {
+            public ?Closure $afterRead = null;
+
+            /**
+             * Allow another owner to acquire after the shared read completes.
+             */
+            public function get(string $path, bool $lock = false): string
+            {
+                $contents = parent::get($path, $lock);
+
+                if ($callback = $this->afterRead) {
+                    $this->afterRead = null;
+                    $callback();
+                }
+
+                return $contents;
+            }
+        };
+        $store = new FileStore($files, $this->tempDir);
+        $first = $store->lock('key', 1, 'first');
+        $second = $store->lock('key', 60, 'second');
+        $this->assertTrue($first->acquire());
+        Sleep::for(2)->seconds();
+        $files->afterRead = function () use ($second): void {
+            $this->assertTrue($second->acquire());
+        };
+
+        $this->assertFalse($first->isLocked());
+        $this->assertTrue($second->isOwnedByCurrentProcess());
+    }
+
+    public function testLockReleaseKeepsOwnershipUntilDeletion(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        $files = new class extends Filesystem {
+            public ?Closure $beforeDelete = null;
+
+            /**
+             * Attempt takeover after ownership verification but before deletion.
+             */
+            public function delete(array|string $paths): bool
+            {
+                if ($callback = $this->beforeDelete) {
+                    $this->beforeDelete = null;
+                    $callback();
+                }
+
+                return parent::delete($paths);
+            }
+        };
+        $store = new FileStore($files, $this->tempDir);
+        $first = $store->lock('key', 1, 'first');
+        $second = $store->lock('key', 60, 'second');
+        $this->assertTrue($first->acquire());
+        $files->beforeDelete = function () use ($second): void {
+            Sleep::for(2)->seconds();
+            $this->assertFalse($second->acquire());
+        };
+
+        $this->assertTrue($first->release());
+        $this->assertSame([], $files->allFiles($this->tempDir));
+        $this->assertTrue($second->acquire());
+        $this->assertFalse($first->release());
+        $this->assertTrue($second->isOwnedByCurrentProcess());
+    }
+
+    public function testWaitingLockReleaseDoesNotDeleteAReplacementOwner(): void
+    {
+        $store = new FileStore(new Filesystem, $this->tempDir);
+        $first = $store->lock('key', 60, 'first');
+        $second = $store->lock('key', 60, 'second');
+        $this->assertTrue($first->acquire());
+        $path = $store->path('file-store-lock:key');
+        $holder = new LockableFile($path, 'c+');
+        $holder->getExclusiveLock();
+        $released = new Channel(1);
+
+        try {
+            Coroutine::create(static function () use ($first, $released): void {
+                $released->push([$first->release()]);
+            });
+
+            $this->assertFalse($released->pop(0.05));
+            unlink($path);
+            $this->assertTrue($second->acquire());
+        } finally {
+            $holder->close();
+            $result = $released->pop(1.0);
+            $released->close();
+        }
+
+        // An array distinguishes a completed false result from a channel timeout.
+        $this->assertSame([false], $result);
+        $this->assertTrue($second->isOwnedByCurrentProcess());
+    }
+
     public function testGetPreservesCancellationFromFilesystemRead(): void
     {
         $cancellation = new CanceledException('read canceled');
@@ -88,9 +199,34 @@ class CacheFileStoreTest extends TestCase
         }
     }
 
-    public function testGetPreservesCancellationFromSerializableClassPolicy(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCanceledDeserializationDoesNotDeleteTheCachedValue(bool $wrapped): void
     {
-        $cancellation = new CanceledException('policy canceled');
+        $store = new FileStore($this->filesystem, $this->tempDir);
+        $store->put('foo', new CanceledDeserialization($wrapped), 60);
+        $caught = null;
+
+        try {
+            $store->get('foo');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught);
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+        $this->assertFileExists($store->path('foo'));
+    }
+
+    #[TestWith(['get', false], 'value direct cancellation')]
+    #[TestWith(['get', true], 'value wrapped cancellation')]
+    #[TestWith(['getLockOwner', false], 'owner direct cancellation')]
+    #[TestWith(['getLockOwner', true], 'owner wrapped cancellation')]
+    public function testSerializableClassPolicyCancellationEscapesReads(string $method, bool $wrapped): void
+    {
+        $cancellation = $wrapped
+            ? new RuntimeException('Policy cleanup failed.', previous: new CanceledException)
+            : new CanceledException('policy canceled');
         $files = $this->mockFilesystem();
         $files->expects($this->once())
             ->method('get')
@@ -102,13 +238,15 @@ class CacheFileStoreTest extends TestCase
                 static fn (): never => throw $cancellation,
             ),
         );
+        $caught = null;
 
         try {
-            $store->get('foo');
-            $this->fail('Resolving the serialization policy was expected to be canceled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            $store->{$method}('foo');
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($cancellation, $caught);
     }
 
     public function testPutCreatesMissingDirectories(): void
@@ -231,8 +369,8 @@ class CacheFileStoreTest extends TestCase
 
     public function testLockStoreRetainsBothSerializationPolicies(): void
     {
-        $files = m::mock(Filesystem::class)->shouldIgnoreMissing();
-        $files->shouldReceive('exists')->andReturnTrue();
+        $files = Double::for(Filesystem::class)->strict();
+        $files->allows('exists')->returns(true);
         $serializableClasses = [stdClass::class];
         $policy = new SerializableClassPolicy(static fn (): false => false);
         $store = new FileStore(
@@ -429,15 +567,16 @@ class CacheFileStoreTest extends TestCase
 
     public function testStoreItemProperlySetsPermissions(): void
     {
-        $files = m::mock(Filesystem::class)->shouldIgnoreMissing();
+        $files = Double::for(Filesystem::class)->strict();
         $store = new FileStore($files, __DIR__, 0644);
+        $files->allows('exists')->returns(true);
         $hash = hash('xxh128', 'foo');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
-        $files->expects('put')->times(3)->withArgs([__DIR__ . '/' . $cache_dir . '/' . $hash, m::any(), m::any()])->andReturnUsing(function (string $name, string $value): int {
+        $files->expects('put')->times(3)->with(__DIR__ . '/' . $cache_dir . '/' . $hash, Argument::any(), Argument::any())->resolves(function (string $name, string $value): int {
             return strlen($value);
         });
-        $files->expects('chmod')->withArgs([__DIR__ . '/' . $cache_dir . '/' . $hash])->andReturnValues(['0600', '0644'])->times(3);
-        $files->expects('chmod')->withArgs([__DIR__ . '/' . $cache_dir . '/' . $hash, 0644])->andReturn(true);
+        $files->expects('chmod')->with(__DIR__ . '/' . $cache_dir . '/' . $hash)->returns('0600', '0644')->times(3);
+        $files->expects('chmod')->with(__DIR__ . '/' . $cache_dir . '/' . $hash, 0644)->returns(true);
         $result = $store->put('foo', 'foo', 10);
         $this->assertTrue($result);
         $result = $store->put('foo', 'bar', 10);
@@ -448,22 +587,23 @@ class CacheFileStoreTest extends TestCase
 
     public function testStoreItemDirectoryProperlySetsPermissions(): void
     {
-        $files = m::mock(Filesystem::class)->shouldIgnoreMissing();
+        $files = Double::for(Filesystem::class)->strict();
         $store = new FileStore($files, __DIR__, 0606);
         $hash = hash('xxh128', 'foo');
         $cache_parent_dir = substr($hash, 0, 2);
         $cache_dir = $cache_parent_dir . '/' . substr($hash, 2, 2);
 
-        $files->expects('put')->withArgs([__DIR__ . '/' . $cache_dir . '/' . $hash, m::any(), m::any()])->andReturnUsing(function (string $name, string $value): int {
+        $files->expects('put')->with(__DIR__ . '/' . $cache_dir . '/' . $hash, Argument::any(), Argument::any())->resolves(function (string $name, string $value): int {
             return strlen($value);
         });
 
-        $files->expects('exists')->withArgs([__DIR__ . '/' . $cache_dir])->andReturn(false);
-        $files->expects('makeDirectory')->withArgs([__DIR__ . '/' . $cache_dir, 0777, true, true]);
-        $files->expects('chmod')->withArgs([__DIR__ . '/' . $cache_parent_dir])->andReturn('0600');
-        $files->expects('chmod')->withArgs([__DIR__ . '/' . $cache_parent_dir, 0606])->andReturn(true);
-        $files->expects('chmod')->withArgs([__DIR__ . '/' . $cache_dir])->andReturn('0600');
-        $files->expects('chmod')->withArgs([__DIR__ . '/' . $cache_dir, 0606])->andReturn(true);
+        $files->expects('exists')->with(__DIR__ . '/' . $cache_dir)->returns(false);
+        $files->expects('chmod')->with(__DIR__ . '/' . $cache_dir . '/' . $hash)->returns('0606');
+        $files->expects('makeDirectory')->with(__DIR__ . '/' . $cache_dir, 0777, true, true);
+        $files->expects('chmod')->with(__DIR__ . '/' . $cache_parent_dir)->returns('0600');
+        $files->expects('chmod')->with(__DIR__ . '/' . $cache_parent_dir, 0606)->returns(true);
+        $files->expects('chmod')->with(__DIR__ . '/' . $cache_dir)->returns('0600');
+        $files->expects('chmod')->with(__DIR__ . '/' . $cache_dir, 0606)->returns(true);
 
         $result = $store->put('foo', 'foo', 10);
         $this->assertTrue($result);
@@ -509,6 +649,27 @@ class CacheFileStoreTest extends TestCase
         } finally {
             $lockableFile->close();
         }
+    }
+
+    #[TestWith(['acquire'])]
+    #[TestWith(['refresh'])]
+    public function testLockOperationsRejectAFileReplacedAfterOpening(string $operation): void
+    {
+        // Isolate the native flock interception so it cannot affect another test.
+        $process = new Process([
+            PHP_BINARY,
+            __DIR__ . '/Fixtures/replaced_lock_file.php',
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+            $this->tempDir,
+            $operation,
+        ], timeout: 10);
+        $process->run();
+
+        $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+        $this->assertSame([
+            'succeeded' => false,
+            'replacementOwned' => true,
+        ], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 
     public function testRefreshPadsShortTimestampsToTenDigits(): void

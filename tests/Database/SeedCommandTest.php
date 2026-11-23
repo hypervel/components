@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
-use Hypervel\Console\CommandMutex;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -18,7 +18,8 @@ use Hypervel\Events\NullDispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Testing\Assert;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -27,6 +28,8 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class SeedCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -34,19 +37,12 @@ class SeedCommandTest extends TestCase
         RecordsRootSeeder::$instances = [];
     }
 
-    protected function tearDown(): void
-    {
-        CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
-
-        parent::tearDown();
-    }
-
     public function testHandle(): void
     {
-        $seeder = m::mock(Seeder::class);
-        $seeder->expects('setContainer')->andReturnSelf();
-        $seeder->expects('setCommand')->andReturnSelf();
-        $seeder->expects('__invoke')->andReturnUsing(function (): void {
+        $seeder = Double::for(Seeder::class)->strict();
+        $seeder->expects('setContainer')->returns($seeder);
+        $seeder->expects('setCommand')->returns($seeder);
+        $seeder->expects('__invoke')->resolves(function (): void {
             Assert::assertSame(
                 'sqlite',
                 CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
@@ -54,7 +50,7 @@ class SeedCommandTest extends TestCase
             );
         });
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -79,7 +75,7 @@ class SeedCommandTest extends TestCase
     public function testReportsProgressForExplicitSeedersOnly(array $arguments, bool $reportsProgress): void
     {
         $seeder = new RecordsRootSeeder;
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
             'DatabaseSeeder' => $seeder,
@@ -125,7 +121,7 @@ class SeedCommandTest extends TestCase
 
     public function testRootSeederConstructorCanMassAssignModels(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $app = new ApplicationDatabaseSeedStub;
         $command = new SeedCommand($resolver);
         $command->setHypervel($app);
@@ -142,7 +138,7 @@ class SeedCommandTest extends TestCase
     public function testFailedSeederResolutionDoesNotReportProgress(): void
     {
         $exception = new RuntimeException('Seeder resolution failed');
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $app = new ApplicationDatabaseSeedStub;
         $app->bind(RecordsRootSeeder::class, fn () => throw $exception);
         $command = new SeedCommand($resolver);
@@ -173,7 +169,7 @@ class SeedCommandTest extends TestCase
         // seeder throws, not leak 'sqlite' or clear it entirely.
         CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'pgsql');
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -214,11 +210,11 @@ class SeedCommandTest extends TestCase
     {
         $instance = new UserWithoutModelEventsSeeder;
 
-        $seeder = m::mock($instance);
-        $seeder->expects('setContainer')->andReturnSelf();
-        $seeder->expects('setCommand')->andReturnSelf();
+        $seeder = Double::for($instance)->passthru();
+        $seeder->expects('setContainer')->returns($seeder);
+        $seeder->expects('setCommand')->returns($seeder);
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -245,7 +241,7 @@ class SeedCommandTest extends TestCase
 
     public function testProhibitable(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -268,10 +264,10 @@ class SeedCommandTest extends TestCase
         // from the resolver (which respects an active Context override)
         // rather than going straight to config. This lets an outer scope's
         // Context override flow through to db:seed correctly.
-        $seeder = m::mock(Seeder::class);
-        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
-        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
+        $seeder = Double::for(Seeder::class)->strict();
+        $seeder->expects('setContainer')->returns($seeder);
+        $seeder->expects('setCommand')->returns($seeder);
+        $seeder->expects('__invoke')->resolves(function (): void {
             Assert::assertSame(
                 'tenant_reporting',
                 CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
@@ -279,8 +275,8 @@ class SeedCommandTest extends TestCase
             );
         });
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('getDefaultConnection')->once()->andReturn('tenant_reporting');
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->expects('getDefaultConnection')->returns('tenant_reporting');
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -295,17 +291,17 @@ class SeedCommandTest extends TestCase
 
     public function testHandlePreservesZeroDatabaseOption(): void
     {
-        $seeder = m::mock(Seeder::class);
-        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
-        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
+        $seeder = Double::for(Seeder::class)->strict();
+        $seeder->expects('setContainer')->returns($seeder);
+        $seeder->expects('setCommand')->returns($seeder);
+        $seeder->expects('__invoke')->resolves(function (): void {
             Assert::assertSame(
                 '0',
                 CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
             );
         });
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -323,18 +319,18 @@ class SeedCommandTest extends TestCase
 
     public function testHandleWithEmptyDatabaseOptionUsesResolverDefault(): void
     {
-        $seeder = m::mock(Seeder::class);
-        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
-        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
+        $seeder = Double::for(Seeder::class)->strict();
+        $seeder->expects('setContainer')->returns($seeder);
+        $seeder->expects('setCommand')->returns($seeder);
+        $seeder->expects('__invoke')->resolves(function (): void {
             Assert::assertSame(
                 'tenant_reporting',
                 CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
             );
         });
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('getDefaultConnection')->once()->andReturn('tenant_reporting');
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->expects('getDefaultConnection')->returns('tenant_reporting');
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -354,14 +350,14 @@ class SeedCommandTest extends TestCase
     {
         // Regression: db:seed must use Context, not config mutation. config
         // ('database.default') should be untouched after a seed run.
-        $seeder = m::mock(Seeder::class);
-        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
-        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-        $seeder->shouldReceive('__invoke')->once();
+        $seeder = Double::for(Seeder::class)->strict();
+        $seeder->expects('setContainer')->returns($seeder);
+        $seeder->expects('setCommand')->returns($seeder);
+        $seeder->expects('__invoke');
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
-        $config = new \Hypervel\Config\Repository(['database' => ['default' => 'pgsql']]);
+        $config = new Repository(['database' => ['default' => 'pgsql']]);
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -386,7 +382,7 @@ class SeedCommandTest extends TestCase
 
     public function testHandleResolvesAFreshUnboundRootSeederForEachRun(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -416,10 +412,6 @@ class ApplicationDatabaseSeedStub extends Application
 {
     public function __construct(array $data = [])
     {
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
-        $this->instance(CommandMutex::class, $mutex);
         $this->instance('env', 'development');
 
         foreach ($data as $abstract => $instance) {
@@ -442,6 +434,7 @@ class UserWithoutModelEventsSeeder extends Seeder
     public function run(): void
     {
         Assert::assertInstanceOf(NullDispatcher::class, Model::getEventDispatcher());
+        Assert::assertSame('sqlite', CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY));
     }
 }
 

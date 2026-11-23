@@ -37,7 +37,7 @@ function mountPreview(content) {
         name: 'copy-clipboard',
         props: ['data'],
         render() {
-            return h('div', { class: 'copy-clipboard-stub' }, this.$slots.default());
+            return h('div', { class: 'copy-clipboard-stub' }, this.$slots.default?.());
         },
     };
 

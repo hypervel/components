@@ -8,7 +8,8 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Log\LogManager;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Monolog\Handler\BufferHandler;
 use Monolog\Handler\TestHandler;
 use Psr\Log\AbstractLogger;
@@ -17,6 +18,8 @@ use Swoole\Server;
 
 class LogServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private TestHandler $handler;
 
     /**
@@ -85,6 +88,6 @@ class LogServiceProviderTest extends TestCase
      */
     private function dispatchBeforeServerFork(): void
     {
-        $this->app->make('events')->dispatch(new BeforeServerFork(m::mock(Server::class)));
+        $this->app->make('events')->dispatch(new BeforeServerFork(Double::for(Server::class)->strict()));
     }
 }

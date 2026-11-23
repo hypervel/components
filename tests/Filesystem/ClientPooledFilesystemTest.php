@@ -30,10 +30,12 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -43,6 +45,8 @@ use Throwable;
 
 class ClientPooledFilesystemTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $tempDir;
 
     private Filesystem $driver;
@@ -138,15 +142,15 @@ class ClientPooledFilesystemTest extends TestCase
         $this->assertFalse($source->exists('file.txt'));
 
         $source->put('file.txt', 'retained');
-        $failedDestination = m::mock(FilesystemContract::class);
+        $failedDestination = Double::for(FilesystemContract::class)->strict();
         $stream = null;
-        $failedDestination->shouldReceive('writeStream')->once()->with('file.txt', m::on(function (mixed $resource) use (&$stream): bool {
+        $failedDestination->expects('writeStream')->with('file.txt', Argument::satisfies(is_resource(...)))->resolves(function (string $path, mixed $resource) use (&$stream): bool {
             $stream = $resource;
             $this->assertSame(0, $this->pools->get('filesystem:transfer')->getBorrowedCount());
             $this->assertSame('retained', stream_get_contents($resource));
 
-            return true;
-        }))->andReturnFalse();
+            return false;
+        });
 
         $this->assertFalse($source->moveToDisk($failedDestination, 'file.txt'));
         $this->assertSame('retained', $source->get('file.txt'));
@@ -447,8 +451,8 @@ class ClientPooledFilesystemTest extends TestCase
         fwrite($buffer, 'buffered contents');
         rewind($buffer);
 
-        $stack = m::mock(FilesystemAdapter::class);
-        $stack->shouldReceive('readStream')->once()->with('file.txt')->andReturn($buffer);
+        $stack = Double::for(FilesystemAdapter::class)->strict();
+        $stack->expects('readStream')->with('file.txt')->returns($buffer);
         $disk = $this->disk(
             $clientCreations,
             $stackCreations,
@@ -473,8 +477,8 @@ class ClientPooledFilesystemTest extends TestCase
     {
         $clientCreations = 0;
         $stackCreations = 0;
-        $stack = m::mock(FilesystemAdapter::class);
-        $stack->shouldReceive('readStream')->once()->with('missing.txt')->andReturnNull();
+        $stack = Double::for(FilesystemAdapter::class)->strict();
+        $stack->expects('readStream')->with('missing.txt')->returns(null);
         $disk = $this->disk(
             $clientCreations,
             $stackCreations,
@@ -513,15 +517,15 @@ class ClientPooledFilesystemTest extends TestCase
         $client = new ClientPooledFilesystemClient;
         $stackFailure = new RuntimeException('stack failed');
         $discardFailure = new RuntimeException('discard failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($discardFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($discardFailure));
         $container->instance(ExceptionHandler::class, $handler);
 
-        $pool = m::mock(ObjectPoolContract::class);
-        $pool->shouldReceive('borrow')->once()->andReturn($client);
-        $pool->shouldReceive('discard')->once()->with($client)->andThrow($discardFailure);
-        $factory = m::mock(Factory::class);
-        $factory->shouldReceive('getOrCreate')->once()->andReturn($pool);
+        $pool = Double::for(ObjectPoolContract::class)->strict();
+        $pool->expects('borrow')->returns($client);
+        $pool->expects('discard')->with(Argument::same($client))->throws($discardFailure);
+        $factory = Double::for(Factory::class)->strict();
+        $factory->expects('getOrCreate')->returns($pool);
         $disk = new ClientPooledFilesystem(
             $this->definition(),
             static fn (): object => $client,
@@ -607,13 +611,13 @@ class ClientPooledFilesystemTest extends TestCase
         $container = Container::getInstance();
         $operationFailure = new RuntimeException('operation failed');
         $releaseFailure = new RuntimeException('release failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($releaseFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($releaseFailure));
         $container->instance(ExceptionHandler::class, $handler);
         $clientCreations = 0;
         $stackCreations = 0;
-        $stack = m::mock(FilesystemAdapter::class);
-        $stack->shouldReceive('get')->once()->with('file.txt')->andThrow($operationFailure);
+        $stack = Double::for(FilesystemAdapter::class)->strict();
+        $stack->expects('get')->with('file.txt')->throws($operationFailure);
         $disk = $this->disk(
             $clientCreations,
             $stackCreations,
@@ -639,8 +643,8 @@ class ClientPooledFilesystemTest extends TestCase
         $releaseCancellation = new CanceledException('release canceled');
         $clientCreations = 0;
         $stackCreations = 0;
-        $stack = m::mock(FilesystemAdapter::class);
-        $stack->shouldReceive('get')->once()->with('file.txt')->andThrow($operationFailure);
+        $stack = Double::for(FilesystemAdapter::class)->strict();
+        $stack->expects('get')->with('file.txt')->throws($operationFailure);
         $disk = $this->disk(
             $clientCreations,
             $stackCreations,

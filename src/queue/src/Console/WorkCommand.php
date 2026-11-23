@@ -92,7 +92,7 @@ class WorkCommand extends Command
     public function handle(): ?int
     {
         if ($this->downForMaintenance() && $this->option('once')) {
-            return $this->worker->sleep((float) $this->option('sleep')); // @phpstan-ignore method.void
+            return $this->worker->sleep((float) $this->option('sleep')); // @phpstan-ignore method.void (returns the void call's null, as upstream)
         }
 
         // We'll listen to the processed and failed events so we can write information
@@ -152,9 +152,12 @@ class WorkCommand extends Command
             ? max(1, $this->config->integer('queue.concurrency'))
             : max(1, (int) $this->option('concurrency'));
 
+        $backoff = (string) $this->option('backoff');
+
         return new WorkerOptions(
             name: (string) $this->option('name'),
-            backoff: (int) max($this->option('backoff'), $this->option('delay')),
+            // A comma-separated schedule has no single delay to compare with the deprecated --delay option.
+            backoff: str_contains($backoff, ',') ? $backoff : (string) max($backoff, $this->option('delay')),
             memory: (string) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
             sleep: (float) $this->option('sleep'),
@@ -186,6 +189,10 @@ class WorkCommand extends Command
         });
 
         $events->listen(JobProcessed::class, static function (JobProcessed $event): void {
+            if ($event->job->hasFailed()) {
+                return;
+            }
+
             static::currentCommand()?->writeOutput($event->job, 'success');
         });
 
@@ -346,18 +353,21 @@ class WorkCommand extends Command
         $runTime = $this->runTimeForHumans($this->getLatestStartedAt());
         $memory = $isVerbose ? round(memory_get_usage(true) / 1024 / 1024, 1) . 'MB' : '';
 
+        [$result, $color] = match (true) {
+            $status === 'success' && $job->isReleased() => ['RELEASED', 'yellow'],
+            $status === 'success' => ['DONE', 'green'],
+            $status === 'released_after_exception' => ['FAIL', 'yellow'],
+            default => ['FAIL', 'red'],
+        };
+
         $dots = max(terminal()->width() - mb_strlen($jobName) - (
             $isVerbose ? mb_strlen($displayJobId) + mb_strlen($job->getConnectionName()) + mb_strlen($job->getQueue()) + mb_strlen($memory) + 3 : 0
-        ) - mb_strlen($runTime) - 31, 0);
+        ) - mb_strlen($runTime) - mb_strlen($result) - 27, 0);
 
         $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
         $this->output->write(" <fg=gray>{$runTime}" . ($memory ? " {$memory}" : '') . '</>');
 
-        $this->output->writeln(match ($status) {
-            'success' => ' <fg=green;options=bold>DONE</>',
-            'released_after_exception' => ' <fg=yellow;options=bold>FAIL</>',
-            default => ' <fg=red;options=bold>FAIL</>',
-        });
+        $this->output->writeln(" <fg={$color};options=bold>{$result}</>");
     }
 
     /**

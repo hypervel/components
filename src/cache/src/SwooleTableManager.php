@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use LogicException;
 use Swoole\Table;
@@ -74,9 +75,10 @@ class SwooleTableManager
     /**
      * Prevent tables from being created after the server initialization phase.
      *
-     * Boot-only. Creating a table after the server forks would give each worker
-     * private state instead of one shared cache table.
+     * Creating a table after the server forks would give each worker private
+     * state instead of one shared cache table.
      */
+    #[BootOnly(whenShared: true)]
     public function seal(): void
     {
         $this->sealed = true;

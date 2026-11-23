@@ -18,12 +18,16 @@ use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Session\SessionManager;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 class StartSessionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResolveCookieConfigReturnsDefaults(): void
     {
         $config = StartSession::resolveCookieConfig(
@@ -143,15 +147,15 @@ class StartSessionTest extends TestCase
     {
         $request = Request::create('/');
         $failure = new RuntimeException('read failure');
-        $manager = m::mock(SessionManager::class);
-        $cache = m::mock(CacheFactoryContract::class);
-        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-        $session = m::mock(Session::class);
+        $manager = Double::for(SessionManager::class)->strict();
+        $cache = Double::for(CacheFactoryContract::class)->strict();
+        $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $session = Double::for(Session::class)->strict();
         $middleware = new StartSession($manager, $cache, $exceptionHandler);
 
-        $session->shouldReceive('setRequestOnHandler')->once()->with($request);
-        $session->shouldReceive('start')->once()->andThrow($failure);
-        $exceptionHandler->shouldNotReceive('afterResponse');
+        $session->expects('setRequestOnHandler')->with(Argument::same($request));
+        $session->expects('start')->throws($failure);
+        $exceptionHandler->expects('afterResponse')->never();
 
         try {
             (new ClassInvoker($middleware))->handleStatefulRequest(
@@ -172,26 +176,22 @@ class StartSessionTest extends TestCase
     {
         $request = Request::create('/');
         $failure = new RuntimeException('route failure');
-        $manager = m::mock(SessionManager::class);
-        $cache = m::mock(CacheFactoryContract::class);
-        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-        $session = m::mock(Session::class);
+        $manager = Double::for(SessionManager::class)->strict();
+        $cache = Double::for(CacheFactoryContract::class)->strict();
+        $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $session = Double::for(Session::class)->strict();
         $middleware = new StartSession($manager, $cache, $exceptionHandler);
         $afterResponse = null;
 
-        $session->shouldReceive('setRequestOnHandler')->once()->with($request);
-        $session->shouldReceive('start')->once()->andReturnTrue();
-        $session->shouldReceive('isReadOnly')->once()->andReturnFalse();
-        $manager->shouldReceive('getSessionConfig')->once()->andReturn([
+        $session->expects('setRequestOnHandler')->with(Argument::same($request));
+        $session->expects('start')->returns(true);
+        $session->expects('isReadOnly')->returns(false);
+        $manager->expects('getSessionConfig')->returns([
             'lottery' => [0, 1],
         ]);
-        $exceptionHandler->shouldReceive('afterResponse')->once()->andReturnUsing(
-            function (callable $callback) use (&$afterResponse): void {
-                $afterResponse = $callback;
-            }
-        );
-        $manager->shouldReceive('driver')->once()->andReturn($session);
-        $session->shouldReceive('save')->once();
+        $exceptionHandler->expects('afterResponse')->with(Argument::capture($afterResponse));
+        $manager->expects('driver')->returns($session);
+        $session->expects('save');
 
         try {
             (new ClassInvoker($middleware))->handleStatefulRequest(
@@ -215,27 +215,23 @@ class StartSessionTest extends TestCase
     {
         $request = Request::create('/');
         $failure = new RuntimeException('write failure');
-        $manager = m::mock(SessionManager::class);
-        $cache = m::mock(CacheFactoryContract::class);
-        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-        $session = m::mock(Session::class);
+        $manager = Double::for(SessionManager::class)->strict();
+        $cache = Double::for(CacheFactoryContract::class)->strict();
+        $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $session = Double::for(Session::class)->strict();
         $middleware = new StartSession($manager, $cache, $exceptionHandler);
         $afterResponse = null;
 
-        $session->shouldReceive('setRequestOnHandler')->once()->with($request);
-        $session->shouldReceive('start')->once()->andReturnTrue();
-        $session->shouldReceive('isReadOnly')->twice()->andReturnFalse();
-        $manager->shouldReceive('getSessionConfig')->twice()->andReturn([
+        $session->expects('setRequestOnHandler')->with(Argument::same($request));
+        $session->expects('start')->returns(true);
+        $session->expects('isReadOnly')->times(2)->returns(false);
+        $manager->expects('getSessionConfig')->times(2)->returns([
             'lottery' => [0, 1],
             'driver' => null,
         ]);
-        $manager->shouldReceive('driver')->twice()->andReturn($session);
-        $session->shouldReceive('save')->twice()->andThrow($failure);
-        $exceptionHandler->shouldReceive('afterResponse')->once()->andReturnUsing(
-            function (callable $callback) use (&$afterResponse): void {
-                $afterResponse = $callback;
-            }
-        );
+        $manager->expects('driver')->times(2)->returns($session);
+        $session->expects('save')->times(2)->throws($failure);
+        $exceptionHandler->expects('afterResponse')->with(Argument::capture($afterResponse));
 
         try {
             (new ClassInvoker($middleware))->handleStatefulRequest(
@@ -252,7 +248,6 @@ class StartSessionTest extends TestCase
         $this->assertIsCallable($afterResponse);
 
         $afterResponse();
-        $this->addToAssertionCount(1);
     }
 
     public function testBlockingPreservesRequestFailureWhenReleaseAlsoFails(): void
@@ -260,18 +255,18 @@ class StartSessionTest extends TestCase
         $request = Request::create('/');
         $route = (new Route('GET', '/', fn () => new Response))->block(10, 0);
         $request->setRouteResolver(fn (): Route => $route);
-        $manager = m::mock(SessionManager::class);
-        $cache = m::mock(CacheFactoryContract::class);
-        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-        $session = m::mock(Session::class);
-        $store = m::mock(Repository::class, LockProvider::class);
+        $manager = Double::for(SessionManager::class)->strict();
+        $cache = Double::for(CacheFactoryContract::class)->strict();
+        $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $session = Double::for(Session::class)->strict();
+        $store = Double::for(Repository::class, LockProvider::class)->strict();
         $lock = new StartSessionFailingReleaseLock;
         $middleware = new StartSessionThrowingMiddleware($manager, $cache, $exceptionHandler);
 
-        $manager->shouldReceive('blockDriver')->once()->andReturn('array');
-        $cache->shouldReceive('store')->once()->with('array')->andReturn($store);
-        $session->shouldReceive('getId')->once()->andReturn('session-id');
-        $store->shouldReceive('lock')->once()->with('session:session-id', 10)->andReturn($lock);
+        $manager->expects('blockDriver')->returns('array');
+        $cache->expects('store')->with('array')->returns($store);
+        $session->expects('getId')->returns('session-id');
+        $store->expects('lock')->with('session:session-id', 10)->returns($lock);
 
         try {
             (new ClassInvoker($middleware))->handleRequestWhileBlocking(
@@ -292,26 +287,25 @@ class StartSessionTest extends TestCase
     {
         $request = Request::create('/');
         $request->setRouteResolver(fn (): Route => (new Route('GET', '/', fn () => new Response))->block(10, 0));
-        $manager = m::mock(SessionManager::class);
-        $cache = m::mock(CacheFactoryContract::class);
-        $session = m::mock(Session::class);
-        $store = m::mock(Repository::class, LockProvider::class);
-        $lock = m::mock(Lock::class);
+        $manager = Double::for(SessionManager::class)->strict();
+        $cache = Double::for(CacheFactoryContract::class)->strict();
+        $session = Double::for(Session::class)->strict();
+        $store = Double::for(Repository::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
         $middleware = new StartSessionRespondingMiddleware(
             $manager,
             $cache,
-            m::mock(ExceptionHandlerContract::class),
+            Double::for(ExceptionHandlerContract::class)->strict(),
         );
 
-        $manager->shouldReceive('blockDriver')->once()->andReturnNull();
-        $cache->shouldReceive('store')->once()->with(null)->andReturn($store);
-        $session->shouldReceive('getId')->once()->andReturn('session-id');
-        $store->shouldReceive('lock')->once()->with('session:session-id', 10)->andReturn($lock);
-        $lock->shouldReceive('betweenBlockedAttemptsSleepFor')->once()->with(50)->andReturnSelf();
-        $lock->shouldReceive('block')
-            ->once()
-            ->with(0, m::type(Closure::class))
-            ->andReturnUsing(fn (int $seconds, Closure $callback): Response => $callback());
+        $manager->expects('blockDriver')->returns(null);
+        $cache->expects('store')->with(null)->returns($store);
+        $session->expects('getId')->returns('session-id');
+        $store->expects('lock')->with('session:session-id', 10)->returns($lock);
+        $lock->expects('betweenBlockedAttemptsSleepFor')->with(50);
+        $lock->expects('block')
+            ->with(0, Argument::type(Closure::class))
+            ->resolves(fn (int $seconds, Closure $callback): Response => $callback());
 
         $response = (new ClassInvoker($middleware))->handleRequestWhileBlocking(
             $request,
@@ -327,18 +321,18 @@ class StartSessionTest extends TestCase
         $request = Request::create('/');
         $route = (new Route('GET', '/', fn () => new Response))->block(10, 0);
         $request->setRouteResolver(fn (): Route => $route);
-        $manager = m::mock(SessionManager::class);
-        $cache = m::mock(CacheFactoryContract::class);
-        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-        $session = m::mock(Session::class);
-        $store = m::mock(Repository::class, LockProvider::class);
+        $manager = Double::for(SessionManager::class)->strict();
+        $cache = Double::for(CacheFactoryContract::class)->strict();
+        $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $session = Double::for(Session::class)->strict();
+        $store = Double::for(Repository::class, LockProvider::class)->strict();
         $lock = new StartSessionUnacquirableLock;
         $middleware = new StartSession($manager, $cache, $exceptionHandler);
 
-        $manager->shouldReceive('blockDriver')->once()->andReturn('array');
-        $cache->shouldReceive('store')->once()->with('array')->andReturn($store);
-        $session->shouldReceive('getId')->once()->andReturn('session-id');
-        $store->shouldReceive('lock')->once()->with('session:session-id', 10)->andReturn($lock);
+        $manager->expects('blockDriver')->returns('array');
+        $cache->expects('store')->with('array')->returns($store);
+        $session->expects('getId')->returns('session-id');
+        $store->expects('lock')->with('session:session-id', 10)->returns($lock);
 
         try {
             (new ClassInvoker($middleware))->handleRequestWhileBlocking(
@@ -354,6 +348,8 @@ class StartSessionTest extends TestCase
     }
 
     /**
+     * Provide the default session cookie settings.
+     *
      * @return array{path: string, domain: ?string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
     private function defaultCookieConfig(): array
@@ -371,6 +367,9 @@ class StartSessionTest extends TestCase
 
 class StartSessionThrowingMiddleware extends StartSession
 {
+    /**
+     * Fail the request with the test exception.
+     */
     protected function handleStatefulRequest(Request $request, Session $session, Closure $next): Response
     {
         throw new RuntimeException('request failure');
@@ -379,6 +378,9 @@ class StartSessionThrowingMiddleware extends StartSession
 
 class StartSessionRespondingMiddleware extends StartSession
 {
+    /**
+     * Pass the request to the next handler.
+     */
     protected function handleStatefulRequest(Request $request, Session $session, Closure $next): Response
     {
         return $next($request);
@@ -389,16 +391,25 @@ class StartSessionFailingReleaseLock extends Lock
 {
     public bool $released = false;
 
+    /**
+     * Create the session lock fixture.
+     */
     public function __construct()
     {
         parent::__construct('session', 10, 'owner');
     }
 
+    /**
+     * Acquire the test lock.
+     */
     public function acquire(): bool
     {
         return true;
     }
 
+    /**
+     * Record the release attempt and fail.
+     */
     public function release(): bool
     {
         $this->released = true;
@@ -406,10 +417,16 @@ class StartSessionFailingReleaseLock extends Lock
         throw new RuntimeException('release failure');
     }
 
+    /**
+     * Leave forced release inactive for this fixture.
+     */
     public function forceRelease(): void
     {
     }
 
+    /**
+     * Return the test lock owner.
+     */
     protected function getCurrentOwner(): ?string
     {
         return $this->owner;
@@ -420,25 +437,40 @@ class StartSessionUnacquirableLock extends Lock
 {
     public bool $released = false;
 
+    /**
+     * Create the session lock fixture.
+     */
     public function __construct()
     {
         parent::__construct('session', 10, 'owner');
     }
 
+    /**
+     * Refuse to acquire the test lock.
+     */
     public function acquire(): bool
     {
         return false;
     }
 
+    /**
+     * Record the release attempt.
+     */
     public function release(): bool
     {
         return $this->released = true;
     }
 
+    /**
+     * Leave forced release inactive for this fixture.
+     */
     public function forceRelease(): void
     {
     }
 
+    /**
+     * Return the test lock owner.
+     */
     protected function getCurrentOwner(): ?string
     {
         return null;

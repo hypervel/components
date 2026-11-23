@@ -33,6 +33,8 @@ class RedisEvent
 
     /**
      * Set the connection name.
+     *
+     * @return $this
      */
     public function connection(string $connectionName): static
     {
@@ -43,6 +45,8 @@ class RedisEvent
 
     /**
      * Set the queue name.
+     *
+     * @return $this
      */
     public function queue(string $queue): static
     {

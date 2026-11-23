@@ -6,16 +6,23 @@ namespace Hypervel\Tests\Database;
 
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Foundation\Testing\DatabaseTransactionsManager as TestingTransactionsManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use PDOException;
 use RuntimeException;
 use Throwable;
 
 class DatabaseTransactionsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Setup the database schema.
      */
@@ -57,7 +64,8 @@ class DatabaseTransactionsTest extends TestCase
     protected function tearDown(): void
     {
         foreach (['default', 'second_connection'] as $connection) {
-            $this->schema($connection)->drop('users');
+            // A failed commit replaces the untrusted session, discarding the in-memory database.
+            $this->schema($connection)->dropIfExists('users');
         }
 
         parent::tearDown();
@@ -65,7 +73,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRecordedAndCommitted(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('commit')->with('default', 1, 0);
 
@@ -84,7 +92,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRecordedAndCommittedUsingTheSeparateMethods(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('commit')->with('default', 1, 0);
 
@@ -103,7 +111,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionIsRecordedAndCommitted(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('begin')->with('default', 2);
         $transactionManager->expects('commit')->with('default', 2, 1);
@@ -130,7 +138,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionIsRecordeForDifferentConnectionsdAndCommitted(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('begin')->with('second_connection', 1);
         $transactionManager->expects('begin')->with('second_connection', 2);
@@ -166,10 +174,10 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRolledBack(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('rollback')->with('default', 0);
-        $transactionManager->shouldNotReceive('commit');
+        $transactionManager->expects('commit')->never();
 
         $this->connection()->setTransactionManager($transactionManager);
 
@@ -189,12 +197,44 @@ class DatabaseTransactionsTest extends TestCase
         }
     }
 
+    public function testFailedCommitRollsBackTheTransactionsManager(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $this->connection()->setTransactionManager($manager);
+
+        $afterCommitRan = false;
+        $rolledBack = false;
+
+        try {
+            $this->connection()->transaction(function () use (&$afterCommitRan, &$rolledBack) {
+                $this->connection()->afterCommit(function () use (&$afterCommitRan) {
+                    $afterCommitRan = true;
+                });
+
+                $this->connection()->afterRollBack(function () use (&$rolledBack) {
+                    $rolledBack = true;
+                });
+
+                // End the transaction behind the connection's back so COMMIT fails.
+                $this->connection()->getPdo()->exec('ROLLBACK');
+            });
+
+            $this->fail('The failed commit should have thrown.');
+        } catch (PDOException) {
+        }
+
+        $this->assertSame(0, $this->connection()->transactionLevel());
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertFalse($afterCommitRan);
+        $this->assertTrue($rolledBack);
+    }
+
     public function testTransactionIsRolledBackUsingSeparateMethods(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('rollback')->with('default', 0);
-        $transactionManager->shouldNotReceive('commit');
+        $transactionManager->expects('commit')->never();
 
         $this->connection()->setTransactionManager($transactionManager);
 
@@ -213,12 +253,12 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionsAreRolledBack(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('begin')->with('default', 2);
         $transactionManager->expects('rollback')->with('default', 1);
         $transactionManager->expects('rollback')->with('default', 0);
-        $transactionManager->shouldNotReceive('commit');
+        $transactionManager->expects('commit')->never();
 
         $this->connection()->setTransactionManager($transactionManager);
 
@@ -246,13 +286,12 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testAfterCommitRegistersTheCurrentConnectionName(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $callback = static function (): void {
         };
 
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->with($callback, 'second_connection');
+        $transactionManager->expects('addCallback')
+            ->with(Argument::same($callback), 'second_connection');
 
         $this->connection('second_connection')->setTransactionManager($transactionManager);
         $this->connection('second_connection')->afterCommit($callback);
@@ -287,9 +326,9 @@ class DatabaseTransactionsTest extends TestCase
         $manager = new TestingTransactionsManager(['default', 'second_connection']);
         $first = $this->connection();
         $second = $this->connection('second_connection');
-        $database = m::mock(DatabaseManager::class);
-        $database->shouldReceive('connection')->once()->with('default')->andReturn($first);
-        $database->shouldReceive('connection')->once()->with('second_connection')->andReturn($second);
+        $database = Double::for(DatabaseManager::class)->strict();
+        $database->expects('connection')->with('default')->returns($first);
+        $database->expects('connection')->with('second_connection')->returns($second);
         $manager->beginTransactions($database);
 
         try {
@@ -342,13 +381,12 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testAfterCommitOrNowDelegatesToTheTransactionManager(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $callback = static function (): void {
         };
 
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->with($callback, 'second_connection');
+        $transactionManager->expects('addCallback')
+            ->with(Argument::same($callback), 'second_connection');
 
         $this->connection('second_connection')->setTransactionManager($transactionManager);
         $this->connection('second_connection')->afterCommitOrNow($callback);
@@ -372,13 +410,12 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testAfterRollbackRegistersTheCurrentConnectionName(): void
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $callback = static function (): void {
         };
 
-        $transactionManager->shouldReceive('addCallbackForRollback')
-            ->once()
-            ->with($callback, 'second_connection');
+        $transactionManager->expects('addCallbackForRollback')
+            ->with(Argument::same($callback), 'second_connection');
 
         $this->connection('second_connection')->setTransactionManager($transactionManager);
         $this->connection('second_connection')->afterRollBack($callback);
@@ -405,12 +442,12 @@ class DatabaseTransactionsTest extends TestCase
     /**
      * Get a schema builder instance.
      */
-    protected function schema(string $connection = 'default'): \Hypervel\Database\Schema\Builder
+    protected function schema(string $connection = 'default'): Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }
 
-    public function connection(string $name = 'default'): \Hypervel\Database\Connection
+    public function connection(string $name = 'default'): Connection
     {
         return DB::connection($name);
     }

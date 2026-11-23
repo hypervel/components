@@ -525,6 +525,7 @@ class GenerateCommand extends Command
 
         $duplicateUris = $routes->duplicates(fn (Route $route) => $route->uri());
 
+        // @phpstan-ignore argument.type (handle() registers the wayfinder view namespace when the command runs.)
         $this->appendContent($path, $this->view->make('wayfinder::multi-method', [
             'method' => $method,
             'original_method' => $routes->first()->originalJsMethod(),
@@ -556,6 +557,7 @@ class GenerateCommand extends Command
      */
     private function writeControllerMethodExport(Route $route, string $path, string $method): void
     {
+        // @phpstan-ignore argument.type (handle() registers the wayfinder view namespace when the command runs.)
         $this->appendContent($path, $this->view->make('wayfinder::method', [
             'controller' => $route->controller(),
             'method' => $method,
@@ -627,6 +629,7 @@ class GenerateCommand extends Command
      */
     private function writeNamedMethodExport(Route $route, string $path, string $method): void
     {
+        // @phpstan-ignore argument.type (handle() registers the wayfinder view namespace when the command runs.)
         $this->appendContent($path, $this->view->make('wayfinder::method', [
             'controller' => $route->controller(),
             'method' => $method,

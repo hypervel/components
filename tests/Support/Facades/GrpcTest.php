@@ -11,20 +11,23 @@ use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Grpc;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class GrpcTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResolvesAndForwardsToThePackageRegistrar(): void
     {
         $container = new Container;
-        $registrar = m::mock(GrpcRouteRegistrar::class);
-        $route = m::mock(Route::class);
+        $registrar = Double::for(GrpcRouteRegistrar::class)->strict();
+        $route = Double::for(Route::class)->strict();
         $action = static fn (GPBEmpty $request): GPBEmpty => $request;
-        $registrar->shouldReceive('unary')
-            ->once()
-            ->with('testing.Service/Call', $action)
-            ->andReturn($route);
+        $registrar->expects('unary')
+            ->with('testing.Service/Call', Argument::same($action))
+            ->returns($route);
         $container->instance(GrpcRouteRegistrar::class, $registrar);
         Facade::setFacadeApplication($container);
 
@@ -35,8 +38,8 @@ class GrpcTest extends TestCase
     public function testUsesTheOrdinaryFacadeResolutionCache(): void
     {
         $container = new Container;
-        $first = m::mock(GrpcRouteRegistrar::class);
-        $second = m::mock(GrpcRouteRegistrar::class);
+        $first = Double::for(GrpcRouteRegistrar::class)->strict();
+        $second = Double::for(GrpcRouteRegistrar::class)->strict();
         $container->instance(GrpcRouteRegistrar::class, $first);
         Facade::setFacadeApplication($container);
 

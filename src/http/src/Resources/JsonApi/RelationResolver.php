@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Http\Resources\JsonApi;
 
 use Closure;
-use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
 /**
@@ -56,20 +56,21 @@ class RelationResolver
     /**
      * Resolve the relation for a resource.
      */
-    public function handle(mixed $resource): Collection|Model|null
+    public function handle(mixed $resource): Collection|JsonApiResource|Model|null
     {
         $resolved = value($this->relationResolver, $resource);
 
+        // Preserve supplied resources; rebuilding them from models loses constructor state.
         if ($resolved instanceof AnonymousResourceCollection) {
             $this->relationResourceClass ??= $resolved->collects;
 
-            return new Collection($resolved->collection->map->resource);
+            return $resolved->collection;
         }
 
         if ($resolved instanceof JsonApiResource) {
             $this->relationResourceClass ??= $resolved::class;
 
-            return $resolved->resource;
+            return $resolved;
         }
 
         return $resolved;

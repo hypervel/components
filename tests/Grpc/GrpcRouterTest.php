@@ -29,13 +29,17 @@ use Hypervel\Tests\Grpc\Fixtures\Metadata\TestService;
 use Hypervel\Tests\Grpc\Fixtures\TestRequest;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 
 class GrpcRouterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testValidatesEverySupportedActionShapeBeforeCompilation(): void
     {
         [$router, $registrar] = $this->router();
@@ -223,10 +227,10 @@ class GrpcRouterTest extends TestCase
     public function testGrpcPipelineMapsTheClosestFailureOnce(): void
     {
         $container = new Container;
-        $mapper = m::mock(ExceptionMapper::class);
+        $mapper = Double::for(ExceptionMapper::class)->strict();
         $failure = new RuntimeException('service failed');
         $mapped = new RpcException(StatusCode::Unknown, 'mapped');
-        $mapper->shouldReceive('map')->once()->with($failure)->andReturn($mapped);
+        $mapper->expects('map')->with(Argument::same($failure))->returns($mapped);
         $container->instance(ExceptionMapper::class, $mapper);
         $pipeline = new Pipeline($container);
 
@@ -245,11 +249,11 @@ class GrpcRouterTest extends TestCase
     public function testResponsePreparationIsIdempotent(): void
     {
         $container = new Container;
-        $factory = m::mock(ResponseFactory::class);
+        $factory = Double::for(ResponseFactory::class)->strict();
         $request = Request::create('/testing.Service/Call', 'POST');
         $expected = new GrpcHttpResponse('', ['grpc-status' => '0'], [], []);
         $value = new GPBEmpty;
-        $factory->shouldReceive('make')->once()->with($request, $value)->andReturn($expected);
+        $factory->expects('make')->with(Argument::same($request), Argument::same($value))->returns($expected);
         $container->instance(ResponseFactory::class, $factory);
         $router = new GrpcRouter(new Dispatcher($container), $container);
 

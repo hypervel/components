@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\Base64Document;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\LocalImage;
@@ -466,6 +467,101 @@ class MessageMappingTest extends TestCase
 
         Http::assertSent(function ($request): bool {
             return ($request->data()['messages'][0]['content'][0]['title'] ?? null) === 'leads.csv';
+        });
+    }
+
+    public function testDocumentAttachmentProviderOptionsAreForwardedToTheContentBlock(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse(),
+        ]);
+
+        $document = Document::fromString('hello world', 'text/plain')
+            ->withProviderOptions(['citations' => ['enabled' => true], 'cache_control' => ['type' => 'ephemeral']]);
+
+        agent('You are helpful.')->prompt(
+            'Read this.',
+            attachments: [$document],
+            provider: 'anthropic',
+        );
+
+        Http::assertSent(function ($request): bool {
+            $block = $request->data()['messages'][0]['content'][0];
+
+            return $block['type'] === 'document'
+                && $block['source']['data'] === 'hello world'
+                && $block['citations'] === ['enabled' => true]
+                && $block['cache_control'] === ['type' => 'ephemeral'];
+        });
+    }
+
+    public function testImageAttachmentProviderOptionsAreForwardedToTheContentBlock(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse(),
+        ]);
+
+        $image = (new LocalImage(__DIR__ . '/../../../Fixtures/Images/red.png'))
+            ->withProviderOptions(['cache_control' => ['type' => 'ephemeral', 'ttl' => '1h']]);
+
+        agent('You are helpful.')->prompt(
+            'What is in this image?',
+            attachments: [$image],
+            provider: 'anthropic',
+        );
+
+        Http::assertSent(function ($request): bool {
+            $block = $request->data()['messages'][0]['content'][0];
+
+            return $block['type'] === 'image'
+                && $block['source']['media_type'] === 'image/png'
+                && $block['cache_control'] === ['type' => 'ephemeral', 'ttl' => '1h'];
+        });
+    }
+
+    public function testAttachmentProviderOptionsResolveFromAClosureScopedToTheProvider(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse(),
+        ]);
+
+        $document = Document::fromString('hello world', 'text/plain')
+            ->withProviderOptions(fn (Lab $provider): array => match ($provider) {
+                Lab::Anthropic => ['context' => 'Quarterly notes'],
+                default => [],
+            });
+
+        agent('You are helpful.')->prompt(
+            'Read this.',
+            attachments: [$document],
+            provider: 'anthropic',
+        );
+
+        Http::assertSent(function ($request): bool {
+            return ($request->data()['messages'][0]['content'][0]['context'] ?? null) === 'Quarterly notes';
+        });
+    }
+
+    public function testAttachmentProviderOptionsDoNotOverwriteTheContentBlockStructure(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse(),
+        ]);
+
+        $document = Document::fromString('hello world', 'text/plain')
+            ->withProviderOptions(['type' => 'image', 'source' => ['type' => 'url', 'url' => 'https://example.com']]);
+
+        agent('You are helpful.')->prompt(
+            'Read this.',
+            attachments: [$document],
+            provider: 'anthropic',
+        );
+
+        Http::assertSent(function ($request): bool {
+            $block = $request->data()['messages'][0]['content'][0];
+
+            return $block['type'] === 'document'
+                && $block['source'] === ['type' => 'text', 'media_type' => 'text/plain', 'data' => 'hello world'];
         });
     }
 

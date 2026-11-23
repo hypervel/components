@@ -1,0 +1,8 @@
+<?php
+
+namespace Hypervel\Http\Client;
+
+// The source declares upstream's PendingRequest async typing and Response mixin.
+
+class Factory
+{}

@@ -189,7 +189,7 @@ class SQLiteBuilder extends Builder
      * Get the indexes used to reconstruct SQLite schema state.
      *
      * @internal
-     * @return list<array{name: string, physical_name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
+     * @return list<array{name: string, physical_name: string, columns: list<string>, key_columns: list<null|string>, type: null|string, unique: bool, primary: bool, partial: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
      */
     public function getIndexesForSchemaState(string $table): array
     {
@@ -204,6 +204,26 @@ class SQLiteBuilder extends Builder
             $this->selectMetadata(
                 $this->grammar->compileIndexes($schema, $table)
             )
+        );
+    }
+
+    /**
+     * Get foreign keys with their declared target form for SQLite schema state.
+     *
+     * @internal
+     * @return list<array{name: null|string, columns: list<string>, foreign_schema: null|string, foreign_table: string, foreign_columns: list<string>, on_update: null|string, on_delete: null|string, implicit: bool}>
+     */
+    public function getForeignKeysForSchemaState(string $table): array
+    {
+        [$schema, $table] = $this->parseSchemaAndTable($table);
+
+        $table = $this->connection->getTablePrefix() . $table;
+
+        /** @var SQLiteProcessor $processor */
+        $processor = $this->connection->getPostProcessor();
+
+        return $processor->processForeignKeysForSchemaState(
+            $this->selectMetadata($this->grammar->compileForeignKeys($schema, $table)),
         );
     }
 

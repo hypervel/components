@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Outbox;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Coroutine\WaitConcurrent;
@@ -119,9 +120,11 @@ class OutboxWorker
                                 if (! $this->relay->deliver($source, $messages)) {
                                     Sleep::usleep((int) ($options->sleep * 1_000_000));
                                 }
-                            } catch (CanceledException $exception) {
-                                throw $exception;
                             } catch (Throwable $exception) {
+                                if (Coroutine::causedByCancellation($exception)) {
+                                    throw $exception;
+                                }
+
                                 $taskFailure ??= $exception;
                             }
                         });
@@ -141,16 +144,14 @@ class OutboxWorker
         } catch (Throwable $exception) {
             $failure = $exception;
 
-            if ($exception instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($exception)) {
                 $concurrent->cancel();
             }
         } finally {
             try {
                 $this->join($concurrent);
             } catch (CanceledException $exception) {
-                if (! $failure instanceof CanceledException) {
-                    $failure = $exception;
-                }
+                $failure = Coroutine::preferCancellation($failure, $exception);
             } finally {
                 $this->signals->unregister($signalHandler);
             }
@@ -172,9 +173,13 @@ class OutboxWorker
     {
         try {
             return $this->relay->claim($database, $limit);
-        } catch (CanceledException|ChildCancellationException $exception) {
+        } catch (ChildCancellationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             (new Waiter(-1))->wait(
                 fn () => $this->exceptions->report($exception, ['outbox_database' => $database]),
                 waitForChildTermination: true,

@@ -15,6 +15,7 @@ use Hypervel\Horizon\Contracts\Restartable;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Contracts\Terminable;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -103,9 +104,10 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
     /**
      * Use the given callback to resolve master supervisor names.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every master-name lookup.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every master-name lookup.
      */
+    #[BootOnly]
     public static function determineNameUsing(Closure $callback): void
     {
         static::$nameResolver = $callback;
@@ -176,6 +178,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
                 break;
             }
 
+            // @phpstan-ignore hypervel.rawSleep (waits in real time for supervisor processes to exit)
             sleep(1);
         }
 
@@ -199,6 +202,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
         $this->persist();
 
         while (true) {
+            // @phpstan-ignore hypervel.rawSleep (the monitor loop polls its processes in real time)
             sleep(1);
 
             $this->loop();
@@ -317,6 +321,8 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
 
     /**
      * Set the output handler.
+     *
+     * @return $this
      */
     public function handleOutputUsing(Closure $callback): static
     {

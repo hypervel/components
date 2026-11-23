@@ -56,6 +56,8 @@ class PendingBatch
 
     /**
      * Add jobs to the batch.
+     *
+     * @return $this
      */
     public function add(iterable|object $jobs): static
     {
@@ -79,7 +81,7 @@ class PendingBatch
     {
         foreach (Arr::wrap($job) as $job) {
             if ($job instanceof PendingBatch || $job instanceof Closure) {
-                return;
+                continue;
             }
 
             if (! (static::$batchableClasses[$job::class] ?? false) && ! isset(class_uses_recursive($job)[Batchable::class])) {
@@ -94,6 +96,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed when the batch is stored.
+     *
+     * @return $this
      */
     public function before(callable $callback): static
     {
@@ -112,6 +116,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after a job in the batch have executed successfully.
+     *
+     * @return $this
      */
     public function progress(callable $callback): static
     {
@@ -130,6 +136,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after all jobs in the batch have executed successfully.
+     *
+     * @return $this
      */
     public function then(callable $callback): static
     {
@@ -148,6 +156,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after the first failing job in the batch.
+     *
+     * @return $this
      */
     public function catch(callable $callback): static
     {
@@ -166,6 +176,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after the batch has finished executing.
+     *
+     * @return $this
      */
     public function finally(callable $callback): static
     {
@@ -188,6 +200,7 @@ class PendingBatch
      * Optionally, add callbacks to be executed upon each job failure.
      *
      * @param array<array-key, callable(Batch, ?Throwable): mixed>|bool|(callable(Batch, ?Throwable): mixed) $param
+     * @return $this
      */
     public function allowFailures(mixed $param = true): static
     {
@@ -236,6 +249,8 @@ class PendingBatch
 
     /**
      * Set the name for the batch.
+     *
+     * @return $this
      */
     public function name(string $name): static
     {
@@ -246,6 +261,8 @@ class PendingBatch
 
     /**
      * Specify the queue connection that the batched jobs should run on.
+     *
+     * @return $this
      */
     public function onConnection(UnitEnum|string $connection): static
     {
@@ -266,6 +283,8 @@ class PendingBatch
 
     /**
      * Specify the queue that the batched jobs should run on.
+     *
+     * @return $this
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
@@ -286,6 +305,8 @@ class PendingBatch
 
     /**
      * Dispatch batched jobs through the transactional outbox by default.
+     *
+     * @return $this
      */
     public function viaOutbox(): static
     {
@@ -296,6 +317,8 @@ class PendingBatch
 
     /**
      * Dispatch batched jobs without the transactional outbox by default.
+     *
+     * @return $this
      */
     public function withoutOutbox(): static
     {
@@ -308,6 +331,8 @@ class PendingBatch
 
     /**
      * Stage batched jobs on the given database connection by default.
+     *
+     * @return $this
      */
     public function onOutboxDatabase(UnitEnum|string $connection): static
     {
@@ -325,6 +350,8 @@ class PendingBatch
 
     /**
      * Add additional data into the batch's options array.
+     *
+     * @return $this
      */
     public function withOption(string $key, mixed $value): static
     {
@@ -345,22 +372,32 @@ class PendingBatch
         try {
             $batch = $this->store($repository);
 
-            $batch = $batch->add($this->jobs);
+            $added = $batch->add($this->jobs);
         } catch (Throwable $e) {
-            if (isset($batch)) {
-                $repository->delete($batch->id);
+            // Keep the original failure in flight so cleanup errors retain its cancellation chain.
+            try {
+                throw $e;
+            } finally {
+                if (isset($batch)) {
+                    $this->deleteIfEmpty($batch, $repository);
+                }
             }
+        }
 
-            throw $e;
+        if ($added === null) {
+            return $batch;
         }
 
         $events = $this->container->make(EventDispatcher::class);
 
         if ($events->hasListeners(BatchDispatched::class)) {
-            $events->dispatch(new BatchDispatched($batch));
+            if ($added->loadMissingJobCounts() === null) {
+                return $batch;
+            }
+            $events->dispatch(new BatchDispatched($added));
         }
 
-        return $batch;
+        return $added;
     }
 
     /**
@@ -387,14 +424,21 @@ class PendingBatch
         try {
             $batch = $batch->add($this->jobs);
         } catch (Throwable $e) {
-            $batch->delete();
+            // Keep the original failure in flight so cleanup errors retain its cancellation chain.
+            try {
+                throw $e;
+            } finally {
+                $this->deleteIfEmpty($batch);
+            }
+        }
 
-            throw $e;
+        if ($batch === null) {
+            return;
         }
 
         $events = $this->container->make(EventDispatcher::class);
 
-        if ($events->hasListeners(BatchDispatched::class)) {
+        if ($events->hasListeners(BatchDispatched::class) && $batch->loadMissingJobCounts() !== null) {
             $events->dispatch(new BatchDispatched($batch));
         }
     }
@@ -422,17 +466,45 @@ class PendingBatch
     {
         $batch = $repository->store($this);
 
-        (new Collection($this->beforeCallbacks()))->each(function ($handler) use ($batch) {
-            try {
-                return $handler($batch);
-            } catch (Throwable $e) {
-                if (function_exists('report')) {
-                    report($e);
+        try {
+            (new Collection($this->beforeCallbacks()))->each(function ($handler) use ($batch) {
+                try {
+                    return $handler($batch);
+                } catch (Throwable $e) {
+                    if (Coroutine::causedByCancellation($e)) {
+                        throw $e;
+                    }
+
+                    if (function_exists('report')) {
+                        report($e);
+                    }
                 }
+            });
+        } catch (Throwable $e) {
+            // Dispatch cannot own cleanup until store returns the saved batch.
+            try {
+                throw $e;
+            } finally {
+                $this->deleteIfEmpty($batch, $repository);
             }
-        });
+        }
 
         return $batch;
+    }
+
+    /**
+     * Preserve an earlier addition when a later part of the initial dispatch fails.
+     */
+    protected function deleteIfEmpty(Batch $batch, ?BatchRepository $repository = null): void
+    {
+        $owner = $repository ?? $this->container->make(BatchRepository::class);
+        if ($owner instanceof DatabaseBatchRepository) {
+            $owner->deleteIfEmpty($batch->id);
+        } elseif ($repository !== null) {
+            $repository->delete($batch->id);
+        } else {
+            $batch->delete();
+        }
     }
 
     /**

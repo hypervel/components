@@ -75,7 +75,7 @@ class WaitConcurrent extends Concurrent
                 $this->wg->done();
             }
 
-            if ($exception instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($exception)) {
                 $this->cancel();
             }
 

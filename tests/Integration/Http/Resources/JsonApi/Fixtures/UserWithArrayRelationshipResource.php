@@ -9,6 +9,9 @@ use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 
 class UserWithArrayRelationshipResource extends JsonApiResource
 {
+    // The TestCase routes inject preloaded resources through this fixture.
+    public ?array $loadedRelationshipsMap = null;
+
     public function toType(Request $request): ?string
     {
         return 'users';

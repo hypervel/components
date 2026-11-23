@@ -12,7 +12,9 @@ use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
@@ -21,6 +23,8 @@ use Throwable;
 
 class LeaseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
@@ -109,8 +113,8 @@ class LeaseTest extends TestCase
         $container = $this->container();
         $callbackFailure = new RuntimeException('reset failed');
         $discardFailure = new RuntimeException('discard failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($discardFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($discardFailure));
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = new ContractOnlyObjectPool;
@@ -152,9 +156,9 @@ class LeaseTest extends TestCase
         if ($discardCleanupThrows) {
             $discardCancellation = new RuntimeException('discard cleanup failed', previous: $discardCancellation);
         }
-        $handler = m::mock(ExceptionHandler::class);
-        $expectation = $handler->shouldReceive('report')->with($discardCancellation);
-        $expectCallbackFailure && $discardCleanupThrows ? $expectation->once() : $expectation->never();
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($discardCancellation))
+            ->times($expectCallbackFailure && $discardCleanupThrows ? 1 : 0);
         $this->container()->instance(ExceptionHandler::class, $handler);
 
         $pool = new ContractOnlyObjectPool;
@@ -222,8 +226,8 @@ class LeaseTest extends TestCase
     {
         $container = $this->container();
         $expected = new RuntimeException('reset failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($expected);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($expected));
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = $this->pool();
@@ -272,9 +276,9 @@ class LeaseTest extends TestCase
         if ($cleanupThrowsAgain) {
             $cleanup = new RuntimeException('finalizer cleanup failed', previous: $cleanup);
         }
-        $handler = m::mock(ExceptionHandler::class);
-        $expectation = $handler->shouldReceive('report')->with($cleanup);
-        $expectPrimary && ! $cleanup instanceof CanceledException ? $expectation->once() : $expectation->never();
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($cleanup))
+            ->times($expectPrimary && ! $cleanup instanceof CanceledException ? 1 : 0);
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = new ContractOnlyObjectPool;

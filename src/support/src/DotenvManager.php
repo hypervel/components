@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Dotenv\Dotenv;
+use Hypervel\Support\Attributes\BootOnly;
 
 class DotenvManager
 {
@@ -31,9 +32,10 @@ class DotenvManager
      * This is a one-shot method — subsequent calls return early if values
      * have already been loaded. Use reload() to re-read the env file.
      *
-     * Boot-only. Loaded values and the one-shot cache persist for the worker
-     * lifetime and affect every subsequent request.
+     * Loaded values and the one-shot cache persist for the worker lifetime
+     * and affect every subsequent request.
      */
+    #[BootOnly]
     public static function load(array $paths, ?string $name = null): void
     {
         if (static::$cachedValues !== null) {
@@ -50,9 +52,10 @@ class DotenvManager
      * which returns an empty array if the file doesn't exist instead
      * of throwing. InvalidFileException is still thrown for malformed files.
      *
-     * Boot-only. Loaded values and the one-shot cache persist for the worker
-     * lifetime and affect every subsequent request.
+     * Loaded values and the one-shot cache persist for the worker lifetime
+     * and affect every subsequent request.
      */
+    #[BootOnly]
     public static function safeLoad(array $paths, ?string $name = null): void
     {
         if (static::$cachedValues !== null) {
@@ -70,9 +73,10 @@ class DotenvManager
      * then safely re-reads the env file. A missing file publishes an empty
      * environment instead of retaining values from the previous load.
      *
-     * Boot-only. Reloading mutates process-global environment values observed
-     * by every concurrent and subsequent request in the worker.
+     * Reloading mutates process-global environment values observed by every
+     * concurrent and subsequent request in the worker.
      */
+    #[BootOnly]
     public static function reload(array $paths, ?string $name = null): void
     {
         if (static::$cachedValues !== null) {

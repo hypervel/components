@@ -14,7 +14,7 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('decrby')->once()->with('prefix:foo', 5)->andReturn(4);
+        $connection->client()->expects('decrby')->with('prefix:foo', 5)->returns(4);
 
         $redis = $this->createStore($connection);
         $result = $redis->decrement('foo', 5);
@@ -25,7 +25,7 @@ class DecrementTest extends RedisCacheTestCase
     {
         // Redis DECRBY on non-existent key initializes to 0, then decrements
         $connection = $this->mockConnection();
-        $connection->shouldReceive('decrby')->once()->with('prefix:counter', 1)->andReturn(-1);
+        $connection->client()->expects('decrby')->with('prefix:counter', 1)->returns(-1);
 
         $redis = $this->createStore($connection);
         $this->assertSame(-1, $redis->decrement('counter'));
@@ -34,7 +34,7 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementReturnsFalseWhenRedisRejectsTheOperation(): void
     {
         $connection = $this->mockConnection();
-        $connection->expects('decrby')->with('prefix:foo', 1)->andReturnFalse();
+        $connection->client()->expects('decrby')->with('prefix:foo', 1)->returns(false);
 
         $redis = $this->createStore($connection);
 

@@ -8,7 +8,8 @@ use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 enum PendingBroadcastTestConnectionStringEnum: string
 {
@@ -30,10 +31,12 @@ enum PendingBroadcastTestConnectionUnitEnum
 
 class PendingBroadcastTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testViaAcceptsStringBackedEnum(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
@@ -46,8 +49,8 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsUnitEnum(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
@@ -59,8 +62,8 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaNormalizesIntegerBackedEnumImmediately(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
@@ -72,8 +75,8 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsNull(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);
@@ -85,8 +88,8 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsString(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
         $pending = new PendingBroadcast($dispatcher, $event);

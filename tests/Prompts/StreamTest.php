@@ -64,6 +64,19 @@ class StreamTest extends TestCase
         $this->assertStringNotContainsString("\e", Prompt::content());
     }
 
+    public function testDecoratedStreamOutsideATerminalWritesExactChunks(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+        $stream = new Stream;
+
+        $stream->append('Hello, ');
+        $stream->append("World!\nDone.");
+        $stream->close();
+
+        $this->assertSame("Hello, World!\nDone.", Prompt::content());
+    }
+
     public function testCloseRestoresCursorBeforeRetainedStreamIsDestroyed(): void
     {
         Prompt::fake();

@@ -15,6 +15,7 @@ use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\FileResponse;
 use Hypervel\Ai\Responses\StoredFileResponse;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Attributes\TestsOnly;
 
 class Files
 {
@@ -79,8 +80,9 @@ class Files
     /**
      * Fake file operations.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeFileGateway
     {
         return Ai::fakeFiles($responses);

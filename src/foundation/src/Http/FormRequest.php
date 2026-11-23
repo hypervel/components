@@ -19,6 +19,8 @@ use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\Concerns\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
@@ -183,6 +185,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
                 }
             }
 
+            // @phpstan-ignore hypervel.staticStateMutation (per-class attribute metadata, the same for every request and bounded by the form request classes)
             static::$attributeConfiguration[$class] = $config;
         }
 
@@ -267,6 +270,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     {
         $input = $this->isJson() ? $this->json()->all() : $this->request->all();
 
+        $input = Arr::except($input, ['_token', '_method']);
+
         UnknownFields::validate($validator, $input, $this->unfilteredValidationRules);
     }
 
@@ -329,7 +334,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      * Get a validated input container for the validated input.
      *
      * @param null|array<int, string> $keys
-     * @return ($keys is array ? array<string, mixed> : ValidatedInput)
+     * @return ($keys is array ? array<array-key, mixed> : ValidatedInput)
      *
      * @throws ValidationException
      */
@@ -344,6 +349,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Get the validated data from the request.
+     *
+     * @return ($key is null ? array<array-key, mixed> : mixed)
      */
     public function validated(array|int|string|null $key = null, mixed $default = null): mixed
     {
@@ -402,9 +409,10 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     /**
      * Enable or disable unknown-field rejection globally for all form requests.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function failOnUnknownFields(bool $value = true): void
     {
         static::$globalFailOnUnknownFields = $value;
@@ -412,6 +420,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the Validator instance.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {
@@ -422,6 +432,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the Redirector instance.
+     *
+     * @return $this
      */
     public function setRedirector(Redirector $redirector): static
     {
@@ -432,6 +444,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the container implementation.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

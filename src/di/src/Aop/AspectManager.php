@@ -39,8 +39,8 @@ class AspectManager
     /**
      * Clear the compiled aspect chains.
      *
-     * Boot or tests only. Clearing this worker-wide cache makes subsequent
-     * calls compile their chains from the current aspect rules.
+     * Clearing this worker-wide cache makes subsequent calls compile their
+     * chains from the current aspect rules.
      */
     public static function clear(): void
     {

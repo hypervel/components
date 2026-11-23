@@ -9,36 +9,38 @@ use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Testbench\Contracts\TestCase as TestCaseContract;
 use Hypervel\Testbench\Database\MigrateProcessor;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
 class MigrateProcessorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[Test]
     public function itRollsBackOnlyTheBatchCreatedByTheProcessor(): void
     {
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('repositoryExists')->twice()->andReturnTrue();
-        $repository->shouldReceive('getNextBatchNumber')->twice()->andReturn(4, 5);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(4)->andReturn([]);
-        $testbench = m::mock(TestCaseContract::class);
-        $testbench->shouldReceive('artisan')
-            ->once()
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $repository->expects('repositoryExists')->times(2)->returns(true);
+        $repository->expects('getNextBatchNumber')->times(2)->returns(4, 5);
+        $repository->expects('getMigrationsByBatch')->with(4)->returns([]);
+        $testbench = Double::for(TestCaseContract::class)->strict();
+        $testbench->expects('artisan')
             ->with('migrate', [
                 '--database' => 'secondary',
                 '--path' => ['/migrations'],
                 '--step' => true,
             ])
-            ->andReturn(0);
-        $testbench->shouldReceive('artisan')
-            ->once()
+            ->returns(0);
+        $testbench->expects('artisan')
             ->with('migrate:rollback', [
                 '--database' => 'secondary',
                 '--path' => ['/migrations'],
                 '--batch' => 4,
             ])
-            ->andReturn(0);
+            ->returns(0);
         $processor = new MigrateProcessor(
             $testbench,
             $this->migrator($repository, 'secondary'),
@@ -55,21 +57,20 @@ class MigrateProcessorTest extends TestCase
     #[Test]
     public function itRollsBackEveryOwnedStepBatchInDescendingOrder(): void
     {
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('repositoryExists')->twice()->andReturnTrue();
-        $repository->shouldReceive('getNextBatchNumber')->twice()->andReturn(1, 4);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(3)->andReturn([]);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(2)->andReturn([]);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(1)->andReturn([]);
-        $testbench = m::mock(TestCaseContract::class);
-        $testbench->shouldReceive('artisan')->once()->with('migrate', ['--step' => true])->andReturn(0);
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $repository->expects('repositoryExists')->times(2)->returns(true);
+        $repository->expects('getNextBatchNumber')->times(2)->returns(1, 4);
+        $repository->expects('getMigrationsByBatch')->with(3)->returns([]);
+        $repository->expects('getMigrationsByBatch')->with(2)->returns([]);
+        $repository->expects('getMigrationsByBatch')->with(1)->returns([]);
+        $testbench = Double::for(TestCaseContract::class)->strict();
+        $testbench->expects('artisan')->with('migrate', ['--step' => true])->returns(0);
 
         foreach ([3, 2, 1] as $batch) {
-            $testbench->shouldReceive('artisan')
-                ->once()
+            $testbench->expects('artisan')
                 ->with('migrate:rollback', ['--batch' => $batch])
                 ->ordered()
-                ->andReturn(0);
+                ->returns(0);
         }
 
         $processor = new MigrateProcessor(
@@ -84,12 +85,12 @@ class MigrateProcessorTest extends TestCase
     #[Test]
     public function itDoesNotRollbackWhenTheMigrationCreatedNoBatch(): void
     {
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('repositoryExists')->twice()->andReturnTrue();
-        $repository->shouldReceive('getNextBatchNumber')->twice()->andReturn(4, 4);
-        $testbench = m::mock(TestCaseContract::class);
-        $testbench->shouldReceive('artisan')->once()->with('migrate', [])->andReturn(0);
-        $testbench->shouldNotReceive('artisan')->with('migrate:rollback', m::any());
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $repository->expects('repositoryExists')->times(2)->returns(true);
+        $repository->expects('getNextBatchNumber')->times(2)->returns(4, 4);
+        $testbench = Double::for(TestCaseContract::class)->strict();
+        $testbench->expects('artisan')->with('migrate', [])->returns(0);
+        $testbench->expects('artisan')->never()->with('migrate:rollback', Argument::any());
         $processor = new MigrateProcessor($testbench, $this->migrator($repository));
 
         $processor->up()->rollback();
@@ -98,19 +99,17 @@ class MigrateProcessorTest extends TestCase
     #[Test]
     public function itCapturesACompletedBatchWhenAFollowingMigrationFails(): void
     {
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('repositoryExists')->twice()->andReturnTrue();
-        $repository->shouldReceive('getNextBatchNumber')->twice()->andReturn(1, 2);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(1)->andReturn([]);
-        $testbench = m::mock(TestCaseContract::class);
-        $testbench->shouldReceive('artisan')
-            ->once()
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $repository->expects('repositoryExists')->times(2)->returns(true);
+        $repository->expects('getNextBatchNumber')->times(2)->returns(1, 2);
+        $repository->expects('getMigrationsByBatch')->with(1)->returns([]);
+        $testbench = Double::for(TestCaseContract::class)->strict();
+        $testbench->expects('artisan')
             ->with('migrate', [])
-            ->andThrow(new RuntimeException('Migration failed.'));
-        $testbench->shouldReceive('artisan')
-            ->once()
+            ->throws(new RuntimeException('Migration failed.'));
+        $testbench->expects('artisan')
             ->with('migrate:rollback', ['--batch' => 1])
-            ->andReturn(0);
+            ->returns(0);
         $processor = new MigrateProcessor($testbench, $this->migrator($repository));
 
         try {
@@ -126,16 +125,15 @@ class MigrateProcessorTest extends TestCase
     #[Test]
     public function itRejectsANonzeroMigrationResultAndRetainsItsOwnedBatchForCleanup(): void
     {
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('repositoryExists')->twice()->andReturnTrue();
-        $repository->shouldReceive('getNextBatchNumber')->twice()->andReturn(1, 2);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(1)->andReturn([]);
-        $testbench = m::mock(TestCaseContract::class);
-        $testbench->shouldReceive('artisan')->once()->with('migrate', [])->andReturn(1);
-        $testbench->shouldReceive('artisan')
-            ->once()
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $repository->expects('repositoryExists')->times(2)->returns(true);
+        $repository->expects('getNextBatchNumber')->times(2)->returns(1, 2);
+        $repository->expects('getMigrationsByBatch')->with(1)->returns([]);
+        $testbench = Double::for(TestCaseContract::class)->strict();
+        $testbench->expects('artisan')->with('migrate', [])->returns(1);
+        $testbench->expects('artisan')
             ->with('migrate:rollback', ['--batch' => 1])
-            ->andReturn(0);
+            ->returns(0);
         $processor = new MigrateProcessor($testbench, $this->migrator($repository));
 
         try {
@@ -151,20 +149,18 @@ class MigrateProcessorTest extends TestCase
     #[Test]
     public function itContinuesAfterARollbackFailureAndVerifiesEverySuccessfulBatch(): void
     {
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('repositoryExists')->twice()->andReturnTrue();
-        $repository->shouldReceive('getNextBatchNumber')->twice()->andReturn(1, 3);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(1)->andReturn([]);
-        $testbench = m::mock(TestCaseContract::class);
-        $testbench->shouldReceive('artisan')->once()->with('migrate', ['--step' => true])->andReturn(0);
-        $testbench->shouldReceive('artisan')
-            ->once()
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $repository->expects('repositoryExists')->times(2)->returns(true);
+        $repository->expects('getNextBatchNumber')->times(2)->returns(1, 3);
+        $repository->expects('getMigrationsByBatch')->with(1)->returns([]);
+        $testbench = Double::for(TestCaseContract::class)->strict();
+        $testbench->expects('artisan')->with('migrate', ['--step' => true])->returns(0);
+        $testbench->expects('artisan')
             ->with('migrate:rollback', ['--batch' => 2])
-            ->andReturn(1);
-        $testbench->shouldReceive('artisan')
-            ->once()
+            ->returns(1);
+        $testbench->expects('artisan')
             ->with('migrate:rollback', ['--batch' => 1])
-            ->andReturn(0);
+            ->returns(0);
         $processor = new MigrateProcessor(
             $testbench,
             $this->migrator($repository),
@@ -181,16 +177,15 @@ class MigrateProcessorTest extends TestCase
     #[Test]
     public function itRejectsAReportedRollbackThatLeavesTheBatchRecorded(): void
     {
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('repositoryExists')->twice()->andReturnTrue();
-        $repository->shouldReceive('getNextBatchNumber')->twice()->andReturn(1, 2);
-        $repository->shouldReceive('getMigrationsByBatch')->once()->with(1)->andReturn(['migration']);
-        $testbench = m::mock(TestCaseContract::class);
-        $testbench->shouldReceive('artisan')->once()->with('migrate', [])->andReturn(0);
-        $testbench->shouldReceive('artisan')
-            ->once()
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $repository->expects('repositoryExists')->times(2)->returns(true);
+        $repository->expects('getNextBatchNumber')->times(2)->returns(1, 2);
+        $repository->expects('getMigrationsByBatch')->with(1)->returns(['migration']);
+        $testbench = Double::for(TestCaseContract::class)->strict();
+        $testbench->expects('artisan')->with('migrate', [])->returns(0);
+        $testbench->expects('artisan')
             ->with('migrate:rollback', ['--batch' => 1])
-            ->andReturn(0);
+            ->returns(0);
         $processor = new MigrateProcessor($testbench, $this->migrator($repository));
         $processor->up();
 
@@ -207,11 +202,11 @@ class MigrateProcessorTest extends TestCase
         MigrationRepositoryInterface $repository,
         ?string $connection = null,
     ): Migrator {
-        $migrator = m::mock(Migrator::class);
-        $migrator->shouldReceive('getRepository')->andReturn($repository);
-        $migrator->shouldReceive('usingConnection')
-            ->with($connection, m::type('callable'))
-            ->andReturnUsing(static fn (?string $name, callable $callback): mixed => $callback());
+        $migrator = Double::for(Migrator::class)->strict();
+        $migrator->allows('getRepository')->returns($repository);
+        $migrator->allows('usingConnection')
+            ->with($connection, Argument::type('callable'))
+            ->resolves(static fn (?string $name, callable $callback): mixed => $callback());
 
         return $migrator;
     }

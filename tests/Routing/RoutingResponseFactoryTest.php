@@ -13,7 +13,8 @@ use Hypervel\Http\StreamedEvent;
 use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -23,6 +24,8 @@ use Throwable;
 
 class RoutingResponseFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // PHPUnit's output capture runs outside the test coroutine.
     protected bool $runTestsInCoroutine = false;
 
@@ -174,8 +177,8 @@ class RoutingResponseFactoryTest extends TestCase
     {
         $failure = new CanceledException('response canceled');
         $cleanup = new RuntimeException('cleanup failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
         $operation = static function () use ($failure, $cleanup, $cleanupThrows): never {
             try {
@@ -225,8 +228,8 @@ class RoutingResponseFactoryTest extends TestCase
     private function factory(): ResponseFactory
     {
         return new ResponseFactory(
-            m::mock(ViewFactory::class),
-            m::mock(Redirector::class),
+            Double::for(ViewFactory::class)->strict(),
+            Double::for(Redirector::class)->strict(),
         );
     }
 }

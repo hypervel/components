@@ -18,6 +18,7 @@ class EmailVerificationPromptController extends Controller
     {
         return $request->user()->hasVerifiedEmail()
                     ? redirect()->intended(route('dashboard', absolute: false))
+                    // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
                     : view('auth.verify-email');
     }
 }

@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\Config\Repository;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\Factory;
@@ -31,17 +37,68 @@ class SocialiteManagerTest extends TestCase
         return [SocialiteServiceProvider::class];
     }
 
-    public function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
-
-        $this->app->make('config')
+        $app->make('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
                 'redirect' => 'http://your-callback-url',
             ]);
     }
+
+    public function testRelativeRedirectUsesConfiguredOriginForAuthorizationAndTokenExchange(): void
+    {
+        config()->set('app.url', 'https://app.example.com/base/');
+        config()->set('services.github.redirect', '/auth/github/callback?flow=login');
+        RequestContext::set(Request::create('http://evil.example.com/start'));
+        $provider = $this->app->make(Factory::class)->driver('github')->stateless();
+        parse_str(parse_url($provider->redirect()->getTargetUrl(), PHP_URL_QUERY), $query);
+        $expected = 'https://app.example.com/base/auth/github/callback?flow=login';
+        $this->assertSame($expected, $query['redirect_uri']);
+
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, [], '{"access_token":"token"}'),
+        ]));
+        $stack->push(Middleware::history($history));
+        $provider->setHttpClient(new Client(['handler' => $stack]));
+        $provider->getAccessTokenResponse('code');
+        parse_str((string) $history[0]['request']->getBody(), $form);
+        $this->assertSame($expected, $form['redirect_uri']);
+    }
+
+    public function testNetworkPathRedirectCannotOverrideConfiguredOrigin(): void
+    {
+        config()->set('app.url', 'https://app.example.com');
+        config()->set('services.github.redirect', fn () => '//evil.example.com/callback');
+        $provider = $this->app->make(Factory::class)->driver('github')->stateless();
+        parse_str(parse_url($provider->redirect()->getTargetUrl(), PHP_URL_QUERY), $query);
+        $this->assertSame('https://app.example.com/evil.example.com/callback', $query['redirect_uri']);
+    }
+
+    public function testAbsoluteRedirectIsPreserved(): void
+    {
+        config()->set('services.github.redirect', 'https://auth.example.com:8443/callback?q=1');
+        $provider = $this->app->make(Factory::class)->driver('github')->stateless();
+        parse_str(parse_url($provider->redirect()->getTargetUrl(), PHP_URL_QUERY), $query);
+        $this->assertSame('https://auth.example.com:8443/callback?q=1', $query['redirect_uri']);
+    }
+
+    public function testRelativeRedirectRejectsMissingTrustedOrigin(): void
+    {
+        config()->set('app.url', null);
+        config()->set('services.github.redirect', '/callback');
+        $provider = $this->app->make(Factory::class)->driver('github')->stateless();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('An absolute HTTP(S) app.url is required for relative Socialite redirect URLs.');
+
+        // Unlike upstream, Hypervel formats the redirect when a request uses it, not when the driver is built.
+        $provider->redirect();
+    }
+
+    // REMOVED: test_oauth_one_relative_callback_uses_configured_origin; OAuth 1 and formatConfig() are not supported.
 
     public function testItCanInstantiateTheGithubDriver(): void
     {
@@ -192,31 +249,6 @@ class SocialiteManagerTest extends TestCase
     public function testCachedProviderResolvesClosureRedirectForEachExecution(): void
     {
         $this->app->make('config')->set('services.github.redirect', static fn (): string => request()->getSchemeAndHttpHost() . '/callback');
-        RequestContext::set(Request::create('https://initial.example.com/login'));
-
-        $manager = $this->app->make(SocialiteManager::class);
-        $manager->driver('github');
-
-        [$tenantAUrl, $tenantBUrl] = parallel([
-            function () use ($manager): string {
-                RequestContext::set(Request::create('https://tenant-a.example.com/login'));
-
-                return $manager->driver('github')->stateless()->redirect()->getTargetUrl();
-            },
-            function () use ($manager): string {
-                RequestContext::set(Request::create('https://tenant-b.example.com/login'));
-
-                return $manager->driver('github')->stateless()->redirect()->getTargetUrl();
-            },
-        ]);
-
-        $this->assertStringContainsString(urlencode('https://tenant-a.example.com/callback'), $tenantAUrl);
-        $this->assertStringContainsString(urlencode('https://tenant-b.example.com/callback'), $tenantBUrl);
-    }
-
-    public function testCachedProviderFormatsRelativeRedirectForEachExecution(): void
-    {
-        $this->app->make('config')->set('services.github.redirect', '/callback');
         RequestContext::set(Request::create('https://initial.example.com/login'));
 
         $manager = $this->app->make(SocialiteManager::class);

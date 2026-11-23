@@ -7,12 +7,16 @@ namespace Hypervel\Tests\Broadcasting;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JsonException;
-use Mockery as m;
 use Psr\Log\LoggerInterface;
 
 class LogBroadcasterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBroadcastUsesFormattedChannelNames(): void
     {
         Broadcaster::formatChannelsUsing(
@@ -22,10 +26,9 @@ class LogBroadcasterTest extends TestCase
             ),
         );
 
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldReceive('info')
-            ->once()
-            ->with(m::on(
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->expects('info')
+            ->with(Argument::satisfies(
                 static fn (string $message): bool => str_contains(
                     $message,
                     'on channels [application.orders, application.users]',
@@ -43,8 +46,8 @@ class LogBroadcasterTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldNotReceive('info');
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->expects('info')->never();
 
         (new LogBroadcaster($logger))->broadcast(
             ['orders'],

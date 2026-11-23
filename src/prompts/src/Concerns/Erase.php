@@ -11,7 +11,7 @@ trait Erase
      */
     public function eraseLines(int $count): void
     {
-        if ($count <= 0 || ! static::output()->isDecorated()) {
+        if ($count <= 0 || ! static::canControlTerminal()) {
             return;
         }
 
@@ -30,7 +30,7 @@ trait Erase
      */
     public function eraseDown(): void
     {
-        if (! static::output()->isDecorated()) {
+        if (! static::canControlTerminal()) {
             return;
         }
 

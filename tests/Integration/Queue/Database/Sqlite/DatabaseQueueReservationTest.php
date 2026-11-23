@@ -21,7 +21,8 @@ use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -30,6 +31,8 @@ use stdClass;
 
 class DatabaseQueueReservationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[TestWith([null, 'reports'])]
     #[TestWith(['failover', 'processing'])]
     public function testFailoverForwardsOnceBeforeStoringOnTheFallbackConnection(?string $connection, string $delegatedQueue): void
@@ -39,11 +42,11 @@ class DatabaseQueueReservationTest extends TestCase
         $routes->forward(['reports' => 'processing', 'processing' => 'archive'], connection: $connection);
         $database->getContainer()->instance('queue.routes', $routes);
         $payload = json_encode(['job' => stdClass::class, 'data' => []]);
-        $primary = m::mock(QueueContract::class);
-        $primary->shouldReceive('pushRaw')->once()->with($payload, $delegatedQueue)->andThrow(new RuntimeException('Primary unavailable.'));
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with('primary')->andReturn($primary);
-        $manager->shouldReceive('connection')->once()->with('database')->andReturn($database);
+        $primary = Double::for(QueueContract::class)->strict();
+        $primary->expects('pushRaw')->with($payload, $delegatedQueue)->throws(new RuntimeException('Primary unavailable.'));
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('primary')->returns($primary);
+        $manager->expects('connection')->with('database')->returns($database);
         $queue = new FailoverQueue($manager, $events, ['primary', 'database']);
         $queue->setContainer($database->getContainer());
         $queue->setConnectionName('failover');
@@ -119,6 +122,55 @@ class DatabaseQueueReservationTest extends TestCase
                 $database->rollBack();
             }
         }
+    }
+
+    public function testJobIsNotFailedWhenReservingItThrowsAConcurrencyError(): void
+    {
+        [$queue, $events] = $this->createQueue();
+        $database = $queue->getDatabase();
+        $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]));
+
+        $database->statement("create trigger reserve_job before update on jobs begin select raise(abort, 'database is locked'); end");
+
+        $failed = 0;
+        $events->listen(JobFailed::class, function () use (&$failed): void {
+            ++$failed;
+        });
+
+        try {
+            $queue->pop('default');
+
+            $this->fail('The exception was not thrown.');
+        } catch (QueryException $exception) {
+            $this->assertStringContainsString('database is locked', $exception->getMessage());
+        }
+
+        $this->assertSame(1, $database->table('jobs')->count());
+        $this->assertSame(0, $failed);
+    }
+
+    public function testJobIsFailedWhenReservingItThrowsAnotherError(): void
+    {
+        [$queue, $events] = $this->createQueue();
+        $database = $queue->getDatabase();
+        $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]));
+
+        $database->statement("create trigger reserve_job before update on jobs begin select raise(abort, 'attempts out of range'); end");
+
+        $failed = 0;
+        $events->listen(JobFailed::class, function () use (&$failed): void {
+            ++$failed;
+        });
+
+        try {
+            $queue->pop('default');
+
+            $this->fail('The exception was not thrown.');
+        } catch (QueryException) {
+        }
+
+        $this->assertSame(0, $database->table('jobs')->count());
+        $this->assertSame(1, $failed);
     }
 
     public function testNestedConcurrencyFailureDoesNotFailTheJob(): void
@@ -402,8 +454,8 @@ class DatabaseQueueReservationTest extends TestCase
         $events = new Dispatcher($container);
         $container->instance(DispatcherContract::class, $events);
         $database->setEventDispatcher($events);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($database);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with(null)->returns($database);
         $queue = new DatabaseQueue($resolver, null, 'jobs');
         $queue->setContainer($container);
         $queue->setConnectionName('database');

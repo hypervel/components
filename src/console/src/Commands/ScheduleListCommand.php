@@ -13,8 +13,10 @@ use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use ReflectionClass;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -89,6 +91,12 @@ class ScheduleListCommand extends Command
     {
         // Formatting would strip console style tags, and backslashes before < or >, from shell commands.
         $this->output->writeln($events->map(function ($event) use ($timezone) {
+            $expressionTimezone = $this->getExpressionTimezone($event);
+
+            $timezone = $this->option('timezone') === null
+                ? new DateTimeZone($expressionTimezone)
+                : $timezone;
+
             $nextDueDate = $this->getNextDueDateForEvent($event, $timezone);
 
             $command = $event->command ?? '';
@@ -114,7 +122,7 @@ class ScheduleListCommand extends Command
                 'next_due_date' => $nextDueDate->format('Y-m-d H:i:s P'),
                 'next_due_date_human' => $nextDueDate->diffForHumans(),
                 'timezone' => $timezone->getName(),
-                'expression_timezone' => $this->getExpressionTimezone($event),
+                'expression_timezone' => $expressionTimezone,
                 'has_mutex' => $event->mutex->exists($event),
                 'repeat_seconds' => $event->isRepeatable() ? $event->repeatSeconds : null,
                 'environments' => $event->environments,
@@ -288,7 +296,8 @@ class ScheduleListCommand extends Command
 
         return $now
             ->endOfSecond()
-            ->ceilSeconds($event->repeatSeconds);
+            ->ceilSeconds($event->repeatSeconds)
+            ->setTimezone($timezone);
     }
 
     /**
@@ -333,7 +342,7 @@ class ScheduleListCommand extends Command
 
             return sprintf(
                 '%s:%s',
-                str_replace($this->hypervel->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''),
+                Str::replaceStart($this->hypervel->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''),
                 $function->getStartLine()
             );
         }
@@ -364,9 +373,10 @@ class ScheduleListCommand extends Command
     /**
      * Set a callback that should be used when resolving the terminal width.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent schedule:list render.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent schedule:list render.
      */
+    #[TestsOnly]
     public static function resolveTerminalWidthUsing(?Closure $resolver): void
     {
         static::$terminalWidthResolver = $resolver;

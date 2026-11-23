@@ -7,19 +7,21 @@ namespace Hypervel\Database\Schema;
 use Hypervel\Support\Fluent;
 
 /**
- * @method ForeignKeyDefinition deferrable(bool $value = true) Set the foreign key as deferrable (PostgreSQL)
- * @method ForeignKeyDefinition initiallyImmediate(bool $value = true) Set the default time to check the constraint (PostgreSQL)
- * @method ForeignKeyDefinition inplace(bool $value = true) Specify that algorithm=inplace should be used for the foreign key operation, which requires foreign key checks to be disabled (MySQL)
- * @method ForeignKeyDefinition lock(('default'|'exclusive'|'none'|'shared') $value) Specify the DDL lock mode for the foreign key operation (MySQL)
- * @method ForeignKeyDefinition on(string $table) Specify the referenced table
- * @method ForeignKeyDefinition onDelete(string $action) Add an ON DELETE action
- * @method ForeignKeyDefinition onUpdate(string $action) Add an ON UPDATE action
- * @method ForeignKeyDefinition references(string|string[] $columns) Specify the referenced column(s)
+ * @method $this deferrable(bool $value = true) Set the foreign key as deferrable (PostgreSQL)
+ * @method $this initiallyImmediate(bool $value = true) Set the default time to check the constraint (PostgreSQL)
+ * @method $this inplace(bool $value = true) Specify that algorithm=inplace should be used for the foreign key operation, which requires foreign key checks to be disabled (MySQL)
+ * @method $this lock(('default'|'exclusive'|'none'|'shared') $value) Specify the DDL lock mode for the foreign key operation (MySQL)
+ * @method $this on(string $table) Specify the referenced table
+ * @method $this onDelete(string $action) Add an ON DELETE action
+ * @method $this onUpdate(string $action) Add an ON UPDATE action
+ * @method $this references(string|string[] $columns) Specify the referenced column(s)
  */
 class ForeignKeyDefinition extends Fluent
 {
     /**
      * Indicate that updates should cascade.
+     *
+     * @return $this
      */
     public function cascadeOnUpdate(): self
     {
@@ -28,6 +30,8 @@ class ForeignKeyDefinition extends Fluent
 
     /**
      * Indicate that updates should be restricted.
+     *
+     * @return $this
      */
     public function restrictOnUpdate(): self
     {
@@ -36,6 +40,8 @@ class ForeignKeyDefinition extends Fluent
 
     /**
      * Indicate that updates should set the foreign key value to null.
+     *
+     * @return $this
      */
     public function nullOnUpdate(): self
     {
@@ -44,6 +50,8 @@ class ForeignKeyDefinition extends Fluent
 
     /**
      * Indicate that updates should have "no action".
+     *
+     * @return $this
      */
     public function noActionOnUpdate(): self
     {
@@ -52,6 +60,8 @@ class ForeignKeyDefinition extends Fluent
 
     /**
      * Indicate that deletes should cascade.
+     *
+     * @return $this
      */
     public function cascadeOnDelete(): self
     {
@@ -60,6 +70,8 @@ class ForeignKeyDefinition extends Fluent
 
     /**
      * Indicate that deletes should be restricted.
+     *
+     * @return $this
      */
     public function restrictOnDelete(): self
     {
@@ -68,6 +80,8 @@ class ForeignKeyDefinition extends Fluent
 
     /**
      * Indicate that deletes should set the foreign key value to null.
+     *
+     * @return $this
      */
     public function nullOnDelete(): self
     {
@@ -76,6 +90,8 @@ class ForeignKeyDefinition extends Fluent
 
     /**
      * Indicate that deletes should have "no action".
+     *
+     * @return $this
      */
     public function noActionOnDelete(): self
     {

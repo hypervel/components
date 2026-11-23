@@ -10,6 +10,7 @@ use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Concerns\HasProviderContext;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use LogicException;
 use SensitiveParameter;
@@ -48,9 +49,12 @@ abstract class AbstractProvider
     /**
      * Set the baseline provider configuration.
      *
-     * Boot-only. The configuration persists for the worker lifetime and affects
-     * every subsequent request. Use setConfig() for per-request overrides.
+     * On a worker-cached provider, the configuration persists and affects every
+     * subsequent request. Use setConfig() for per-request overrides.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function withConfig(#[SensitiveParameter] array $config): static
     {
         $this->additionalConfig = $config;
@@ -63,6 +67,8 @@ abstract class AbstractProvider
      *
      * The override is isolated to the current coroutine and must be applied
      * independently on the redirect and callback requests.
+     *
+     * @return $this
      */
     public function setConfig(#[SensitiveParameter] array $config): static
     {
@@ -104,6 +110,8 @@ abstract class AbstractProvider
 
     /**
      * Set the Guzzle HTTP client instance.
+     *
+     * @return $this
      */
     public function setHttpClient(Client $client): static
     {
@@ -117,6 +125,8 @@ abstract class AbstractProvider
      *
      * Stores the request in coroutine context so cached providers read the
      * current request without leaking it to concurrent coroutines.
+     *
+     * @return $this
      */
     public function setRequest(Request $request): static
     {
@@ -159,6 +169,8 @@ abstract class AbstractProvider
 
     /**
      * Indicate that the provider should operate as stateless.
+     *
+     * @return $this
      */
     public function stateless(): static
     {
@@ -177,6 +189,8 @@ abstract class AbstractProvider
 
     /**
      * Set the custom parameters of the request.
+     *
+     * @return $this
      */
     public function with(array $parameters): static
     {

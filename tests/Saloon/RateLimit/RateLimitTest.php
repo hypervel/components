@@ -8,8 +8,8 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
 use Hypervel\RateLimiter\AdmissionPolicy;
@@ -37,12 +37,16 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 // Feature/HasRateLimitsTest covers consuming connector and request policies, denials before transport, cooldowns
 // recorded before response middleware and waiting, and Unit/HelperTest covers Retry-After parsing.
 class RateLimitTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFakesAndCacheHitsDoNotConsumeAdmissionCapacity(): void
     {
         [$manager, $limiter, $http] = $this->manager();
@@ -70,7 +74,7 @@ class RateLimitTest extends TestCase
     {
         [$manager, $limiter, $http, $rateLimiter] = $this->manager();
         $http->fake(['*' => Factory::response(['ok' => true])]);
-        $rateLimiter->shouldReceive('store')->twice()->with('secondary')->andReturn($limiter);
+        $rateLimiter->expects('store')->times(2)->with('secondary')->returns($limiter);
         $connector = new PlainRateLimitConnectorStub($manager);
         $tenantA = (new OperationRateLimitRequestStub)->withHeader('X-Tenant', 'tenant-a');
         $tenantB = (new OperationRateLimitRequestStub)->withHeader('X-Tenant', 'tenant-b');
@@ -162,29 +166,30 @@ class RateLimitTest extends TestCase
     /**
      * Create a manager and isolated worker-array limiter.
      *
-     * @return array{SaloonManager, Limiter, Factory, RateLimiter}
+     * @return array{SaloonManager, Limiter, Factory, DoubleInterface}
      */
     protected function manager(): array
     {
         $http = new Factory;
         $http->registerConnection('saloon');
         $cacheRepository = new Repository(new ArrayStore);
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldReceive('store')->with(null)->andReturn($cacheRepository)->byDefault();
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')->with('saloon.connection.name')->andReturn('saloon');
-        $config->shouldReceive('get')->with('saloon.cache.store')->andReturn(null)->byDefault();
-        $config->shouldReceive('get')->with('saloon.rate_limiter.store')->andReturn(null)->byDefault();
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->allows('store')->with(null)->returns($cacheRepository);
+        $config = new ConfigRepository(['saloon' => [
+            'connection' => ['name' => 'saloon'],
+            'cache' => ['store' => null],
+            'rate_limiter' => ['store' => null],
+        ]]);
         $limiter = new Limiter(
             new WorkerArrayStore,
             new KeyResolver('saloon-tests', static fn (): ?string => null),
         );
-        $rateLimiter = m::mock(RateLimiter::class);
-        $rateLimiter->shouldReceive('store')->with(null)->andReturn($limiter)->byDefault();
+        $rateLimiter = Double::for(RateLimiter::class, override: true)->strict();
+        $rateLimiter->allows('store')->with(null)->returns($limiter);
         $manager = new SaloonManager(
             new Sender($http, $config),
             $cache,
-            $rateLimiter,
+            $rateLimiter->instance(),
             $config,
             new Dispatcher,
         );

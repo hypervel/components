@@ -26,6 +26,7 @@
     - [Specifying Attributes in Language Files](#specifying-attribute-in-language-files)
     - [Specifying Values in Language Files](#specifying-values-in-language-files)
 - [Available Validation Rules](#available-validation-rules)
+    - [Rule Builders](#rule-builders)
 - [Conditionally Adding Rules](#conditionally-adding-rules)
 - [Validating Arrays](#validating-arrays)
     - [Validating Nested Array Input](#validating-nested-array-input)
@@ -34,6 +35,8 @@
 - [Validating Passwords](#validating-passwords)
 - [Custom Validation Rules](#custom-validation-rules)
     - [Using Rule Objects](#using-rule-objects)
+    - [Extending Fluent Rules](#extending-fluent-rules)
+    - [Customizing Database Rules](#customizing-database-rules)
     - [Using Closures](#using-closures)
     - [Implicit Rules](#implicit-rules)
 - [Credits](#credits)
@@ -154,6 +157,13 @@ $request->validate([
 ```
 
 If a parameter contains `|`, use a rule object or an array of individual rules instead of joining the rules into a single string. Regular expression parameters retain their regular expression syntax.
+
+<a name="membership-comparisons"></a>
+#### Membership Comparisons
+
+The `in`, `not_in`, `contains` and `doesnt_contain` rules use the same value comparisons. `false`, `0` and `'0'` match, as do `true`, `1` and `'1'`. Null matches only null; an empty string stays separate. Other scalar and stringable values compare by their string form, so `1` matches `'1'` but not `'01'`. Pass null members through a fluent builder or structured rule array.
+
+Float conversion preserves precision using PHP's default `serialize_precision=-1`. A float matches itself, but distinct values are not rounded into a match: `0.1 + 0.2` does not match `0.3`. Round explicitly when your application requires a fixed decimal precision.
 
 <a name="stopping-on-first-validation-failure"></a>
 #### Stopping on First Validation Failure
@@ -771,7 +781,9 @@ Hypervel supports the following primitive casts:
 
 Primitive and enum casts preserve `null`. A custom caster receives a present `null` value so it may decide how nullable input should be handled. Missing paths are skipped.
 
-Use validation rules that guarantee each submitted value can be cast. For example, validate JSON strings with the `json` rule, decimals with the `numeric` rule, and formatted dates with the matching `date_format` rule. An incompatible value causes casting to throw.
+Use validation rules that guarantee each submitted value can be cast. For example, validate JSON strings with the `json` rule, decimals with the `numeric` rule and appropriate `min` and `max` bounds, and formatted dates with the matching `date_format` rule. An incompatible value causes casting to throw.
+
+Decimal casts accept scientific notation with exponents between -1000 and 1000. Values outside that range throw a `Hypervel\Support\Exceptions\MathException` to prevent excessive memory allocation, even if they passed the `numeric` rule. This does not limit the length of an ordinary decimal string.
 
 Date and time casts accept `DateTimeInterface` instances, Unix timestamps, and date strings. Numeric strings without an explicit format are treated as Unix timestamps. An explicit format takes precedence, so `datetime:!Y` parses the value `2026` as a year rather than a timestamp.
 
@@ -1552,6 +1564,38 @@ Below is a list of all available validation rules and their function:
 
 </div>
 
+<a name="rule-builders"></a>
+### Rule Builders
+
+In addition to strings, many validation rules may be defined using methods on the `Hypervel\Validation\Rule` class. These methods offer IDE autocompletion and may be combined with string rules:
+
+```php
+use Hypervel\Validation\Rule;
+
+'name' => [Rule::required(), Rule::string()->max(255)],
+'terms' => [Rule::accepted()],
+'enabled' => [Rule::boolean()],
+'website' => [Rule::nullable(), Rule::activeUrl()],
+```
+
+Method names use camel case, such as `Rule::hexColor()`, `Rule::macAddress()`, and `Rule::requiredArrayKeys(['name', 'email'])`. Rules that depend on other fields accept the field names or comparison values as arguments:
+
+```php
+'terms' => [Rule::acceptedIf('account_type', ['personal', 'business'])],
+'nickname' => [Rule::excludeWith('name')],
+'email' => [Rule::requiredWithout(['phone', 'mobile'])],
+'settings' => [Rule::presentIf('account_type', 'business')],
+```
+
+The `acceptedIf`, `declinedIf`, `missingIf`, `missingUnless`, `presentIf`, and `presentUnless` methods accept a comparison value or an array of comparison values. Methods such as `requiredWith`, `requiredWithAll`, `requiredWithout`, `requiredWithoutAll`, `missingWith`, `missingWithAll`, `presentWith`, `presentWithAll`, and `prohibits` accept an array of field names or multiple field name arguments.
+
+Regular expressions may also be defined using the `regex` and `notRegex` methods:
+
+```php
+'username' => [Rule::required(), Rule::regex('/^[a-z]+$/i')],
+'code' => [Rule::notRegex('/^test-/i')],
+```
+
 <a name="rule-accepted"></a>
 #### accepted
 
@@ -1645,6 +1689,8 @@ use Hypervel\Validation\Rule;
 ],
 ```
 
+Rulesets with non-sequential keys are treated as maps of fields to rules, so pass filtered rulesets through `array_values`.
+
 <a name="rule-alpha"></a>
 #### alpha
 
@@ -1702,6 +1748,22 @@ Validator::make($input, [
 ```
 
 In general, you should always specify the array keys that are allowed to be present within your array.
+
+For convenience, array rules may also be constructed using the fluent `Rule::array()` rule builder. You may pass the allowed keys to the `array` method, and use the `min`, `max`, `between`, and `exactly` methods to limit the number of items in the array:
+
+```php
+use Hypervel\Validation\Rule;
+
+'user' => [
+    'required',
+    Rule::array(['name', 'username', 'email'])->min(2),
+],
+
+'tags' => [
+    'required',
+    Rule::array()->between(1, 5),
+],
+```
 
 <a name="rule-array-keys"></a>
 #### array_keys:_foo_,_bar_,...
@@ -1815,12 +1877,24 @@ You may use the `strict` parameter to only consider the field valid if its value
 'foo' => ['boolean:strict']
 ```
 
+Alternatively, you may use the `Rule::boolean` method, passing `true` to enable strict validation:
+
+```php
+'foo' => [Rule::boolean(true)],
+```
+
 <a name="rule-confirmed"></a>
 #### confirmed
 
 The field under validation must have a matching field of `{field}_confirmation`. For example, if the field under validation is `password`, a matching `password_confirmation` field must be present in the input.
 
 You may also pass a custom confirmation field name. For example, `confirmed:repeat_username` will expect the field `repeat_username` to match the field under validation.
+
+You may also use the `Rule::confirmed` method, specifying a custom confirmation field via the `customField` method:
+
+```php
+'username' => [Rule::confirmed()->customField('repeat_username')],
+```
 
 <a name="rule-contains"></a>
 #### contains:_foo_,_bar_,...
@@ -1840,6 +1914,8 @@ Validator::make($data, [
 ]);
 ```
 
+Values are compared using the [membership comparisons](#membership-comparisons).
+
 <a name="rule-doesnt-contain"></a>
 #### doesnt_contain:_foo_,_bar_,...
 
@@ -1858,7 +1934,7 @@ Validator::make($data, [
 ]);
 ```
 
-Comparisons are strict. String and fluent rules encode parameters as strings, so the integer `1` does not match the parameter `'1'`.
+Values are compared using the [membership comparisons](#membership-comparisons).
 
 <a name="rule-current-password"></a>
 #### current_password
@@ -1867,6 +1943,12 @@ The field under validation must match the authenticated user's password. You may
 
 ```php
 'password' => ['current_password:api']
+```
+
+Alternatively, you may use the `Rule::currentPassword` method and specify the authentication guard via the `guard` method:
+
+```php
+'password' => [Rule::currentPassword()->guard('api')],
 ```
 
 <a name="rule-date"></a>
@@ -1878,6 +1960,16 @@ The field under validation must be a valid, non-relative date according to the `
 #### date_equals:_date_
 
 The field under validation must be equal to the given date. The dates will be passed into the PHP `strtotime` function in order to be converted into a valid `DateTime` instance.
+
+For convenience, date-based rules may be constructed using the fluent `date` rule builder:
+
+```php
+use Hypervel\Validation\Rule;
+
+'start_date' => [Rule::date()->equals('2026-01-01')],
+```
+
+The `equals` method accepts a date string, a `DateTimeInterface` instance, or the name of another field to compare against.
 
 <a name="rule-date-format"></a>
 #### date_format:_format_,...
@@ -2013,6 +2105,12 @@ You may add `ignore_case` to the validation rule's arguments to make the rule ig
 'foo.*.id' => ['distinct:ignore_case']
 ```
 
+Alternatively, you may use the `Rule::distinct` method, chaining the `strict` and `ignoreCase` methods as needed:
+
+```php
+'foo.*.id' => [Rule::distinct()->strict()->ignoreCase()],
+```
+
 <a name="rule-doesnt-start-with"></a>
 #### doesnt_start_with:_foo_,_bar_,...
 
@@ -2026,7 +2124,7 @@ The field under validation must not end with one of the given values.
 <a name="rule-email"></a>
 #### email
 
-The field under validation must be formatted as an email address. This validation rule utilizes the [egulias/email-validator](https://github.com/egulias/EmailValidator) package for validating the email address. By default, the `RFCValidation` validator is applied, but you can apply other validation styles as well:
+The field under validation must be formatted as an email address no longer than 254 bytes. This validation rule utilizes the [egulias/email-validator](https://github.com/egulias/EmailValidator) package for validating the email address. By default, the `RFCValidation` validator is applied, but you can apply other validation styles as well:
 
 ```php
 'email' => ['email:rfc,dns']
@@ -2347,6 +2445,8 @@ Validator::make($input, [
 ]);
 ```
 
+Values are compared using the [membership comparisons](#membership-comparisons).
+
 <a name="rule-in-array"></a>
 #### in_array:_anotherfield_.*
 
@@ -2379,6 +2479,14 @@ You may use the `strict` parameter to only consider the field valid if its type 
 #### ip
 
 The field under validation must be an IP address.
+
+You may also use the `Rule::ip` method, optionally restricting the IP version to `4` or `6`:
+
+```php
+'ip_address' => [Rule::ip()],
+'ipv4_address' => [Rule::ip()->version(4)],
+'ipv6_address' => [Rule::ip()->version(6)],
+```
 
 <a name="ipv4"></a>
 #### ipv4
@@ -2414,6 +2522,17 @@ The field under validation must be lowercase.
 #### list
 
 The field under validation must be an array that is a list. An array is considered a list if its keys consist of consecutive numbers from 0 to `count($array) - 1`.
+
+List rules may also be constructed using the fluent `Rule::list()` rule builder, which provides the `min`, `max`, `between`, and `exactly` methods to limit the number of items in the list:
+
+```php
+use Hypervel\Validation\Rule;
+
+'tags' => [
+    'required',
+    Rule::list()->between(1, 5),
+],
+```
 
 <a name="rule-mac"></a>
 #### mac_address
@@ -2460,6 +2579,9 @@ Even though you only need to specify the extensions, this rule actually validate
 #### MIME Types and Extensions
 
 This validation rule does not verify agreement between the MIME type and the extension the user assigned to the file. For example, the `mimes:png` validation rule would consider a file containing valid PNG content to be a valid PNG image, even if the file is named `photo.txt`. If you would like to validate the user-assigned extension of the file, you may use the [extensions](#rule-extensions) rule.
+
+> [!WARNING]
+> Passing image validation does not remove embedded code. A file that begins with GIF or JPEG magic bytes can pass `mimes:gif` or `mimes:jpg` validation while also containing a PHP payload. Always use a system-generated filename (e.g. `hashName()`) when storing uploaded files, and configure your web server to deny PHP execution inside storage directories.
 
 <a name="rule-min"></a>
 #### min:_value_
@@ -2517,6 +2639,8 @@ Validator::make($data, [
 ]);
 ```
 
+Values are compared using the [membership comparisons](#membership-comparisons). When combined with `array`, this rule rejects the array if any item is in the given list.
+
 <a name="rule-not-regex"></a>
 #### not_regex:_pattern_
 
@@ -2551,7 +2675,7 @@ use Hypervel\Validation\Rule;
 ],
 ```
 
-The fluent numeric builder also provides `integer`, `min`, `max`, `greaterThan`, `greaterThanOrEqualTo`, `lessThan`, `lessThanOrEqualTo`, `digits`, `digitsBetween`, `minDigits`, `maxDigits`, `multipleOf`, `same`, `different`, and `exactly` methods. Pass `strict: true` to the `integer` method to apply the [strict integer rule](#rule-integer).
+Pass `strict: true` to `Rule::numeric()` to reject numeric strings. The fluent numeric builder also provides `integer`, `min`, `max`, `greaterThan`, `greaterThanOrEqualTo`, `lessThan`, `lessThanOrEqualTo`, `digits`, `digitsBetween`, `minDigits`, `maxDigits`, `multipleOf`, `same`, `different`, and `exactly` methods. Pass `strict: true` to the `integer` method to apply the [strict integer rule](#rule-integer).
 
 <a name="rule-present"></a>
 #### present
@@ -2834,6 +2958,12 @@ The arguments [accepted by the `DateTimeZone::listIdentifiers` method](https://w
 'timezone' => ['required', 'timezone:per_country,US'];
 ```
 
+Alternatively, you may use the `Rule::timezone` method, passing any `listIdentifiers` arguments as an array:
+
+```php
+'timezone' => [Rule::timezone(['per_country', 'US'])],
+```
+
 <a name="rule-unique"></a>
 #### unique:_table_,_column_
 
@@ -2943,6 +3073,12 @@ If you would like to specify the URL protocols that should be considered valid, 
 'game' => ['url:minecraft,steam'],
 ```
 
+Alternatively, you may use the `Rule::url` method, specifying the allowed protocols via the `protocols` method:
+
+```php
+'url' => [Rule::url()->protocols(['http', 'https'])],
+```
+
 <a name="rule-ulid"></a>
 #### ulid
 
@@ -2957,6 +3093,12 @@ You may also validate that the given UUID matches a UUID specification by versio
 
 ```php
 'uuid' => ['uuid:4']
+```
+
+Alternatively, you may use the `Rule::uuid` method and specify the UUID version via the `version` method:
+
+```php
+'uuid' => [Rule::uuid()->version(4)],
 ```
 
 <a name="conditionally-adding-rules"></a>
@@ -3511,6 +3653,65 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
     }
 }
 ```
+
+> [!WARNING]
+> Create stateful rules with `new`, or implement [`Hypervel\Contracts\Container\Transient`](/docs/{{version}}/container#transient-classes) when injecting them through the container, and do not register them as shared bindings. This includes `DataAwareRule` and `ValidatorAwareRule` implementations: sharing their data or validator reference between requests is unsafe.
+
+<a name="extending-fluent-rules"></a>
+### Extending Fluent Rules
+
+The `In`, `NotIn`, `ArrayKeys`, `Contains` and `DoesntContain` builders implement `Hypervel\Contracts\Validation\ParameterizedRule`. Their `toArray` method returns the rule name followed by its parameters, such as `['in', 'active', 'pending']`. Override this method to customize a subclass's declaration; their `__toString` methods are final and render that declaration. The validator's `getRules` method retains these builders as objects.
+
+A subclass implementing the `Rule` or `ValidationRule` contract executes its custom validation instead of its parameter declaration.
+
+Structured declarations are read at the start of each validation run, including in custom validators. Changes between runs take effect on the next run; changes during a run do not alter its captured parameters. Custom validation hooks still receive the original objects.
+
+<a name="customizing-database-rules"></a>
+### Customizing Database Rules
+
+Use the fluent `exists` and `unique` methods for ordinary conditions. When a subclass derives conditions from additional state, override `queryConditions` to return a `DatabaseConditions` instance. For example, a subclass can use its current `enabled` setting each time validation runs:
+
+```php
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
+
+public bool $enabled = true;
+
+public function queryConditions(): DatabaseConditions
+{
+    return new DatabaseConditions(...[
+        ...parent::queryConditions()->all(),
+        new DatabaseCondition('payload->enabled', DatabaseConditionOperator::Equals, $this->enabled),
+    ]);
+}
+```
+
+The available operators are `Equals`, `NotEquals`, `IsNull`, `IsNotNull`, `In` and `NotIn`. Condition values are literal: use `IsNull` to test for null, rather than the string `'NULL'`. Explicit query closures may also be included. Existing string rules retain their usual syntax.
+
+Override `queryParameters` to customize the table, column or ignored ID. It returns `[table, column]` for `Exists` and `[table, column, ignoredId, idColumn]` for `Unique`, with null indicating no ignored ID. Both builders have a final `__toString` method that renders these declarations; string rendering is not how the validator receives a builder's conditions. The validator's `getRules` method retains these builders as objects.
+
+Pass database-rule objects directly to the validator. Their string form cannot preserve callbacks, `whereIn` / `whereNotIn` conditions, JSON booleans or literal values such as `NULL` and `!active`.
+
+The default validator reads these declarations at the start of each validation run. Changes made before `passes`, or between runs, take effect on the next run; changes made by an earlier check during a run do not. Use `using` callbacks for conditions that must be evaluated during the database check. Custom validator subclasses retain the original database-rule objects and read their declarations during delegated execution.
+
+#### Custom Presence Verifiers
+
+Custom implementations of `Hypervel\Validation\PresenceVerifierInterface` receive a resolved `PresenceQuery`:
+
+```php
+use Hypervel\Validation\PresenceQuery;
+
+public function getCount(PresenceQuery $query, mixed $value): int;
+
+public function getMultiCount(PresenceQuery $query, array $values): int;
+```
+
+The query provides `connection`, `collection`, `column`, `conditions`, `excludeId` and `idColumn`. Read the ordered predicates and callbacks through `$query->conditions->all()`. Apply each predicate's column, operator and value, and invoke callbacks with your query builder. `getMultiCount` counts distinct matching values. Connection selection belongs to this query; there is no `setConnection` method or separate `DatabasePresenceVerifierInterface`, and `Validator::getPresenceVerifier()` takes no connection argument.
+
+If you extend `DatabasePresenceVerifier`, its condition hook is `addWhere(Builder $query, DatabaseCondition $condition): void`; `addConditions` accepts `DatabaseConditions`, and `table` accepts `PresenceQuery`. The base verifier applies all six operators and explicit closures through the query builder.
+
+Override `prepareValue(string $column, mixed $value): mixed` to customize the values being validated. The column comes first so overrides can distinguish JSON selectors from ordinary columns. Condition operands are normalized separately when their `DatabaseCondition` is created.
 
 <a name="using-closures"></a>
 ### Using Closures

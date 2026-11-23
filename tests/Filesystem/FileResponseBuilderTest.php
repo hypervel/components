@@ -15,8 +15,10 @@ use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use League\Flysystem\UnableToReadFile;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
@@ -25,6 +27,8 @@ use Throwable;
 
 class FileResponseBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBuildsDefaultHeadersAndStreamsFullContentLazily(): void
     {
         $sizeCalls = 0;
@@ -417,8 +421,8 @@ class FileResponseBuilderTest extends TestCase
         Container::setInstance($container);
         $writerFailure = new RuntimeException('writer failed');
         $closeFailure = new RuntimeException('close failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($closeFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($closeFailure));
         $container->instance(ExceptionHandler::class, $handler);
         $state = new FileResponseBuilderStreamState('contents', closeFailure: $closeFailure);
         $response = $this->build(

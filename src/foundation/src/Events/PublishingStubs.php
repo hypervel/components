@@ -23,6 +23,8 @@ class PublishingStubs
 
     /**
      * Add a new stub to be published.
+     *
+     * @return $this
      */
     public function add(string $path, string $name): static
     {

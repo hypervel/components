@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Ably\AblyRest;
+use Ably\Channel;
+use Ably\Channels;
 use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use Aws\S3\S3Client;
@@ -68,15 +70,15 @@ use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use Hypervel\Tests\Saloon\RateLimit\Fixtures\Connectors\TestConnector as RateLimitedConnector;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
+use JMac\Testing\Double;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use Meilisearch\Client as MeilisearchClient;
-use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Pusher\Pusher;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
-use Symfony\Component\Mercure\Jwt\TokenProviderInterface;
+use Symfony\Component\Mercure\Jwt\StaticTokenProvider;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Process\InputStream;
 use Typesense\Client as TypesenseClient;
@@ -318,8 +320,8 @@ function createOperation(string $case, ApplicationContract $app, array $settings
 
         case 'pusher-release':
             // Controlled waits isolate the release boundary, not provider throughput.
-            $client = m::mock(Pusher::class);
-            $client->shouldReceive('trigger')->andReturnUsing(static function () use (&$deliveries): object {
+            $client = Double::for(Pusher::class)->strict();
+            $client->allows('trigger')->resolves(static function () use (&$deliveries): object {
                 usleep(20_000);
                 ++$deliveries;
                 return (object) [];
@@ -331,16 +333,16 @@ function createOperation(string $case, ApplicationContract $app, array $settings
             }, null];
 
         case 'ably-release':
-            $client = m::mock(AblyRest::class);
-            $channel = m::mock();
-            $channel->shouldReceive('publish')->andReturnUsing(static function () use (&$deliveries): void {
+            $client = new AblyRest('abcd:efg');
+            $channel = Double::for(Channel::class)->strict();
+            $channel->allows('publish')->resolves(static function () use (&$deliveries): void {
                 usleep(20_000);
                 ++$deliveries;
             });
-            $channel->shouldReceive('getCipherParams')->andReturnNull();
-            $client->channels = m::mock();
-            $client->channels->shouldReceive('get')->andReturn($channel);
-            $client->channels->shouldReceive('release');
+            $channel->allows('getCipherParams')->returns(null);
+            $client->channels = Double::for(Channels::class)->strict();
+            $client->channels->allows('get')->returns($channel);
+            $client->channels->allows('release');
             $broadcaster = new AblyBroadcaster($app, $client);
 
             return [static function () use ($broadcaster): void {
@@ -348,8 +350,7 @@ function createOperation(string $case, ApplicationContract $app, array $settings
             }, null];
 
         case 'mercure-release':
-            $token = m::mock(TokenProviderInterface::class);
-            $token->shouldReceive('getJwt')->andReturn('test.token.signature');
+            $token = new StaticTokenProvider('test.token.signature');
             $hub = new Hub(
                 new PoolDefinition('benchmark:mercure', 'mercure', 'test', PoolOptions::fromArray(['max_objects' => $settings['concurrency']])),
                 static fn (): MockHttpClient => new MockHttpClient(static function (): MockResponse {
@@ -778,7 +779,6 @@ try {
     ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), "\n";
 } finally {
     $objects?->purgeAll();
-    m::close();
     $app?->terminate();
     unlink($path);
 }

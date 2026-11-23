@@ -71,14 +71,17 @@ class BacktraceHelper
      */
     public function getOriginalViewPathForFrameOfCompiledViewPath(Frame $frame): ?string
     {
-        // Check if we are dealing with a frame for a cached view path
-        if (! Str::startsWith($frame->getFile(), '/storage/framework/views/')) {
-            return null;
-        }
-
         $absoluteFilePath = $frame->getAbsoluteFilePath();
 
         if ($absoluteFilePath === null) {
+            return null;
+        }
+
+        // Frames contain resolved paths, even when the configured cache directory is a symlink.
+        $compiledDirectory = config()->string('view.compiled');
+        $compiledDirectory = realpath($compiledDirectory) ?: $compiledDirectory;
+
+        if (! str_starts_with($absoluteFilePath, rtrim($compiledDirectory, '/\\') . DIRECTORY_SEPARATOR)) {
             return null;
         }
 
@@ -89,7 +92,8 @@ class BacktraceHelper
             return null;
         }
 
-        preg_match('/PATH (?<originalPath>.*?) ENDPATH/', $viewFileContents, $matches);
+        // The compiler writes the footer last; a template can contain the same text.
+        preg_match('/.*\/\*\*PATH (?<originalPath>.*) ENDPATH/s', $viewFileContents, $matches);
 
         // No path comment found in the file
         if (empty($matches['originalPath'])) {

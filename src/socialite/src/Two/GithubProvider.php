@@ -6,6 +6,7 @@ namespace Hypervel\Socialite\Two;
 
 use Exception;
 use GuzzleHttp\RequestOptions;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use SensitiveParameter;
 
@@ -56,7 +57,11 @@ class GithubProvider extends AbstractProvider implements ProviderInterface
                 $emailsUrl,
                 $this->getRequestOptions($token)
             );
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return null;
         }
 

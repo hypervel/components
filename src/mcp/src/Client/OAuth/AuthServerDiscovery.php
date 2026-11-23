@@ -4,14 +4,57 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Client\OAuth;
 
+use Closure;
+use GuzzleHttp\Exception\TransferException;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Exception\MalformedUriException;
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Mcp\Client\Exceptions\OAuthException;
+use Hypervel\Mcp\Client\Middleware\RestrictHeadersToOrigin;
 use Hypervel\Mcp\Client\OAuth\Concerns\InteractsWithOAuthEndpoints;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 
 class AuthServerDiscovery
 {
     use InteractsWithOAuthEndpoints;
+
+    // Upstream's discovery-time DNS cache and address checks are omitted: OAuthDestinationPolicy
+    // resolves, validates and pins each request when pin() sends it.
+
+    protected static ?Closure $hostResolver = null;
+
+    /**
+     * Resolve OAuth destination hostnames with the given callback instead of DNS.
+     *
+     * The callback persists in a static property for the worker lifetime and supplies the addresses for every OAuth request.
+     *
+     * @param null|Closure(string): array<int, string> $callback
+     */
+    #[TestsOnly]
+    public static function resolveHostsUsing(?Closure $callback): void
+    {
+        static::$hostResolver = $callback;
+    }
+
+    /**
+     * Get the addresses the resolveHostsUsing() callback supplies for a hostname.
+     *
+     * @internal
+     *
+     * @return null|list<string>
+     */
+    public static function resolvedHostAddresses(string $host): ?array
+    {
+        return static::$hostResolver === null ? null : array_values((static::$hostResolver)($host));
+    }
 
     /**
      * Discover and validate the resource's authorization server.
@@ -69,15 +112,93 @@ class AuthServerDiscovery
     }
 
     /**
+     * Require caller-supplied metadata to be advertised by the resource.
+     *
+     * @param array<string, string> $headers
+     */
+    public function requireAdvertised(string $resourceUrl, string $resourceMetadataUrl, array $headers = []): void
+    {
+        $this->requireFetchable($resourceMetadataUrl, $resourceUrl);
+
+        if ($resourceMetadataUrl === $this->wellKnown($resourceUrl, 'oauth-protected-resource')) {
+            return;
+        }
+
+        $this->requireFetchable($resourceUrl, $resourceUrl);
+
+        $response = $this->probe($resourceUrl, array_filter(
+            $headers,
+            static fn (string $name): bool => strcasecmp($name, 'Authorization') !== 0 && ! str_starts_with(strtolower($name), 'mcp-'),
+            ARRAY_FILTER_USE_KEY,
+        ));
+
+        $advertised = WwwAuthenticateChallenge::parse($response->header('WWW-Authenticate'))->resourceMetadataUrl;
+
+        if (! in_array($response->status(), [401, 403], true) || $advertised === null || ! hash_equals($advertised, $resourceMetadataUrl)) {
+            throw new OAuthException("The protected resource metadata URL [{$resourceMetadataUrl}] was not advertised by the resource [{$resourceUrl}].");
+        }
+    }
+
+    /**
+     * Validate each request hop against the OAuth destination policy and pin it to the vetted addresses.
+     */
+    public function pin(PendingRequest $request): PendingRequest
+    {
+        return $request->withMiddleware(function (callable $handler): Closure {
+            return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                // Resolve every hop here instead of through the generic destination-policy
+                // handler, which rejects the ordinary proxies OAuth requests may use.
+                $transportOptions = ['curl', 'proxy', 'timeout', 'connect_timeout'];
+                $hop = new PendingRequest(options: Arr::only($options, $transportOptions));
+                $destination = $this->resolveOAuthDestination($hop, (string) $request->getUri());
+
+                return $handler($request->withUri($destination->uri, true), array_replace(
+                    $options,
+                    Arr::only($hop->getOptions(), $transportOptions),
+                ));
+            };
+        });
+    }
+
+    /**
+     * Probe the resource for its unauthenticated authorization challenge.
+     *
+     * @param array<string, string> $headers
+     */
+    protected function probe(string $resourceUrl, array $headers): Response
+    {
+        // Compare each hop's origin before pin() replaces its URI with the normalized destination.
+        $request = $this->oAuthRequest()->withMiddleware(new RestrictHeadersToOrigin($resourceUrl, array_keys($headers)));
+
+        try {
+            return $this->pin($request)
+                ->withHeaders($headers)
+                ->withOptions(['allow_redirects' => [
+                    'max' => 5,
+                    'strict' => true,
+                    'on_redirect' => function (RequestInterface $request, ResponseInterface $response, UriInterface $uri) use ($resourceUrl): void {
+                        $this->requireFetchable((string) $uri, $resourceUrl);
+                    },
+                ]])
+                ->accept('application/json, text/event-stream')
+                ->post($resourceUrl, [
+                    'jsonrpc' => '2.0',
+                    'id' => 1,
+                    'method' => 'ping',
+                ]);
+        } catch (ConnectionException|RequestException|TransferException|MalformedUriException $exception) {
+            throw new OAuthException("Unable to reach the resource [{$resourceUrl}] to verify its protected resource metadata.", $exception->getCode(), previous: $exception);
+        }
+    }
+
+    /**
      * Fetch optional or explicitly requested protected resource metadata.
      *
      * @return array<string, mixed>
      */
     protected function fetchResourceMetadata(string $metadataUrl, bool $explicit = false): array
     {
-        $request = $this->oAuthRequest();
-        $destination = $this->resolveOAuthDestination($request, $metadataUrl);
-        $response = $request->get((string) $destination->uri);
+        $response = $this->pin($this->oAuthRequest())->get($metadataUrl);
 
         if (! $response->successful()) {
             if ($explicit) {
@@ -143,9 +264,7 @@ class AuthServerDiscovery
     protected function fetchMetadata(string $issuer): AuthServerMetadata
     {
         foreach ($this->metadataUrls($issuer) as $metadataUrl) {
-            $request = $this->oAuthRequest();
-            $destination = $this->resolveOAuthDestination($request, $metadataUrl);
-            $response = $request->get((string) $destination->uri);
+            $response = $this->pin($this->oAuthRequest())->get($metadataUrl);
 
             if (! $response->successful()) {
                 continue;
@@ -220,11 +339,14 @@ class AuthServerDiscovery
     {
         $parts = $this->parse($url);
 
-        if ($parts['scheme'] === 'https') {
+        // URL schemes are case-insensitive, and Guzzle sends HTTP:// and HTTPS:// URLs as http and https.
+        $scheme = strtolower($parts['scheme']);
+
+        if ($scheme === 'https') {
             return;
         }
 
-        if ($this->isLocalhost($this->normalizedHost($parts['host']))) {
+        if ($scheme === 'http' && $this->isLocalhost($this->normalizedHost($parts['host']))) {
             return;
         }
 
@@ -234,7 +356,7 @@ class AuthServerDiscovery
     /**
      * Validate a metadata endpoint before fetching it.
      */
-    protected function requireFetchable(string $url, string $resourceUrl): void
+    public function requireFetchable(string $url, string $resourceUrl): void
     {
         $this->requireSecure($url);
         $this->requireNotInternal($url, $resourceUrl);
@@ -310,5 +432,13 @@ class AuthServerDiscovery
 
         /** @var array{scheme: string, host: string, port?: int, path?: string, query?: string} $parts */
         return $parts;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$hostResolver = null;
     }
 }

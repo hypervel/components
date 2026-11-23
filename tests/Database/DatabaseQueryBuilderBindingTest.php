@@ -13,13 +13,16 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class DatabaseQueryBuilderBindingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testHavingAcceptsBooleanOperandsInBothOverloadsAndNestedClauses(): void
     {
         $query = $this->builder()->from('users')
@@ -179,8 +182,8 @@ class DatabaseQueryBuilderBindingTest extends TestCase
      */
     protected function builder(): Builder
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getTablePrefix')->returns('');
 
         return new Builder($connection, new Grammar($connection), new Processor);
     }

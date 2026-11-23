@@ -201,6 +201,18 @@ DB::table('users')->where('active', false)
     });
 ```
 
+The `chunkById` and `lazyById` methods sort by the paging column first, even when another order is present or a global scope replaces the ordering. Use their descending variants to iterate in descending ID order. Other sort orders do not choose the first rows, including when a callback stops early or a lazy collection uses `take()`.
+
+If a query has a `limit` or `offset`, its leading order must match the paging column and iteration direction, including a replacement from a global scope's `reorder`. Otherwise, Hypervel throws an exception instead of silently selecting a different set. A global scope's `orderBy` stays behind the paging column, so limited iteration still takes the first IDs. To iterate a limited set chosen by another order, select it in a subquery first:
+
+```php
+$ranked = DB::table('users')->orderByDesc('score')->limit(100);
+
+DB::query()->fromSub($ranked, 'ranked')->chunkById(20, function (Collection $users) {
+    // Process the highest-scoring users in ID order...
+});
+```
+
 When a selected alias uses your paging column's name, keep the actual column selected under a separate name and pass that name as the `alias` argument to `chunkById` or `lazyById`. Their descending methods accept the same argument.
 
 For queries with joins or raw sources, qualify an unselected paging column, such as `users.id`; Hypervel throws if another selected alias hides its name and the source cannot be identified. This rule also applies to `forPageAfterId` and `forPageBeforeId`, which do not accept an `alias` argument.
@@ -399,6 +411,8 @@ $users = DB::table('users')
     ->get();
 ```
 
+Because SQLite's `indexed by` clause takes a single named index, SQLite ignores a `forceIndex` hint that names `primary` or several indexes. This lets queries written with MariaDB or MySQL hints run unchanged on SQLite.
+
 Index hints apply to update statements as well. For example, MariaDB and MySQL may read a small table in full when an update names many of its rows, locking every row they read inside a transaction. Forcing the primary key keeps such an update to the rows it names:
 
 ```php
@@ -408,7 +422,21 @@ DB::table('orders')
     ->update(['status' => 'shipped']);
 ```
 
-SQLite treats a forced index as a requirement rather than a preference: a query fails if the index does not exist, or if SQLite cannot use it for the query, such as a partial index whose condition the query's constraints do not imply.
+MySQL and MariaDB also apply index hints to deletes without an `orderBy` or `limit`, and to joined deletes. Ordered or limited deletes without joins ignore the hint because the supported delete syntax cannot combine them. SQLite applies `forceIndex` to plain deletes; joined writes and writes with a limit or offset apply it to their selection subquery.
+
+For example, to delete expired orders on MySQL or MariaDB:
+
+```php
+DB::table('orders')
+    ->forceIndex('primary')
+    ->whereIn('id', $orderIds)
+    ->where('status', 'expired')
+    ->delete();
+```
+
+An index hint does not guarantee that a query locks only matching rows. MySQL and MariaDB can still scan when a delete or locking read uses only the primary key. Keep the query's actual ownership and eligibility conditions, and check its execution plan when lock scope matters.
+
+On MySQL, MariaDB, and SQLite, an applied hint naming an index that does not exist raises a database error. SQLite also fails when it cannot use a forced index for the query, such as a partial index whose condition the query's constraints do not imply.
 
 <a name="raw-expressions"></a>
 ## Raw Expressions
@@ -643,6 +671,8 @@ In addition to the `union` method, the query builder provides a `unionAll` metho
 
 <a name="paginating-unions"></a>
 ### Paginating Unions
+
+For query-builder `cursorPaginate`, `chunk`, and `lazy` calls, place `orderBy` after the union so it sorts the combined rows. An order before `union` belongs only to the first query and is not enough. Eloquent supplies its primary key as the default outer order when none is given.
 
 When using `cursorPaginate`, `chunkById`, or `lazyById` on a union, select the paging columns in corresponding positions in every query. Column names and aliases may differ between queries. Hypervel uses their positions to apply each comparison to the correct source column:
 
@@ -1403,6 +1433,8 @@ $users = DB::table('users')
     ->get();
 ```
 
+When searching several PostgreSQL columns, a row with a null column can still match the others. Multi-column full text indexes use the same expression, so these searches can use the index.
+
 <a name="vector-similarity-clauses"></a>
 ### Vector Similarity Clauses
 
@@ -1489,17 +1521,6 @@ $corporations = DB::table('corporations')
     ->get();
 ```
 
-<a name="preferred-value-ordering"></a>
-#### Preferred Value Ordering
-
-The `inOrderOf` method orders results according to a preferred sequence of values. Values not included in the sequence are placed last:
-
-```php
-$orders = DB::table('orders')
-    ->inOrderOf('status', ['pending', 'processing', 'completed'])
-    ->get();
-```
-
 <a name="latest-oldest"></a>
 #### The `latest` and `oldest` Methods
 
@@ -1510,6 +1531,19 @@ $user = DB::table('users')
     ->latest()
     ->first();
 ```
+
+<a name="sequence-ordering"></a>
+#### Sequence Ordering
+
+The `inOrderOf` method allows you to order query results using a sequence of values, such as strings or enums:
+
+```php
+$orders = DB::table('orders')
+    ->inOrderOf('status', [OrderStatus::Shipped, OrderStatus::Delivered, OrderStatus::Cancelled])
+    ->get();
+```
+
+Values not included in the sequence are placed last.
 
 <a name="random-ordering"></a>
 #### Random Ordering
@@ -1896,6 +1930,24 @@ DB::transaction(function () {
         ]);
 });
 ```
+
+When several workers read from a queue-like table, you may call `skipLocked` after `lockForUpdate` or `sharedLock` to skip rows locked by another transaction:
+
+```php
+DB::transaction(function () {
+    $jobs = DB::table('jobs')
+        ->where('status', 'pending')
+        ->orderBy('id')
+        ->limit(100)
+        ->lockForUpdate()
+        ->skipLocked()
+        ->get();
+
+    // Process or claim the selected jobs within this transaction.
+});
+```
+
+Skipping locked rows does not give a complete view of the matching data, so use it for work claiming rather than general-purpose reads. The modifier cannot be combined with a custom string lock clause. On unsupported database versions, the query retains its normal locking behavior; SQLite does not acquire row locks. If your operation requires skipping locked rows, check `DB::supportsSkipLocked()` before choosing this approach.
 
 <a name="reusable-query-components"></a>
 ## Reusable Query Components

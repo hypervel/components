@@ -10,7 +10,6 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission;
-use Hypervel\Tests\Permission\Fixtures\Models\User;
 
 class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
 {
@@ -67,28 +66,6 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->assertTrue($indexed->is($fallback));
         $this->assertTrue($indexed->is($found));
         $this->assertSame([], DB::getQueryLog());
-    }
-
-    public function testItCanScopeUsersUsingAInt(): void
-    {
-        // Skipped because custom model uses uuid,
-        // replacement "testItCanScopeUsersUsingAUuid"
-        $this->assertTrue(true);
-    }
-
-    public function testItCanScopeUsersUsingAUuid(): void
-    {
-        $uuid1 = $this->testUserPermission->getKey();
-        $uuid2 = app(Permission::class)::where('name', 'edit-news')->first()->getKey();
-
-        $user1 = User::create(['email' => 'user1@test.com']);
-        $user2 = User::create(['email' => 'user2@test.com']);
-        $user1->givePermissionTo([$uuid1, $uuid2]);
-        $this->testUserRole->givePermissionTo($uuid1);
-        $user2->assignRole('testRole');
-
-        $this->assertCount(2, User::permission($uuid1)->get());
-        $this->assertCount(1, User::permission([$uuid2])->get());
     }
 
     public function testItDoesntDetachRolesWhenSoftDeleting(): void

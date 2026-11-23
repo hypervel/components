@@ -11,6 +11,7 @@ use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Events\InvokingTool;
 use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
+use Hypervel\Ai\Exceptions\ToolExecutionException;
 use Hypervel\Ai\Gateway\Concerns\InvokesTools;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Tools\Request;
@@ -18,7 +19,8 @@ use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Events\Dispatcher;
 use Hypervel\JsonSchema\Types\Type;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Stringable;
 
@@ -81,8 +83,8 @@ function stubRunContext(Dispatcher $events, string $invocationId = 'inv_1'): Run
 {
     return new RunContext(
         $invocationId,
-        m::mock(Agent::class),
-        m::mock(TextProvider::class),
+        Double::for(Agent::class)->strict(),
+        Double::for(TextProvider::class)->strict(),
         'stub-model',
         $events,
     );
@@ -90,6 +92,8 @@ function stubRunContext(Dispatcher $events, string $invocationId = 'inv_1'): Run
 
 class InvokesToolsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testEachToolInvocationReportsAgainstTheContextItWasGiven(): void
     {
         $seen = [];
@@ -219,7 +223,7 @@ class InvokesToolsTest extends TestCase
         $this->assertSame(0, $failed);
     }
 
-    public function testAFailingToolHandlerIsReportedAsAToolFailureAndRethrown(): void
+    public function testAFailingToolHandlerIsReportedAsAToolFailureAndRethrownWrappedSoTheLoopCanRecognizeIt(): void
     {
         $failure = null;
 
@@ -236,8 +240,9 @@ class InvokesToolsTest extends TestCase
         try {
             toolInvokingGateway()->invoke($tool, ['a' => 1], stubRunContext($events));
             $this->fail('Expected the tool handler to fail.');
-        } catch (RuntimeException $caught) {
-            $this->assertSame($exception, $caught);
+        } catch (ToolExecutionException $caught) {
+            $this->assertSame($exception, $caught->exception);
+            $this->assertSame('Handler exploded.', $caught->exception->getMessage());
         }
 
         $this->assertInstanceOf(ToolFailed::class, $failure);

@@ -10,36 +10,33 @@ use Hypervel\Cache\Redis\Operations\AnyTag\GetTaggedKeys;
 use Hypervel\Cache\Redis\Operations\AnyTag\RemoveEmptyTags;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the Flush operation (union tags).
  */
 class FlushTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testFlushDeletesCacheEntriesReverseIndexesAndScannedFields(): void
     {
         $connection = $this->mockConnection();
 
         // Mock GetTaggedKeys to return cache keys
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')
             ->with('users')
-            ->andReturn($this->arrayToGenerator(['key1', 'key2']));
+            ->returns($this->arrayToGenerator(['key1', 'key2']));
 
         $connection->expects('evalWithShaCache')
             ->with(
-                m::type('string'),
+                Argument::type('string'),
                 ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'],
-                [1, 2, 'key1', 'key2'],
-            )->andReturn(1)->ordered();
+                [2, 'key1', 'key2'],
+            )->returns(1)->ordered();
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1])->ordered();
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1])->ordered();
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
@@ -49,33 +46,33 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
-    public function testFlushWithMultipleTags(): void
+    public function testFlushWithMultipleTagsOnlyRemovesKeysFromTheirOwnTag(): void
     {
         $connection = $this->mockConnection();
 
-        // Mock GetTaggedKeys to return keys from multiple tags
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')
             ->with('users')
-            ->andReturn($this->arrayToGenerator(['user_key1']));
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+            ->returns($this->arrayToGenerator(['shared_key', 'user_only']));
+        $getTaggedKeys->expects('execute')
             ->with('posts')
-            ->andReturn($this->arrayToGenerator(['post_key1']));
+            ->returns($this->arrayToGenerator(['shared_key', 'post_only']));
 
         $connection->expects('evalWithShaCache')
             ->with(
-                m::type('string'),
-                ['prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries', 'prefix:user_key1:_any:tags', 'prefix:post_key1:_any:tags', 'prefix:user_key1', 'prefix:post_key1'],
-                [2, 2, 'user_key1', 'post_key1'],
-            )->andReturn(1)->ordered();
+                Argument::type('string'),
+                ['prefix:_any:tag:users:entries', 'prefix:shared_key:_any:tags', 'prefix:user_only:_any:tags', 'prefix:shared_key', 'prefix:user_only'],
+                [2, 'shared_key', 'user_only'],
+            )->returns(1)->ordered();
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
-            ->andReturn([2, 2])->ordered();
+            ->with(
+                Argument::type('string'),
+                ['prefix:_any:tag:posts:entries', 'prefix:shared_key:_any:tags', 'prefix:post_only:_any:tags', 'prefix:shared_key', 'prefix:post_only'],
+                [2, 'shared_key', 'post_only'],
+            )->returns(1)->ordered();
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
+            ->returns([2, 2])->ordered();
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
@@ -85,24 +82,20 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithNoEntriesChecksForEmptyTags(): void
     {
         $connection = $this->mockConnection();
 
         // Mock GetTaggedKeys to return empty
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')
             ->with('users')
-            ->andReturn($this->arrayToGenerator([]));
+            ->returns($this->arrayToGenerator([]));
 
-        $connection->shouldNotReceive('del');
+        $connection->client()->expects('del')->never();
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1]);
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1]);
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
@@ -115,70 +108,30 @@ class FlushTest extends RedisCacheTestCase
     public function testFlushWithNoTagsDoesNotSendCommands(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldNotReceive('evalWithShaCache');
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldNotReceive('execute');
+        $connection->expects('evalWithShaCache')->never();
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')->never();
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
         $this->assertTrue($operation->execute([]));
     }
 
-    /**
-     * @test
-     */
-    public function testFlushDeduplicatesKeysAcrossTags(): void
-    {
-        $connection = $this->mockConnection();
-
-        // Mock GetTaggedKeys - both tags have 'shared_key'
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
-            ->with('users')
-            ->andReturn($this->arrayToGenerator(['shared_key', 'user_only']));
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
-            ->with('posts')
-            ->andReturn($this->arrayToGenerator(['shared_key', 'post_only']));
-
-        $connection->expects('evalWithShaCache')
-            ->with(
-                m::type('string'),
-                ['prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries', 'prefix:shared_key:_any:tags', 'prefix:user_only:_any:tags', 'prefix:post_only:_any:tags', 'prefix:shared_key', 'prefix:user_only', 'prefix:post_only'],
-                [2, 3, 'shared_key', 'user_only', 'post_only'],
-            )->andReturn(1)->ordered();
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
-            ->andReturn([2, 2])->ordered();
-
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
-
-        $result = $operation->execute(['users', 'posts']);
-        $this->assertTrue($result);
-    }
-
-    /**
-     * @test
-     */
     public function testFlushUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
 
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')
             ->with('users')
-            ->andReturn($this->arrayToGenerator(['mykey']));
+            ->returns($this->arrayToGenerator(['mykey']));
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['custom_prefix:_any:tag:users:entries', 'custom_prefix:mykey:_any:tags', 'custom_prefix:mykey'], [1, 1, 'mykey'])
-            ->andReturn(1)->ordered();
+            ->with(Argument::type('string'), ['custom_prefix:_any:tag:users:entries', 'custom_prefix:mykey:_any:tags', 'custom_prefix:mykey'], [1, 'mykey'])
+            ->returns(1)->ordered();
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['custom_prefix:_any:tag:registry', 'custom_prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1])->ordered();
+            ->with(Argument::type('string'), ['custom_prefix:_any:tag:registry', 'custom_prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1])->ordered();
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $store->setTagMode('any');
@@ -188,104 +141,112 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushClusterModeUsesSequentialCommands(): void
     {
-        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
+        [$store, $client] = $this->createClusterStore(tagMode: 'any');
 
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')
             ->with('users')
-            ->andReturn($this->arrayToGenerator(['key1', 'key2']));
+            ->returns($this->arrayToGenerator(['key1', 'key2']));
 
-        // Cluster mode: NO pipeline calls
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->expects('hdel')
+        $cleanup = [];
+        $client->expects('hdel')
             ->with('prefix:_any:tag:users:entries', 'key1', 'key2')
-            ->andReturn(2)->ordered();
+            ->resolves(function () use (&$cleanup): int {
+                $cleanup[] = 'hdel';
+
+                return 2;
+            });
 
         // Sequential del for reverse indexes
-        $connection->shouldReceive('del')
-            ->once()
+        $client->expects('del')
             ->with('prefix:key1:_any:tags', 'prefix:key2:_any:tags')
-            ->andReturn(2)->ordered();
+            ->resolves(function () use (&$cleanup): int {
+                $cleanup[] = 'del';
+
+                return 2;
+            });
 
         // Sequential unlink for cache keys
-        $connection->shouldReceive('unlink')
-            ->once()
+        $client->expects('unlink')
             ->with('prefix:key1', 'prefix:key2')
-            ->andReturn(2)->ordered();
+            ->resolves(function () use (&$cleanup): int {
+                $cleanup[] = 'unlink';
 
-        $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(0)->ordered();
+                return 2;
+            });
+
+        $client->expects('hlen')->times(2)
+            ->with('prefix:_any:tag:users:entries')
+            ->resolves(function () use (&$cleanup): int {
+                $cleanup[] = 'hlen';
+
+                return 0;
+            });
 
         // Sequential zrem for registry
-        $connection->shouldReceive('zrem')
-            ->once()
+        $client->expects('zrem')
             ->with('prefix:_any:tag:registry', 'users')
-            ->andReturn(1)->ordered();
-        $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(0)->ordered();
+            ->resolves(function () use (&$cleanup): int {
+                $cleanup[] = 'zrem';
+
+                return 1;
+            });
 
         $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
         $result = $operation->execute(['users']);
         $this->assertTrue($result);
+        $this->assertSame(['hdel', 'del', 'unlink', 'hlen', 'zrem', 'hlen'], $cleanup);
     }
 
-    /**
-     * @test
-     */
     public function testFlushClusterModeWithMultipleTags(): void
     {
-        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
+        [$store, $client] = $this->createClusterStore(tagMode: 'any');
 
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')
             ->with('users')
-            ->andReturn($this->arrayToGenerator(['user_key']));
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
+            ->returns($this->arrayToGenerator(['user_key', 'shared_key']));
+        $getTaggedKeys->expects('execute')
             ->with('posts')
-            ->andReturn($this->arrayToGenerator(['post_key']));
+            ->returns($this->arrayToGenerator(['shared_key', 'post_key']));
 
-        // Sequential commands for chunks
-        $connection->expects('hdel')->with('prefix:_any:tag:users:entries', 'user_key', 'post_key')->andReturn(1);
-        $connection->expects('hdel')->with('prefix:_any:tag:posts:entries', 'user_key', 'post_key')->andReturn(1);
-        $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->twice()->andReturn(0);
-        $connection->expects('hlen')->with('prefix:_any:tag:posts:entries')->twice()->andReturn(0);
-        $connection->shouldReceive('del')->andReturn(1);
-        $connection->shouldReceive('unlink')->andReturn(1);
-        $connection->shouldReceive('zrem')->andReturn(1);
+        // Each tag's chunk only removes fields from that tag's hash.
+        $client->expects('hdel')->with('prefix:_any:tag:users:entries', 'user_key', 'shared_key')->returns(2);
+        $client->expects('hdel')->with('prefix:_any:tag:posts:entries', 'shared_key', 'post_key')->returns(2);
+        $client->expects('hlen')->with('prefix:_any:tag:users:entries')->times(2)->returns(0);
+        $client->expects('hlen')->with('prefix:_any:tag:posts:entries')->times(2)->returns(0);
+        $client->expects('del')->with('prefix:user_key:_any:tags', 'prefix:shared_key:_any:tags')->returns(2);
+        $client->expects('del')->with('prefix:shared_key:_any:tags', 'prefix:post_key:_any:tags')->returns(1);
+        $client->expects('unlink')->with('prefix:user_key', 'prefix:shared_key')->returns(2);
+        $client->expects('unlink')->with('prefix:shared_key', 'prefix:post_key')->returns(1);
+        $client->expects('zrem')->with('prefix:_any:tag:registry', 'users')->returns(1);
+        $client->expects('zrem')->with('prefix:_any:tag:registry', 'posts')->returns(1);
 
         $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
         $result = $operation->execute(['users', 'posts']);
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushViaRedisStoreMethod(): void
     {
         $connection = $this->mockConnection();
 
         // Mock hlen/hkeys for GetTaggedKeys internal calls
-        $connection->shouldReceive('hlen')
+        $connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(1);
-        $connection->shouldReceive('hkeys')
+            ->returns(1);
+        $connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['mykey']);
+            ->returns(['mykey']);
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:mykey:_any:tags', 'prefix:mykey'], [1, 1, 'mykey'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_any:tag:users:entries', 'prefix:mykey:_any:tags', 'prefix:mykey'], [1, 'mykey'])
+            ->returns(1);
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1]);
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1]);
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
@@ -295,12 +256,12 @@ class FlushTest extends RedisCacheTestCase
 
     public function testClusterFlushPreservesRegistrationWhenTheHashWasRepopulated(): void
     {
-        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->expects('execute')->with('users')->andReturn($this->arrayToGenerator([]));
+        [$store, $client] = $this->createClusterStore(tagMode: 'any');
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')->with('users')->returns($this->arrayToGenerator([]));
 
-        $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(1);
-        $connection->shouldNotReceive('zrem');
+        $client->expects('hlen')->with('prefix:_any:tag:users:entries')->returns(1);
+        $client->expects('zrem')->never();
 
         $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
@@ -309,18 +270,38 @@ class FlushTest extends RedisCacheTestCase
 
     public function testClusterFlushRestoresRegistrationWhenAWriterRacesWithDeregistration(): void
     {
-        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->expects('execute')->with('users')->andReturn($this->arrayToGenerator([]));
+        [$store, $client] = $this->createClusterStore(tagMode: 'any');
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
+        $getTaggedKeys->expects('execute')->with('users')->returns($this->arrayToGenerator([]));
 
-        $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(0)->ordered();
-        $connection->expects('zrem')->with('prefix:_any:tag:registry', 'users')->andReturn(1)->ordered();
-        $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(1)->ordered();
-        $connection->expects('zadd')->with('prefix:_any:tag:registry', ['NX'], StoreContext::MAX_EXPIRY, 'users')->andReturn(1)->ordered();
+        $cleanup = [];
+        $lengths = [0, 1];
+        $client->expects('hlen')->times(2)
+            ->with('prefix:_any:tag:users:entries')
+            ->resolves(function () use (&$cleanup, &$lengths): int {
+                $cleanup[] = 'hlen';
+
+                return array_shift($lengths);
+            });
+        $client->expects('zrem')
+            ->with('prefix:_any:tag:registry', 'users')
+            ->resolves(function () use (&$cleanup): int {
+                $cleanup[] = 'zrem';
+
+                return 1;
+            });
+        $client->expects('zadd')
+            ->with('prefix:_any:tag:registry', ['NX'], StoreContext::MAX_EXPIRY, 'users')
+            ->resolves(function () use (&$cleanup): int {
+                $cleanup[] = 'zadd';
+
+                return 1;
+            });
 
         $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
         $this->assertTrue($operation->execute(['users']));
+        $this->assertSame(['hlen', 'zrem', 'hlen', 'zadd'], $cleanup);
     }
 
     /**

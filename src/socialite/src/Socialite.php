@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Socialite\Contracts\Factory;
 use Hypervel\Socialite\Contracts\User as UserContract;
 use Hypervel\Socialite\Testing\SocialiteFake;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\Facade;
 
 /**
@@ -25,6 +26,9 @@ use Hypervel\Support\Facades\Facade;
  */
 class Socialite extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return Factory::class;
@@ -32,7 +36,10 @@ class Socialite extends Facade
 
     /**
      * Register a fake Socialite instance.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(string $driver, UserContract|Closure|null $user = null): SocialiteFake
     {
         $root = static::getFacadeRoot();

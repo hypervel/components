@@ -22,7 +22,9 @@ use Hypervel\Coroutine\PoolChannel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -34,6 +36,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ConnectionPoolTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUnknownPoolOptionsAreRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -131,9 +135,12 @@ class ConnectionPoolTest extends TestCase
         ], $pool->getStats());
     }
 
-    public function testCloseDrainsEveryIdleConnectionBeforeRethrowingCancellation(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testCloseDrainsEveryIdleConnectionBeforeRethrowingCancellation(bool $chained): void
     {
         $cancellation = new CanceledException('close canceled');
+        $cancellation = $chained ? new RuntimeException('cleanup failed', previous: $cancellation) : $cancellation;
         $connections = [
             new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
             new PoolConnectionStub,
@@ -152,7 +159,7 @@ class ConnectionPoolTest extends TestCase
         try {
             $pool->close();
             $this->fail('Closing an idle connection was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -207,10 +214,9 @@ class ConnectionPoolTest extends TestCase
 
     public function testCloseContinuesAfterMonitorCleanupFails(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')
-            ->once()
-            ->with(m::on(static fn (string $message): bool => str_contains($message, 'monitor cleanup failed')));
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')
+            ->with(Argument::satisfies(static fn (string $message): bool => str_contains($message, 'monitor cleanup failed')));
         $container = $this->createContainer();
         $container->instance(StdoutLoggerInterface::class, $logger);
         $pool = new CallbackPool($container, 'test');
@@ -218,9 +224,9 @@ class ConnectionPoolTest extends TestCase
         $pool->replaceChannel($channel);
         $connection = $pool->borrow();
         $pool->release($connection);
-        $timer = m::mock(Timer::class);
-        $timer->expects('tick')->with(1.0, m::type('callable'))->andReturn(1);
-        $timer->expects('clear')->with(1)->andThrow(new RuntimeException('monitor cleanup failed'));
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('tick')->with(1.0, Argument::type('callable'))->returns(1);
+        $timer->expects('clear')->with(1)->throws(new RuntimeException('monitor cleanup failed'));
         $monitor = new IdleConnectionMonitor($pool, 1.0, $timer);
         $monitor->start();
         (new ReflectionProperty(ConnectionPool::class, 'idleMonitor'))->setValue($pool, $monitor);
@@ -418,9 +424,14 @@ class ConnectionPoolTest extends TestCase
         $pool->release($replacement);
     }
 
-    public function testDiscardRepairsCapacityBeforeRethrowingCancellation(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testDiscardRepairsCapacityBeforeRethrowingCancellation(bool $chained): void
     {
         $cancellation = new CanceledException('close canceled');
+        if ($chained) {
+            $cancellation = new RuntimeException('close cleanup failed', previous: $cancellation);
+        }
         $connections = [
             new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
             new PoolConnectionStub,
@@ -436,7 +447,7 @@ class ConnectionPoolTest extends TestCase
         try {
             $pool->discard($connection);
             $this->fail('Discarding the connection was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -676,10 +687,9 @@ class ConnectionPoolTest extends TestCase
 
     public function testThrowingIdleCheckIsReportedDestroyedAndFreesCapacity(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')
-            ->once()
-            ->with(m::on(static fn (string $message): bool => str_contains($message, 'check failed')));
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')
+            ->with(Argument::satisfies(static fn (string $message): bool => str_contains($message, 'check failed')));
         $container = $this->createContainer();
         $container->instance(StdoutLoggerInterface::class, $logger);
 
@@ -721,21 +731,23 @@ class ConnectionPoolTest extends TestCase
     }
 
     #[DataProvider('idleCheckCleanupFailures')]
-    public function testCanceledIdleCheckDisposesOnceAndPreservesCancellation(?string $cleanupFailure): void
+    public function testCanceledIdleCheckDisposesOnceAndPreservesCancellation(?string $cleanupFailure, bool $carried = false): void
     {
-        $cancellation = new CanceledException('idle check canceled');
+        $cancellation = $carried
+            ? new RuntimeException('idle check failed', previous: new CanceledException('idle check canceled'))
+            : new CanceledException('idle check canceled');
         $secondary = match ($cleanupFailure) {
             'canceled' => new CanceledException('close canceled'),
             'failed' => new RuntimeException('close failed'),
             default => null,
         };
         $container = $this->createContainer();
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
         if ($cleanupFailure === 'failed') {
-            $logger->shouldReceive('error')->once()->with((string) $secondary);
+            $logger->expects('error')->with((string) $secondary);
         } else {
-            $logger->shouldNotReceive('error');
+            $logger->expects('error')->never();
         }
 
         $container->instance(StdoutLoggerInterface::class, $logger);
@@ -749,7 +761,7 @@ class ConnectionPoolTest extends TestCase
 
         try {
             $pool->checkIdleConnection();
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $caught = $exception;
         } finally {
             $pool->close();
@@ -763,7 +775,7 @@ class ConnectionPoolTest extends TestCase
 
     public static function idleCheckCleanupFailures(): array
     {
-        return [[null], ['canceled'], ['failed']];
+        return [[null], ['canceled'], ['failed'], [null, true]];
     }
 
     public function testIdleDisposalCancellationPropagatesWithoutSecondDestruction(): void
@@ -811,15 +823,14 @@ class ConnectionPoolTest extends TestCase
 
     public function testUsageTrackerFailureIsReportedWithoutLosingBorrow(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')
-            ->once()
-            ->with(m::on(static fn (string $message): bool => str_contains($message, 'recording failed')));
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')
+            ->with(Argument::satisfies(static fn (string $message): bool => str_contains($message, 'recording failed')));
         $container = $this->createContainer();
         $container->instance(StdoutLoggerInterface::class, $logger);
         $pool = new CallbackPool($container, 'test');
-        $tracker = m::mock(UsageTracker::class);
-        $tracker->shouldReceive('recordBorrow')->once()->andThrow(new RuntimeException('recording failed'));
+        $tracker = Double::for(UsageTracker::class)->strict();
+        $tracker->expects('recordBorrow')->throws(new RuntimeException('recording failed'));
         $pool->useUsageTracker($tracker);
 
         $connection = $pool->borrow();
@@ -828,9 +839,12 @@ class ConnectionPoolTest extends TestCase
         $pool->release($connection);
     }
 
-    public function testUsageMaintenanceCancellationDiscardsTheUnreturnedBorrow(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testUsageMaintenanceCancellationDiscardsTheUnreturnedBorrow(bool $chained): void
     {
         $cancellation = new CanceledException('maintenance canceled');
+        $cancellation = $chained ? new RuntimeException('cleanup failed', previous: $cancellation) : $cancellation;
         $connections = [
             new PoolConnectionStub,
             new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
@@ -860,7 +874,7 @@ class ConnectionPoolTest extends TestCase
         try {
             $pool->borrow();
             $this->fail('Usage maintenance was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -875,9 +889,9 @@ class ConnectionPoolTest extends TestCase
 
     public function testUsageTrackerFactoryRunsOnceAfterSubclassConstruction(): void
     {
-        $tracker = m::mock(UsageTracker::class);
-        $tracker->expects('recordBorrow')->twice();
-        $tracker->expects('shouldTrimExcessIdle')->twice()->andReturnFalse();
+        $tracker = Double::for(UsageTracker::class)->strict();
+        $tracker->expects('recordBorrow')->times(2);
+        $tracker->expects('shouldTrimExcessIdle')->times(2)->returns(false);
         $pool = new UsageTrackerPool($this->createContainer(), static fn () => $tracker);
 
         $this->assertSame(0, $pool->factoryCalls);
@@ -1000,9 +1014,9 @@ class ConnectionPoolTest extends TestCase
                 $this->close();
             }
         };
-        $tracker = m::mock(UsageTracker::class);
+        $tracker = Double::for(UsageTracker::class)->strict();
         $tracker->expects('recordBorrow');
-        $tracker->expects('shouldTrimExcessIdle')->andReturnTrue();
+        $tracker->expects('shouldTrimExcessIdle')->returns(true);
         $pool->useUsageTracker($tracker);
         $pool->start();
 

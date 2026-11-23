@@ -48,15 +48,15 @@ class DescendantsRelation extends BaseRelation
     protected function addEagerConstraint(Builder $query, Model $model): void
     {
         $query->whereNested(function (Builder $query) use ($model): void {
-            $model->applyNestedSetScope($query); /* @phpstan-ignore method.notFound */
+            $model->applyNestedSetScope($query); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             // Validated integer bounds are inlined, as whereIntegerInRaw() does,
             // so large eager loads do not exhaust the driver's bound parameters.
             $query->whereRaw(sprintf(
                 '%s between %d and %d',
-                $query->getGrammar()->wrap($this->related->qualifyColumn($this->related->getLftName())), /* @phpstan-ignore method.notFound */
-                $model->getLft() + 1, /* @phpstan-ignore method.notFound */
-                $model->getRgt(), /* @phpstan-ignore method.notFound */
+                $query->getGrammar()->wrap($this->related->qualifyColumn($this->related->getLftName())), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+                $model->getLft() + 1, /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+                $model->getRgt(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ));
         }, 'or');
     }
@@ -70,9 +70,7 @@ class DescendantsRelation extends BaseRelation
 
         foreach (parent::prepareEagerModels($models) as $model) {
             // Without a bound strictly between the parent's bounds, no node can be its descendant.
-            if ($model->getRgt() /* @phpstan-ignore method.notFound */
-                <= $model->getLft() + 1 /* @phpstan-ignore method.notFound */
-            ) {
+            if ($model->getRgt() <= $model->getLft() + 1) {
                 continue;
             }
 
@@ -86,8 +84,8 @@ class DescendantsRelation extends BaseRelation
             $rgts = [];
 
             foreach ($group as $model) {
-                $lfts[] = $model->getLft(); /* @phpstan-ignore method.notFound */
-                $rgts[] = $model->getRgt(); /* @phpstan-ignore method.notFound */
+                $lfts[] = $model->getLft();
+                $rgts[] = $model->getRgt();
             }
 
             $positions = array_keys($group);
@@ -122,13 +120,13 @@ class DescendantsRelation extends BaseRelation
             $scope = $this->scopeKey($model);
             $key = $this->matchKey($model);
             /** @var int $lft */
-            $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
+            $lft = $model->getLft();
             /** @var int $rgt */
-            $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            $rgt = $model->getRgt();
             $found = [];
 
             foreach ($results as $related) {
-                $relatedLft = $related->getLft(); /* @phpstan-ignore method.notFound */
+                $relatedLft = $related->getLft(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
                 if ($relatedLft > $lft
                     && $relatedLft < $rgt
@@ -154,9 +152,9 @@ class DescendantsRelation extends BaseRelation
 
             $key = $this->matchKey($model);
             /** @var int $rgt */
-            $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            $rgt = $model->getRgt();
             $found = [];
-            $index = static::lowerBound($bucket['lfts'], $model->getLft() + 1); /* @phpstan-ignore method.notFound */
+            $index = static::lowerBound($bucket['lfts'], $model->getLft() + 1);
 
             for ($count = count($bucket['lfts']); $index < $count && $bucket['lfts'][$index] < $rgt; ++$index) {
                 if ($key === null || $bucket['keys'][$index] !== $key) {
@@ -197,8 +195,8 @@ class DescendantsRelation extends BaseRelation
     protected function requiredParentColumns(Model $model): array
     {
         $columns = $this->scopeColumns($model);
-        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound */
-        $columns[$model->getRgtName()] = true; /* @phpstan-ignore method.notFound */
+        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $columns[$model->getRgtName()] = true; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $columns;
     }
@@ -209,7 +207,7 @@ class DescendantsRelation extends BaseRelation
     protected function requiredRelatedColumns(Model $model): array
     {
         $columns = $this->scopeColumns($model);
-        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound */
+        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $columns;
     }

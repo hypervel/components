@@ -13,10 +13,13 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CustomBuilderForwardingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testOrdinaryForwardingDiscardsResultsButPassthruAndNativeTerminalsReturnThem(): void
     {
         $builder = $this->builder(new ForwardingTestModel);
@@ -28,7 +31,7 @@ class CustomBuilderForwardingTest extends TestCase
         $this->assertSame($builder->getModel(), $builder->models()->sole());
     }
 
-    public function testRelationsDecorateFluentResultsButRetainTerminalsAndClonedBuilders(): void
+    public function testRelationsDecorateFluentResultsRetainTerminalsAndCloneTheirQueries(): void
     {
         $builder = $this->builder(new ForwardingTestModel);
         $parent = new ForwardingTestModel;
@@ -40,9 +43,11 @@ class CustomBuilderForwardingTest extends TestCase
         $this->assertSame(42, $relation->rawAnswer());
         $this->assertSame($builder->getModel(), $relation->models()->sole());
         $clone = $relation->clone();
-        $this->assertInstanceOf(ForwardingTestBuilder::class, $clone);
-        $this->assertNotSame($builder, $clone);
-        $this->assertNotSame($builder->getQuery(), $clone->getQuery());
+        $this->assertInstanceOf(HasMany::class, $clone);
+        $this->assertNotSame($relation, $clone);
+        $this->assertInstanceOf(ForwardingTestBuilder::class, $clone->getQuery());
+        $this->assertNotSame($builder, $clone->getQuery());
+        $this->assertNotSame($builder->getQuery(), $clone->getQuery()->getQuery());
     }
 
     public function testScopesWinOverQueryForwardingButNotNativeEloquentOrRelationMethods(): void
@@ -68,7 +73,7 @@ class CustomBuilderForwardingTest extends TestCase
      */
     private function builder(Model $model): ForwardingTestBuilder
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $query = new ForwardingTestQuery($connection, new Grammar($connection), new Processor);
 
         return (new ForwardingTestBuilder($query))->setModel($model);

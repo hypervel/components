@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Ably\AblyRest;
+use Ably\PubSub\PubSubHttpClient;
+use Ably\PubSub\Server as AblyServer;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Multiplexing;
+use Hypervel\Broadcasting\Broadcasters\Ably2Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
@@ -27,11 +30,14 @@ use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\Queue\Factory as Queue;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Http\Request;
@@ -39,9 +45,13 @@ use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use InvalidArgumentException;
@@ -199,9 +209,13 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function queue(mixed $event): void
     {
-        if ($event instanceof ShouldBroadcastNow
-            || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow())
-        ) {
+        $immediate = $event instanceof ShouldBroadcastNow
+            || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow());
+        $synchronousMercure = ! $immediate
+            && ! ($event->viaOutbox ?? $event instanceof ShouldQueueViaOutbox)
+            && $this->broadcastsToSynchronousMercureConnections($event);
+
+        if ($immediate || ($synchronousMercure && ! $event instanceof ShouldBeUnique && empty($event->afterCommit))) {
             $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow(
                 new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
             );
@@ -229,21 +243,31 @@ class BroadcastManager implements BroadcastingFactoryContract
             ? new UniqueBroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
             : new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event);
 
-        if ($event instanceof ShouldBeUnique && $this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
-            return;
-        }
-
-        $push = fn () => $this->app->make(Queue::class)
-            ->connection(
-                $event->connection
-                    ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
-                    ?? $this->resolveConnectionFromQueueRoute($event, $queue)
-            )
-            ->pushOn($queue, $broadcastEvent);
+        $push = $synchronousMercure
+            ? fn () => $this->dispatchSynchronousBroadcast($broadcastEvent)
+            : fn () => $this->app->make(Queue::class)
+                ->connection(
+                    $event->connection
+                        ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
+                        ?? $this->resolveConnectionFromQueueRoute($event, $queue)
+                )
+                ->pushOn($queue, $broadcastEvent);
 
         if ($event instanceof ShouldBeUnique) {
             $dispatch = $push;
-            $push = static function () use ($broadcastEvent, $dispatch): mixed {
+            $push = function () use ($broadcastEvent, $dispatch): mixed {
+                // Acquisition and skip listeners can fail too, so keep them inside the rescue boundary.
+                if ($this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
+                    /** @var EventDispatcher $events */
+                    $events = $this->app->make('events');
+
+                    if ($events->hasListeners(UniqueJobSkipped::class)) {
+                        $events->dispatch(new UniqueJobSkipped($broadcastEvent));
+                    }
+
+                    return null;
+                }
+
                 try {
                     return $dispatch();
                 } finally {
@@ -255,6 +279,48 @@ class BroadcastManager implements BroadcastingFactoryContract
         $event instanceof ShouldRescue
             ? $this->rescue($push)
             : $push();
+    }
+
+    /**
+     * Publish synchronously while honoring commit timing and dispatch locks.
+     */
+    protected function dispatchSynchronousBroadcast(BroadcastEvent $event): void
+    {
+        $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow($event);
+
+        if ($event->afterCommit && $this->app->bound('db.transactions')) {
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->app->make('db.transactions');
+
+            if ($transactions->hasApplicableTransaction()) {
+                // Direct publishing retains the event without queue serialization or model reloads.
+                $release = static function () use ($event): void {
+                    DispatchLockContext::claim($event);
+                    DispatchLockContext::release($event);
+                };
+                $transactions->addCallbackForRollback(fn () => $event->event instanceof ShouldRescue
+                    ? $this->rescue($release)
+                    : $release());
+
+                $publish = static function () use ($event, $dispatch): void {
+                    DispatchLockContext::claim($event);
+
+                    try {
+                        $dispatch();
+                    } finally {
+                        DispatchLockContext::release($event);
+                    }
+                };
+                $transactions->addCallback(fn () => $event->event instanceof ShouldRescue
+                    ? $this->rescue($publish)
+                    : $publish());
+                DispatchLockContext::delegate($event);
+
+                return;
+            }
+        }
+
+        $dispatch();
     }
 
     /**
@@ -440,15 +506,23 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function createAblyDriver(array $config): Broadcaster
     {
-        return new AblyBroadcaster($this->app, $this->ably($config));
+        $ably = $this->ably($config);
+
+        return match (true) {
+            $ably instanceof AblyRest => new AblyBroadcaster($this->app, $ably),
+            default => new Ably2Broadcaster($this->app, $ably),
+        };
     }
 
     /**
      * Get an Ably instance for the given configuration.
      */
-    public function ably(array $config): AblyRest
+    public function ably(array $config): AblyRest|PubSubHttpClient
     {
-        return new AblyRest($config);
+        return match (true) {
+            class_exists(AblyServer::class) => AblyServer::createHttpClient($config),
+            default => new AblyRest($config),
+        };
     }
 
     /**
@@ -516,8 +590,9 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Set the default broadcast driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultDriver(UnitEnum|string $name): void
     {
         $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
@@ -528,9 +603,9 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Disconnect the given driver and remove it from the local cache.
      *
-     * Boot or tests only, plus operational recovery for pooled drivers.
-     * Mercure and explicitly pooled drivers also close their shared pools.
-     * Other connections sharing a pool acquire a fresh one on their next operation.
+     * Use this to recover broken pooled resources. Mercure and explicitly
+     * pooled drivers also close their shared pools. Other connections sharing
+     * a pool acquire a fresh one on their next operation.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -580,12 +655,12 @@ class BroadcastManager implements BroadcastingFactoryContract
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent broadcaster
-     * resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent broadcaster resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         try {
@@ -619,10 +694,13 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent request resolving
+     * Swaps the singleton's container reference; per-request use races
+     * across coroutines and breaks every concurrent request resolving
      * broadcasters through this manager.
+     *
+     * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Container $app): static
     {
         $this->app = $app;
@@ -633,9 +711,12 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Forget all of the resolved driver instances.
      *
-     * Boot or tests only. This is cache-only: pooled broadcasters remain
-     * shared resources until purged or reclaimed by their idle TTL.
+     * This is cache-only: pooled broadcasters remain shared resources
+     * until purged or reclaimed by their idle TTL.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetDrivers(): static
     {
         $this->drivers = [];

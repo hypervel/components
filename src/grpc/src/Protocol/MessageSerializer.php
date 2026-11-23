@@ -8,7 +8,6 @@ use Google\Protobuf\Internal\Message;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -23,9 +22,11 @@ class MessageSerializer
     {
         try {
             return $message->serializeToString();
-        } catch (CanceledException $throwable) {
-            throw $throwable;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             throw new ProtocolException(
                 'Unable to serialize the gRPC message.',
                 previous: $throwable,
@@ -80,9 +81,11 @@ class MessageSerializer
             try {
                 $message = new $messageClass;
                 $message->mergeFromString($payload);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 throw new ProtocolException(
                     'Unable to deserialize the gRPC message.',
                     previous: $throwable,

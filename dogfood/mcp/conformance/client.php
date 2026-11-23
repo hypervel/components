@@ -104,22 +104,21 @@ run(function () use ($url, $scenario, $context, $log, &$status): void {
 
         $log(sprintf('listed %d tools', $tools->count()));
 
-        if ($scenario === 'http-custom-headers') {
-            foreach ($context['toolCalls'] as $call) {
-                $execute(fn () => $client->callTool($tools->get($call['name']), $call['arguments']));
-            }
-        } elseif ($scenario === 'json-schema-2020-12-preservation') {
-            $execute(fn () => $client->callTool($tools->get('json_schema_echo'), [
-                'schema' => $tools->get('json_schema_2020_12_tool')->inputSchema,
-            ]));
-        } elseif ($scenario !== 'initialize') {
-            $tool = $tools->first();
+        $calls = match (true) {
+            isset($context['toolCalls']) => $context['toolCalls'],
+            $scenario === 'tools_call' => [['name' => 'add_numbers', 'arguments' => ['a' => 1, 'b' => 2]]],
+            $scenario === 'json-schema-2020-12-preservation' => [[
+                'name' => 'json_schema_echo',
+                'arguments' => ['schema' => $tools->get('json_schema_2020_12_tool')?->inputSchema],
+            ]],
+            $scenario === 'initialize' || $tools->isEmpty() => [],
+            default => [['name' => $tools->first()->name, 'arguments' => []]],
+        };
 
-            if ($tool !== null) {
-                $execute(fn () => $client->callTool($tool, $scenario === 'tools_call' ? ['a' => 2, 'b' => 3] : []));
+        foreach ($calls as $call) {
+            $execute(fn () => $client->callTool($tools->get($call['name']) ?? $call['name'], $call['arguments'] ?? []));
 
-                $log(sprintf('called tool %s', $tool->name));
-            }
+            $log(sprintf('called tool %s', $call['name']));
         }
 
         $client->disconnect();

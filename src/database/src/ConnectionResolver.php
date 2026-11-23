@@ -11,7 +11,6 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -66,7 +65,7 @@ class ConnectionResolver implements ConnectionResolverInterface
      * Store a stable logical connection in the current coroutine's context.
      * The current physical lease is settled when the coroutine ends.
      */
-    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): Connection
     {
         $connectionName = ConnectionName::parse($this->connectionName($name));
         $connectionOwnerName = $connectionName->requested;
@@ -74,7 +73,7 @@ class ConnectionResolver implements ConnectionResolverInterface
 
         $connection = CoroutineContext::get($contextKey);
 
-        if ($connection instanceof ConnectionInterface) {
+        if ($connection instanceof Connection) {
             return $connection;
         }
 
@@ -89,8 +88,8 @@ class ConnectionResolver implements ConnectionResolverInterface
 
             $connection = CoroutineContext::get($contextKey);
 
-            if ($connection instanceof ConnectionInterface) {
-                if ($connectionName->isWrite() && $connection instanceof Connection) {
+            if ($connection instanceof Connection) {
+                if ($connectionName->isWrite()) {
                     $connection->useWriteConnectionWhenReading();
                 }
 
@@ -163,15 +162,23 @@ class ConnectionResolver implements ConnectionResolverInterface
     }
 
     /**
-     * Check the current connection's transaction state without borrowing a pool slot.
+     * Get the current execution's connection without borrowing a pool slot.
      */
-    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?Connection
     {
-        $connectionName = ConnectionName::parse($this->connectionName($name));
+        return $this->getContextConnection($this->connectionName($name));
+    }
+
+    /**
+     * Find the context-owned connection, including shared in-memory aliases.
+     */
+    private function getContextConnection(string $name): ?Connection
+    {
+        $connectionName = ConnectionName::parse($name);
         $held = CoroutineContext::get($this->getContextKey($connectionName->requested));
 
         if ($held instanceof Connection) {
-            return $held->hasApplicableTransaction();
+            return $held;
         }
 
         $pool = $this->poolManager->existing($connectionName->requested);
@@ -181,11 +188,21 @@ class ConnectionResolver implements ConnectionResolverInterface
             $held = CoroutineContext::get($this->getContextKey($pool->getName()));
 
             if ($held instanceof Connection) {
-                return $held->hasApplicableTransaction();
+                return $held;
             }
         }
 
-        return false;
+        return null;
+    }
+
+    /**
+     * Check the current connection's transaction state without borrowing a pool slot.
+     */
+    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    {
+        $held = $this->getContextConnection($this->connectionName($name));
+
+        return $held !== null && $held->hasApplicableTransaction();
     }
 
     /**
@@ -221,7 +238,6 @@ class ConnectionResolver implements ConnectionResolverInterface
             }
         }
 
-        /** @var Connection $connection */
         $connection = $this->connection($name);
 
         try {
@@ -242,10 +258,20 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     public static function releaseIdleConnections(): void
     {
+        $failure = null;
+
         foreach (CoroutineContext::getContainer() ?? [] as $value) {
             if ($value instanceof ConnectionLease) {
-                $value->releaseIfIdle();
+                try {
+                    $value->releaseIfIdle();
+                } catch (Throwable $exception) {
+                    $failure = Coroutine::preferCancellation($failure, $exception);
+                }
             }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
@@ -340,11 +366,11 @@ class ConnectionResolver implements ConnectionResolverInterface
     {
         try {
             $owner->discard();
-        } catch (CanceledException $cancellation) {
-            if (! $exception instanceof CanceledException) {
-                throw $cancellation;
+        } catch (Throwable $cleanupException) {
+            if (Coroutine::causedByCancellation($cleanupException) && ! Coroutine::causedByCancellation($exception)) {
+                throw $cleanupException;
             }
-        } catch (Throwable) {
+
             // Preserve the connection setup failure.
         }
     }
@@ -364,11 +390,7 @@ class ConnectionResolver implements ConnectionResolverInterface
                 try {
                     $terminate($connection);
                 } catch (Throwable $throwable) {
-                    if ($exception === null
-                        || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)
-                    ) {
-                        $exception = $throwable;
-                    }
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 } finally {
                     CoroutineContext::forget($this->getContextKey($name));
                     CoroutineContext::forget($this->getLeaseContextKey($name));

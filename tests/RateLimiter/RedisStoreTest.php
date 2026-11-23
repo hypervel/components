@@ -13,12 +13,18 @@ use Hypervel\RateLimiter\RedisStore;
 use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use Redis;
 use UnexpectedValueException;
 
 class RedisStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFixedWindowUsesOneKeyAndCanonicalArguments(): void
     {
         $captured = [];
@@ -98,16 +104,16 @@ class RedisStoreTest extends TestCase
     public function testClusterReusesOneConnectionAndStopsAtTheFirstDenialInEitherPass(): void
     {
         foreach ([false, true] as $denyDuringConsume) {
-            $redis = m::mock(RedisFactory::class);
-            $proxy = m::mock(RedisProxy::class);
-            $connection = m::mock(RedisConnection::class);
-            $redis->shouldReceive('connection')->once()->with('limiter')->andReturn($proxy);
-            $proxy->shouldReceive('withConnection')->once()->with(m::type('callable'), false)
-                ->andReturnUsing(static fn (callable $callback): mixed => $callback($connection));
-            $connection->shouldReceive('isCluster')->once()->andReturnTrue();
+            $redis = Double::for(RedisFactory::class)->strict();
+            $proxy = Double::for(RedisProxy::class)->strict();
+            $connection = Double::for(RedisConnection::class)->strict();
+            $redis->expects('connection')->with('limiter')->returns($proxy);
+            $proxy->expects('withConnection')->with(Argument::type('callable'), false)
+                ->resolves(static fn (callable $callback): mixed => $callback($connection));
+            $connection->expects('isCluster')->returns(true);
             $operations = [];
-            $connection->shouldReceive('evalWithShaCache')->times($denyDuringConsume ? 4 : 2)
-                ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$operations, $denyDuringConsume): array {
+            $connection->expects('evalWithShaCache')->times($denyDuringConsume ? 4 : 2)
+                ->resolves(static function (string $script, array $keys, array $arguments) use (&$operations, $denyDuringConsume): array {
                     $operations[] = [$arguments[0], $keys[0]];
                     $denied = $keys[0] === 'tenant' && (! $denyDuringConsume || $arguments[0] === 'consume');
 
@@ -169,35 +175,33 @@ class RedisStoreTest extends TestCase
 
     public function testClearDeletesThePhysicalKeyOnTheConfiguredConnection(): void
     {
-        $redis = m::mock(RedisFactory::class);
-        $proxy = m::mock(RedisProxy::class);
-        $connection = m::mock(RedisConnection::class);
+        $redis = Double::for(RedisFactory::class)->strict();
+        $proxy = Double::for(RedisProxy::class)->strict();
+        $client = Double::for(Redis::class)->strict();
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
 
-        $redis->shouldReceive('connection')->once()->with('limiter')->andReturn($proxy);
-        $proxy->shouldReceive('withConnection')
-            ->once()
-            ->with(m::type('callable'), false)
-            ->andReturnUsing(static fn (callable $callback): mixed => $callback($connection));
-        $connection->shouldReceive('del')->once()->with('physical-key')->andReturn(1);
+        $redis->expects('connection')->with('limiter')->returns($proxy);
+        $proxy->expects('withConnection')
+            ->with(Argument::type('callable'), false)
+            ->resolves(static fn (callable $callback): mixed => $callback($connection));
+        $client->expects('del')->with('physical-key')->returns(1);
 
         $this->assertTrue((new RedisStore($redis, 'limiter'))->clear('physical-key'));
     }
 
     private function store(mixed $response, array &$captured): RedisStore
     {
-        $redis = m::mock(RedisFactory::class);
-        $proxy = m::mock(RedisProxy::class);
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('isCluster')->andReturnFalse()->byDefault();
+        $redis = Double::for(RedisFactory::class)->strict();
+        $proxy = Double::for(RedisProxy::class)->strict();
+        $connection = Double::for(RedisConnection::class)->strict();
+        $connection->allows('isCluster')->returns(false);
 
-        $redis->shouldReceive('connection')->once()->with('limiter')->andReturn($proxy);
-        $proxy->shouldReceive('withConnection')
-            ->once()
-            ->with(m::type('callable'), false)
-            ->andReturnUsing(static fn (callable $callback): mixed => $callback($connection));
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use ($response, &$captured): mixed {
+        $redis->expects('connection')->with('limiter')->returns($proxy);
+        $proxy->expects('withConnection')
+            ->with(Argument::type('callable'), false)
+            ->resolves(static fn (callable $callback): mixed => $callback($connection));
+        $connection->expects('evalWithShaCache')
+            ->resolves(static function (string $script, array $keys, array $arguments) use ($response, &$captured): mixed {
                 $captured = compact('keys', 'arguments');
 
                 return $response;

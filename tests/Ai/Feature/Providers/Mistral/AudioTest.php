@@ -30,13 +30,13 @@ class AudioTest extends TestCase
     {
         Http::fake(['*' => $this->fakeMistralAudioResponse()]);
 
-        Audio::of('Hello world')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello world')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
 
         Http::assertSent(function (Request $request): bool {
             $body = json_decode($request->body(), true);
 
             return $request->url() === 'https://api.mistral.ai/v1/audio/speech'
-                && $body['model'] === 'voxtral-mini-tts-2603'
+                && $body['model'] === 'voxtral-mini-tts-3-0'
                 && $body['input'] === 'Hello world'
                 && $body['voice_id'] === 'gb_jane_neutral'
                 && $body['response_format'] === 'mp3';
@@ -47,7 +47,7 @@ class AudioTest extends TestCase
     {
         Http::fake(['*' => $this->fakeMistralAudioResponse()]);
 
-        Audio::of('Hello')->male()->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->male()->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
 
         Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['voice_id'] === 'en_paul_neutral');
     }
@@ -56,7 +56,7 @@ class AudioTest extends TestCase
     {
         Http::fake(['*' => $this->fakeMistralAudioResponse()]);
 
-        Audio::of('Hello')->voice('my-custom-voice-id')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->voice('my-custom-voice-id')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
 
         Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['voice_id'] === 'my-custom-voice-id');
     }
@@ -65,7 +65,7 @@ class AudioTest extends TestCase
     {
         Http::fake(['*' => $this->fakeMistralAudioResponse()]);
 
-        Audio::of('Hello')->instructions('Speak warmly')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->instructions('Speak warmly')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
 
         Http::assertSent(fn (Request $request): bool => ! str_contains($request->body(), 'Speak warmly')
             && ! array_key_exists('instructions', json_decode($request->body(), true)));
@@ -75,7 +75,7 @@ class AudioTest extends TestCase
     {
         Http::fake(['*' => $this->fakeMistralAudioResponse()]);
 
-        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
 
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer test-key'));
     }
@@ -84,12 +84,12 @@ class AudioTest extends TestCase
     {
         Http::fake(['*' => $this->fakeMistralAudioResponse(base64_encode('raw-audio-bytes'))]);
 
-        $response = Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        $response = Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
 
         $this->assertSame(base64_encode('raw-audio-bytes'), $response->audio);
         $this->assertSame('audio/mpeg', $response->mimeType());
         $this->assertSame('mistral', $response->meta->provider);
-        $this->assertSame('voxtral-mini-tts-2603', $response->meta->model);
+        $this->assertSame('voxtral-mini-tts-3-0', $response->meta->model);
     }
 
     public function testAudioUsesDefaultModelWhenNoneSpecified(): void
@@ -98,7 +98,7 @@ class AudioTest extends TestCase
 
         Audio::of('Hello')->generate(provider: 'mistral');
 
-        Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['model'] === 'voxtral-mini-tts-2603');
+        Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['model'] === 'voxtral-mini-tts-3-0');
     }
 
     public function testAudioThrowsWhenTheResponseContainsNoAudioData(): void
@@ -107,7 +107,7 @@ class AudioTest extends TestCase
         $this->expectExceptionMessage('No audio data received from Mistral API.');
         Http::fake(['*' => Http::response(['audio_data' => null])]);
 
-        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
     }
 
     public function testAudioThrowsWhenTheApiReturnsAnError(): void
@@ -115,7 +115,7 @@ class AudioTest extends TestCase
         $this->expectException(RequestException::class);
         Http::fake(['*' => Http::response(['message' => 'unauthorized'], 401)]);
 
-        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
     }
 
     public function testAudioRateLimitResponseThrowsRateLimitedException(): void
@@ -123,7 +123,7 @@ class AudioTest extends TestCase
         $this->expectException(RateLimitedException::class);
         Http::fake(['api.mistral.ai/*' => Http::response(['message' => 'rate limit exceeded'], 429)]);
 
-        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
     }
 
     public function testAudioOverloadedResponseThrowsProviderOverloadedException(): void
@@ -131,7 +131,7 @@ class AudioTest extends TestCase
         $this->expectException(ProviderOverloadedException::class);
         Http::fake(['api.mistral.ai/*' => Http::response(['message' => 'service unavailable'], 503)]);
 
-        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-2603');
+        Audio::of('Hello')->generate(provider: 'mistral', model: 'voxtral-mini-tts-3-0');
     }
 
     public function testAudioGatewayIsSharedWithTheOtherMistralGateways(): void

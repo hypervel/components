@@ -280,7 +280,7 @@ class PhpRedisClusterConnection extends PhpRedisConnection
             if ($async) {
                 $result = $this->connection->rawCommand($master, 'flushdb', 'async');
             } else {
-                $result = $this->connection->flushdb($master); // @phpstan-ignore argument.type (connection is always RedisCluster here)
+                $result = $this->connection->flushdb($master);
             }
 
             $successful = $result !== false && $successful;
@@ -371,6 +371,7 @@ class PhpRedisClusterConnection extends PhpRedisConnection
                 );
             }
 
+            swoole_clear_error();
             $redis = new RedisCluster(...$parameters);
         } catch (Throwable $exception) {
             if ($cancellation = RedisCancellation::cancellationFrom(

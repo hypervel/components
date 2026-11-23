@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Ai;
 
 use Closure;
-use Exception;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\HasProviderOptions;
@@ -16,6 +15,7 @@ use Hypervel\Ai\Events\AgentStreamed;
 use Hypervel\Ai\Events\InvokingTool;
 use Hypervel\Ai\Events\PromptingAgent;
 use Hypervel\Ai\Events\StreamingAgent;
+use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
 use Hypervel\Ai\Files;
 use Hypervel\Ai\Files\LocalImage;
@@ -27,6 +27,8 @@ use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
 use Hypervel\Ai\Skills\Skill;
 use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Ai\ToolChoice;
 use Hypervel\Ai\Tools\LoadSkill;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
@@ -34,8 +36,10 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ConversationalAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
@@ -472,22 +476,24 @@ class AgentTest extends TestCase
     }
 
     #[DataProviderExternal(Providers::class, 'agents')]
-    public function testAgentToolExceptionHandlingIsNotMagical(string $provider, string $apiKey, string $model): void
+    #[WithConfig('app.debug', true)]
+    public function testAThrowingToolReturnsItsFailureToTheModel(string $provider, string $apiKey, string $model): void
     {
         requiresApiKey($apiKey);
 
         Event::fake();
 
-        $agent = new ToolUsingAgent(toolThrowsException: true);
-
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessageMatches('/^Forced to throw exception\.$/');
-
-        $agent->prompt(
+        $response = (new ToolUsingAgent(toolThrowsException: true))->prompt(
             'Can I have a random number between 1 and 1000?',
             provider: $provider,
             model: $model,
         );
+
+        $this->assertNotEmpty($response->toolResults);
+        $this->assertSame('The tool call failed: Forced to throw exception.', $response->toolResults[0]->error());
+        $this->assertNotEmpty($response->text);
+
+        Event::assertDispatched(ToolFailed::class);
     }
 
     public function testOpenAiReplaysEchoedOutputBlocksOnAStoreFalseToolCallContinuation(): void
@@ -507,6 +513,49 @@ class AgentTest extends TestCase
 
         $this->assertSame(72019, $response['number']);
         $this->assertCount(1, $response->toolCalls);
+    }
+
+    public function testOpenAiCompatibleStreamsParallelToolCallsSentWithoutAnIndexAndFinishedWithStop(): void
+    {
+        requiresApiKey('GEMINI_API_KEY');
+
+        config(['ai.providers.openai-compatible' => [
+            ...config('ai.providers.openai-compatible'),
+            'url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+            'key' => config('ai.providers.gemini.key'),
+        ]]);
+
+        $response = (new MultiStepToolAgent)->stream(
+            'Generate two numbers by calling the tool twice in parallel, then reply with both numbers.',
+            provider: 'openai-compatible',
+            model: 'gemini-3-flash-preview',
+        );
+
+        $events = collect($response);
+
+        $this->assertCount(2, $events->whereInstanceOf(ToolCallEvent::class));
+        $this->assertCount(2, $events->whereInstanceOf(ToolResultEvent::class));
+        $this->assertStringContainsString('72019', $response->text);
+    }
+
+    public function testOpenAiCompatiblePromptsWithAToolCallFinishedWithStop(): void
+    {
+        requiresApiKey('GEMINI_API_KEY');
+
+        config(['ai.providers.openai-compatible' => [
+            ...config('ai.providers.openai-compatible'),
+            'url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+            'key' => config('ai.providers.gemini.key'),
+        ]]);
+
+        $response = (new MultiStepToolAgent)->prompt(
+            'Generate a number by calling the tool, then reply with the number.',
+            provider: 'openai-compatible',
+            model: 'gemini-3-flash-preview',
+        );
+
+        $this->assertCount(1, $response->toolResults);
+        $this->assertStringContainsString('72019', $response->text);
     }
 
     #[DataProviderExternal(Providers::class, 'reasoning')]

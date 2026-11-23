@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Jobs;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
@@ -40,7 +41,7 @@ class PingInactiveConnections
                     Log::info('Connection Pinged', $connection->id());
                 });
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

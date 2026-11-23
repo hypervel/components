@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use __PHP_Incomplete_Class;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Support\CarbonImmutable;
@@ -520,6 +521,29 @@ class CacheArrayStoreTest extends TestCase
 
         $this->assertSame('first', $first->get('key'));
         $this->assertSame('second', $second->get('key'));
+    }
+
+    public function testClonedRepositoryStartsWithTheCurrentValuesAndLocksButChangesIndependently(): void
+    {
+        $repository = new Repository(new InspectableArrayStore);
+        $repository->put('shared', 'original', 60);
+        $repository->lock('shared-lock', 10, 'owner')->acquire();
+
+        $clone = clone $repository;
+
+        $this->assertSame('original', $clone->get('shared'));
+        $this->assertFalse($clone->lock('shared-lock', 10, 'other')->acquire());
+
+        $clone->put('shared', 'changed', 60);
+        $clone->put('clone-only', 'value', 60);
+        $clone->restoreLock('shared-lock', 'owner')->release();
+        $repository->lock('original-lock', 10, 'owner')->acquire();
+
+        $this->assertSame('original', $repository->get('shared'));
+        $this->assertNull($repository->get('clone-only'));
+        $this->assertSame(['shared-lock', 'original-lock'], array_keys($repository->getStore()->lockRecords()));
+        $this->assertSame(['changed', 'value'], [$clone->get('shared'), $clone->get('clone-only')]);
+        $this->assertSame([], $clone->getStore()->lockRecords());
     }
 
     public function testAllOnlyReturnsCurrentStoreContextData(): void

@@ -25,8 +25,7 @@
     "require": {
         "php": "^8.4",
         "ext-openssl": "*",
-        "lcobucci/jwt": "^5.6",
-        "nesbot/carbon": "^3.13.1",
+        "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
@@ -39,6 +38,8 @@
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/support": "^0.4",
+        "lcobucci/jwt": "^5.6",
+        "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1.10",
         "vlucas/phpdotenv": "^5.6.1"
     },

@@ -13,6 +13,13 @@ class DynamicClientRegistration
     use InteractsWithOAuthEndpoints;
 
     /**
+     * Create a new dynamic client registration instance.
+     */
+    public function __construct(protected AuthServerDiscovery $discovery = new AuthServerDiscovery)
+    {
+    }
+
+    /**
      * Register a client with the authorization server.
      */
     public function register(
@@ -23,17 +30,17 @@ class DynamicClientRegistration
         string $applicationType = 'web',
         TokenEndpointAuthMethod $tokenEndpointAuthMethod = TokenEndpointAuthMethod::ClientSecretPost,
     ): ClientRegistration {
-        $request = $this->oAuthRequest()->asJson();
-        $destination = $this->resolveOAuthDestination($request, $registrationEndpoint);
-        $response = $request->post((string) $destination->uri, array_filter([
-            'client_name' => $clientName,
-            'redirect_uris' => [$redirectUri],
-            'grant_types' => ['authorization_code', 'refresh_token'],
-            'response_types' => ['code'],
-            'token_endpoint_auth_method' => $tokenEndpointAuthMethod->value,
-            'application_type' => $applicationType,
-            'scope' => $scope,
-        ], static fn (mixed $value): bool => $value !== null));
+        $response = $this->discovery->pin($this->oAuthRequest())
+            ->asJson()
+            ->post($registrationEndpoint, array_filter([
+                'client_name' => $clientName,
+                'redirect_uris' => [$redirectUri],
+                'grant_types' => ['authorization_code', 'refresh_token'],
+                'response_types' => ['code'],
+                'token_endpoint_auth_method' => $tokenEndpointAuthMethod->value,
+                'application_type' => $applicationType,
+                'scope' => $scope,
+            ], static fn (mixed $value): bool => $value !== null));
 
         if (! $response->successful()) {
             throw new OAuthException("Dynamic client registration failed with status [{$response->status()}].");

@@ -18,14 +18,10 @@ trait InteractsWithMockery
             return;
         }
 
-        $container = Mockery::getContainer();
+        /** @var int<0, max> $expectationCount */
+        $expectationCount = Mockery::getContainer()->mockery_getExpectationCount();
 
-        if ($container !== null) { /* @phpstan-ignore notIdentical.alwaysTrue */
-            /** @var int<0, max> $expectationCount */
-            $expectationCount = $container->mockery_getExpectationCount();
-
-            $this->addToAssertionCount($expectationCount);
-        }
+        $this->addToAssertionCount($expectationCount);
 
         Mockery::close();
     }

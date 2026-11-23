@@ -33,7 +33,7 @@ class SlackChannel
     {
         $route = $this->determineRoute($notifiable, $notification);
 
-        $message = $notification->toSlack($notifiable); // @phpstan-ignore method.notFound
+        $message = $notification->toSlack($notifiable); // @phpstan-ignore method.notFound (notifications sent through this channel define toSlack())
 
         $payload = $this->buildJsonPayload($message, $route);
 

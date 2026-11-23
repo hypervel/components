@@ -70,6 +70,23 @@ class HandshakeNegotiationTest extends TestCase
         }
     }
 
+    public function testReportsAnOriginRejectionAsAProtocolErrorInsteadOfFallingBackToTheDefault(): void
+    {
+        $rejection = json_encode([
+            'jsonrpc' => '2.0',
+            'error' => ['code' => -32600, 'message' => 'Forbidden: The request origin is not allowed.'],
+        ]);
+
+        // The probe's Invalid Request error permits the legacy handshake, which the server rejects too.
+        Http::fakeSequence()
+            ->push($rejection, 403, ['Content-Type' => 'application/json'])
+            ->push($rejection, 403, ['Content-Type' => 'application/json']);
+
+        $this->expectException(JsonRpcException::class);
+        $this->expectExceptionMessage('Forbidden: The request origin is not allowed.');
+        Client::web('https://mcp.test/mcp')->tools(default: []);
+    }
+
     public function testRetriesWithAMutualVersionFromAProtocolErrorInA400Response(): void
     {
         Http::fakeSequence()

@@ -14,7 +14,8 @@ use Hypervel\Socialite\Two\FacebookProvider;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\Socialite\Fixtures\CreatesJwksFixtures;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use UnexpectedValueException;
 
 use function Hypervel\Coroutine\parallel;
@@ -22,6 +23,7 @@ use function Hypervel\Coroutine\parallel;
 class FacebookProviderOIDCTokenTest extends TestCase
 {
     use CreatesJwksFixtures;
+    use VerifiesDoubles;
 
     public function testItValidatesExpectedNonceForFacebookOidcTokens(): void
     {
@@ -104,8 +106,8 @@ class FacebookProviderOIDCTokenTest extends TestCase
 
         [$nonceA, $nonceB] = parallel([
             function () use ($provider, $key): string {
-                $httpClient = m::mock(Client::class);
-                $httpClient->expects('get')->andReturnUsing(function () use ($key): Response {
+                $httpClient = Double::for(Client::class)->strict();
+                $httpClient->expects('get')->resolves(function () use ($key): Response {
                     // Suspend this verification after its nonce is set.
                     usleep(5000);
 
@@ -186,7 +188,7 @@ class FacebookProviderOIDCTokenTest extends TestCase
     private function getProvider(): FacebookProvider
     {
         return new FacebookProvider(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect',
@@ -198,13 +200,13 @@ class FacebookProviderOIDCTokenTest extends TestCase
      */
     private function expectJwksResponses(FacebookProvider $provider, array $keys): void
     {
-        $httpClient = m::mock(Client::class);
+        $httpClient = Double::for(Client::class)->strict();
         $provider->setHttpClient($httpClient);
 
         $httpClient->expects('get')
             ->with('https://limited.facebook.com/.well-known/oauth/openid/jwks/')
             ->times(count($keys))
-            ->andReturn(...array_map(
+            ->returns(...array_map(
                 fn (array $key): Response => new Response(
                     headers: ['Cache-Control' => 'max-age=3600'],
                     body: json_encode($this->jwks($key)),

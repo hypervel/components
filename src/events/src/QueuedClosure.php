@@ -62,6 +62,8 @@ class QueuedClosure
 
     /**
      * Set the desired connection for the job.
+     *
+     * @return $this
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
@@ -74,6 +76,8 @@ class QueuedClosure
 
     /**
      * Set the desired queue for the job.
+     *
+     * @return $this
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
@@ -88,6 +92,8 @@ class QueuedClosure
      * Set the desired job "group".
      *
      * This feature is only supported by some queues, such as Amazon SQS.
+     *
+     * @return $this
      */
     public function onGroup(UnitEnum|string $group): static
     {
@@ -100,6 +106,8 @@ class QueuedClosure
      * Set the desired job deduplicator callback.
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     *
+     * @return $this
      */
     public function withDeduplicator(?callable $deduplicator): static
     {
@@ -112,6 +120,8 @@ class QueuedClosure
 
     /**
      * Set the desired delay in seconds for the job.
+     *
+     * @return $this
      */
     public function delay(DateTimeInterface|DateInterval|int|null $delay): static
     {
@@ -122,6 +132,8 @@ class QueuedClosure
 
     /**
      * Specify a callback that should be invoked if the queued listener job fails.
+     *
+     * @return $this
      */
     public function catch(Closure $closure): static
     {

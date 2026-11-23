@@ -228,7 +228,7 @@ if ($request->hasHeader('X-Header-Name')) {
 }
 ```
 
-For convenience, the `bearerToken` method may be used to retrieve a bearer token from the `Authorization` header. If no such header is present, `null` will be returned:
+For convenience, the `bearerToken` method may be used to retrieve a bearer token from the `Authorization` header. If the header contains no bearer scheme, the method returns `null`:
 
 ```php
 $token = $request->bearerToken();
@@ -415,6 +415,12 @@ Instead of retrieving the request's input data as a primitive `string`, you may 
 $name = $request->string('name')->trim();
 ```
 
+If the input is not a string, number, or `Stringable` instance, such as an array, you may pass `strict: true` to receive the default value instead:
+
+```php
+$name = $request->string('name', 'Guest', strict: true);
+```
+
 <a name="retrieving-integer-input-values"></a>
 #### Retrieving Integer Input Values
 
@@ -424,6 +430,12 @@ To retrieve input values as integers, you may use the `integer` method. This met
 $perPage = $request->integer('per_page');
 ```
 
+By default, the `integer` method casts whatever it receives, so a value like `"12abc"` becomes `12`. To reject values that are not valid integers, pass `strict: true`. Invalid values will then return the default value, which may be `null`. The default may also be a closure, which is only called when the default is needed:
+
+```php
+$perPage = $request->integer('per_page', default: null, strict: true);
+```
+
 <a name="retrieving-float-input-values"></a>
 #### Retrieving Float Input Values
 
@@ -431,6 +443,12 @@ Similarly, the `float` method retrieves an input value as a float. If the input 
 
 ```php
 $price = $request->float('price');
+```
+
+The `float` method also accepts `strict: true`, which returns the default value for anything that is not a valid number, such as `"1.5abc"` or `"1,000"`:
+
+```php
+$price = $request->float('price', default: null, strict: true);
 ```
 
 <a name="retrieving-clamped-input-values"></a>
@@ -445,10 +463,16 @@ $perPage = $request->clamp('per_page', min: 1, max: 100, default: 15);
 <a name="retrieving-boolean-input-values"></a>
 #### Retrieving Boolean Input Values
 
-When dealing with HTML elements like checkboxes, your application may receive "truthy" values that are actually strings. For example, "true" or "on". For convenience, you may use the `boolean` method to retrieve these values as booleans. The `boolean` method returns `true` for 1, "1", true, "true", "on", and "yes". All other values will return `false`:
+When dealing with HTML elements like checkboxes, your application may receive "truthy" values that are actually strings. For example, "true" or "on". For convenience, you may use the `boolean` method to retrieve these values as booleans. The `boolean` method returns `true` for 1, "1", true, "true", "on", and "yes", ignoring case and surrounding whitespace. All other values will return `false`:
 
 ```php
 $archived = $request->boolean('archived');
+```
+
+If you need to tell a false value apart from an invalid one, pass `strict: true`. Values such as 0, "0", false, "false", "off", and "no" will still return `false`, but unrecognized or empty input will return the default value instead:
+
+```php
+$archived = $request->boolean('archived', default: null, strict: true);
 ```
 
 <a name="retrieving-array-input-values"></a>
@@ -522,6 +546,19 @@ $delay = $request->interval('delay', Unit::Minute);
 ```
 
 If the input value is present but has an invalid format, an `InvalidArgumentException` will be thrown; therefore, it is recommended that you validate the input before invoking the `interval` method.
+
+<a name="retrieving-uuid-input-values"></a>
+#### Retrieving UUID and ULID Input Values
+
+Input values containing UUIDs or ULIDs may be retrieved using the `uuid` and `ulid` methods, which return `Symfony\Component\Uid\Uuid` and `Symfony\Component\Uid\Ulid` instances respectively. If the input is missing or empty, `null` will be returned:
+
+```php
+$orderId = $request->uuid('order_id');
+
+$eventId = $request->ulid('event_id');
+```
+
+UUID input must use the hyphenated format, in either letter case. If an input string is not a valid UUID or ULID, an `InvalidArgumentException` will be thrown; therefore, it is recommended that you validate the input before invoking these methods.
 
 <a name="retrieving-enum-input-values"></a>
 #### Retrieving Enum Input Values
@@ -789,6 +826,8 @@ $value = $request->cookie('name');
 ## Input Trimming and Normalization
 
 By default, Hypervel includes the `Hypervel\Foundation\Http\Middleware\TrimStrings` and `Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull` middleware in your application's global middleware stack. These middleware will automatically trim all incoming string fields on the request, as well as convert any empty string fields to `null`. This allows you to not have to worry about these normalization concerns in your routes and controllers.
+
+To prevent oversized nested field names from consuming excessive resources, these middleware reject requests with an HTTP 413 response when the combined size of the processed field paths exceeds 20 MiB. This limit counts full nested paths across the query string and request body.
 
 #### Disabling Input Normalization
 

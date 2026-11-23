@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\PasswordBrokerFactory as FactoryContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -196,11 +197,12 @@ class PasswordBrokerManager implements FactoryContract
     /**
      * Refresh the event dispatcher on resolved brokers.
      *
-     * Boot or tests only. Replaces the dispatcher on every resolved concrete
-     * broker for the worker lifetime; per-request use races across coroutines.
-     * Reached by Event::fake() / Event::fakeFor() so cached brokers follow the
-     * active dispatcher and its later restoration.
+     * Replaces the dispatcher on every resolved concrete broker for the worker
+     * lifetime; per-request use races across coroutines. Reached by
+     * Event::fake() / Event::fakeFor() so cached brokers follow the active
+     * dispatcher and its later restoration.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function refreshEventDispatcher(Dispatcher $events): void
     {
         foreach ($this->brokers as $broker) {

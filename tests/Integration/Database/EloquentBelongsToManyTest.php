@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
@@ -43,6 +44,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
             $table->increments('id');
             $table->string('name');
             $table->string('type')->nullable();
+            $table->integer('count')->default(0);
             $table->timestamps();
         });
 
@@ -295,6 +297,19 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($tag8->name, $post->tags[7]->name);
     }
 
+    public function testCloneKeepsTheRelationQuery(): void
+    {
+        $user = User::create(['name' => Str::random()]);
+        $other = User::create(['name' => Str::random()]);
+        $post = Post::create(['title' => Str::random()]);
+        $otherPost = Post::create(['title' => Str::random()]);
+
+        $other->posts()->attach($otherPost);
+        $user->posts()->attach($post);
+
+        $this->assertEquals([$post->id], $user->posts()->clone()->get()->modelKeys());
+    }
+
     public function testDetachMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
@@ -417,6 +432,26 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(2, $post->tags()->findMany(new Collection([$tag->id, $tag2->id])));
     }
 
+    public function testPaginateMethodWithTotal(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        Tag::create(['name' => Str::random()]);
+        Tag::create(['name' => Str::random()]);
+
+        $post->tags()->attach(Tag::all());
+
+        DB::enableQueryLog();
+
+        $paginator = $post->tags()->paginate(1, total: 10);
+
+        $this->assertSame(10, $paginator->total());
+        $this->assertCount(1, $paginator->items());
+        $this->assertCount(1, DB::getQueryLog());
+
+        $this->assertSame(5, $post->tags()->paginate(1, total: fn () => 5)->total());
+    }
+
     public function testFindMethodStringyKey(): void
     {
         Schema::create('post_string_key', function (Blueprint $table) {
@@ -452,7 +487,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
         $post->tags()->attach(TagStringPrimaryKey::all());
 
-        $this->assertEquals($tag2->name, $post->tags()->find($tag2->id)->name);
+        $this->assertSame($tag2->id, $post->tags()->find($tag2->id)->id);
         $this->assertCount(0, $post->tags()->findMany([]));
         $this->assertCount(2, $post->tags()->findMany([$tag->id, $tag2->id]));
         $this->assertCount(0, $post->tags()->findMany(new Collection));
@@ -474,12 +509,8 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         // Test with no records
         $post->tags()->detach($tag);
 
-        try {
-            $post->tags()->findSole($tag);
-            $this->fail('Expected RecordsNotFoundException was not thrown.');
-        } catch (RecordsNotFoundException) {
-            $this->assertTrue(true);
-        }
+        $this->expectException(RecordsNotFoundException::class);
+        $post->tags()->findSole($tag);
     }
 
     #[TestWith([false])]
@@ -661,6 +692,32 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame(['taylor', 'one', 'two'], $attached->pluck('pivot.flag')->all());
     }
 
+    public function testForceCreateMethod(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag = $post->belongsToMany(GuardedTag::class, 'posts_tags', 'post_id', 'tag_id')
+            ->forceCreate(['name' => 'wavez', 'type' => 'featured'], ['flag' => 'taylor']);
+
+        $this->assertSame('featured', $tag->type);
+        $this->assertTrue($tag->is($post->tags()->first()));
+        $this->assertSame('featured', $post->tags()->first()->type);
+        $this->assertSame('taylor', $post->tags()->first()->pivot->flag);
+    }
+
+    public function testForceCreateQuietlyMethod(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        GuardedTag::creating(fn () => false);
+
+        $tag = $post->belongsToMany(GuardedTag::class, 'posts_tags', 'post_id', 'tag_id')
+            ->forceCreateQuietly(['name' => 'wavez', 'type' => 'featured']);
+
+        $this->assertSame('featured', $tag->type);
+        $this->assertTrue($tag->is($post->tags()->first()));
+    }
+
     public function testFirstOrCreateMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
@@ -819,6 +876,36 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('wavez', $tag->fresh()->name);
         $this->assertSame('wavez', $postTag->name);
         $this->assertTrue($tag->is($post->tags()->first()));
+    }
+
+    public function testIncrementOrCreateMethod(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag1 = $post->tags()->incrementOrCreate(['name' => 'wavez']);
+        $tag2 = $post->tags()->incrementOrCreate(['name' => 'wavez']);
+
+        $this->assertTrue($tag1->is($tag2));
+        $this->assertTrue($tag1->wasRecentlyCreated);
+        $this->assertFalse($tag2->wasRecentlyCreated);
+        $this->assertEquals(2, $tag2->fresh()->count);
+        $this->assertTrue($tag1->is($post->tags()->first()));
+        $this->assertCount(1, $post->tags()->get());
+    }
+
+    public function testIncrementOrCreateMethodWithExtra(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag1 = $post->tags()->incrementOrCreate(['name' => 'wavez'], extra: ['type' => 'featured']);
+
+        $this->assertTrue($tag1->wasRecentlyCreated);
+        $this->assertSame('featured', $tag1->fresh()->type);
+
+        $tag2 = $post->tags()->incrementOrCreate(['name' => 'wavez'], extra: ['type' => 'pinned']);
+
+        $this->assertSame('pinned', $tag2->fresh()->type);
+        $this->assertEquals(2, $tag2->fresh()->count);
     }
 
     public function testUpdateOrCreateMethodCreate(): void
@@ -989,18 +1076,22 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
     public function testTouchingParent(): void
     {
+        CarbonImmutable::setTestNow('2017-10-10 08:10:10');
+
         $post = Post::create(['title' => Str::random()]);
 
         $tag = TouchingTag::create(['name' => Str::random()]);
 
+        CarbonImmutable::setTestNow('2017-10-10 09:10:10');
+
         $post->touchingTags()->attach([$tag->id]);
 
-        $this->assertNotSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
+        $this->assertSame('2017-10-10 09:10:10', $post->fresh()->updated_at->toDateTimeString());
 
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $tag->update(['name' => $tag->name]);
-        $this->assertNotSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
+        $this->assertSame('2017-10-10 09:10:10', $post->fresh()->updated_at->toDateTimeString());
 
         $tag->update(['name' => Str::random()]);
         $this->assertSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
@@ -1084,6 +1175,27 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', Tag::find(2)->updated_at?->toDateTimeString());
     }
 
+    public function testTouchPreservesRemovedRelatedScopes(): void
+    {
+        Schema::table('tags', fn (Blueprint $table) => $table->softDeletes());
+        $post = Post::create(['title' => Str::random()]);
+        $tag = TouchSoftDeletedTag::create(['name' => 'deleted']);
+        $other = TouchSoftDeletedTag::create(['name' => 'active']);
+        $relation = $post->belongsToMany(TouchSoftDeletedTag::class, 'posts_tags', 'post_id', 'tag_id');
+        $relation->attach([$tag->getKey(), $other->getKey()]);
+        $tag->delete();
+        TouchSoftDeletedTag::withTrashed()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        $relation->touch();
+
+        $this->assertSame('2000-01-01 00:00:00', $tag->fresh()->updated_at->format('Y-m-d H:i:s'));
+        $this->assertNotSame('2000-01-01 00:00:00', $other->fresh()->updated_at->format('Y-m-d H:i:s'));
+
+        $relation->withTrashed()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', $tag->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
     public function testCanTouchRelatedModelsUsingCustomRelatedKey(): void
     {
         $post = Post::create(['title' => Str::random()]);
@@ -1136,6 +1248,66 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
         $this->assertCount(1, $tags);
         $this->assertEquals($tag1->id, $tags->first()->id);
+    }
+
+    public function testWherePivotWithClosureQualifiesColumns(): void
+    {
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
+
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+        $post->tags()->attach($tag, ['flag' => 'foo']);
+
+        CarbonImmutable::setTestNow('2017-10-20 10:10:10');
+
+        $post->tags()->attach(Tag::create(['name' => Str::random()]), ['flag' => 'foo']);
+
+        $tags = $post->tags()->wherePivot(function (Builder $query): void {
+            $query->where('created_at', '<', '2017-10-15 00:00:00');
+        })->get();
+
+        $this->assertCount(1, $tags);
+        $this->assertEquals($tag->id, $tags->first()->id);
+
+        $post = Post::with(['tags' => function (BelongsToMany $query): void {
+            $query->wherePivot(fn (Builder $query) => $query->where('created_at', '<', '2017-10-15 00:00:00'));
+        }])->first();
+
+        $this->assertCount(1, $post->tags);
+        $this->assertEquals($tag->id, $post->tags->first()->id);
+    }
+
+    #[TestWith(['whereBetweenColumns'], 'between columns')]
+    #[TestWith(['whereRowValues'], 'row values')]
+    #[TestWith(['whereValueBetween'], 'value between columns')]
+    public function testWherePivotWithClosureQualifiesColumnLists(string $method): void
+    {
+        CarbonImmutable::setTestNow('2017-10-15 00:00:00');
+
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+        $otherTag = Tag::create(['name' => Str::random()]);
+
+        $post->tags()->attach($tag, [
+            'flag' => 'foo',
+            'created_at' => '2017-10-10 00:00:00',
+            'updated_at' => '2017-10-20 00:00:00',
+        ]);
+        $post->tags()->attach($otherTag, [
+            'flag' => 'foo',
+            'created_at' => '2017-10-20 00:00:00',
+            'updated_at' => '2017-10-20 00:00:00',
+        ]);
+
+        $tags = $post->tags()->wherePivot(function (Builder $query) use ($method): void {
+            match ($method) {
+                'whereBetweenColumns' => $query->whereBetweenColumns('tags.created_at', ['created_at', 'updated_at']),
+                'whereRowValues' => $query->whereRowValues(['created_at', 'updated_at'], '=', ['2017-10-10 00:00:00', '2017-10-20 00:00:00']),
+                'whereValueBetween' => $query->whereValueBetween('2017-10-15 00:00:00', ['created_at', 'updated_at']),
+            };
+        })->get();
+
+        $this->assertSame([$tag->id], $tags->modelKeys());
     }
 
     public function testOrWherePivotWithClosure(): void
@@ -2012,13 +2184,22 @@ class Post extends Model
     }
 }
 
+class GuardedTag extends Model
+{
+    public ?string $table = 'tags';
+
+    public bool $timestamps = true;
+
+    protected array $fillable = ['name'];
+}
+
 class Tag extends Model
 {
     protected ?string $table = 'tags';
 
     public bool $timestamps = true;
 
-    protected array $fillable = ['name', 'type'];
+    protected array $fillable = ['name', 'type', 'count'];
 
     public function posts()
     {
@@ -2034,6 +2215,11 @@ class Tag extends Model
             ->using(ChaperonePostTagPivot::class)
             ->chaperone();
     }
+}
+
+class TouchSoftDeletedTag extends Tag
+{
+    use SoftDeletes;
 }
 
 class UniqueTag extends Model

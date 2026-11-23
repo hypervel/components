@@ -10,6 +10,7 @@ use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
 
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class ClosureValidationRule implements RuleContract, ValidatorAwareRule
 {
     use CreatesPotentiallyTranslatedStrings;
@@ -35,7 +36,7 @@ class ClosureValidationRule implements RuleContract, ValidatorAwareRule
      * @param Closure $callback the callback that validates the attribute
      */
     public function __construct(
-        protected Closure $callback
+        public Closure $callback
     ) {
     }
 
@@ -45,6 +46,8 @@ class ClosureValidationRule implements RuleContract, ValidatorAwareRule
     public function passes(string $attribute, mixed $value): bool
     {
         $this->failed = false;
+        // The same rule may validate new input on a later run.
+        $this->messages = [];
 
         $this->callback->__invoke($attribute, $value, function ($attribute, $message = null) {
             $this->failed = true;
@@ -65,6 +68,8 @@ class ClosureValidationRule implements RuleContract, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {

@@ -30,7 +30,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder;
@@ -39,7 +39,9 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Auth as AuthFacade;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionProperty;
@@ -48,6 +50,8 @@ use function Hypervel\Coroutine\parallel;
 
 class AuthManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testGetDefaultDriverFromConfig(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
@@ -101,7 +105,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.api', ['driver' => 'custom']);
 
-        $guard = m::mock(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $manager->extend('custom', function () use ($guard) {
             return $guard;
         });
@@ -140,7 +144,7 @@ class AuthManagerTest extends TestCase
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
-        $guard = m::mock(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
 
         $manager->extend('bar', function () use ($guard) {
             return $guard;
@@ -159,7 +163,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $guard = m::mock(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $test = $this;
         $manager->extend('bar', function ($app, string $name) use ($guard, $test): Guard {
             $test->assertSame('0', $name);
@@ -178,7 +182,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $guard = m::mock(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $manager->extend('bar', fn () => $guard);
 
         $this->assertSame($guard, $manager->guard(''));
@@ -195,7 +199,7 @@ class AuthManagerTest extends TestCase
         $manager->extend('bar', function () use (&$boundTo) {
             $boundTo = $this;
 
-            return m::mock(Guard::class);
+            return Double::for(Guard::class)->strict();
         });
 
         $manager->guard('foo');
@@ -368,23 +372,22 @@ class AuthManagerTest extends TestCase
                 'table' => 'users',
             ]);
 
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
-        $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
+        $query = Double::for(Builder::class)->strict();
+        $query->expects('find')->with(1)->returns(null);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('table')->with('users')->returns($query);
         $resolutions = 0;
-        $database = m::mock(ConnectionResolverInterface::class);
-        $database->shouldReceive('connection')
+        $database = Double::for(ConnectionResolverInterface::class)->strict();
+        $database->expects('connection')
             ->with('foo')
-            ->once()
-            ->andReturnUsing(function () use (&$resolutions, $connection) {
+            ->resolves(function () use (&$resolutions, $connection) {
                 ++$resolutions;
 
                 return $connection;
             });
 
         $container->instance('db', $database);
-        $container->instance('hash', m::mock(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
         $provider = $manager->createUserProvider('foo');
 
@@ -400,15 +403,14 @@ class AuthManagerTest extends TestCase
             'driver' => 'database',
             'table' => 'users',
         ]);
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
-        $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
-        $database = m::mock(ConnectionResolverInterface::class);
-        $database->shouldReceive('connection')
-            ->once()
+        $query = Double::for(Builder::class)->strict();
+        $query->expects('find')->with(1)->returns(null);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('table')->with('users')->returns($query);
+        $database = Double::for(ConnectionResolverInterface::class)->strict();
+        $database->expects('connection')
             ->with(null)
-            ->andReturn($connection);
+            ->returns($connection);
         $this->app->instance('db', $database);
 
         $provider = (new AuthManager($this->app))->createUserProvider('database');
@@ -422,8 +424,8 @@ class AuthManagerTest extends TestCase
         $this->app->make('config')->set('auth.providers.incomplete', [
             'driver' => 'database',
         ]);
-        $database = m::mock(ConnectionResolverInterface::class);
-        $database->shouldNotReceive('connection');
+        $database = Double::for(ConnectionResolverInterface::class)->strict();
+        $database->expects('connection')->never();
         $this->app->instance('db', $database);
 
         $this->expectException(ErrorException::class);
@@ -441,7 +443,7 @@ class AuthManagerTest extends TestCase
                 'driver' => 'bar',
             ]);
 
-        $provider = m::mock(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
         $manager->provider('bar', fn () => $provider);
 
         $this->assertSame($provider, $manager->createUserProvider('foo'));
@@ -502,14 +504,13 @@ class AuthManagerTest extends TestCase
                 'enabled' => true,
             ],
         ]);
-        $repository = m::mock(CacheRepository::class);
-        $cache = m::mock(CacheManager::class);
-        $cache->shouldReceive('store')->once()->with(null)->andReturn($repository);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $cache = Double::for(CacheManager::class)->strict();
+        $cache->expects('store')->with(null)->returns($repository);
         $this->app->instance('cache', $cache);
-        $validator = m::mock(ModelCacheStoreValidator::class);
-        $validator->shouldReceive('validate')
-            ->once()
-            ->with($repository, 'Auth user cache for model [' . AuthManagerCacheUserStub::class . ']');
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
+        $validator->expects('validate')
+            ->with(Argument::same($repository), 'Auth user cache for model [' . AuthManagerCacheUserStub::class . ']');
         $this->app->instance(ModelCacheStoreValidator::class, $validator);
 
         $provider = (new AuthManager($this->app))->createUserProvider('cached');
@@ -545,10 +546,10 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', m::mock(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldNotReceive('store');
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->expects('store')->never();
         $container->instance('cache', $cacheManager);
 
         $this->expectException(InvalidArgumentException::class);
@@ -597,10 +598,10 @@ class AuthManagerTest extends TestCase
                 'provider' => 'foo',
             ]);
 
-        $provider = m::mock(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
         $manager->provider('foo', fn () => $provider);
 
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($provider, $user) {
             $this->assertSame($provider, $requestProvider);
 
@@ -622,7 +623,7 @@ class AuthManagerTest extends TestCase
                 'driver' => 'custom',
             ]);
 
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($user) {
             $this->assertNull($requestProvider);
 
@@ -638,11 +639,11 @@ class AuthManagerTest extends TestCase
     {
         $manager = new AuthManager($this->getContainer());
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')->andReturnFalse();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->allows('check')->returns(false);
 
-        $factory = m::mock(AuthFactory::class);
-        $factory->shouldReceive('guard')->with(null)->andReturn($guard);
+        $factory = Double::for(AuthFactory::class)->strict();
+        $factory->allows('guard')->with(null)->returns($guard);
 
         $manager->redirectGuestsTo('/login');
 
@@ -714,11 +715,11 @@ class AuthManagerTest extends TestCase
             ? '/admin'
             : '/dashboard');
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')->andReturnTrue();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->allows('check')->returns(true);
 
-        $factory = m::mock(AuthFactory::class);
-        $factory->shouldReceive('guard')->andReturn($guard);
+        $factory = Double::for(AuthFactory::class)->strict();
+        $factory->allows('guard')->returns($guard);
         AuthFacade::swap($factory);
 
         $response = (new RedirectIfAuthenticated)->handle(
@@ -737,11 +738,11 @@ class AuthManagerTest extends TestCase
 
         $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')->andReturnTrue();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->allows('check')->returns(true);
 
-        $factory = m::mock(AuthFactory::class);
-        $factory->shouldReceive('guard')->andReturn($guard);
+        $factory = Double::for(AuthFactory::class)->strict();
+        $factory->allows('guard')->returns($guard);
         AuthFacade::swap($factory);
 
         $response = (new RedirectIfAuthenticated)->handle(Request::create('/login'), fn () => null);
@@ -771,11 +772,11 @@ class AuthManagerTest extends TestCase
         $manager->redirectUsersTo('/first-dashboard');
         $manager->redirectUsersTo('/second-dashboard');
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')->andReturnTrue();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->allows('check')->returns(true);
 
-        $factory = m::mock(AuthFactory::class);
-        $factory->shouldReceive('guard')->andReturn($guard);
+        $factory = Double::for(AuthFactory::class)->strict();
+        $factory->allows('guard')->returns($guard);
         AuthFacade::swap($factory);
 
         $response = (new RedirectIfAuthenticated)->handle(Request::create('/login'), fn () => null);
@@ -789,7 +790,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => m::mock(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
 
         $guard1 = $manager->guard('foo');
         $guard2 = $manager->guard('foo');
@@ -810,7 +811,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => m::mock(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
         $manager->guard('foo');
 
         $this->assertTrue($manager->hasResolvedGuards());
@@ -822,7 +823,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => m::mock(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
         $manager->guard('foo');
 
         $this->assertTrue($manager->hasResolvedGuards());
@@ -841,7 +842,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.baz', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => m::mock(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
         $manager->guard('foo');
         $manager->guard('baz');
 
@@ -892,8 +893,8 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')->once()->andReturn(true);
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('check')->returns(true);
 
         $manager->extend('bar', fn () => $guard);
 
@@ -908,12 +909,12 @@ class AuthManagerTest extends TestCase
             ],
         ]));
 
-        $guard = m::mock(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $manager->extend('custom', fn () => $guard);
 
         $manager->clearUserCache(42, 'api');
 
-        $this->addToAssertionCount(1);
+        $guard->unused();
     }
 
     public function testClearUserCacheUsesSpecifiedGuardProvider(): void
@@ -941,15 +942,14 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', m::mock(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = m::mock(CacheManager::class);
-        $adminRepo = m::mock(CacheRepository::class);
-        $coordinator = m::mock(ModelCacheCoordinator::class);
-        $coordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($adminRepo, 'admin_users:' . AuthManagerCacheAdminStub::class . ':42');
-        $cacheManager->shouldReceive('store')->with('admin-store')->andReturn($adminRepo);
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $adminRepo = Double::for(CacheRepository::class)->strict();
+        $coordinator = Double::for(ModelCacheCoordinator::class)->strict();
+        $coordinator->expects('invalidate')
+            ->with(Argument::same($adminRepo), 'admin_users:' . AuthManagerCacheAdminStub::class . ':42');
+        $cacheManager->allows('store')->with('admin-store')->returns($adminRepo);
         $container->instance('cache', $cacheManager);
         $container->instance(ModelCacheCoordinator::class, $coordinator);
 
@@ -963,10 +963,10 @@ class AuthManagerTest extends TestCase
                 'admin' => ['driver' => 'custom'],
             ],
         ]));
-        $provider = m::mock(EloquentUserProvider::class);
-        $provider->shouldReceive('clearUserCache')->once()->with(42);
-        $guard = m::mock(TokenGuard::class);
-        $guard->shouldReceive('getProvider')->once()->andReturn($provider);
+        $provider = Double::for(EloquentUserProvider::class)->strict();
+        $provider->expects('clearUserCache')->with(42);
+        $guard = Double::for(TokenGuard::class)->strict();
+        $guard->expects('getProvider')->returns($provider);
         $manager->extend('custom', fn () => $guard);
 
         $manager->clearUserCache(42, AuthManagerGuardEnum::Admin);
@@ -991,15 +991,14 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', m::mock(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = m::mock(CacheManager::class);
-        $repo = m::mock(CacheRepository::class);
-        $coordinator = m::mock(ModelCacheCoordinator::class);
-        $coordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthManagerCacheUserStub::class . ':tenant:42');
-        $cacheManager->shouldReceive('store')->with('web-store')->andReturn($repo);
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $repo = Double::for(CacheRepository::class)->strict();
+        $coordinator = Double::for(ModelCacheCoordinator::class)->strict();
+        $coordinator->expects('invalidate')
+            ->with(Argument::same($repo), EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthManagerCacheUserStub::class . ':tenant:42');
+        $cacheManager->allows('store')->with('web-store')->returns($repo);
         $container->instance('cache', $cacheManager);
         $container->instance(ModelCacheCoordinator::class, $coordinator);
 
@@ -1029,14 +1028,14 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', m::mock(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = m::mock(CacheManager::class);
-        $firstRepo = m::mock(CacheRepository::class);
-        $firstRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
-        $secondRepo = m::mock(CacheRepository::class);
-        $secondRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
-        $cacheManager->shouldReceive('store')->with('redis')->andReturn($firstRepo, $secondRepo);
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $firstRepo = Double::for(CacheRepository::class)->strict();
+        $firstRepo->allows('getStore')->returns(Double::for(RedisStore::class)->strict());
+        $secondRepo = Double::for(CacheRepository::class)->strict();
+        $secondRepo->allows('getStore')->returns(Double::for(RedisStore::class)->strict());
+        $cacheManager->allows('store')->with('redis')->returns($firstRepo, $secondRepo);
         $container->instance('cache', $cacheManager);
         $container->instance(ModelCacheCoordinator::class, new ModelCacheCoordinator($container));
 
@@ -1064,7 +1063,7 @@ class AuthManagerTest extends TestCase
         $container->instance('config', new Repository([
             'auth' => $authConfig,
         ]));
-        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->allows('validate');
         $container->instance(ModelCacheStoreValidator::class, $validator);
 

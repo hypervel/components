@@ -8,11 +8,14 @@ use Closure;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Support\Composer;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class AboutCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * @param Closure(bool):mixed $format
      */
@@ -45,7 +48,7 @@ class AboutCommandTest extends TestCase
 
     public function testItReportsNoPhpFilesWhenGlobCannotEnumerateThePath(): void
     {
-        $command = new TestableAboutCommand(m::mock(Composer::class));
+        $command = new TestableAboutCommand(Double::for(Composer::class)->strict());
 
         $this->assertFalse($command->hasPhpFiles(str_repeat('a', PHP_MAXPATHLEN + 1)));
     }

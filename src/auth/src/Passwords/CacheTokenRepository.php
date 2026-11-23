@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Passwords;
 
-use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;

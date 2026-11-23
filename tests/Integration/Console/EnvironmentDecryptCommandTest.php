@@ -10,12 +10,15 @@ use Hypervel\Support\Facades\File;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Integration\Console\Fixtures\ArrayFilesystem;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class EnvironmentDecryptCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected ArrayFilesystem $filesystem;
 
     /**
@@ -55,16 +58,16 @@ class EnvironmentDecryptCommandTest extends TestCase
     public function testItPreservesCancellationWhileReadingTheEncryptedEnvironment(): void
     {
         $cancellation = new CanceledException('canceled');
-        $filesystem = m::mock(Filesystem::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
         $filesystem->expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->andReturn(true);
+            ->returns(true);
         $filesystem->expects('exists')
             ->with(base_path('.env'))
-            ->andReturn(false);
+            ->returns(false);
         $filesystem->expects('get')
             ->with(base_path('.env.encrypted'))
-            ->andThrow($cancellation);
+            ->throws($cancellation);
         File::swap($filesystem);
 
         try {
@@ -428,10 +431,10 @@ class EnvironmentDecryptCommandTest extends TestCase
         $files->put($outputFile, $previousContents);
         chmod($outputFile, 0640);
 
-        $filesystem = m::mock(Filesystem::class)->makePartial();
+        $filesystem = Double::for(new Filesystem)->passthru();
         $filesystem->expects('replace')
             ->with($outputFile, 'APP_NAME=Hypervel', 0640)
-            ->andThrow(new RuntimeException('publication failed'));
+            ->throws(new RuntimeException('publication failed'));
         File::swap($filesystem);
 
         try {

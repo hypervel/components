@@ -25,14 +25,17 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Coroutine\parallel;
 
 class AgentProviderSelectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure a provider whose requests are handled by the test.
      */
@@ -59,8 +62,8 @@ class AgentProviderSelectionTest extends TestCase
     {
         $first = Ai::build(['driver' => 'test', 'name' => 'account', 'key' => 'first-key']);
         $second = Ai::build(['driver' => 'test', 'name' => 'account', 'key' => 'second-key']);
-        $first->shouldReceive('prompt')->once()->andThrow(RateLimitedException::forProvider('account'));
-        $second->shouldReceive('prompt')->once()->andReturnUsing(fn (AgentPrompt $prompt): AgentResponse => new AgentResponse(
+        $first->expects('prompt')->throws(RateLimitedException::forProvider('account'));
+        $second->expects('prompt')->resolves(fn (AgentPrompt $prompt): AgentResponse => new AgentResponse(
             $prompt->invocationId,
             $prompt->provider->providerCredentials()['key'],
             new TextUsage,
@@ -76,12 +79,12 @@ class AgentProviderSelectionTest extends TestCase
     {
         $first = Ai::build(['driver' => 'test', 'name' => 'first', 'key' => 'first-key']);
         $fallback = Ai::build(['driver' => 'test', 'name' => 'account', 'key' => 'original-key']);
-        $first->shouldReceive('prompt')->once()->andReturnUsing(function (): never {
+        $first->expects('prompt')->resolves(function (): never {
             Ai::build(['driver' => 'test', 'name' => 'account', 'key' => 'replacement-key']);
 
             throw RateLimitedException::forProvider('first');
         });
-        $fallback->shouldReceive('prompt')->once()->andReturnUsing(fn (AgentPrompt $prompt): AgentResponse => new AgentResponse(
+        $fallback->expects('prompt')->resolves(fn (AgentPrompt $prompt): AgentResponse => new AgentResponse(
             $prompt->invocationId,
             $prompt->provider->providerCredentials()['key'],
             new TextUsage,
@@ -96,7 +99,7 @@ class AgentProviderSelectionTest extends TestCase
     public function testProviderObjectsWorkInAChildWithoutTheirNameRegistry(): void
     {
         $provider = Ai::build(['driver' => 'test', 'name' => 'account', 'key' => 'account-key']);
-        $provider->shouldReceive('prompt')->once()->andReturnUsing(fn (AgentPrompt $prompt): AgentResponse => new AgentResponse(
+        $provider->expects('prompt')->resolves(fn (AgentPrompt $prompt): AgentResponse => new AgentResponse(
             $prompt->invocationId,
             $prompt->provider->providerCredentials()['key'],
             new TextUsage,
@@ -138,7 +141,7 @@ class AgentProviderSelectionTest extends TestCase
             $provider = $factory($config);
 
             if ($config['name'] === 'configured') {
-                $provider->shouldReceive('stream')->once()->andThrow(RateLimitedException::forProvider('configured'));
+                $provider->expects('stream')->throws(RateLimitedException::forProvider('configured'));
             }
 
             return $provider;
@@ -146,7 +149,7 @@ class AgentProviderSelectionTest extends TestCase
 
         CoroutineContext::set('ai-test.account', 'producer');
         $fallback = Ai::build(['driver' => 'test', 'name' => 'account', 'key' => 'original-key']);
-        $fallback->shouldReceive('stream')->once()->andReturnUsing(function (AgentPrompt $prompt): StreamableAgentResponse {
+        $fallback->expects('stream')->resolves(function (AgentPrompt $prompt): StreamableAgentResponse {
             $this->assertNotNull($prompt->contextRunner());
 
             return new StreamableAgentResponse($prompt->invocationId, function () use ($prompt): Generator {
@@ -189,13 +192,14 @@ class AgentProviderSelectionTest extends TestCase
     public function testProtectedPairOverrideRetainsRepeatedAttempts(): void
     {
         $provider = Ai::textProvider('configured');
-        $provider->shouldReceive('prompt')->once()->ordered()->andThrow(RateLimitedException::forProvider('configured'));
-        $provider->shouldReceive('prompt')->once()->ordered()->andReturnUsing(fn (AgentPrompt $prompt): AgentResponse => new AgentResponse(
-            $prompt->invocationId,
-            $prompt->model,
-            new TextUsage,
-            new Meta,
-        ));
+        $attempts = 0;
+        $provider->expects('prompt')->times(2)->resolves(static function (AgentPrompt $prompt) use (&$attempts): AgentResponse {
+            if (++$attempts === 1) {
+                throw RateLimitedException::forProvider('configured');
+            }
+
+            return new AgentResponse($prompt->invocationId, $prompt->model, new TextUsage, new Meta);
+        });
         $agent = new class extends ProviderSelectionAgent {
             /**
              * Return explicit attempts from the protected extension point.
@@ -212,12 +216,12 @@ class AgentProviderSelectionTest extends TestCase
     #[DataProvider('generationMethods')]
     public function testContractOnlyProvidersCanFailOverAndDispatchTheirIdentity(string $method): void
     {
-        $primary = m::mock(TextProvider::class);
-        $primary->shouldReceive($method)->once()->andThrow(RateLimitedException::forProvider('contract'));
+        $primary = Double::for(TextProvider::class)->strict();
+        $primary->expects($method)->throws(RateLimitedException::forProvider('contract'));
         Ai::extend('contract', static fn (): TextProvider => $primary);
 
         $fallback = Ai::textProvider('configured');
-        $fallback->shouldReceive($method)->once()->andReturnUsing(static function (AgentPrompt $prompt) use ($method): AgentResponse|StreamableAgentResponse {
+        $fallback->expects($method)->resolves(static function (AgentPrompt $prompt) use ($method): AgentResponse|StreamableAgentResponse {
             return $method === 'prompt'
                 ? new AgentResponse($prompt->invocationId, 'fallback', new TextUsage, new Meta)
                 : new StreamableAgentResponse($prompt->invocationId, static function (): Generator {
@@ -253,12 +257,11 @@ class AgentProviderSelectionTest extends TestCase
     /**
      * Create a provider with real identity and mocked generation methods.
      */
-    protected function provider(array $config): Provider&MockInterface
+    protected function provider(array $config): Provider&DoubleInterface
     {
-        $provider = m::mock(Provider::class, TextProvider::class, [
-            m::mock(Gateway::class), $config, $this->app->make(Dispatcher::class),
-        ])->makePartial();
-        $provider->shouldReceive('defaultTextModel')->andReturn('test-model');
+        $provider = Double::for(ProviderSelectionTextProvider::class)->passthru();
+        $provider->__construct(Double::for(Gateway::class)->strict(), $config, $this->app->make(Dispatcher::class));
+        $provider->allows('defaultTextModel')->returns('test-model');
 
         return $provider;
     }
@@ -275,4 +278,8 @@ class ProviderSelectionAgent implements Agent
     {
         return 'Use the selected provider.';
     }
+}
+
+abstract class ProviderSelectionTextProvider extends Provider implements TextProvider
+{
 }

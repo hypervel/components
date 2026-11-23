@@ -33,6 +33,11 @@ class ClassMetadataCache
     protected static array $properties = [];
 
     /**
+     * @var array<class-string, list<ReflectionProperty>>
+     */
+    protected static array $allProperties = [];
+
+    /**
      * @var array<class-string, array<class-string, true>>
      */
     protected static array $traits = [];
@@ -112,6 +117,36 @@ class ClassMetadataCache
 
         return static::$properties[$class]
             ??= static::reflectClass($class)->getProperties();
+    }
+
+    /**
+     * Get the cached properties for the given class, followed by the private properties its parents declare.
+     *
+     * Reflection omits a parent's private properties from the class's properties, though every
+     * instance of the class holds them.
+     *
+     * @param class-string|object $target
+     * @return list<ReflectionProperty>
+     *
+     * @throws ReflectionException
+     */
+    public static function allProperties(object|string $target): array
+    {
+        $class = static::className($target);
+
+        if (isset(static::$allProperties[$class])) {
+            return static::$allProperties[$class];
+        }
+
+        $properties = static::properties($class);
+
+        for ($parent = static::reflectClass($class)->getParentClass(); $parent !== false; $parent = $parent->getParentClass()) {
+            foreach ($parent->getProperties(ReflectionProperty::IS_PRIVATE) as $property) {
+                $properties[] = $property;
+            }
+        }
+
+        return static::$allProperties[$class] = $properties;
     }
 
     /**
@@ -285,6 +320,7 @@ class ClassMetadataCache
         static::$methods = [];
         static::$defaultProperties = [];
         static::$properties = [];
+        static::$allProperties = [];
         static::$traits = [];
         static::$attributes = [];
         static::$classAttributePresence = [];

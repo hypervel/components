@@ -18,7 +18,9 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -30,6 +32,8 @@ use function Hypervel\Coroutine\wait;
 
 class WaiterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -168,7 +172,7 @@ class WaiterTest extends TestCase
     #[DataProvider('copyContexts')]
     public function testParentCancellationDuringStartupReportingCancelsThePublishedChild(bool $copyContext): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $waiter = new Waiter;
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -179,10 +183,9 @@ class WaiterTest extends TestCase
         $childCoroutineId = null;
         $childBodyRan = false;
 
-        $handler->shouldReceive('report')
-            ->once()
-            ->with($hookFailure)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+        $handler->expects('report')
+            ->with(Argument::same($hookFailure))
+            ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);
                 $releaseReport->pop();
@@ -578,6 +581,39 @@ class WaiterTest extends TestCase
                 EngineCoroutine::cancelById($childCoroutineId, throwException: true);
                 Coroutine::join([$childCoroutineId]);
             }
+        }
+    }
+
+    public function testTimeoutCancellationTerminatesPartiallySentStreamWrites(): void
+    {
+        $childCoroutineId = null;
+        [$reader, $writer] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $waiter = new class extends Waiter {
+            protected float $pushTimeout = 0.001;
+        };
+
+        try {
+            $waiter->wait(function () use (&$childCoroutineId, $writer): void {
+                $childCoroutineId = Coroutine::id();
+                // Nothing reads the other end, so the write fills the socket buffer and waits.
+                @fwrite($writer, str_repeat('x', 8 * 1024 * 1024));
+            }, 0.05);
+            $this->fail('The waiter should time out.');
+        } catch (WaitTimeoutException) {
+        }
+
+        try {
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        } finally {
+            // Closing the reader fails a write that ignored the cancellation.
+            fclose($reader);
+
+            if (is_int($childCoroutineId)) {
+                Coroutine::join([$childCoroutineId]);
+            }
+
+            fclose($writer);
         }
     }
 

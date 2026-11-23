@@ -6,6 +6,7 @@ namespace Hypervel\Session;
 
 use BadMethodCallException;
 use Hypervel\Contracts\Session\Session;
+use Hypervel\Support\Attributes\Unsupported;
 use Symfony\Component\HttpFoundation\Session\SessionBagInterface;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpFoundation\Session\Storage\MetadataBag;
@@ -43,8 +44,9 @@ class SymfonySessionDecorator implements SessionInterface
     /**
      * Set the session name.
      *
-     * Boot-only. Delegates to the shared session store name; per-request use
-     * races across coroutines and changes the cookie name for concurrent requests.
+     * This changes the wrapped store's name. That store is usually the
+     * worker-shared session store, where per-request use races across
+     * coroutines and changes the cookie name for concurrent requests.
      */
     public function setName(string $name): void
     {
@@ -113,6 +115,7 @@ class SymfonySessionDecorator implements SessionInterface
     /**
      * @throws BadMethodCallException
      */
+    #[Unsupported]
     public function registerBag(SessionBagInterface $bag): void
     {
         throw new BadMethodCallException('Method not implemented by Hypervel.');
@@ -121,6 +124,7 @@ class SymfonySessionDecorator implements SessionInterface
     /**
      * @throws BadMethodCallException
      */
+    #[Unsupported]
     public function getBag(string $name): SessionBagInterface
     {
         throw new BadMethodCallException('Method not implemented by Hypervel.');
@@ -129,6 +133,7 @@ class SymfonySessionDecorator implements SessionInterface
     /**
      * @throws BadMethodCallException
      */
+    #[Unsupported]
     public function getMetadataBag(): MetadataBag
     {
         throw new BadMethodCallException('Method not implemented by Hypervel.');

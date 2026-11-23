@@ -7,19 +7,27 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Progress;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use WeakReference;
 
 use function Hypervel\Prompts\progress;
 
 class ProgressTest extends TestCase
 {
+    /**
+     * A step duration longer than the redraw interval, so every step is drawn.
+     */
+    private const int STEP_MICROSECONDS = 41_000;
+
     public function testMaterializesGeneratorOnceAndPreservesValueOrder(): void
     {
         Prompt::fake();
@@ -84,6 +92,40 @@ class ProgressTest extends TestCase
         $this->assertSame(1, substr_count(Prompt::content(), 'Adding States'));
         $this->assertStringContainsString('2 / 2', Prompt::content());
         $this->assertStringNotContainsString("\e", Prompt::content());
+    }
+
+    public function testDecoratedProgressOutsideATerminalEmitsOnlyOneFrame(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+        $progress = new Progress('Adding States', 2);
+
+        $progress->start();
+        $progress->advance();
+        $progress->advance();
+        $this->assertStringNotContainsString('Adding States', Prompt::content());
+
+        $progress->finish();
+
+        $this->assertSame(1, substr_count(Prompt::content(), 'Adding States'));
+        $this->assertStringContainsString('2 / 2', Prompt::strippedContent());
+        $this->assertSame(Utils::sanitizeTerminalFormatting(Prompt::content()), Prompt::content());
+    }
+
+    public function testFastAdvancesSkipIntermediateRedrawsButDrawTheFinalStep(): void
+    {
+        Prompt::fake();
+        $progress = new Progress('Working', 100);
+
+        $progress->start();
+
+        for ($i = 0; $i < 100; ++$i) {
+            $progress->advance();
+        }
+
+        $this->assertSame(100, $progress->progress);
+        $this->assertLessThan(100, substr_count(Prompt::strippedContent(), ' / 100'));
+        $this->assertStringContainsString('100 / 100', Prompt::strippedContent());
     }
 
     public function testAbandonedUndecoratedProgressEmitsNothing(): void
@@ -158,7 +200,9 @@ class ProgressTest extends TestCase
     }
 
     #[RunInSeparateProcess]
-    public function testStartFailureRestoresExactSignalAndTerminalState(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStartFailureRestoresExactSignalAndTerminalState(bool $canceled): void
     {
         Prompt::fake();
         $originalHandler = pcntl_signal_get_handler(SIGINT);
@@ -166,6 +210,11 @@ class ProgressTest extends TestCase
         $previousHandler = static function (): void {
         };
         $failure = new RuntimeException('unable to render progress');
+        $expected = $failure;
+        if ($canceled) {
+            $expected = new CanceledException;
+            Prompt::terminal()->shouldReceive('restoreTty')->once()->andThrow($expected);
+        }
         $output = new class($failure) extends BufferedConsoleOutput {
             /** @var list<string> */
             public array $directWrites = [];
@@ -197,8 +246,8 @@ class ProgressTest extends TestCase
                 $progress->start();
 
                 $this->fail('Expected the initial progress render to fail.');
-            } catch (RuntimeException $exception) {
-                $this->assertSame($failure, $exception);
+            } catch (CanceledException|RuntimeException $exception) {
+                $this->assertSame($expected, $exception);
             }
 
             $this->assertSame(["\e[?25l", "\e[?25h"], $output->directWrites);
@@ -260,12 +309,14 @@ class ProgressTest extends TestCase
         );
     }
 
-    public function testCallbackFailureRemainsPrimaryWhenRenderingAndTerminalCleanupFail(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCallbackFailureRemainsPrimaryUnlessCleanupIsCanceled(bool $canceled): void
     {
         Prompt::fake();
         $callbackFailure = new RuntimeException('progress callback failed');
         $renderFailure = new RuntimeException('unable to render progress error');
-        $cleanupFailure = new RuntimeException('unable to restore terminal');
+        $cleanupFailure = $canceled ? new CanceledException : new RuntimeException('unable to restore terminal');
         $output = new class($renderFailure) extends BufferedConsoleOutput {
             public bool $failFrames = false;
 
@@ -306,8 +357,8 @@ class ProgressTest extends TestCase
             });
 
             $this->fail('Expected the progress callback to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($callbackFailure, $exception);
+        } catch (CanceledException|RuntimeException $exception) {
+            $this->assertSame($canceled ? $cleanupFailure : $callbackFailure, $exception);
         }
 
         $this->assertSame("\e[?25l", $output->directWrites[0]);
@@ -325,7 +376,7 @@ class ProgressTest extends TestCase
         progress(
             label: 'Adding States',
             steps: $steps,
-            callback: fn () => null,
+            callback: fn () => usleep(self::STEP_MICROSECONDS),
         );
 
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
@@ -416,6 +467,7 @@ class ProgressTest extends TestCase
             label: 'Adding States',
             steps: $states,
             callback: function ($item, $progress) {
+                usleep(self::STEP_MICROSECONDS);
                 $progress->label(strtoupper($item));
                 $progress->hint(strtolower($item));
             }
@@ -480,6 +532,7 @@ class ProgressTest extends TestCase
         $progress->start();
 
         foreach ($states as $state) {
+            usleep(self::STEP_MICROSECONDS);
             $progress
                 ->label(strtoupper($state))
                 ->hint(strtolower($state))

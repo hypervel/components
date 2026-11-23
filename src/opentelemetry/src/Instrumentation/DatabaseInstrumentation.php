@@ -22,7 +22,6 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\DbIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
 use Throwable;
 
@@ -41,6 +40,10 @@ class DatabaseInstrumentation extends AbstractInstrumentation
     ];
 
     protected const string CONNECTION_ROLE_ATTRIBUTE = 'hypervel.db.connection.role';
+
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string DB_SYSTEM_NAME_SQLITE = 'sqlite';
 
     protected ?TracerInterface $tracer = null;
 
@@ -70,7 +73,7 @@ class DatabaseInstrumentation extends AbstractInstrumentation
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.database');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.database', schemaUrl: $this->schemaUrl());
             $this->queryText = $this->options->enabled('query_text');
             /** @var null|int $queryTextMaxLength */
             $queryTextMaxLength = $this->options->get('query_text_max_length');
@@ -79,7 +82,7 @@ class DatabaseInstrumentation extends AbstractInstrumentation
 
         if ($this->metricEnabled(DbMetrics::DB_CLIENT_OPERATION_DURATION)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.database')
+                ->getMeter('hypervel.database', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     DbMetrics::DB_CLIENT_OPERATION_DURATION,
                     's',
@@ -258,7 +261,7 @@ class DatabaseInstrumentation extends AbstractInstrumentation
             'mysql' => DbAttributes::DB_SYSTEM_NAME_VALUE_MYSQL,
             'mariadb' => DbAttributes::DB_SYSTEM_NAME_VALUE_MARIADB,
             'pgsql' => DbAttributes::DB_SYSTEM_NAME_VALUE_POSTGRESQL,
-            'sqlite' => DbIncubatingAttributes::DB_SYSTEM_NAME_VALUE_SQLITE,
+            'sqlite' => self::DB_SYSTEM_NAME_SQLITE,
             default => $driver,
         };
     }

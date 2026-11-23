@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Saloon;
 
 use Carbon\CarbonInterval;
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Request as HttpRequest;
@@ -31,11 +31,14 @@ use Hypervel\Saloon\Traits\Body\HasJsonBody;
 use Hypervel\Saloon\Traits\Plugins\AlwaysThrowOnErrors;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Psr\Http\Message\RequestInterface;
 
 class SaloonManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testEachRetryUsesFreshOperationStateAndRunsTheCompleteLifecycle(): void
     {
         Sleep::fake();
@@ -391,15 +394,12 @@ class SaloonManagerTest extends TestCase
      */
     protected function manager(Factory $http, ?Dispatcher $events = null): SaloonManager
     {
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
-            ->with('saloon.connection.name')
-            ->andReturn('saloon');
+        $config = new ConfigRepository(['saloon' => ['connection' => ['name' => 'saloon']]]);
 
         return new SaloonManager(
             new Sender($http, $config),
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
+            Double::for(CacheFactory::class)->strict(),
+            Double::for(RateLimiter::class, override: true)->strict()->instance(),
             $config,
             $events ?? new Dispatcher,
         );

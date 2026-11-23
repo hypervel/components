@@ -39,9 +39,11 @@ use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LogLevel;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -53,6 +55,8 @@ use Throwable;
 
 class ServerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Mark the worker as started inside the test coroutine.
      */
@@ -349,7 +353,7 @@ class ServerTest extends TestCase
         $environment->contexts->get();
     }
 
-    public function testCancellationSkipsObserverCompletionAndStillCleansTheCall(): void
+    public function testCancellationFinishesObservationWithoutAStatusAndStillCleansTheCall(): void
     {
         $environment = $this->environment();
         $observer = new RecordingServerGrpcOperationObserver;
@@ -366,7 +370,72 @@ class ServerTest extends TestCase
         }
 
         $this->assertCount(1, $observer->started);
-        $this->assertSame([], $observer->finished);
+        $this->assertCount(1, $observer->finished);
+        $this->assertNull($observer->finished[0][2]->status);
+        $this->assertSame($cancellation, $observer->finished[0][2]->exception);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessageIsOrContains('No gRPC server call is active');
+
+        $environment->contexts->get();
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    public function testCancellationAfterATerminalFailureKeepsTheFailureAsTheOutcome(?string $observerCancellation): void
+    {
+        $failure = new RuntimeException('route listener failed');
+        $environment = $this->environment();
+        $container = new Container;
+        Container::setInstance($container);
+        $container->instance(ExceptionHandler::class, $environment->exceptionHandler);
+        $environment->router->matched(static function () use ($failure): never {
+            throw $failure;
+        });
+        $observer = new RecordingServerGrpcOperationObserver;
+        $environment->operations->observe($observer);
+        $observerFailure = match ($observerCancellation) {
+            'direct' => new CanceledException,
+            'wrapped' => new RuntimeException('observer cleanup failed', previous: new CanceledException),
+            default => null,
+        };
+
+        if ($observerFailure !== null) {
+            $environment->operations->observe(new class($observerFailure) implements GrpcOperationObserver {
+                public function __construct(private Throwable $failure)
+                {
+                }
+
+                public function starting(GrpcOperation $operation): null
+                {
+                    return null;
+                }
+
+                public function finished(GrpcOperation $operation, mixed $token, GrpcOperationResult $result): void
+                {
+                    throw $this->failure;
+                }
+            });
+        }
+
+        [$swooleResponse, $capture] = $this->response();
+        $cancellation = new CanceledException;
+        $capture->endFailure = $cancellation;
+
+        try {
+            $environment->server->onRequest($this->request(), $swooleResponse);
+            $this->fail('Expected the error response emission to be canceled.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(
+            $observerCancellation === 'wrapped' ? [$failure, $observerFailure] : [$failure],
+            $environment->exceptionHandler->reported,
+        );
+        $this->assertNull($observer->finished[0][2]->status);
+        $this->assertSame($failure, $observer->finished[0][2]->exception);
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIsOrContains('No gRPC server call is active');
@@ -402,8 +471,8 @@ class ServerTest extends TestCase
             4 * 1024 * 1024,
             Compression::Identity,
         );
-        $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('bootstrap')->once();
+        $kernel = Double::for(KernelContract::class)->strict();
+        $kernel->expects('bootstrap');
 
         $container->instance(KernelContract::class, $kernel);
         $container->instance(
@@ -469,7 +538,7 @@ class ServerTest extends TestCase
         ],
         ?string $body = null,
     ): SwooleRequest {
-        $request = m::mock(SwooleRequest::class);
+        $request = Double::for(SwooleRequest::class)->strict();
         $request->server = [
             'server_protocol' => $protocol,
             'request_method' => $method,
@@ -485,7 +554,7 @@ class ServerTest extends TestCase
         $request->post = [];
         $request->cookie = [];
         $request->files = [];
-        $request->shouldReceive('rawContent')->andReturn(
+        $request->allows('rawContent')->returns(
             $body ?? (new FrameEncoder(1024))->encode((new GPBEmpty)->serializeToString()),
         );
 
@@ -500,37 +569,37 @@ class ServerTest extends TestCase
     private function response(): array
     {
         $capture = new ServerResponseCapture;
-        $response = m::mock(SwooleResponse::class);
-        $response->shouldReceive('status')->zeroOrMoreTimes()->andReturnUsing(
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->allows('status')->resolves(
             static function (int $status) use ($capture): bool {
                 $capture->status = $status;
 
                 return true;
             },
         );
-        $response->shouldReceive('header')->zeroOrMoreTimes()->andReturnUsing(
+        $response->allows('header')->resolves(
             static function (string $name, string|array $value) use ($capture): bool {
                 $capture->headers[strtolower($name)] = $value;
 
                 return true;
             },
         );
-        $response->shouldReceive('cookie')->zeroOrMoreTimes()->andReturnTrue();
-        $response->shouldReceive('trailer')->zeroOrMoreTimes()->andReturnUsing(
+        $response->allows('cookie')->returns(true);
+        $response->allows('trailer')->resolves(
             static function (string $name, string $value) use ($capture): bool {
                 $capture->trailers[strtolower($name)] = $value;
 
                 return true;
             },
         );
-        $response->shouldReceive('write')->zeroOrMoreTimes()->andReturnUsing(
+        $response->allows('write')->resolves(
             static function (string $chunk) use ($capture): bool {
                 $capture->writes[] = $chunk;
 
                 return $capture->writeResult;
             },
         );
-        $response->shouldReceive('end')->zeroOrMoreTimes()->andReturnUsing(
+        $response->allows('end')->resolves(
             static function (...$arguments) use ($capture): bool {
                 if ($capture->endFailure !== null) {
                     throw $capture->endFailure;
@@ -541,7 +610,7 @@ class ServerTest extends TestCase
                 return true;
             },
         );
-        $response->shouldReceive('isWritable')->zeroOrMoreTimes()->andReturnUsing(
+        $response->allows('isWritable')->resolves(
             static fn (): bool => $capture->writable,
         );
 
@@ -694,5 +763,13 @@ class RecordingExceptionHandler implements ExceptionHandler
      */
     public function afterResponse(callable $callback): void
     {
+    }
+
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        return false;
     }
 }

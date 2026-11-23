@@ -27,13 +27,17 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
 class ModelCacheCoordinatorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Closure $source;
 
     protected Container $container;
@@ -100,15 +104,15 @@ class ModelCacheCoordinatorTest extends TestCase
         $coordinator->fill($seedRepository, $this->source, 'seed', 300, fn (): string => 'published');
         $envelope = $seedRepository->getStore()->get('seed');
 
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
-        $repository->shouldReceive('get')->twice()->with('key')->andReturn(null, $envelope);
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldNotReceive('put');
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldReceive('get')->once()->with(m::type(Closure::class))->andReturnUsing(
+        $repository->expects('get')->times(2)->with('key')->returns(null, $envelope);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->never();
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('get')->with(Argument::type(Closure::class))->resolves(
             static fn (Closure $callback): mixed => $callback(),
         );
 
@@ -289,18 +293,18 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testNonPublishingNullReadDoesNotRefreshTheLease(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
-        $repository->shouldReceive('get')->twice()->with('key')->andReturnNull();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldNotReceive('put');
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldReceive('get')->once()->with(m::type(Closure::class))->andReturnUsing(
+        $repository->expects('get')->times(2)->with('key')->returns(null);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->never();
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('get')->with(Argument::type(Closure::class))->resolves(
             static fn (Closure $callback): mixed => $callback(),
         );
-        $lock->shouldNotReceive('refresh');
+        $lock->expects('refresh')->never();
 
         $this->assertNull($coordinator->fill(
             $repository,
@@ -315,16 +319,16 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testFailedLockAcquisitionReadsWithoutPublishingOrResolvingWriter(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
         $writerResolutions = 0;
 
-        $repository->shouldReceive('get')->once()->with('key')->andReturnNull();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldNotReceive('put');
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldReceive('get')->once()->with(m::type(Closure::class))->andReturnFalse();
+        $repository->expects('get')->with('key')->returns(null);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->never();
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('get')->with(Argument::type(Closure::class))->returns(false);
 
         $this->assertSame('database', $coordinator->fill(
             $repository,
@@ -344,27 +348,27 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testColdFillRefreshesAfterReadingAndBeforeResolvingWriterOrPublishing(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
         $operations = [];
 
-        $repository->shouldReceive('get')->twice()->with('key')->andReturnNull();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldReceive('put')->once()->with(
+        $repository->expects('get')->times(2)->with('key')->returns(null);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->with(
             'key',
-            m::on(static fn (mixed $value): bool => is_array($value)),
+            Argument::satisfies(static fn (mixed $value): bool => is_array($value)),
             300,
-        )->andReturnUsing(function () use (&$operations): bool {
+        )->resolves(function () use (&$operations): bool {
             $operations[] = 'put';
 
             return true;
         });
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldReceive('get')->once()->with(m::type(Closure::class))->andReturnUsing(
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('get')->with(Argument::type(Closure::class))->resolves(
             static fn (Closure $callback): mixed => $callback(),
         );
-        $lock->shouldReceive('refresh')->once()->withNoArgs()->andReturnUsing(
+        $lock->expects('refresh')->with(Argument::none())->resolves(
             function () use (&$operations): bool {
                 $operations[] = 'refresh';
 
@@ -394,19 +398,19 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testColdFillThatLostItsLeaseReturnsTheReadValueWithoutPublishing(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
         $operations = [];
 
-        $repository->shouldReceive('get')->twice()->with('key')->andReturnNull();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldNotReceive('put');
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldReceive('get')->once()->with(m::type(Closure::class))->andReturnUsing(
+        $repository->expects('get')->times(2)->with('key')->returns(null);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->never();
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('get')->with(Argument::type(Closure::class))->resolves(
             static fn (Closure $callback): mixed => $callback(),
         );
-        $lock->shouldReceive('refresh')->once()->withNoArgs()->andReturnUsing(
+        $lock->expects('refresh')->with(Argument::none())->resolves(
             function () use (&$operations): bool {
                 $operations[] = 'refresh';
 
@@ -436,22 +440,22 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testFalseCallbackResultIsNotMistakenForFailedAcquisition(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
-        $repository->shouldReceive('get')->twice()->with('key')->andReturnNull();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldReceive('put')->once()->with(
+        $repository->expects('get')->times(2)->with('key')->returns(null);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->with(
             'key',
-            m::on(static fn (mixed $value): bool => is_array($value)),
+            Argument::satisfies(static fn (mixed $value): bool => is_array($value)),
             300,
-        )->andReturnTrue();
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldReceive('get')->once()->with(m::type(Closure::class))->andReturnUsing(
+        )->returns(true);
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('get')->with(Argument::type(Closure::class))->resolves(
             static fn (Closure $callback): mixed => $callback(),
         );
-        $lock->shouldReceive('refresh')->once()->withNoArgs()->andReturnTrue();
+        $lock->expects('refresh')->with(Argument::none())->returns(true);
 
         $reads = 0;
         $this->assertFalse($coordinator->fill(
@@ -471,14 +475,14 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testFillPropagatesSourceFailureAndReleasesTheLock(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
         $lock = new CoordinatorTestLock;
 
-        $repository->shouldReceive('get')->twice()->with('key')->andReturnNull();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldNotReceive('put');
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
+        $repository->expects('get')->times(2)->with('key')->returns(null);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->never();
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
 
         try {
             $coordinator->fill(
@@ -500,25 +504,25 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testInvalidationUsesTheSameBoundedLockAndForgetsInsideIt(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $fillLock = m::mock(RefreshableLock::class);
-        $invalidateLock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $fillLock = Double::for(RefreshableLock::class)->strict();
+        $invalidateLock = Double::for(RefreshableLock::class)->strict();
         $lockNames = [];
 
-        $repository->shouldReceive('get')->once()->with('a-very-long-data-key')->andReturnNull();
-        $repository->shouldReceive('getStore')->twice()->andReturn($store);
-        $repository->shouldReceive('forget')->once()->with('a-very-long-data-key')->andReturnTrue();
-        $store->shouldReceive('lock')->twice()->andReturnUsing(
+        $repository->expects('get')->with('a-very-long-data-key')->returns(null);
+        $repository->expects('getStore')->times(2)->returns($store);
+        $repository->expects('forget')->with('a-very-long-data-key')->returns(true);
+        $store->expects('lock')->times(2)->resolves(
             function (string $name, int $seconds) use (&$lockNames, $fillLock, $invalidateLock): LockContract {
                 $lockNames[] = [$name, $seconds];
 
                 return count($lockNames) === 1 ? $fillLock : $invalidateLock;
             },
         );
-        $fillLock->shouldReceive('get')->once()->with(m::type(Closure::class))->andReturnFalse();
-        $invalidateLock->shouldReceive('betweenBlockedAttemptsSleepFor')->once()->with(25)->andReturnSelf();
-        $invalidateLock->shouldReceive('block')->once()->with(11, m::type(Closure::class))->andReturnUsing(
+        $fillLock->expects('get')->with(Argument::type(Closure::class))->returns(false);
+        $invalidateLock->expects('betweenBlockedAttemptsSleepFor')->with(25);
+        $invalidateLock->expects('block')->with(11, Argument::type(Closure::class))->resolves(
             static fn (int $seconds, Closure $callback): mixed => $callback(),
         );
 
@@ -583,13 +587,13 @@ class ModelCacheCoordinatorTest extends TestCase
         Sleep::fake();
 
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
         $lock = new CoordinatorTestLock(failFirstAcquisition: true);
 
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldReceive('forget')->once()->with('key')->andReturnTrue();
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('forget')->with('key')->returns(true);
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
 
         $coordinator->invalidate($repository, 'key');
 
@@ -604,15 +608,15 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testInvalidationPropagatesLockTimeoutWithoutForgetting(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldNotReceive('forget');
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldReceive('betweenBlockedAttemptsSleepFor')->once()->with(25)->andReturnSelf();
-        $lock->shouldReceive('block')->once()->with(11, m::type(Closure::class))->andThrow(new LockTimeoutException);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('forget')->never();
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('betweenBlockedAttemptsSleepFor')->with(25);
+        $lock->expects('block')->with(11, Argument::type(Closure::class))->throws(new LockTimeoutException);
 
         $this->expectException(LockTimeoutException::class);
 
@@ -626,9 +630,9 @@ class ModelCacheCoordinatorTest extends TestCase
         $coordinator->fill($seedRepository, $this->source, 'seed', 300, fn (): string => 'cached');
         $envelope = $seedRepository->getStore()->get('seed');
 
-        $hitRepository = m::mock(CacheRepository::class);
-        $hitRepository->shouldReceive('get')->once()->with('key')->andReturn($envelope);
-        $hitRepository->shouldNotReceive('getStore');
+        $hitRepository = Double::for(CacheRepository::class)->strict();
+        $hitRepository->expects('get')->with('key')->returns($envelope);
+        $hitRepository->expects('getStore')->never();
 
         $this->assertSame('cached', $coordinator->fill(
             $hitRepository,
@@ -638,10 +642,10 @@ class ModelCacheCoordinatorTest extends TestCase
             fn () => throw new RuntimeException('The source must not be read on a cache hit.'),
         ));
 
-        $missRepository = m::mock(CacheRepository::class);
-        $unsupportedStore = m::mock(Store::class);
-        $missRepository->shouldReceive('get')->once()->with('key')->andReturnNull();
-        $missRepository->shouldReceive('getStore')->once()->andReturn($unsupportedStore);
+        $missRepository = Double::for(CacheRepository::class)->strict();
+        $unsupportedStore = Double::for(Store::class)->strict();
+        $missRepository->expects('get')->with('key')->returns(null);
+        $missRepository->expects('getStore')->returns($unsupportedStore);
 
         $this->expectExceptionMessageIsOrContains('does not provide atomic locks');
 
@@ -650,9 +654,9 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testStackAndFailoverTopologiesAreRejectedThroughDirectAndMemoizedStores(): void
     {
-        $failoverStore = m::mock(FailoverStore::class);
-        $failoverStore->shouldReceive('getRaw')->twice()->with('key')->andReturnNull();
-        $failoverStore->shouldReceive('getPrefix')->once()->andReturn('');
+        $failoverStore = Double::for(FailoverStore::class)->strict();
+        $failoverStore->expects('getRaw')->times(2)->with('key')->returns(null);
+        $failoverStore->expects('getPrefix')->returns('');
 
         $stores = [
             'stack' => new StackStore([new ArrayStore]),
@@ -692,15 +696,15 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testNonRefreshableLockIsRejectedOnlyAfterAMiss(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = m::mock(CacheRepository::class);
-        $store = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(LockContract::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(LockContract::class)->strict();
 
-        $repository->shouldReceive('get')->once()->with('key')->andReturnNull();
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldNotReceive('put');
-        $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
-        $lock->shouldNotReceive('get');
+        $repository->expects('get')->with('key')->returns(null);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('put')->never();
+        $store->expects('lock')->with(Argument::type('string'), 10)->returns($lock);
+        $lock->expects('get')->never();
 
         $this->expectExceptionMessageIsOrContains('does not provide refreshable atomic locks');
 

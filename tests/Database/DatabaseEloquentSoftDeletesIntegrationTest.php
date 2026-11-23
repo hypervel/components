@@ -8,18 +8,17 @@ use BadMethodCallException;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 {
@@ -235,31 +234,31 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     public function testForceDeleteDoesntUpdateExistsPropertyIfFailed(): void
     {
-        $user = new class(['id' => 1]) extends User {
-            public bool $exists = true;
+        $this->createUsers();
+        $this->connection()->statement('create trigger prevent_user_delete before delete on users begin select raise(abort, \'blocked\'); end');
 
-            /**
-             * Get a query builder that fails when deleting the model.
-             */
-            public function newModelQuery(): EloquentBuilder
-            {
-                $mock = m::mock(EloquentBuilder::class);
-                $mock->expects('where')->with('id', '=', 1)->andReturnSelf();
-                $mock->expects('forceDelete')->andThrow(new Exception);
-
-                return $mock;
-            }
-        };
+        $user = User::find(2);
 
         $this->assertTrue($user->exists);
 
         try {
             $user->forceDelete();
-        } catch (Exception) {
+            $this->fail('Expected the delete to fail.');
+        } catch (QueryException) {
         }
 
         $this->assertTrue($user->exists);
+        $this->assertNotNull(User::find(2));
         $this->assertFalse($user->isForceDeleting());
+    }
+
+    public function testForceDeleteWrappersPreserveIntegerDeleteResult(): void
+    {
+        $model = new IntegerDeleteResultModelStub;
+        $model->exists = true;
+
+        $this->assertSame(1, $model->forceDelete());
+        $this->assertSame(1, $model->forceDeleteQuietly());
     }
 
     public function testForceDestroyFullyDeletesRecord(): void
@@ -324,6 +323,25 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         $this->assertNull(User::find(2));
     }
 
+    public function testDeleteSetsTheDeletedAtAndUpdatedAtColumnsAndLeavesTheModelClean(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2023-01-02 03:04:05'));
+
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+
+        CarbonImmutable::setTestNow($now->addDay());
+
+        $user->delete();
+
+        $this->assertTrue($user->trashed());
+        $this->assertFalse($user->isDirty());
+        $this->assertSame('2023-01-03 03:04:05', $user->deleted_at->toDateTimeString());
+
+        $row = (array) $this->connection()->table('users')->where('id', 1)->first();
+        $this->assertSame('2023-01-03 03:04:05', $row['deleted_at']);
+        $this->assertSame('2023-01-03 03:04:05', $row['updated_at']);
+    }
+
     public function testRestoreRestoresRecords(): void
     {
         $this->createUsers();
@@ -338,6 +356,24 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         $this->assertCount(2, $users);
         $this->assertNull($users->find(1)->deleted_at);
         $this->assertNull($users->find(2)->deleted_at);
+    }
+
+    public function testRestoreIsCancelledWhenRestoringEventReturnsFalse(): void
+    {
+        Eloquent::setEventDispatcher(new Dispatcher);
+
+        $this->createUsers();
+
+        User::restoring(function () {
+            return false;
+        });
+
+        $user = User::withTrashed()->find(1);
+
+        $this->assertFalse($user->restore());
+        $this->assertNotNull($user->deleted_at);
+        $this->assertNotNull(User::withTrashed()->find(1)->deleted_at);
+        $this->assertNull(User::find(1));
     }
 
     public function testRestoreDoesNotFireRestoredEventWhenSavingEventCancelsSave(): void
@@ -435,6 +471,40 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         $this->assertSame('foo@bar.com', $result->email);
         $this->assertCount(2, User::all());
         $this->assertCount(3, User::withTrashed()->get());
+    }
+
+    public function testRestoreOrCreateRestoresATrashedRecordOrCreatesANewOne(): void
+    {
+        $this->createUsers();
+
+        $restored = User::restoreOrCreate(['email' => 'taylorotwell@gmail.com']);
+
+        $this->assertSame(1, $restored->id);
+        $this->assertFalse($restored->trashed());
+        $this->assertCount(2, User::all());
+
+        $created = User::restoreOrCreate(['email' => 'foo@bar.com'], ['group_id' => 1]);
+
+        $this->assertTrue($created->wasRecentlyCreated);
+        $this->assertSame(1, $created->fresh()->group_id);
+        $this->assertCount(3, User::all());
+    }
+
+    public function testCreateOrRestoreRestoresATrashedRecordOrCreatesANewOne(): void
+    {
+        $this->createUsers();
+
+        $restored = User::createOrRestore(['email' => 'taylorotwell@gmail.com']);
+
+        $this->assertSame(1, $restored->id);
+        $this->assertFalse($restored->trashed());
+        $this->assertCount(2, User::all());
+
+        $created = User::createOrRestore(['email' => 'foo@bar.com'], ['group_id' => 1]);
+
+        $this->assertTrue($created->wasRecentlyCreated);
+        $this->assertSame(1, $created->fresh()->group_id);
+        $this->assertCount(3, User::all());
     }
 
     public function testCreateOrFirst(): void
@@ -1204,5 +1274,18 @@ class Group extends Eloquent
     public function users()
     {
         $this->hasMany(User::class);
+    }
+}
+
+class IntegerDeleteResultModelStub extends Eloquent
+{
+    use SoftDeletes;
+
+    /**
+     * Return a simulated affected-row count.
+     */
+    public function delete(): int
+    {
+        return 1;
     }
 }

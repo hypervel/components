@@ -578,6 +578,7 @@ class ResponseFactory
     ): RpcException {
         if (Coroutine::causedByCancellation($throwable)) {
             if ($context->deadlineExceeded()) {
+                // @phpstan-ignore hypervel.cancellation.exactType (the deadline's own cancellation is expected; a failure carrying it is reported)
                 if (! $throwable instanceof CanceledException) {
                     $this->exceptions->report($throwable);
                 }

@@ -13,6 +13,7 @@ use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TranscriptionSegment;
 use Hypervel\Ai\Responses\Data\TranscriptionUsage;
 use Hypervel\Ai\Responses\TranscriptionResponse;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use RuntimeException;
 
@@ -107,8 +108,10 @@ class FakeTranscriptionGateway implements TranscriptionGateway
     /**
      * Indicate that an exception should be thrown if any transcription generation is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayTranscriptions(bool $prevent = true): self
     {
         $this->preventStrayGenerations = $prevent;

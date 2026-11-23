@@ -18,11 +18,14 @@ use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class FindDriverTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDir;
 
     protected function setUp(): void
@@ -418,9 +421,8 @@ class FindDriverTest extends TestCase
     public function testChangedTraversalFailurePublishesCompleteRecordsAndHoldsTheCutoff(): void
     {
         $path = base_path('composer.json');
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('warning')
-            ->once()
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning')
             ->with(
                 'One or more find commands exited with code 1. '
                 . 'Detected changes may repeat until the filesystem error is fixed.',
@@ -450,9 +452,8 @@ class FindDriverTest extends TestCase
     public function testInventoryFailureSuspendsDeletionsButAdvancesACompleteChangedCutoff(): void
     {
         $path = base_path('composer.json');
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('warning')
-            ->once()
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning')
             ->with(
                 'One or more find commands exited with code 2. '
                 . 'Deletion detection is suspended until the filesystem error is fixed.',
@@ -480,9 +481,8 @@ class FindDriverTest extends TestCase
 
     public function testMultipleTraversalFailuresLogTheFirstCodeAndBothAffectedGuaranteesOnce(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('warning')
-            ->once()
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning')
             ->with(
                 'One or more find commands exited with code 2. '
                 . 'Detected changes may repeat until the filesystem error is fixed. '

@@ -10,7 +10,9 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
@@ -33,8 +35,9 @@ class ClientRequestWatcher extends Watcher
     /**
      * Register the watcher.
      *
-     * Boot-only. The middleware persists for the worker lifetime and affects every Guzzle client.
+     * The middleware persists for the worker lifetime and affects every Guzzle client.
      */
+    #[BootOnly]
     public function register(Application $app): void
     {
         Client::pushGlobalMiddleware($this->recordRequests(...), self::MIDDLEWARE_NAME);
@@ -177,7 +180,7 @@ class ClientRequestWatcher extends Watcher
 
                 $value = [
                     'name' => $part['filename'] ?? null,
-                    'size' => $size ? ($size / 1000) . 'KB' : null,
+                    'size' => $size !== null ? ($size / 1000) . 'KB' : null,
                     'headers' => $part['headers'] ?? [],
                 ];
             } elseif (json_encode($part['contents']) === false) {
@@ -292,6 +295,10 @@ class ClientRequestWatcher extends Watcher
 
             return $content;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {
@@ -369,6 +376,10 @@ class ClientRequestWatcher extends Watcher
                 return 'Empty Response';
             }
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {

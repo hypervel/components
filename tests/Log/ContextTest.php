@@ -9,12 +9,16 @@ use Hypervel\Log\Context\Events\ContextDehydrating;
 use Hypervel\Log\Context\Events\ContextHydrated;
 use Hypervel\Log\Context\Repository;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use stdClass;
 
 class ContextTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Repository $context;
 
     protected Dispatcher $events;
@@ -23,10 +27,8 @@ class ContextTest extends TestCase
     {
         parent::setUp();
 
-        $this->events = m::mock(Dispatcher::class);
-        $this->events->shouldReceive('hasListeners')->byDefault()->andReturn(true);
-        $this->events->shouldReceive('listen')->byDefault();
-        $this->events->shouldReceive('dispatch')->byDefault();
+        $this->events = Double::for(Dispatcher::class)->strict();
+        $this->events->allows('hasListeners')->returns(true);
         $this->context = new Repository($this->events);
     }
 
@@ -530,9 +532,8 @@ class ContextTest extends TestCase
             'backed_enum' => StringBackedSuit::Clubs,
         ]);
 
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextDehydrating::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextDehydrating::class));
 
         $payload = $this->context->dehydrate();
         $this->assertNotNull($payload);
@@ -541,9 +542,8 @@ class ContextTest extends TestCase
 
         // Hydrate into a fresh context
         $fresh = new Repository($this->events);
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextHydrated::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextHydrated::class));
 
         $fresh->hydrate($payload);
 
@@ -559,15 +559,16 @@ class ContextTest extends TestCase
 
     public function testDehydrateReturnsNullWhenEmpty(): void
     {
+        $this->events->allows('dispatch')->with(Argument::type(ContextDehydrating::class));
+
         $this->assertNull($this->context->dehydrate());
     }
 
     public function testDehydrateIncludesHiddenData(): void
     {
         $this->context->addHidden('secret', 'token');
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextDehydrating::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextDehydrating::class));
 
         $payload = $this->context->dehydrate();
 
@@ -578,9 +579,8 @@ class ContextTest extends TestCase
 
     public function testHydratingNullTriggersHydratedEvent(): void
     {
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextHydrated::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextHydrated::class));
 
         $this->context->hydrate(null);
     }
@@ -589,12 +589,10 @@ class ContextTest extends TestCase
     {
         $this->context->add('old', 'data');
 
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextDehydrating::class));
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextHydrated::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextDehydrating::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextHydrated::class));
 
         $other = new Repository($this->events);
         $other->add('new', 'data');
@@ -610,13 +608,12 @@ class ContextTest extends TestCase
     {
         $this->context->add('key', 'original');
 
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (ContextDehydrating $event) {
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextDehydrating::class))
+            ->resolves(function (ContextDehydrating $event): void {
                 $event->context->add('key', 'modified');
                 $event->context->add('extra', 'added');
-                return true;
-            }));
+            });
 
         $payload = $this->context->dehydrate();
 
@@ -633,15 +630,13 @@ class ContextTest extends TestCase
     {
         $callbackContext = null;
 
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextDehydrating::class));
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (ContextHydrated $event) use (&$callbackContext) {
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextDehydrating::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextHydrated::class))
+            ->resolves(function (ContextHydrated $event) use (&$callbackContext): void {
                 $callbackContext = $event->context;
-                return true;
-            }));
+            });
 
         $other = new Repository($this->events);
         $other->add('key', 'value');
@@ -661,27 +656,25 @@ class ContextTest extends TestCase
     {
         $this->context->add('key', 'value');
 
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextDehydrating::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextDehydrating::class));
 
         $this->context->dehydrate();
     }
 
     public function testContextHydratedEventIsDispatched(): void
     {
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(ContextHydrated::class));
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextHydrated::class));
 
         $this->context->hydrate(null);
     }
 
     public function testContextDehydratingEventIsSkippedWhenNoListenersAreRegistered(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(ContextDehydrating::class)->andReturn(false);
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(ContextDehydrating::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $context = new Repository($events);
         $context->add('key', 'value');
@@ -694,9 +687,9 @@ class ContextTest extends TestCase
 
     public function testContextHydratedEventIsSkippedWhenNoListenersAreRegistered(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(ContextHydrated::class)->andReturn(false);
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(ContextHydrated::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $context = new Repository($events);
         $context->hydrate([
@@ -711,12 +704,11 @@ class ContextTest extends TestCase
         $this->context->add('key', 'value');
 
         $eventContext = null;
-        $this->events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function (ContextDehydrating $event) use (&$eventContext) {
+        $this->events->expects('dispatch')
+            ->with(Argument::type(ContextDehydrating::class))
+            ->resolves(function (ContextDehydrating $event) use (&$eventContext): void {
                 $eventContext = $event->context;
-                return true;
-            }));
+            });
 
         $this->context->dehydrate();
 

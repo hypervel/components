@@ -618,7 +618,7 @@ class AcquireProductKey implements ShouldQueue, ShouldBeUnique
 
 In the example above, the `AcquireProductKey` listener is unique. So, the listener will not be queued if another instance of the listener is already on the queue and has not finished processing. This applies to all instances of the listener, regardless of which license triggered the event.
 
-In certain cases, you may want to define a specific "key" that makes the listener unique or you may want to specify a timeout beyond which the listener no longer stays unique. To accomplish this, you may define `uniqueId` and `uniqueFor` properties or methods on your listener class. The methods receive the event instance, allowing you to use event data to construct the return value:
+In certain cases, you may want to define a specific "key" that makes the listener unique or you may want to specify a timeout beyond which the listener no longer stays unique. To accomplish this, you may define a `uniqueId` method and use the `UniqueFor` attribute on your listener class, or define a `uniqueFor` method when the timeout depends on the event. The methods receive the event instance, allowing you to use event data to construct the return value:
 
 ```php
 <?php
@@ -628,16 +628,11 @@ namespace App\Listeners;
 use App\Events\LicenseSaved;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\UniqueFor;
 
+#[UniqueFor(3600)]
 class AcquireProductKey implements ShouldQueue, ShouldBeUnique
 {
-    /**
-     * The number of seconds after which the listener's unique lock will be released.
-     *
-     * @var int
-     */
-    public $uniqueFor = 3600;
-
     public function __invoke(LicenseSaved $event): void
     {
         // ...
@@ -855,7 +850,9 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-If both `retryUntil` and `tries` are defined, Hypervel gives precedence to the `retryUntil` method.
+For a fixed window from when the listener is dispatched to the queue, you may use the [RetryFor attribute](/docs/{{version}}/queues#time-based-attempts) instead, such as `#[RetryFor(minutes: 5)]`.
+
+If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
 
 <a name="specifying-queued-listener-backoff"></a>
 #### Specifying Queued Listener Backoff

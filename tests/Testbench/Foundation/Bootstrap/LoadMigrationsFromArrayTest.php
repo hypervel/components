@@ -10,7 +10,9 @@ use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Workbench\Database\Seeders\TestbenchDatabaseSeeder;
@@ -20,15 +22,17 @@ use function Hypervel\Testbench\workbench_path;
 
 class LoadMigrationsFromArrayTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[Test]
     public function itCanRegisterMigrations(): void
     {
-        $this->instance('migrator', $migrator = m::mock(Migrator::class));
+        $this->instance('migrator', $migrator = Double::for(Migrator::class)->strict());
 
         $paths = [workbench_path('database/migrations')];
 
-        $migrator->shouldReceive('path')->once()->with($paths[0])->andReturnNull()
-            ->shouldReceive('path')->once()->with(default_migration_path())->andReturnNull();
+        $migrator->expects('path')->with($paths[0]);
+        $migrator->expects('path')->with(default_migration_path());
 
         (new LoadMigrationsFromArray($paths))->bootstrap($this->app);
     }
@@ -36,9 +40,9 @@ class LoadMigrationsFromArrayTest extends TestCase
     #[Test]
     public function itCanSkipMigrationsRegistration(): void
     {
-        $this->instance('migrator', $migrator = m::mock(Migrator::class));
+        $this->instance('migrator', $migrator = Double::for(Migrator::class)->strict());
 
-        $migrator->shouldReceive('path')->never();
+        $migrator->expects('path')->never();
 
         (new LoadMigrationsFromArray(false))->bootstrap($this->app);
     }
@@ -50,11 +54,11 @@ class LoadMigrationsFromArrayTest extends TestCase
             'seeders' => [TestbenchDatabaseSeeder::class],
         ]))->bootstrap($this->app);
 
-        $this->instance(TestbenchDatabaseSeeder::class, $seeder = m::mock(TestbenchDatabaseSeeder::class));
+        $this->instance(TestbenchDatabaseSeeder::class, $seeder = Double::for(TestbenchDatabaseSeeder::class)->strict());
 
-        $seeder->shouldReceive('setContainer')->once()->with($this->app)->andReturnSelf()
-            ->shouldReceive('setCommand')->once()->andReturnSelf()
-            ->shouldReceive('__invoke')->once()->andReturnNull();
+        $seeder->expects('setContainer')->with(Argument::same($this->app))->returns($seeder);
+        $seeder->expects('setCommand')->returns($seeder);
+        $seeder->expects('__invoke');
 
         app('events')->dispatch(new DatabaseRefreshed);
     }
@@ -62,10 +66,10 @@ class LoadMigrationsFromArrayTest extends TestCase
     #[Test]
     public function itCanRunTheDefaultSeederAfterRefreshed(): void
     {
-        $kernel = m::mock(ConsoleKernel::class);
+        $kernel = Double::for(ConsoleKernel::class)->strict();
         $this->app->instance(ConsoleKernel::class, $kernel);
         (new LoadMigrationsFromArray(false, true))->bootstrap($this->app);
-        $kernel->expects('call')->with('db:seed')->andReturn(0);
+        $kernel->expects('call')->with('db:seed')->returns(0);
 
         app('events')->dispatch(new DatabaseRefreshed);
     }
@@ -95,10 +99,10 @@ class LoadMigrationsFromArrayTest extends TestCase
     #[Test]
     public function itFailsWhenTheDefaultSeederCommandFails(): void
     {
-        $kernel = m::mock(ConsoleKernel::class);
+        $kernel = Double::for(ConsoleKernel::class)->strict();
         $this->app->instance(ConsoleKernel::class, $kernel);
         (new LoadMigrationsFromArray(false, true))->bootstrap($this->app);
-        $kernel->expects('call')->with('db:seed')->andReturn(1);
+        $kernel->expects('call')->with('db:seed')->returns(1);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Default seeder failed.');
@@ -109,12 +113,12 @@ class LoadMigrationsFromArrayTest extends TestCase
     #[Test]
     public function itFailsWhenAnExplicitSeederCommandFails(): void
     {
-        $kernel = m::mock(ConsoleKernel::class);
+        $kernel = Double::for(ConsoleKernel::class)->strict();
         $this->app->instance(ConsoleKernel::class, $kernel);
         (new LoadMigrationsFromArray(false, TestbenchDatabaseSeeder::class))->bootstrap($this->app);
         $kernel->expects('call')->with('db:seed', [
             '--class' => TestbenchDatabaseSeeder::class,
-        ])->andReturn(1);
+        ])->returns(1);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs(sprintf('Seeder [%s] failed.', TestbenchDatabaseSeeder::class));
@@ -125,12 +129,12 @@ class LoadMigrationsFromArrayTest extends TestCase
     #[Test]
     public function itCanSkipDatabaseSeedingAfterRefreshed(): void
     {
-        $kernel = m::mock(ConsoleKernel::class);
+        $kernel = Double::for(ConsoleKernel::class)->strict();
         $this->app->instance(ConsoleKernel::class, $kernel);
 
         (new LoadMigrationsFromArray(false, false))->bootstrap($this->app);
 
-        $kernel->shouldNotReceive('call');
+        $kernel->expects('call')->never();
 
         app('events')->dispatch(new DatabaseRefreshed);
     }

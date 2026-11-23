@@ -8,7 +8,9 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Routing\Route;
 use Hypervel\Sentry\Integration;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\Event;
@@ -19,6 +21,8 @@ use function Sentry\withScope;
 
 class IntegrationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testIntegrationIsRegistered(): void
     {
         $integration = $this->getSentryHubFromContainer()->getIntegration(Integration::class);
@@ -32,7 +36,7 @@ class IntegrationTest extends TestCase
 
         $event = new RouteMatched(
             new Route('GET', $routeUrl = '/sentry-route-matched-event', []),
-            m::mock(Request::class)->makePartial()
+            new Request
         );
 
         $this->dispatchHypervelEvent($event);
@@ -94,6 +98,45 @@ class IntegrationTest extends TestCase
         });
     }
 
+    public function testTransactionTakesPrecedenceOverRequestPath(): void
+    {
+        Integration::setTransaction($transaction = '/users/{id}');
+
+        $_SERVER['PATH_INFO'] = '/users/123';
+
+        try {
+            withScope(function (Scope $scope) use ($transaction): void {
+                $event = $scope->applyToEvent(Event::createEvent());
+
+                $this->assertNotNull($event);
+
+                $this->assertSame($transaction, $event->getTransaction());
+            });
+        } finally {
+            unset($_SERVER['PATH_INFO']);
+        }
+    }
+
+    public function testRequestPathIsAppliedToEventWithoutTransaction(): void
+    {
+        Integration::setTransaction(null);
+
+        $requestPath = '/users/123';
+        $_SERVER['PATH_INFO'] = $requestPath;
+
+        try {
+            withScope(function (Scope $scope) use ($requestPath): void {
+                $event = $scope->applyToEvent(Event::createEvent());
+
+                $this->assertNotNull($event);
+
+                $this->assertSame($requestPath, $event->getTransaction());
+            });
+        } finally {
+            unset($_SERVER['PATH_INFO']);
+        }
+    }
+
     public function testExtractingNameForRouteWithoutName(): void
     {
         $route = new Route('GET', $url = '/foo', []);
@@ -121,8 +164,10 @@ class IntegrationTest extends TestCase
     public function testExceptionReportedUsingReportHelperIsNotMarkedAsUnhandled(): void
     {
         $testException = new RuntimeException('This was handled');
-        $logger = m::mock(LoggerInterface::class);
-        $logger->expects('error')->with('This was handled', m::subset(['order_id' => 42]));
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->expects('error')->with('This was handled', Argument::satisfies(
+            static fn (array $context): bool => ($context['order_id'] ?? null) === 42,
+        ));
         $this->app->instance(LoggerInterface::class, $logger);
 
         report($testException, ['order_id' => 42]);

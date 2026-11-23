@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 
+use Composer\Autoload\ClassLoader;
 use Hypervel\Doctor\Diagnostics\ComposerAutoloadIsValid;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Process\ProcessResult;
+use Hypervel\Support\Composer;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\Facades\Process;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Process\Process as SymfonyProcess;
 
 class ComposerAutoloadIsValidTest extends TestCase
@@ -45,8 +48,11 @@ class ComposerAutoloadIsValidTest extends TestCase
     }
 
     #[DataProvider('vendorDirectories')]
-    public function testChecksComposerAutoloadValidityWithAStrictDryRun(string $directory): void
+    public function testChecksComposerAutoloadValidityWithAStrictDryRun(string $directory, bool $authoritative, string $option): void
     {
+        $loader = new ClassLoader;
+        $loader->setClassMapAuthoritative($authoritative);
+        Composer::setLoader($loader);
         $basePath = $this->basePath;
         mkdir($basePath . '/' . $directory);
         file_put_contents($basePath . '/composer.json', '{}');
@@ -76,20 +82,29 @@ class ComposerAutoloadIsValidTest extends TestCase
 
         $this->assertSame('fail', $result->status->value);
         $this->assertStringContainsString('does not comply with psr-4', $result->details);
-        $this->assertSame('Regenerate Composer autoload files using `composer dump-autoload`?', $result->confirmation);
-        $this->assertSame('Regenerate Composer autoload files with `composer dump-autoload`.', $result->remediation);
+        $this->assertSame("Regenerate Composer autoload files using `composer dump-autoload {$option}`?", $result->confirmation);
+        $this->assertSame("Regenerate Composer autoload files with `composer dump-autoload {$option}`.", $result->remediation);
     }
 
     /**
-     * Provide conventional and relocated vendor directories.
+     * Provide vendor directories and current autoloader modes.
      */
     public static function vendorDirectories(): array
     {
-        return [['vendor'], ['dependencies']];
+        return [
+            ['vendor', false, '--optimize'],
+            ['dependencies', false, '--optimize'],
+            ['vendor', true, '--classmap-authoritative'],
+        ];
     }
 
-    public function testRegeneratesComposerAutoloadFilesWhenFixed(): void
+    #[TestWith([false, '--optimize'])]
+    #[TestWith([true, '--classmap-authoritative'])]
+    public function testRegeneratesComposerAutoloadFilesWhenFixed(bool $authoritative, string $option): void
     {
+        $loader = new ClassLoader;
+        $loader->setClassMapAuthoritative($authoritative);
+        Composer::setLoader($loader);
         $basePath = $this->basePath;
         file_put_contents($basePath . '/composer.json', '{}');
 
@@ -102,7 +117,7 @@ class ComposerAutoloadIsValidTest extends TestCase
         Process::assertRan(fn (PendingProcess $process): bool => $process->command === [
             'composer',
             'dump-autoload',
-            '--optimize',
+            $option,
             '--strict-psr',
             '--strict-ambiguous',
             '--no-interaction',

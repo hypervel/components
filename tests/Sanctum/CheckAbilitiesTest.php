@@ -11,20 +11,23 @@ use Hypervel\Sanctum\Contracts\HasApiTokens;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Hypervel\Sanctum\Http\Middleware\CheckAbilities;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckAbilitiesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
     {
         $middleware = new CheckAbilities;
         $request = new Request;
-        $user = m::mock(HasApiTokens::class);
+        $user = Double::for(HasApiTokens::class)->strict();
         $request->setUserResolver(fn (): HasApiTokens => $user);
-        $user->expects('currentAccessToken')->andReturn(m::mock(HasAbilities::class));
-        $user->expects('tokenCan')->with('foo')->andReturn(true);
-        $user->expects('tokenCan')->with('bar')->andReturn(true);
+        $user->expects('currentAccessToken')->returns(Double::for(HasAbilities::class)->strict());
+        $user->expects('tokenCan')->with('foo')->returns(true);
+        $user->expects('tokenCan')->with('bar')->returns(true);
         $expected = new Response('response');
 
         $response = $middleware->handle($request, function () use ($expected): Response {
@@ -40,10 +43,10 @@ class CheckAbilitiesTest extends TestCase
 
         $middleware = new CheckAbilities;
         $request = new Request;
-        $user = m::mock(HasApiTokens::class);
+        $user = Double::for(HasApiTokens::class)->strict();
         $request->setUserResolver(fn (): HasApiTokens => $user);
-        $user->expects('currentAccessToken')->andReturn(m::mock(HasAbilities::class));
-        $user->expects('tokenCan')->with('foo')->andReturn(false);
+        $user->expects('currentAccessToken')->returns(Double::for(HasAbilities::class)->strict());
+        $user->expects('tokenCan')->with('foo')->returns(false);
 
         $middleware->handle($request, function (): Response {
             return new Response('response');
@@ -69,9 +72,9 @@ class CheckAbilitiesTest extends TestCase
 
         $middleware = new CheckAbilities;
         $request = new Request;
-        $user = m::mock(HasApiTokens::class);
+        $user = Double::for(HasApiTokens::class)->strict();
         $request->setUserResolver(fn (): HasApiTokens => $user);
-        $user->expects('currentAccessToken')->andReturn(null);
+        $user->expects('currentAccessToken')->returns(null);
 
         $middleware->handle($request, function (): Response {
             return new Response('response');

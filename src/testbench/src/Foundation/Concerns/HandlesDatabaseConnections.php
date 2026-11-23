@@ -44,6 +44,7 @@ trait HandlesDatabaseConnections
                         /** @var string $environmentSuffix */
                         $environmentSuffix = $options['env'];
                         $environmentVariable = "{$keyword}_{$environmentSuffix}";
+                        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (builds database configuration from the environment, as a config file does)
                         $port = Env::get($environmentVariable);
 
                         if ($port === null || $port === '') {
@@ -69,6 +70,7 @@ trait HandlesDatabaseConnections
 
                     /** @var mixed $configuration */
                     $configuration = (new Collection(Arr::wrap($options['env'])))
+                        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (builds database configuration from the environment, as a config file does)
                         ->transform(static fn (string $value): mixed => Env::get("{$keyword}_{$value}"))
                         ->first(
                             $options['rules'] ?? static fn ($value): bool => ! empty($value) && \is_string($value)

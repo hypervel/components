@@ -21,6 +21,8 @@ use Hypervel\Permission\Middleware\PermissionMiddleware;
 use Hypervel\Permission\Middleware\RoleMiddleware;
 use Hypervel\Permission\Middleware\RoleOrPermissionMiddleware;
 use Hypervel\Routing\Route;
+use Hypervel\Routing\Router;
+use Hypervel\Routing\RouteRegistrar;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ServiceProvider;
@@ -155,6 +157,92 @@ class PermissionServiceProvider extends ServiceProvider
 
             /** @var Route $this */
             return $this->middleware('role_or_permission:' . implode('|', $rolesOrPermissions));
+        });
+
+        RouteRegistrar::macro('role', function (mixed $roles = []): RouteRegistrar {
+            $roles = Arr::wrap($roles);
+            $roles = array_map(enum_value(...), $roles);
+
+            /** @var RouteRegistrar $this */
+            return $this->middleware([...($this->attributes['middleware'] ?? []), 'role:' . implode('|', $roles)]);
+        });
+
+        RouteRegistrar::macro('permission', function (mixed $permissions = []): RouteRegistrar {
+            $permissions = Arr::wrap($permissions);
+            $permissions = array_map(enum_value(...), $permissions);
+
+            /** @var RouteRegistrar $this */
+            return $this->middleware([...($this->attributes['middleware'] ?? []), 'permission:' . implode('|', $permissions)]);
+        });
+
+        RouteRegistrar::macro('roleOrPermission', function (mixed $rolesOrPermissions = []): RouteRegistrar {
+            $rolesOrPermissions = Arr::wrap($rolesOrPermissions);
+            $rolesOrPermissions = array_map(enum_value(...), $rolesOrPermissions);
+
+            /** @var RouteRegistrar $this */
+            return $this->middleware([...($this->attributes['middleware'] ?? []), 'role_or_permission:' . implode('|', $rolesOrPermissions)]);
+        });
+
+        Router::macro('role', function (mixed $roles = []): RouteRegistrar {
+            $roles = Arr::wrap($roles);
+            $roles = array_map(enum_value(...), $roles);
+
+            /** @var Router $this */
+            return $this->middleware('role:' . implode('|', $roles));
+        });
+
+        Router::macro('permission', function (mixed $permissions = []): RouteRegistrar {
+            $permissions = Arr::wrap($permissions);
+            $permissions = array_map(enum_value(...), $permissions);
+
+            /** @var Router $this */
+            return $this->middleware('permission:' . implode('|', $permissions));
+        });
+
+        Router::macro('roleOrPermission', function (mixed $rolesOrPermissions = []): RouteRegistrar {
+            $rolesOrPermissions = Arr::wrap($rolesOrPermissions);
+            $rolesOrPermissions = array_map(enum_value(...), $rolesOrPermissions);
+
+            /** @var Router $this */
+            return $this->middleware('role_or_permission:' . implode('|', $rolesOrPermissions));
+        });
+
+        Route::macro('canAny', function (mixed $permissions = []): Route {
+            /** @var Route $this */
+            return $this->permission($permissions);
+        });
+
+        Route::macro('canAll', function (mixed $permissions = []): Route {
+            foreach (Arr::wrap($permissions) as $permission) {
+                /** @var Route $this */
+                $this->permission($permission);
+            }
+
+            return $this;
+        });
+
+        RouteRegistrar::macro('canAny', function (mixed $permissions = []): RouteRegistrar {
+            /** @var RouteRegistrar $this */
+            return $this->permission($permissions);
+        });
+
+        RouteRegistrar::macro('canAll', function (mixed $permissions = []): RouteRegistrar {
+            foreach (Arr::wrap($permissions) as $permission) {
+                /** @var RouteRegistrar $this */
+                $this->permission($permission);
+            }
+
+            return $this;
+        });
+
+        Router::macro('canAny', function (mixed $permissions = []): RouteRegistrar {
+            /** @var Router $this */
+            return $this->permission($permissions);
+        });
+
+        Router::macro('canAll', function (mixed $permissions = []): RouteRegistrar {
+            /** @var Router $this */
+            return (new RouteRegistrar($this))->canAll($permissions);
         });
     }
 

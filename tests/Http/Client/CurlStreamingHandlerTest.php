@@ -18,7 +18,8 @@ use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -33,6 +34,8 @@ use function Hypervel\Coroutine\parallel;
 
 class CurlStreamingHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('ambiguousHosts')]
     public function testAmbiguousHostsAreRejectedBeforeConnecting(string $url, array $headers, string $message): void
     {
@@ -230,8 +233,8 @@ class CurlStreamingHandlerTest extends TestCase
         $server = LoopbackHttpServer::start([['body' => ''], ['body' => 'retried']]);
         $nativeFactory = new CurlFactory(0);
         $first = true;
-        $factory = m::mock(CurlFactoryInterface::class);
-        $factory->shouldReceive('create')->andReturnUsing(static function (RequestInterface $request, array $options) use ($nativeFactory, &$first): EasyHandle {
+        $factory = Double::for(CurlFactoryInterface::class)->strict();
+        $factory->allows('create')->resolves(static function (RequestInterface $request, array $options) use ($nativeFactory, &$first): EasyHandle {
             $easy = $nativeFactory->create($request, $options);
 
             if ($first) {
@@ -242,7 +245,7 @@ class CurlStreamingHandlerTest extends TestCase
 
             return $easy;
         });
-        $factory->shouldReceive('release')->andReturnUsing($nativeFactory->release(...));
+        $factory->allows('release')->resolves($nativeFactory->release(...));
         $handler = new CurlStreamingHandler;
         (new ReflectionProperty($handler, 'factory'))->setValue($handler, $factory);
         $callbacks = 0;
@@ -373,6 +376,41 @@ class CurlStreamingHandlerTest extends TestCase
         return [[5], [65536]];
     }
 
+    public function testAHandledCancellationDoesNotCancelALaterRequest(): void
+    {
+        $server = LoopbackHttpServer::start([['body' => 'hello']]);
+        $coroutine = Coroutine::id();
+        Coroutine::create(static function () use ($coroutine): void {
+            usleep(10000);
+            Coroutine::cancelById($coroutine);
+        });
+
+        $this->assertFalse((new Channel(1))->pop(1));
+        $this->assertTrue(Coroutine::isCanceled());
+
+        $response = (new Factory)->withOptions(['stream' => true])->get('http://127.0.0.1:' . $server->port);
+
+        $this->assertSame('hello', $response->body());
+    }
+
+    public function testCancelingTheDelayCancelsTheRequest(): void
+    {
+        $coroutine = Coroutine::id();
+        Coroutine::create(static function () use ($coroutine): void {
+            usleep(50000);
+            Coroutine::cancelById($coroutine);
+        });
+
+        try {
+            // The canceled delay ends the request before it connects.
+            (new Factory)->withOptions(['stream' => true, 'delay' => 1500])->get('http://127.0.0.1:1');
+
+            $this->fail('Expected the delay cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame('The streaming request was canceled.', $exception->getMessage());
+        }
+    }
+
     public function testAbandonedResponseBodyIsReleasedWithoutCyclicGarbageCollection(): void
     {
         $factory = new class(new CurlFactory(0)) implements CurlFactoryInterface {
@@ -428,10 +466,6 @@ class CurlStreamingHandlerTest extends TestCase
 
     public function testNativeWaitReportsDataArrivingBetweenPerformAndSelect(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier can consume ready cURL data and then wait for another event.');
-        }
-
         $server = new Socket(AF_INET, SOCK_STREAM, 0);
         $this->assertTrue($server->bind('127.0.0.1', 0));
         $this->assertTrue($server->listen());

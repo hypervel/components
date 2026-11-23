@@ -10,6 +10,7 @@ use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Container\Transient;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
@@ -29,7 +30,6 @@ use Hypervel\Support\Facades\Event;
 use League\OAuth2\Server\Entities\ClientEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class TokenIssuance implements NonCopyableContext, Transient
@@ -121,12 +121,8 @@ class TokenIssuance implements NonCopyableContext, Transient
             } catch (Throwable $exception) {
                 try {
                     $issuance->rollBack();
-                } catch (CanceledException $cancellation) {
-                    if (! $exception instanceof CanceledException) {
-                        throw $cancellation;
-                    }
-                } catch (Throwable) {
-                    // A failed rollback must not replace the issuance failure.
+                } catch (Throwable $cleanupFailure) {
+                    throw Coroutine::preferCancellation($exception, $cleanupFailure);
                 }
 
                 throw $exception;
@@ -291,9 +287,11 @@ class TokenIssuance implements NonCopyableContext, Transient
     {
         try {
             $this->connection?->commit();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             if ($this->connection->transactionLevel() !== $this->transactionLevel) {
                 throw $exception;
             }

@@ -31,7 +31,7 @@
         "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/support": "^0.4",
-        "symfony/http-foundation": "^8.1"
+        "symfony/http-foundation": "^8.1.11"
     },
     "autoload": {
         "psr-4": {

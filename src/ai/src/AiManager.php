@@ -48,6 +48,7 @@ use Hypervel\Ai\Providers\VoyageAiProvider;
 use Hypervel\Ai\Providers\XaiProvider;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\MultipleInstanceManager;
 use InvalidArgumentException;
 use LogicException;
@@ -174,8 +175,8 @@ class AiManager extends MultipleInstanceManager
     /**
      * Forget resolved providers while retaining their configuration.
      *
-     * Boot or tests only for configured providers. Their instances are shared
-     * by all requests; on-demand providers belong to the current operation.
+     * Forgetting a configured provider affects every request on the worker;
+     * on-demand providers belong to the current operation.
      */
     public function forgetInstance(array|string|null $name = null): static
     {
@@ -194,8 +195,8 @@ class AiManager extends MultipleInstanceManager
     /**
      * Remove a resolved provider.
      *
-     * Boot or tests only for configured providers. Their instances are shared
-     * by all requests; on-demand providers belong to the current operation.
+     * Forgetting a configured provider affects every request on the worker;
+     * on-demand providers belong to the current operation.
      */
     public function purge(?string $name = null): void
     {
@@ -650,8 +651,9 @@ class AiManager extends MultipleInstanceManager
     /**
      * Set the default instance name.
      *
-     * Boot-only. This changes the worker's default provider for every request.
+     * This changes the worker's default provider for every request.
      */
+    #[BootOnly]
     public function setDefaultInstance(string $name): void
     {
         $this->config->set('ai.default', $name);
@@ -690,10 +692,11 @@ class AiManager extends MultipleInstanceManager
      * Configured providers are rebuilt on every lookup, including those built
      * by custom creators. Keep custom creators inexpensive and stateless.
      *
-     * Boot-only. The callback is shared by every subsequent AI operation.
+     * On the shared manager, the callback applies to every later AI operation.
      *
      * @param Closure(string, array): array $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveProviderConfigUsing(Closure $resolver): void
     {
         if ($this->providerConfigResolver !== null) {
@@ -706,10 +709,12 @@ class AiManager extends MultipleInstanceManager
     /**
      * Configure the conversation row partition resolver.
      *
-     * Boot-only. The column and callback apply to every subsequent conversation operation.
+     * On the shared manager, the column and callback apply to every subsequent
+     * conversation operation.
      *
      * @param Closure(): (null|int|string) $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveConversationPartitionUsing(string $column, Closure $resolver): void
     {
         if ($this->conversationPartitionResolver !== null) {
@@ -753,10 +758,12 @@ class AiManager extends MultipleInstanceManager
     /**
      * Configure the embeddings cache scope resolver.
      *
-     * Boot-only. The callback applies to every subsequent embeddings cache operation.
+     * On the shared manager, the callback applies to every subsequent
+     * embeddings cache operation.
      *
      * @param Closure(): ?string $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveEmbeddingsCacheScopeUsing(Closure $resolver): void
     {
         if ($this->embeddingsCacheScopeResolver !== null) {
@@ -788,10 +795,11 @@ class AiManager extends MultipleInstanceManager
      * and inexpensive to re-enter when its context is already active. Return
      * a runner for a captured empty context too; null means no wrapper.
      *
-     * Boot-only. The callback is shared by every subsequent AI operation.
+     * On the shared manager, the callback applies to every later AI operation.
      *
      * @param Closure(): ?Closure $capture
      */
+    #[BootOnly(whenShared: true)]
     public function captureContextUsing(Closure $capture): void
     {
         if ($this->contextCapture !== null) {

@@ -14,6 +14,7 @@ use Hypervel\Foundation\PackageManifest as FoundationPackageManifest;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Http\Request;
 use Hypervel\RateLimiter\Limit;
+use Hypervel\Support\DateFactory;
 use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Support\Facades\Route;
@@ -69,6 +70,7 @@ class CreatesApplicationTest extends TestCase
         return [
             FoundationLoadConfiguration::class => RecordingLoadConfiguration::class,
             FoundationPackageManifest::class => OverriddenPackageManifest::class,
+            'date' => OverriddenDateFactory::class,
         ];
     }
 
@@ -117,6 +119,11 @@ class CreatesApplicationTest extends TestCase
     public function testApplicationBindingOverridesReplaceThePackageManifest(): void
     {
         $this->assertTrue($this->app->providerIsLoaded(ManifestTestServiceProvider::class));
+    }
+
+    public function testApplicationBindingOverridesKeepTheirDateFactory(): void
+    {
+        $this->assertSame(OverriddenDateFactory::class, $this->app->make('date')::class);
     }
 
     #[ResolvesHypervel('captureFacadeRootDuringConfiguration')]
@@ -326,6 +333,10 @@ class OverriddenPackageManifest extends FoundationPackageManifest
     {
         return [];
     }
+}
+
+class OverriddenDateFactory extends DateFactory
+{
 }
 
 class ManifestTestServiceProvider extends ServiceProvider

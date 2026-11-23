@@ -15,8 +15,10 @@ interface Transport
 
     /**
      * Run the transport.
+     *
+     * Implementations return a response or nothing, which no native return type can cover.
      */
-    public function run(); // @phpstan-ignore-line
+    public function run();
 
     /**
      * Send an encoded protocol message.

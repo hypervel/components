@@ -14,6 +14,7 @@ use Hypervel\Data\Attributes\Validation\StringValidationAttribute;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
 use Hypervel\Data\Support\Validation\References\FieldReference;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Number;
 
 class RuleDenormalizer
 {
@@ -117,6 +118,10 @@ class RuleDenormalizer
     ): array|string|null {
         if ($parameter === null) {
             return null;
+        }
+
+        if (is_float($parameter)) {
+            return Number::toString($parameter);
         }
 
         if (is_string($parameter) || is_numeric($parameter)) {

@@ -25,7 +25,8 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -34,6 +35,9 @@ class ServerTest extends ReverbTestCase
 {
     protected Server $server;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -60,12 +64,12 @@ class ServerTest extends ReverbTestCase
     public function testCanceledOpenReleasesItsSlotWithoutSendingAProtocolError(): void
     {
         config()->set('reverb.apps.apps.0.max_connections', 1);
-        $state = m::mock(SharedState::class);
-        $state->expects('acquireConnectionSlot')->with('123456', 1)->andReturnTrue();
+        $state = Double::for(SharedState::class)->strict();
+        $state->expects('acquireConnectionSlot')->with('123456', 1)->returns(true);
         $state->expects('releaseConnectionSlot')->with('123456');
         $this->app->instance(SharedState::class, $state);
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
         $cancellation = new CanceledException;
         Event::listen(ConnectionEstablished::class, static fn () => throw $cancellation);
@@ -87,8 +91,8 @@ class ServerTest extends ReverbTestCase
 
     public function testTimedOutMessageDoesNotSendOrReportAProtocolError(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
         Event::listen(MessageReceived::class, static function (): void {
             Coroutine::sleep(1);
@@ -108,10 +112,11 @@ class ServerTest extends ReverbTestCase
 
     public function testCanHandleADisconnection(): void
     {
-        $scopedManager = m::spy(ScopedChannelManager::class);
+        $scopedManager = Double::for(ScopedChannelManager::class)->strict();
+        $scopedManager->allows('unsubscribeFromAll');
 
-        $channelManager = m::mock(ChannelManager::class);
-        $channelManager->shouldReceive('for')->andReturn($scopedManager);
+        $channelManager = Double::for(ChannelManager::class)->strict();
+        $channelManager->allows('for')->returns($scopedManager);
 
         $this->app->singleton(ChannelManager::class, fn () => $channelManager);
         $this->app->forgetInstance(Server::class);
@@ -120,7 +125,7 @@ class ServerTest extends ReverbTestCase
         $server->open($connection = new FakeConnection);
         $server->close($connection);
 
-        $scopedManager->shouldHaveReceived('unsubscribeFromAll');
+        $scopedManager->received('unsubscribeFromAll')->with(Argument::same($connection))->times(1);
     }
 
     public function testCanHandleANewMessage(): void
@@ -222,8 +227,8 @@ class ServerTest extends ReverbTestCase
 
     public function testRejectsScalarSubscriptionDataBeforePublishingSharedMembership(): void
     {
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $this->server->message(
@@ -255,11 +260,11 @@ class ServerTest extends ReverbTestCase
     public function testReportsUnexpectedMessageFailuresWithoutChangingTheClientPayload(): void
     {
         $exception = new RuntimeException('Internal handler failure');
-        $handler = m::mock(EventHandler::class);
-        $handler->shouldReceive('handle')->once()->andThrow($exception);
+        $handler = Double::for(EventHandler::class)->strict();
+        $handler->expects('handle')->throws($exception);
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldReceive('report')->once()->with($exception);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('report')->with(Argument::same($exception));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $server = $this->app->makeWith(Server::class, ['handler' => $handler]);
@@ -486,6 +491,9 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
+    /**
+     * Provide disallowed connection origins.
+     */
     public static function invalidOriginProvider(): array
     {
         return [
@@ -499,8 +507,8 @@ class ServerTest extends ReverbTestCase
     {
         config()->set('reverb.apps.apps.0.allowed_origins', ['localhost']);
 
-        $webSocket = m::mock(WebSocketConnection::class);
-        $webSocket->shouldReceive('send')->once();
+        $webSocket = Double::for(WebSocketConnection::class)->strict();
+        $webSocket->expects('send');
         $application = $this->app->make(ApplicationProvider::class)
             ->findByKey('reverb-key');
         $connection = new Connection($webSocket, $application, null);
@@ -526,6 +534,9 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
+    /**
+     * Provide allowed connection origins.
+     */
     public static function validOriginProvider(): array
     {
         return [
@@ -837,6 +848,9 @@ class ServerTest extends ReverbTestCase
         $this->assertFalse($connection->wasTerminated);
     }
 
+    /**
+     * Remove the configured rate limiter store.
+     */
     protected function withInvalidRateLimiterConfiguration(ApplicationContract $app): void
     {
         $config = $app->make('config');
@@ -1031,10 +1045,11 @@ class ServerTest extends ReverbTestCase
 
     public function testCloseDoesNotTerminateTheConnection(): void
     {
-        $scopedManager = m::spy(ScopedChannelManager::class);
+        $scopedManager = Double::for(ScopedChannelManager::class)->strict();
+        $scopedManager->allows('unsubscribeFromAll');
 
-        $channelManager = m::mock(ChannelManager::class);
-        $channelManager->shouldReceive('for')->andReturn($scopedManager);
+        $channelManager = Double::for(ChannelManager::class)->strict();
+        $channelManager->allows('for')->returns($scopedManager);
 
         $this->app->singleton(ChannelManager::class, fn () => $channelManager);
         $this->app->forgetInstance(Server::class);
@@ -1052,10 +1067,11 @@ class ServerTest extends ReverbTestCase
 
     public function testCloseSetsDisconnectingFlag(): void
     {
-        $scopedManager = m::spy(ScopedChannelManager::class);
+        $scopedManager = Double::for(ScopedChannelManager::class)->strict();
+        $scopedManager->allows('unsubscribeFromAll');
 
-        $channelManager = m::mock(ChannelManager::class);
-        $channelManager->shouldReceive('for')->andReturn($scopedManager);
+        $channelManager = Double::for(ChannelManager::class)->strict();
+        $channelManager->allows('for')->returns($scopedManager);
 
         $this->app->singleton(ChannelManager::class, fn () => $channelManager);
         $this->app->forgetInstance(Server::class);

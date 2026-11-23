@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
@@ -11,6 +12,8 @@ use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Lock;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -22,12 +25,45 @@ use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\DeferredQueue;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use WeakReference;
 
 class DispatchLockContextTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    public function testReleaseAttemptsBothLocksAndPreservesCancellationFromDebounceCleanup(): void
+    {
+        $failure = new RuntimeException('Debounce cleanup failed.', previous: new CanceledException);
+        $unique = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
+        $unique->expects('lock')->with('unique')->returns($lock);
+        $lock->expects('forceRelease')->throws(new RuntimeException('Unique release failed.'));
+        $debounce = Double::for(Cache::class)->strict();
+        $debounce->expects('get')->with('debounce')->returns('owner');
+        $debounce->expects('forget')->with('debounce')->throws($failure);
+        $debounce->expects('forget')->with('debounce:first_dispatched_at')->returns(true);
+        $job = new DispatchLockContextJob('cleanup');
+        DispatchLockContext::registerUnique($job, $unique, null, 'unique', '');
+        DispatchLockContext::registerDebounce($job, $debounce, 'debounce', 'owner');
+        $caught = null;
+
+        try {
+            DispatchLockContext::release($job);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse(DispatchLockContext::has($job));
+    }
+
     public function testMetadataRemainsAvailableUntilTheExactJobIsAccepted(): void
     {
         $cache = new Repository(new WorkerArrayStore, ['store' => 'unique']);
@@ -168,17 +204,16 @@ class DispatchLockContextTest extends TestCase
     public function testMetadataSurvivesUntilAfterCommitPayloadCreation(string $queueClass, bool $delayed): void
     {
         $container = new Container;
-        $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(Cache::class, Double::for(Cache::class)->strict());
         $container->instance(ContainerContract::class, $container);
         $container->instance(EventDispatcher::class, new EventsDispatcher($container));
         Container::setInstance($container);
 
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturnNull();
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(fn (callable $callback) => $callback());
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $metadata = null;
@@ -224,6 +259,52 @@ class DispatchLockContextTest extends TestCase
             'background later' => [DispatchLockContextBackgroundQueue::class, true],
             'deferred later' => [DispatchLockContextDeferredQueue::class, true],
         ];
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFailedQueueReacquisitionReleasesOwnedLocks(bool $cleanupThrows): void
+    {
+        $container = new Container;
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $container->instance(EventDispatcher::class, new EventsDispatcher($container));
+        Container::setInstance($container);
+        $queue = new SyncQueue(true);
+        $queue->setContainer($container);
+        $queue->setConnectionName('test');
+        $failure = $cleanupThrows ? new CanceledException : new RuntimeException('Queue unavailable.');
+        $cleanupFailure = new RuntimeException('Lock cleanup failed.');
+
+        if ($cleanupThrows) {
+            DispatchLockContext::captureReleaseContextUsing(static fn () => static function (Closure $release) use ($cleanupFailure): void {
+                $release();
+                throw $cleanupFailure;
+            });
+        }
+
+        $cache = new Repository(new WorkerArrayStore);
+        $job = new DispatchLockContextDefaultCacheJob('failed-reacquisition');
+        $this->assertTrue((new UniqueLock($cache))->acquireForDispatch($job));
+        $lock = $cache->lock(UniqueLock::getKey($job));
+        $queue->setAfterCommitDispatcher(static fn () => throw $failure);
+
+        $transactions->begin('default', 1);
+        $queue->push($job);
+        $this->assertTrue($lock->isLocked());
+
+        try {
+            $transactions->commit('default', 1, 0);
+            $this->fail('Expected the deferred queue failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupThrows ? $cleanupFailure : $failure, $exception);
+            if ($cleanupThrows) {
+                $this->assertSame($failure, $exception->getPrevious());
+            }
+        }
+
+        $this->assertFalse($lock->isLocked());
+        $this->assertFalse(DispatchLockContext::has($job));
     }
 }
 

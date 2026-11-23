@@ -14,7 +14,7 @@ class ForgetFailedCommand extends Command
     /**
      * The console command signature.
      */
-    protected ?string $signature = 'queue:forget {id : The ID of the failed job}';
+    protected ?string $signature = 'queue:forget {id* : The IDs of the failed jobs}';
 
     /**
      * The console command description.
@@ -26,11 +26,19 @@ class ForgetFailedCommand extends Command
      */
     public function handle(): ?int
     {
-        if ($this->hypervel->make(FailedJobProviderInterface::class)->forget($this->argument('id'))) {
-            $this->components->info('Failed job deleted successfully.');
-        } else {
-            $this->components->error('No failed job matches the given ID.');
+        $missing = false;
 
+        foreach ((array) $this->argument('id') as $id) {
+            if ($this->hypervel->make(FailedJobProviderInterface::class)->forget($id)) {
+                $this->components->info("Failed job [{$id}] deleted successfully.");
+            } else {
+                $this->components->error("No failed job matches the ID [{$id}].");
+
+                $missing = true;
+            }
+        }
+
+        if ($missing) {
             return self::FAILURE;
         }
 

@@ -14,6 +14,7 @@ use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\UrlGenerator;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\CategoryEnum;
@@ -22,6 +23,7 @@ use Hypervel\Tests\Routing\Fixtures\RouteNameEnum;
 use Hypervel\Tests\Routing\RoutingTestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
@@ -780,6 +782,33 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('https://assets.example.com/foo/bar', $url->asset('foo/bar'));
     }
 
+    #[TestWith([null, null, 'https://assets.example.com/app.js'])]
+    #[TestWith(['', '', 'https://request.example.com/app.js'])]
+    #[TestWith(['https://tenant-assets.example.com/', 'https://tenant-assets.example.com', 'https://tenant-assets.example.com/app.js'])]
+    public function testForcedAssetOriginCanBeRestored(?string $origin, ?string $expectedOrigin, string $expectedUrl): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/'),
+            'https://assets.example.com'
+        );
+
+        $this->assertNull($url->getForcedAssetOrigin());
+
+        $url->useAssetOrigin($origin);
+        $previous = $url->getForcedAssetOrigin();
+
+        $this->assertSame($expectedOrigin, $previous);
+
+        $url->useAssetOrigin('https://temporary.example.com');
+        $this->assertSame('https://temporary.example.com/app.js', $url->asset('app.js'));
+
+        $url->useAssetOrigin($previous);
+
+        $this->assertSame($expectedOrigin, $url->getForcedAssetOrigin());
+        $this->assertSame($expectedUrl, $url->asset('app.js'));
+    }
+
     // REMOVED: forceRootUrl() is a deprecated alias; useOrigin() is the
     // request-isolated URL-origin API.
     public function testUseOrigin(): void
@@ -810,6 +839,42 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
 
         $url->useOrigin('https://www.bar.com');
         $this->assertSame('https://www.bar.com/foo', $url->route('plain'));
+    }
+
+    #[TestWith([null, null, 'https://second.example.com/path'])]
+    #[TestWith(['', '', 'https://second.example.com/path'])]
+    #[TestWith(['https://tenant.example.com/base/', 'https://tenant.example.com/base', 'https://tenant.example.com/base/path'])]
+    public function testForcedOriginCanBeRestored(?string $origin, ?string $expectedOrigin, string $expectedUrl): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $resolvedOrigin = 'https://first.example.com';
+        $resolverCalls = 0;
+        $url->resolveOriginUsing(function () use (&$resolvedOrigin, &$resolverCalls): string {
+            ++$resolverCalls;
+
+            return $resolvedOrigin;
+        });
+
+        $this->assertNull($url->getForcedOrigin());
+
+        $url->useOrigin($origin);
+        $previous = $url->getForcedOrigin();
+
+        $this->assertSame($expectedOrigin, $previous);
+        $this->assertSame(0, $resolverCalls);
+
+        $url->useOrigin('https://temporary.example.com');
+        $this->assertSame('https://temporary.example.com/path', $url->to('path'));
+
+        $url->useOrigin($previous);
+        $resolvedOrigin = 'https://second.example.com';
+
+        $this->assertSame($expectedOrigin, $url->getForcedOrigin());
+        $this->assertSame($expectedUrl, $url->to('path'));
     }
 
     public function testOriginResolverIsEvaluatedForEachEligibleUrl(): void
@@ -1171,6 +1236,93 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertTrue($url->hasValidSignature($request, ignoreQuery: fn ($parameter) => $parameter === 'tampered'));
     }
 
+    public function testNumericQueryParametersAreUrlEncoded(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
+
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+        $url->setKeyResolver(fn (): string => 'secret');
+
+        $routes->add(new Route(['GET'], 'foo', ['as' => 'foo', fn (): string => '']));
+
+        $this->assertSame('http://www.foo.com/foo?a=1&expires%3D', $url->route('foo', ['a' => 1, 'expires=']));
+
+        $request = Request::create($url->temporarySignedRoute('foo', $now->addSecond(), [0 => 'expires=']));
+
+        $this->assertNotSame('', $request->query('expires'));
+        $this->assertTrue($url->hasValidSignature($request));
+
+        CarbonImmutable::setTestNow($now->addSeconds(2));
+
+        $this->assertFalse($url->hasValidSignature($request));
+    }
+
+    #[TestWith(['foo', ['expires'], true])]
+    #[TestWith(['foo', ['expires'], false])]
+    #[TestWith(['foo', ['signature'], false])]
+    #[TestWith(['foo/{expires}', [], true])]
+    #[TestWith(['foo/{signature}', ['abc'], false])]
+    public function testSignedUrlRejectsReservedNamesAfterSubstitution(string $path, array $parameters, bool $temporary): void
+    {
+        $url = new UrlGenerator($routes = new RouteCollection, Request::create('http://www.foo.com/'));
+        $url->setKeyResolver(fn (): string => 'secret');
+        $routes->add(new Route(['GET'], $path, ['as' => 'foo', fn (): string => '']));
+
+        $this->expectExceptionObject(new InvalidArgumentException('reserved'));
+
+        $url->signedRoute('foo', $parameters, $temporary ? CarbonImmutable::now()->addMinute() : null);
+    }
+
+    public function testSignedUrlAllowsReservedTextInPositionalRouteValues(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
+
+        $url = new UrlGenerator($routes = new RouteCollection, Request::create('http://www.foo.com/'));
+        $url->setKeyResolver(fn (): string => 'secret');
+        $routes->add(new Route(['GET'], 'foo/{slug}', ['as' => 'foo', fn (): string => '']));
+
+        $request = Request::create($url->temporarySignedRoute('foo', $now->addSecond(), ['expires']));
+
+        $this->assertSame('/foo/expires', $request->getPathInfo());
+        $this->assertTrue($url->hasValidSignature($request));
+
+        CarbonImmutable::setTestNow($now->addSeconds(2));
+
+        $this->assertFalse($url->hasValidSignature($request));
+    }
+
+    // REMOVED: Vapor raw-query datasets; Swoole supplies QUERY_STRING directly.
+    public function testSignatureExpirationIsReadFromTheRawQueryString(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $request = Request::create('http://www.foo.com/foo');
+        $request->server->set('QUERY_STRING', sprintf('expires=%d', $now->addMinutes(10)->timestamp));
+
+        $url = new UrlGenerator(new RouteCollection, $request);
+
+        $this->assertNull($request->query('expires'));
+        $this->assertTrue($url->signatureHasNotExpired($request));
+
+        CarbonImmutable::setTestNow($now->addMinutes(11));
+
+        $this->assertFalse($url->signatureHasNotExpired($request));
+    }
+
+    public function testSignatureExpirationRejectsArraysFromTheRawQueryString(): void
+    {
+        $request = Request::create('http://www.foo.com/foo');
+        $request->server->set('QUERY_STRING', 'expires[]=99999999999');
+
+        $url = new UrlGenerator(new RouteCollection, $request);
+
+        $this->assertNull($request->query('expires'));
+        $this->assertFalse($url->signatureHasNotExpired($request));
+    }
+
     public function testSignedUrlDoesNotTrustForwardedPrefixToChangeThePathBeingVerified(): void
     {
         $url = new UrlGenerator(
@@ -1496,7 +1648,11 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         }
     }
 
-    public function testSignedUrlWithArrayExpiresReturnsFalse(): void
+    #[TestWith(['expires[]=99999999999'])]
+    #[TestWith(['expires=99999999999&expires'])]
+    #[TestWith(['expires=abc'])]
+    #[TestWith(['expires=0'])]
+    public function testSignedUrlWithInvalidExpiresReturnsFalse(string $query): void
     {
         $url = new UrlGenerator(
             new RouteCollection,
@@ -1506,9 +1662,6 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
             return 'secret';
         });
 
-        // ?expires[]=99999999999 is truthy but comparing timestamp > array is always
-        // false in PHP, so without the guard the URL would never appear expired.
-        $query = 'expires[]=99999999999';
         $signature = hash_hmac('sha256', 'http://www.foo.com/foo?' . $query, 'secret');
         $request = Request::create('http://www.foo.com/foo?' . $query . '&signature=' . $signature);
 
@@ -1796,6 +1949,49 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $url->useDefaults(null);
 
         $this->assertSame([], $url->getDefaultParameters());
+    }
+
+    public function testDefaultParameterOverridesCanBeRestored(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $url->defaults(['locale' => 'en', 'worker' => 'worker']);
+        $locale = 'fr';
+        $url->resolveDefaultsUsing(function () use (&$locale): array {
+            return ['locale' => $locale];
+        });
+
+        $previous = $url->getDefaultParameterOverrides();
+
+        $this->assertSame([], $previous);
+
+        $url->useDefaults(['locale' => 'it']);
+        $this->assertSame(['locale' => 'it'], $url->getDefaultParameterOverrides());
+
+        $url->useDefaults($previous);
+        $locale = 'de';
+
+        $this->assertSame([], $url->getDefaultParameterOverrides());
+        $this->assertSame(['locale' => 'de', 'worker' => 'worker'], $url->getDefaultParameters());
+
+        RequestContext::set(Request::create('https://request.example.com/'));
+        $url->defaults(['locale' => 'nl']);
+        $previous = $url->getDefaultParameterOverrides();
+
+        $this->assertSame(['locale' => 'nl'], $previous);
+
+        $url->useDefaults(['locale' => 'it']);
+        $url->useDefaults($previous);
+
+        $this->assertSame(['locale' => 'nl', 'worker' => 'worker'], $url->getDefaultParameters());
+
+        $url->useDefaults(null);
+
+        $this->assertSame([], $url->getDefaultParameterOverrides());
+        $this->assertSame(['locale' => 'de', 'worker' => 'worker'], $url->getDefaultParameters());
     }
 
     public function testUseDefaultsIsIsolatedAcrossNonHttpCoroutines(): void

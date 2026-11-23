@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\TranscriptionGateway;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasTranscriptionGateway
 {
@@ -21,8 +22,9 @@ trait HasTranscriptionGateway
     /**
      * Set the provider's transcription gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useTranscriptionGateway(TranscriptionGateway $gateway): self
     {
         $this->transcriptionGateway = $gateway;

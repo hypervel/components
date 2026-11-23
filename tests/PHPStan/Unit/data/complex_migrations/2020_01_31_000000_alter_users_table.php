@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\PHPStan\Unit\ComplexMigrations;
+
+use Hypervel\Database\Migrations\Migration;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+
+class AlterUsersTable extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        // Do Some stuff, create temp tables
+        Schema::drop('users');
+
+        // Do more stuff
+
+        $this->createTable();
+
+        // Stuff
+
+        $this->alterTable();
+    }
+
+    private function createTable(): void
+    {
+        Schema::create('users', static function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name')->nullable();
+            $table->string('email')->unique();
+            $table->string('address1')->nullable();
+            $table->string('address2')->nullable();
+            $table->date('birthday');
+            $table->addColumn('string', 'city')->nullable();
+            $table->addColumn('integer', 'zip');
+            $table->timestamps();
+        });
+    }
+
+    private function alterTable(): void
+    {
+        Schema::table('users', static function (Blueprint $table) {
+            $table->dropColumn('name');
+            $table->dropColumn(['address1', 'address2']);
+            $table->integer('active');
+        });
+    }
+}

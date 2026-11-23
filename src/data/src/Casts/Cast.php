@@ -7,7 +7,6 @@ namespace Hypervel\Data\Casts;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataProperty;
 
-// REMOVED: UnserializeCast accepted serialized request input; use a custom Cast for trusted formats.
 interface Cast
 {
     /**

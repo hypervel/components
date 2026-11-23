@@ -17,12 +17,17 @@ use Hypervel\Mcp\Server\Contracts\Method;
 use Hypervel\Mcp\Server\ServerContext;
 use Hypervel\Mcp\Transport\JsonRpcRequest;
 use Hypervel\Mcp\Transport\JsonRpcResponse;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Tests\Mcp\Fixtures\ArrayTransport;
 use Hypervel\Tests\Mcp\Fixtures\CustomMethodHandler;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
 use Hypervel\Tests\Mcp\TestCase;
+use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Tests\Mcp\Fixtures\callStreamingToolMessage;
 use function Hypervel\Tests\Mcp\Fixtures\callToolMessage;
@@ -577,6 +582,15 @@ class ServerTest extends TestCase
         $response = json_decode((string) $transport->sent[0], true);
 
         $this->assertSame('Custom method executed successfully!', $response['result']['message']);
+
+        ($transport->handler)(json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 457,
+            'method' => 'initialize',
+            'params' => ['_meta' => protocolMeta()],
+        ]));
+
+        $this->assertSame(-32601, json_decode((string) $transport->sent[1], true)['error']['code']);
     }
 
     public function testDiscoversAnEmptyCapabilitySetAsAJsonObject(): void
@@ -785,23 +799,165 @@ class ServerTest extends TestCase
         $this->assertSame('https://example.com/from-method.png', $context->implementation->icons[1]->src);
     }
 
-    #[DataProvider('invalidEnvelopes')]
-    public function testRejectsNonObjectEnvelopesAsInvalidRequests(string $payload): void
+    public function testRejectsWronglyTypedParamsAsInvalidParamsWithoutReporting(): void
     {
+        config(['app.debug' => true]);
+        Exceptions::fake();
+
         $transport = new ArrayTransport;
         $server = new ExampleServer($transport);
-        $server->handle($payload);
 
-        $response = json_decode($transport->sent[0], true);
-        $this->assertSame(-32600, $response['error']['code']);
+        $server->start();
+
+        ($transport->handler)(json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/call',
+            'params' => ['name' => ['x'], '_meta' => protocolMeta()],
+        ]));
+
+        $this->assertSame([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'error' => [
+                'code' => -32602,
+                'message' => 'The [name] parameter must be a string.',
+            ],
+        ], json_decode((string) $transport->sent[0], true));
+
+        Exceptions::assertNothingReported();
+    }
+
+    #[DataProvider('nonObjectRequestBodies')]
+    public function testRejectsARequestBodyThatIsNotAJsonObject(string $body): void
+    {
+        config(['app.debug' => true]);
+        Exceptions::fake();
+
+        $transport = new ArrayTransport;
+        $server = new ExampleServer($transport);
+
+        $server->start();
+
+        ($transport->handler)($body);
+
+        $this->assertSame([
+            'jsonrpc' => '2.0',
+            'error' => [
+                'code' => -32600,
+                'message' => 'Invalid Request: The request must be a JSON object.',
+            ],
+        ], json_decode((string) $transport->sent[0], true));
+
+        Exceptions::assertNothingReported();
     }
 
     /**
      * Supply valid JSON values that are not request objects.
      */
-    public static function invalidEnvelopes(): array
+    public static function nonObjectRequestBodies(): array
     {
-        return [['null'], ['true'], ['5'], ['"text"'], ['[]'], ['[{"jsonrpc":"2.0","id":1,"method":"ping"}]']];
+        return [['null'], ['1'], ['"string"'], ['true'], ['[1]'], ['[{"jsonrpc":"2.0","id":1,"method":"ping"}]'], [" \n[] "]];
+    }
+
+    #[TestWith([' {} '], 'empty object')]
+    #[TestWith(['{"0":"ping"}'], 'numeric member names')]
+    public function testValidatesTheMembersOfARequestObjectThatDecodesToAList(string $rawMessage): void
+    {
+        $transport = new ArrayTransport;
+        $server = new ExampleServer($transport);
+
+        $server->handle($rawMessage);
+
+        $this->assertSame([
+            'jsonrpc' => '2.0',
+            'error' => [
+                'code' => -32600,
+                'message' => 'Invalid Request: Invalid JSON-RPC version. Must be "2.0".',
+            ],
+        ], json_decode((string) $transport->sent[0], true));
+    }
+
+    #[DataProvider('unencodableResults')]
+    public function testRespondsWithAnInternalErrorWhenTheResultCannotBeEncoded(bool $debug, string $message): void
+    {
+        config(['app.debug' => $debug]);
+        Exceptions::fake();
+
+        $transport = new ArrayTransport;
+        $server = new ExampleServer($transport);
+        $server->addMethod('test/failure', TerminalFailureMethod::class);
+        $this->app->instance(TerminalFailureMethod::class, new TerminalFailureMethod(false, 'encoding'));
+
+        $server->start();
+
+        ($transport->handler)(json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 999,
+            'method' => 'test/failure',
+            'params' => ['_meta' => protocolMeta()],
+        ]));
+
+        $this->assertSame([
+            'jsonrpc' => '2.0',
+            'id' => 999,
+            'error' => [
+                'code' => -32603,
+                'message' => $message,
+            ],
+        ], json_decode((string) $transport->sent[0], true));
+
+        Exceptions::assertReported(JsonException::class);
+    }
+
+    /**
+     * Supply the debug modes for an unencodable result.
+     */
+    public static function unencodableResults(): array
+    {
+        // Upstream's invalid UTF-8 rows do not apply: Hypervel responses replace invalid UTF-8 instead of failing.
+        return [
+            'nan' => [false, 'Something went wrong while processing the request.'],
+            'nan in debug' => [true, 'Inf and NaN cannot be JSON encoded'],
+        ];
+    }
+
+    public function testDropsAStreamedNotificationThatCannotBeEncodedAndStillSendsTheResult(): void
+    {
+        Exceptions::fake();
+
+        $transport = new ArrayTransport;
+        $server = new ExampleServer($transport);
+        $server->addMethod('test/method', CustomMethodHandler::class);
+
+        $this->app->bind(CustomMethodHandler::class, fn (): Method => new class implements Method {
+            /**
+             * Stream an unencodable notification before the result.
+             */
+            public function handle(JsonRpcRequest $request, ServerContext $context): iterable
+            {
+                yield JsonRpcResponse::notification('notifications/progress', ['progress' => NAN]);
+                yield JsonRpcResponse::result($request->id, ['value' => 'ok']);
+            }
+        });
+
+        $server->start();
+
+        ($transport->handler)(json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 999,
+            'method' => 'test/method',
+            'params' => ['_meta' => protocolMeta()],
+        ]));
+
+        $this->assertCount(1, $transport->sent);
+
+        $response = json_decode((string) $transport->sent[0], true);
+
+        $this->assertSame(999, $response['id']);
+        $this->assertSame('ok', $response['result']['value']);
+
+        Exceptions::assertReported(JsonException::class);
     }
 
     #[DataProvider('terminalFailures')]
@@ -831,33 +987,45 @@ class ServerTest extends TestCase
     public static function terminalFailures(): array
     {
         return [
-            [false, 'encoding', -32603],
             [true, 'encoding', -32603],
             [false, 'protocol', -32602],
             [true, 'protocol', -32602],
             [false, 'error-data', -32603],
             [true, 'error-data', -32603],
             [true, 'ordinary', -32603],
+            [false, 'unidentified-protocol', -32602],
+            [true, 'unidentified-error-data', -32603],
+            [false, 'returned-error-data', -32603],
         ];
     }
 
-    public function testLazyCancellationRestoresTheRequestWithoutSendingAnError(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testLazyCancellationRestoresTheRequestWithoutSendingAnError(bool $wrapped): void
     {
+        config(['app.debug' => false]);
+
         $transport = new ArrayTransport;
         $server = new ExampleServer($transport);
         $server->addMethod('test/cancel', CancellationMethod::class);
         $method = new CancellationMethod;
+
+        if ($wrapped) {
+            $method->cancellation = new RuntimeException('Request cleanup failed.', previous: $method->cancellation);
+        }
+
         $this->app->instance(CancellationMethod::class, $method);
         $outer = new Request(['outer' => true]);
         CoroutineContext::set(Request::class, $outer);
+        $caught = null;
 
         try {
             $server->handle('{"jsonrpc":"2.0","id":1,"method":"test/cancel","params":{"arguments":{"value":"inner"}}}');
-            $this->fail('Cancellation must propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($method->cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($method->cancellation, $caught);
         $this->assertSame('inner', $method->closedUnder?->get('value'));
         $this->assertSame($outer, CoroutineContext::get(Request::class));
         $this->assertCount(1, $transport->sent);
@@ -931,6 +1099,9 @@ class TerminalFailureMethod implements Method
             'protocol' => throw new JsonRpcException('Invalid argument', -32602, $request->id),
             'error-data' => throw new JsonRpcException('Invalid argument', -32602, $request->id, ['value' => NAN]),
             'ordinary' => throw new Exception('Failed after progress'),
+            'unidentified-protocol' => throw new JsonRpcException('Invalid argument', -32602),
+            'unidentified-error-data' => throw new JsonRpcException('Invalid argument', -32602, data: ['value' => NAN]),
+            'returned-error-data' => JsonRpcResponse::error(null, -32602, 'Invalid argument', ['value' => NAN]),
         };
     }
 }
@@ -939,7 +1110,7 @@ class CancellationMethod implements Method
 {
     public ?Request $closedUnder = null;
 
-    public CanceledException $cancellation;
+    public Throwable $cancellation;
 
     /**
      * Create the cancellation signal.

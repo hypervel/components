@@ -30,51 +30,38 @@ class Flush
         $prefix = $this->context->prefix();
         $isCluster = $this->context->isCluster();
 
-        $tagKeys = array_map(fn (string $tagId): string => $prefix . $tagId, $tagIds);
-        $entries = $this->getEntries->execute($tagIds);
+        // Flush one tag at a time so each chunk is only removed from the tag it was scanned
+        // from. Removing every chunk from every requested tag multiplies the work by the tag
+        // count and blocks Redis when many tags are flushed together.
+        foreach ($tagIds as $tagId) {
+            $tagKey = $prefix . $tagId;
 
-        foreach ($entries->chunk(self::CHUNK_SIZE) as $chunk) {
-            $members = array_values($chunk->all());
+            foreach ($this->getEntries->execute([$tagId])->chunk(self::CHUNK_SIZE) as $chunk) {
+                $members = array_values($chunk->all());
+                $keys = array_map(fn (string $key): string => $prefix . $key, $members);
 
-            if ($members === []) {
-                continue;
-            }
-
-            $keys = array_map(fn (string $key): string => $prefix . $key, $members);
-
-            $this->context->withConnection(function (RedisConnection $connection) use ($keys, $members, $tagKeys, $isCluster): void {
-                if ($isCluster) {
-                    // Remove memberships first so a racing writer can leave only
-                    // orphaned metadata for Prune, never an unindexed live value.
-                    foreach ($tagKeys as $tagKey) {
+                $this->context->withConnection(function (RedisConnection $connection) use ($keys, $members, $tagKey, $isCluster): void {
+                    if ($isCluster) {
+                        // Remove memberships first so a racing writer can leave only
+                        // orphaned metadata for Prune, never an unindexed live value.
                         $connection->zrem($tagKey, ...$members);
+                        $connection->del(...$keys);
+                    } else {
+                        $connection->evalWithShaCache($this->flushChunkScript(), [$tagKey, ...$keys], $members);
                     }
-
-                    $connection->del(...$keys);
-                } else {
-                    $connection->evalWithShaCache(
-                        $this->flushChunkScript(),
-                        [...$tagKeys, ...$keys],
-                        [count($tagKeys), ...$members],
-                    );
-                }
-            });
+                });
+            }
         }
     }
 
     /**
-     * Atomically delete scanned values and memberships, preserving concurrent additions.
+     * Atomically delete scanned values and their memberships, preserving concurrent additions.
      */
     protected function flushChunkScript(): string
     {
         return <<<'LUA'
-            local tagCount = tonumber(ARGV[1])
-
-            redis.call('DEL', unpack(KEYS, tagCount + 1, #KEYS))
-
-            for i = 1, tagCount do
-                redis.call('ZREM', KEYS[i], unpack(ARGV, 2, #ARGV))
-            end
+            redis.call('DEL', unpack(KEYS, 2, #KEYS))
+            redis.call('ZREM', KEYS[1], unpack(ARGV))
 
             return 1
             LUA;

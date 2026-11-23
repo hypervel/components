@@ -394,11 +394,11 @@ class Arr
 
     /**
      * Remove one or many array items from a given array using "dot" notation.
+     *
+     * @param-out ($array is array ? array : ArrayAccess) $array
      */
-    public static function forget(array &$array, array|string|int|float|null $keys): void
+    public static function forget(ArrayAccess|array &$array, array|string|int|float|null $keys): void
     {
-        $original = &$array;
-
         $keys = (array) $keys;
 
         if ($keys === []) {
@@ -406,9 +406,6 @@ class Arr
         }
 
         foreach ($keys as $key) {
-            // clean up before each pass
-            $array = &$original;
-
             // if the exact key exists in the top-level, remove it
             if (static::exists($array, $key)) {
                 unset($array[$key]);
@@ -416,20 +413,44 @@ class Arr
                 continue;
             }
 
-            $parts = explode('.', (string) $key);
+            static::forgetPath($array, explode('.', (string) $key));
+        }
+    }
 
-            while (count($parts) > 1) {
-                $part = array_shift($parts);
+    /**
+     * Remove an item along a segmented path without matching nested literal-dot keys.
+     *
+     * @param list<string> $parts
+     * @param-out ($array is array ? array : ArrayAccess) $array
+     */
+    protected static function forgetPath(ArrayAccess|array &$array, array $parts): void
+    {
+        while (count($parts) > 1) {
+            $part = array_shift($parts);
 
-                if (isset($array[$part]) && static::accessible($array[$part])) {
-                    $array = &$array[$part];
-                } else {
-                    continue 2;
+            if ($array instanceof ArrayAccess) {
+                $nested = $array[$part] ?? null;
+
+                if (static::accessible($nested)) {
+                    static::forgetPath($nested, $parts);
+
+                    // ArrayAccess reads may return arrays by value; object children mutate in place.
+                    if (is_array($nested)) {
+                        $array[$part] = $nested;
+                    }
                 }
+
+                return;
             }
 
-            unset($array[array_shift($parts)]);
+            if (isset($array[$part]) && static::accessible($array[$part])) {
+                $array = &$array[$part];
+            } else {
+                return;
+            }
         }
+
+        unset($array[array_shift($parts)]);
     }
 
     /**
@@ -737,7 +758,7 @@ class Arr
     /**
      * Pluck an array of values from an array.
      */
-    public static function pluck(iterable $array, string|array|int|Closure|null $value, string|array|Closure|null $key = null): array
+    public static function pluck(iterable $array, string|array|int|Closure|null $value, string|array|int|Closure|null $key = null): array
     {
         $results = [];
 
@@ -772,21 +793,27 @@ class Arr
     /**
      * Explode the "value" and "key" arguments passed to "pluck".
      *
-     * @param array|Closure|string $value
-     * @param null|array|Closure|string $key
-     * @return array
+     * @return array{null|array<array-key, mixed>|Closure|int, null|array<array-key, mixed>|Closure|int}
      */
-    protected static function explodePluckParameters($value, $key)
+    protected static function explodePluckParameters(string|array|int|Closure|null $value, string|array|int|Closure|null $key): array
     {
         $value = is_string($value) ? explode('.', $value) : $value;
 
-        $key = is_null($key) || is_array($key) || $key instanceof Closure ? $key : explode('.', $key);
+        $key = is_null($key) || is_array($key) || is_int($key) || $key instanceof Closure ? $key : explode('.', $key);
 
         return [$value, $key];
     }
 
     /**
      * Run a map over each of the items in the array.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     * @template TMapValue
+     *
+     * @param array<TKey, TValue> $array
+     * @param callable(TValue, TKey): TMapValue $callback
+     * @return array<TKey, TMapValue>
      */
     public static function map(array $array, callable $callback): array
     {
@@ -795,6 +822,7 @@ class Arr
         try {
             $items = array_map($callback, $array, $keys);
         } catch (ArgumentCountError) {
+            // @phpstan-ignore argument.type (only reached by callbacks that reject the key argument, such as internal functions)
             $items = array_map($callback, $array);
         }
 
@@ -806,13 +834,14 @@ class Arr
      *
      * The callback should return an associative array with a single key/value pair.
      *
-     * @template TKey
+     * @template TKey of array-key
      * @template TValue
      * @template TMapWithKeysKey of array-key
      * @template TMapWithKeysValue
      *
      * @param array<TKey, TValue> $array
      * @param callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
+     * @return array<TMapWithKeysKey, TMapWithKeysValue>
      */
     public static function mapWithKeys(array $array, callable $callback): array
     {
@@ -936,11 +965,32 @@ class Arr
      * Set an array item to a given value using "dot" notation.
      *
      * If no key is given to the method, the entire array will be replaced.
+     *
+     * @param-out ($key is null ? ($value is ArrayAccess ? ArrayAccess : array) : ($array is array ? array : ArrayAccess)) $array
+     * @return ($key is null ? ($value is ArrayAccess ? ArrayAccess : array) : array|ArrayAccess)
      */
-    public static function set(array &$array, string|int|float|null $key, mixed $value): array
+    public static function set(ArrayAccess|array &$array, string|int|float|null $key, mixed $value): ArrayAccess|array
     {
         if (is_null($key)) {
             return $array = $value;
+        }
+
+        if ($array instanceof ArrayAccess && str_contains((string) $key, '.')) {
+            // Userland offsetGet() may return arrays by value, so nested changes need writeback.
+            [$segment, $path] = explode('.', (string) $key, 2);
+            $nested = $array[$segment] ?? null;
+
+            if (! static::accessible($nested)) {
+                $nested = [];
+            }
+
+            $result = static::set($nested, $path, $value);
+
+            if (is_array($nested)) {
+                $array[$segment] = $nested;
+            }
+
+            return $result;
         }
 
         $keys = explode('.', (string) $key);
@@ -955,8 +1005,13 @@ class Arr
             // If the key doesn't exist at this depth, we will just create an empty array
             // to hold the next value, allowing us to create the arrays to hold final
             // values at the correct depth. Then we'll keep digging into the array.
-            if (! isset($array[$key]) || ! is_array($array[$key])) {
+            if (! isset($array[$key]) || ! static::accessible($array[$key])) {
                 $array[$key] = [];
+            }
+
+            if ($array[$key] instanceof ArrayAccess) {
+                // Preserve the child object's identity and other entries when updating its offsets.
+                return static::set($array[$key], implode('.', $keys), $value);
             }
 
             $array = &$array[$key];
@@ -970,10 +1025,19 @@ class Arr
     /**
      * Push an item into an array using "dot" notation.
      *
-     * ArrayAccess cannot support the nested by-reference mutation required by dot notation.
+     * @param-out ($array is array ? array : ArrayAccess) $array
      */
-    public static function push(array &$array, string|int|null $key, mixed ...$values): array
+    public static function push(ArrayAccess|array &$array, string|int|null $key, mixed ...$values): ArrayAccess|array
     {
+        if ($key === null && $array instanceof ArrayAccess) {
+            // Arr::array() only reads arrays, so append to an ArrayAccess root through its offsets.
+            foreach ($values as $value) {
+                $array[] = $value;
+            }
+
+            return $array;
+        }
+
         $target = static::array($array, $key, []);
 
         array_push($target, ...$values);

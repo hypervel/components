@@ -67,10 +67,12 @@ class MessageSerializerTest extends TestCase
 
     public function testValidatesGeneratedAndCallableDeserializersBeforeAResponseArrives(): void
     {
+        MessageSerializerCallable::$called = false;
+
         MessageSerializer::validate([StringValue::class, 'decode']);
         MessageSerializer::validate([MessageSerializerCallable::class, 'deserialize']);
 
-        $this->addToAssertionCount(2);
+        $this->assertFalse(MessageSerializerCallable::$called);
     }
 
     public function testRejectsAnInvalidGeneratedDeserializerClass(): void

@@ -1,0 +1,2 @@
+includes:
+    - ../../../src/phpstan/extension.neon

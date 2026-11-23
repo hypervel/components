@@ -43,7 +43,7 @@ class Pipeline extends BasePipeline
         // reporting or rendering carries it as that failure's previous. The
         // return suppresses it once a response exists.
         try {
-            /* @phpstan-ignore finally.exitPoint */
+            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
             throw $e;
         } finally {
             $handler = $this->container->make(ExceptionHandler::class);
@@ -56,7 +56,7 @@ class Pipeline extends BasePipeline
                 $response->withException($e);
             }
 
-            /* @phpstan-ignore finally.exitPoint */
+            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
             return $this->handleCarry($response);
         }
     }

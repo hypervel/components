@@ -25,6 +25,7 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\SystemInfo;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
@@ -362,7 +363,7 @@ class BenchmarkCommand extends Command
                 $this->newLine();
                 $this->line('<fg=gray>Pausing 1 second before next run...</>');
                 $this->newLine();
-                sleep(1);
+                Sleep::sleep(1);
             }
         }
 

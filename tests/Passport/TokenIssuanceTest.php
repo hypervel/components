@@ -33,9 +33,11 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -46,7 +48,9 @@ use function Hypervel\Coroutine\parallel;
 
 class TokenIssuanceTest extends TestCase
 {
-    protected ServerFactory $servers;
+    use VerifiesDoubles;
+
+    protected ServerFactory&DoubleInterface $servers;
 
     protected ServerEntry $entry;
 
@@ -85,8 +89,8 @@ class TokenIssuanceTest extends TestCase
             [$private->getKeyId() => $public],
             [$private->getKeyId() => new SigningCryptKey($private)],
         );
-        $this->servers = m::mock(ServerFactory::class);
-        $this->servers->shouldReceive('entry')->andReturn($this->entry);
+        $this->servers = Double::for(ServerFactory::class)->strict();
+        $this->servers->allows('entry')->returns($this->entry);
     }
 
     #[DataProvider('outcomes')]
@@ -131,13 +135,19 @@ class TokenIssuanceTest extends TestCase
         yield 'failure' => [false];
     }
 
-    #[TestWith([false, false])]
-    #[TestWith([true, false])]
-    #[TestWith([true, true])]
-    public function testCommitFailuresAreReportedOnlyAfterIssuanceCommits(bool $afterCommit, bool $canceled): void
+    #[TestWith([false, false], 'ordinary failure before commit')]
+    #[TestWith([true, false], 'ordinary failure after commit')]
+    #[TestWith([true, true], 'cancellation after commit')]
+    #[TestWith([true, true, true], 'wrapped cancellation after commit')]
+    public function testCommitFailuresAreReportedOnlyAfterIssuanceCommits(bool $afterCommit, bool $canceled, bool $wrapped = false): void
     {
         Exceptions::fake();
         $failure = $canceled ? new CanceledException('Commit canceled.') : new RuntimeException('Commit callback failed.');
+
+        if ($wrapped) {
+            $failure = new RuntimeException('Commit cleanup failed.', previous: $failure);
+        }
+
         Event::listen(
             $afterCommit ? AccessTokenCreated::class : TransactionCommitting::class,
             static function () use ($failure): never {
@@ -228,14 +238,21 @@ class TokenIssuanceTest extends TestCase
         Event::assertNotDispatched(AccessTokenRevoked::class);
     }
 
-    #[TestWith([false, false])]
-    #[TestWith([true, false])]
-    #[TestWith([false, true])]
-    #[TestWith([true, true])]
-    public function testRollbackFailuresPreserveTheIssuanceErrorAndRestoreContext(bool $canceled, bool $cleanupCanceled): void
+    #[TestWith([false, false], 'ordinary failures')]
+    #[TestWith([true, false], 'issuance canceled')]
+    #[TestWith([false, true], 'rollback canceled')]
+    #[TestWith([true, true], 'both canceled')]
+    #[TestWith([false, true, true], 'wrapped rollback cancellation')]
+    #[TestWith([true, true, true], 'wrapped cancellation at both boundaries')]
+    public function testRollbackFailuresPreserveTheIssuanceErrorAndRestoreContext(bool $canceled, bool $cleanupCanceled, bool $wrapped = false): void
     {
         $failure = $canceled ? new CanceledException('Issuance canceled.') : new RuntimeException('Issuance failed.');
         $cleanup = $cleanupCanceled ? new CanceledException('Rollback canceled.') : new RuntimeException('Rollback failed.');
+
+        if ($wrapped) {
+            $failure = $canceled ? new RuntimeException('Issuance cleanup failed.', previous: $failure) : $failure;
+            $cleanup = new RuntimeException('Rollback cleanup failed.', previous: $cleanup);
+        }
 
         TokenIssuance::run($this->servers, function () use ($failure, $cleanup, $canceled, $cleanupCanceled): void {
             $outer = TokenIssuance::current();

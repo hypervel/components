@@ -61,13 +61,27 @@ class TextDeltaTest extends TestCase
         $events = [
             $this->stepStart(),
             $this->textDelta('message-1', 'First.'),
+            $this->toolResult('call-1'),
             $this->stepStart(),
             $this->textDelta('message-2', "\n"),
+            $this->toolResult('call-2'),
             $this->stepStart(),
             $this->textDelta('message-3', 'Second.'),
         ];
 
         $this->assertSame("First.\n\nSecond.", TextDelta::combine($events));
+    }
+
+    public function testCombineContinuesAStepThatRanNoToolsWithoutASeparator(): void
+    {
+        $events = [
+            $this->stepStart(),
+            $this->textDelta('message-1', 'The latest figures show that'),
+            $this->stepStart(),
+            $this->textDelta('message-2', ' revenue grew.'),
+        ];
+
+        $this->assertSame('The latest figures show that revenue grew.', TextDelta::combine($events));
     }
 
     public function testCombineIgnoresEventsThatAreNotTextDeltas(): void
@@ -112,5 +126,13 @@ class TextDeltaTest extends TestCase
     protected function stepStart(): StreamStart
     {
         return new StreamStart(uniqid(), 'fake', 'fake-model', time());
+    }
+
+    /**
+     * Create the result event of a tool the step ran.
+     */
+    protected function toolResult(string $callId): ToolResult
+    {
+        return new ToolResult(uniqid(), new ToolResultData($callId, 'get_weather', [], '12°C'), true, null, time());
     }
 }

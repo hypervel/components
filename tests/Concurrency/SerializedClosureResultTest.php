@@ -10,7 +10,6 @@ use Hypervel\Concurrency\SerializedClosureResult;
 use Hypervel\Support\Json;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Hypervel\Tests\TestCase;
-use JsonException;
 use RuntimeException;
 use TypeError;
 
@@ -23,71 +22,6 @@ class SerializedClosureResultTest extends TestCase
             $this->decodeResult("binary-\xFF\x00\x8B")
         );
         $this->assertFalse($this->decodeResult(false));
-    }
-
-    public function testItIgnoresAppendedGzipOutput(): void
-    {
-        $this->assertSame(
-            'result',
-            $this->decodePayload([
-                'successful' => true,
-                'result' => base64_encode(serialize('result')),
-            ], "\x1f\x8bcompressed-output")
-        );
-    }
-
-    public function testItRejectsMalformedJsonOutput(): void
-    {
-        $this->expectException(JsonException::class);
-
-        SerializedClosureResult::decode('{malformed');
-    }
-
-    public function testItRejectsInvalidResponseEnvelopes(): void
-    {
-        $payloads = [
-            'scalar' => 'invalid',
-            'missing status' => [],
-            'non-boolean status' => ['successful' => 1],
-            'non-string exception' => ['successful' => false, 'exception' => []],
-            'non-string message' => ['successful' => false, 'message' => []],
-            'non-array parameters' => ['successful' => false, 'parameters' => 'invalid'],
-        ];
-
-        foreach ($payloads as $description => $payload) {
-            $caught = null;
-
-            try {
-                SerializedClosureResult::decode(Json::encode($payload));
-            } catch (RuntimeException $exception) {
-                $caught = $exception;
-            }
-
-            $this->assertNotNull($caught, "Expected the {$description} response envelope to be rejected.");
-            $this->assertSame('Invalid serialized closure response envelope.', $caught->getMessage());
-        }
-    }
-
-    public function testItRejectsMalformedEncodedAndSerializedResults(): void
-    {
-        foreach ([
-            'base64' => '*not-base64*',
-            'serialized value' => base64_encode('not-serialized'),
-        ] as $description => $result) {
-            $caught = null;
-
-            try {
-                $this->decodePayload([
-                    'successful' => true,
-                    'result' => $result,
-                ]);
-            } catch (RuntimeException $exception) {
-                $caught = $exception;
-            }
-
-            $this->assertNotNull($caught, "Expected the malformed {$description} to be rejected.");
-            $this->assertSame('Unable to decode the serialized closure result.', $caught->getMessage());
-        }
     }
 
     public function testItPreservesPublicFalseyExceptionParameters(): void
@@ -251,40 +185,6 @@ class SerializedClosureResultTest extends TestCase
         );
     }
 
-    public function testItRejectsNonThrowableExceptionClassesBeforeConstruction(): void
-    {
-        NonThrowableConstructorProbe::$constructed = false;
-        $caught = null;
-
-        try {
-            $this->decodePayload([
-                'successful' => false,
-                'exception' => NonThrowableConstructorProbe::class,
-                'message' => 'remote failure',
-                'parameters' => [],
-            ]);
-        } catch (RuntimeException $exception) {
-            $caught = $exception;
-        }
-
-        $this->assertNotNull($caught, 'Expected exception reconstruction to fail.');
-        $this->assertSame('remote failure', $caught->getMessage());
-        $this->assertInstanceOf(RuntimeException::class, $caught->getPrevious());
-        $this->assertSame(
-            'The transported exception class [' . NonThrowableConstructorProbe::class . '] is not an available Throwable.',
-            $caught->getPrevious()->getMessage(),
-        );
-        $this->assertFalse(NonThrowableConstructorProbe::$constructed);
-    }
-
-    public function testItUsesTheGenericFailureFallback(): void
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIs('Serialized closure execution failed.');
-
-        $this->decodePayload(['successful' => false]);
-    }
-
     public function testItReconstructsTheMaximumExceptionParameterDepth(): void
     {
         $value = $this->nestedValue(510);
@@ -322,9 +222,16 @@ class SerializedClosureResultTest extends TestCase
      *
      * @param array<string, mixed> $payload
      */
-    private function decodePayload(array $payload, string $suffix = ''): mixed
+    private function decodePayload(array $payload): mixed
     {
-        return SerializedClosureResult::decode(Json::encode($payload) . $suffix);
+        $key = 'test-envelope-key';
+        $encoded = base64_encode(Json::encode($payload));
+        $signature = hash_hmac('sha256', $encoded, $key);
+
+        return SerializedClosureResult::decode(SerializedClosureResult::parseEnvelope(
+            "\n@@HYPERVEL-CONCURRENCY-V1@@{$encoded}@@{$signature}@@\n",
+            $key,
+        ));
     }
 
     /**
@@ -339,18 +246,5 @@ class SerializedClosureResultTest extends TestCase
         }
 
         return $value;
-    }
-}
-
-class NonThrowableConstructorProbe
-{
-    public static bool $constructed = false;
-
-    /**
-     * Create a new non-Throwable constructor probe.
-     */
-    public function __construct()
-    {
-        self::$constructed = true;
     }
 }

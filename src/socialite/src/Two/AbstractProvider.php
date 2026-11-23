@@ -13,6 +13,7 @@ use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidCodeException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use SensitiveParameter;
 
@@ -176,6 +177,8 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Set the user instance in the context.
+     *
+     * @return $this
      */
     protected function setUser(User $user): static
     {
@@ -379,6 +382,8 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Merge the scopes of the requested access.
+     *
+     * @return $this
      */
     public function scopes(array|string $scopes): static
     {
@@ -391,6 +396,8 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Set the scopes of the requested access.
+     *
+     * @return $this
      */
     public function setScopes(array|string $scopes): static
     {
@@ -415,11 +422,13 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Set the callback that formats redirect URLs for the provider.
      *
-     * Boot-only. The callback persists on the worker-cached provider and affects
-     * every subsequent request. Use setConfig() for per-request redirect values.
+     * On a worker-cached provider, the callback persists and affects every
+     * subsequent request. Use setConfig() for per-request redirect values.
      *
      * @param Closure(array): string $formatter
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function withRedirectFormatter(Closure $formatter): static
     {
         $this->redirectFormatter = $formatter;
@@ -429,6 +438,8 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Set the redirect URL.
+     *
+     * @return $this
      */
     public function redirectUrl(string $url): static
     {
@@ -513,6 +524,8 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Enable PKCE for the provider.
+     *
+     * @return $this
      */
     public function enablePKCE(): static
     {
@@ -552,6 +565,8 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
      *
      * Extends the base setConfig to also handle OAuth2-specific credential
      * keys (client_id, client_secret, redirect) in coroutine context.
+     *
+     * @return $this
      */
     public function setConfig(#[SensitiveParameter] array $config): static
     {

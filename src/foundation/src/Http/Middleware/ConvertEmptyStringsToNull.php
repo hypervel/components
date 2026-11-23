@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Http\Middleware;
 
 use Closure;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 
 class ConvertEmptyStringsToNull extends TransformsRequest
 {
@@ -41,9 +42,10 @@ class ConvertEmptyStringsToNull extends TransformsRequest
     /**
      * Register a callback that instructs the middleware to be skipped.
      *
-     * Boot-only. Skip callbacks persist in a static property for the worker
-     * lifetime and run on every subsequent request.
+     * Skip callbacks persist in a static property for the worker lifetime
+     * and run on every subsequent request.
      */
+    #[BootOnly]
     public static function skipWhen(Closure $callback): void
     {
         static::$skipCallbacks[] = $callback;

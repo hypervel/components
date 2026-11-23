@@ -32,6 +32,7 @@ return [
     // Set to true to use the default Spotlight endpoint, a URL string to use
     // a custom endpoint, or false to disable Spotlight.
     // @see https://spotlightjs.com/
+    // @phpstan-ignore hypervel.uncastEnvValue (true, false or a custom endpoint URL, which SentryConfig reads)
     'spotlight' => env('SENTRY_SPOTLIGHT', false),
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#logger
@@ -86,6 +87,9 @@ return [
     'ignore_transactions' => [
         // Ignore Hypervel's default health URL
         '/up',
+
+        // Ignore the Hypervel Horizon and Hypervel Telescope routes
+        '/^\/(horizon|telescope)(\/|$)/',
     ],
 
     // Breadcrumb specific configuration
@@ -120,6 +124,15 @@ return [
 
         // Capture send notifications as breadcrumbs
         'notifications' => (bool) env('SENTRY_BREADCRUMBS_NOTIFICATIONS_ENABLED', true),
+    ],
+
+    // Crons monitoring specific configuration
+    'crons' => [
+        // Monitor every scheduled task as if `->sentryMonitor()` was called on it
+        'monitor_scheduled_tasks' => (bool) env('SENTRY_CRONS_MONITOR_SCHEDULED_TASKS', false),
+
+        // Monitor slugs, commands with their arguments, job classes or task descriptions of tasks that are not monitored automatically, `*` is a wildcard
+        'exclude_scheduled_tasks' => [],
     ],
 
     // Performance monitoring specific configuration

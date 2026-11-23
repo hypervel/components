@@ -12,15 +12,18 @@ use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Tests\Integration\Horizon\Controller\Fixtures\User;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class DashboardStatsControllerTest extends ControllerTestCase
 {
+    use VerifiesDoubles;
+
     public function testAllStatsAreCorrectlyReturned(): void
     {
         // Setup supervisor data...
-        $supervisors = m::mock(SupervisorRepository::class);
-        $supervisors->shouldReceive('all')->andReturn([
+        $supervisors = Double::for(SupervisorRepository::class)->strict();
+        $supervisors->allows('all')->returns([
             (object) [
                 'processes' => [
                     'redis:first' => 10,
@@ -36,20 +39,20 @@ class DashboardStatsControllerTest extends ControllerTestCase
         $this->app->instance(SupervisorRepository::class, $supervisors);
 
         // Setup metrics data...
-        $metrics = m::mock(MetricsRepository::class);
-        $metrics->shouldReceive('jobsProcessedPerMinute')->andReturn(1);
-        $metrics->shouldReceive('queueWithMaximumRuntime')->andReturn('default');
-        $metrics->shouldReceive('queueWithMaximumThroughput')->andReturn('default');
+        $metrics = Double::for(MetricsRepository::class)->strict();
+        $metrics->allows('jobsProcessedPerMinute')->returns(1);
+        $metrics->allows('queueWithMaximumRuntime')->returns('default');
+        $metrics->allows('queueWithMaximumThroughput')->returns('default');
         $this->app->instance(MetricsRepository::class, $metrics);
 
-        $jobs = m::mock(JobRepository::class);
-        $jobs->shouldReceive('countRecentlyFailed')->andReturn(1);
-        $jobs->shouldReceive('countRecent')->andReturn(1);
+        $jobs = Double::for(JobRepository::class)->strict();
+        $jobs->allows('countRecentlyFailed')->returns(1);
+        $jobs->allows('countRecent')->returns(1);
         $this->app->instance(JobRepository::class, $jobs);
 
         // Setup wait time data...
-        $wait = m::mock(WaitTimeCalculator::class);
-        $wait->shouldReceive('calculate')->andReturn([
+        $wait = Double::for(WaitTimeCalculator::class)->strict();
+        $wait->allows('calculate')->returns([
             'first' => 20,
             'second' => 10,
         ]);
@@ -80,8 +83,8 @@ class DashboardStatsControllerTest extends ControllerTestCase
 
     public function testPausedStatusIsReflectedIfAllMasterSupervisorsArePaused(): void
     {
-        $masters = m::mock(MasterSupervisorRepository::class);
-        $masters->shouldReceive('all')->andReturn([
+        $masters = Double::for(MasterSupervisorRepository::class)->strict();
+        $masters->allows('all')->returns([
             (object) [
                 'status' => 'paused',
             ],
@@ -101,8 +104,8 @@ class DashboardStatsControllerTest extends ControllerTestCase
 
     public function testPausedStatusIsntReflectedIfNotAllMasterSupervisorsArePaused(): void
     {
-        $masters = m::mock(MasterSupervisorRepository::class);
-        $masters->shouldReceive('all')->andReturn([
+        $masters = Double::for(MasterSupervisorRepository::class)->strict();
+        $masters->allows('all')->returns([
             (object) [
                 'status' => 'running',
             ],

@@ -10,7 +10,6 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\MissingValue;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class JsonResourceTest extends TestCase
 {
@@ -49,10 +48,9 @@ class JsonResourceTest extends TestCase
 
     public function testJsonResourceToPrettyPrint(): void
     {
-        $resource = m::mock(JsonResource::class)
-            ->makePartial()
-            ->expects('jsonSerialize')->times(3)->andReturn(['foo' => 'bar', 'bar' => 'foo', 'number' => 123])
-            ->getMock();
+        Container::getInstance()->instance('request', Request::create('/'));
+
+        $resource = new JsonResource(['foo' => 'bar', 'bar' => 'foo', 'number' => 123]);
 
         $results = $resource->toPrettyJson();
         $expected = $resource->toJson(JSON_PRETTY_PRINT);

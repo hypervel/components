@@ -34,13 +34,13 @@ class TwoFactorLoginRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, string>
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
         return [
-            'code' => 'nullable|string',
-            'recovery_code' => 'nullable|string',
+            'code' => ['nullable', 'string'],
+            'recovery_code' => ['nullable', 'string'],
         ];
     }
 

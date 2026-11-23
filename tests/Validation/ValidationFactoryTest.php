@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Translation\Translator as TranslatorInterface;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Factory;
+use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Validator;
-use Mockery as m;
 use ReflectionProperty;
 
 class ValidationFactoryTest extends TestCase
@@ -134,7 +134,7 @@ class ValidationFactoryTest extends TestCase
     public function testSetContainer(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
-        $container = m::mock(Container::class);
+        $container = new Container;
         $factory = new Factory($translator);
 
         $this->assertNull($factory->getContainer());
@@ -144,7 +144,7 @@ class ValidationFactoryTest extends TestCase
 
     public function testPresenceVerifierIsNullableWhenFactoryIsConstructedDirectly(): void
     {
-        $factory = new Factory(m::mock(TranslatorInterface::class));
+        $factory = new Factory(new Translator(new ArrayLoader, 'en'));
 
         $this->assertNull($factory->getPresenceVerifier());
     }
@@ -167,7 +167,7 @@ class FakePresenceVerifier implements PresenceVerifierInterface
     /**
      * Count the number of objects in a collection having the given value.
      */
-    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+    public function getCount(PresenceQuery $query, mixed $value): int
     {
         return 0;
     }
@@ -175,7 +175,7 @@ class FakePresenceVerifier implements PresenceVerifierInterface
     /**
      * Count the number of objects in a collection with the given values.
      */
-    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+    public function getMultiCount(PresenceQuery $query, array $values): int
     {
         return 0;
     }

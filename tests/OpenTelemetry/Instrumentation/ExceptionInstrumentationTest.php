@@ -21,7 +21,10 @@ use Hypervel\OpenTelemetry\Support\RequestTelemetryState;
 use Hypervel\OpenTelemetry\Support\UserContextResolver;
 use Hypervel\Support\Lottery;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Logs\LogRecordBuilderInterface;
 use OpenTelemetry\API\Logs\Severity;
@@ -44,12 +47,17 @@ use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
 use OpenTelemetry\SemConv\Attributes\CodeAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ExceptionInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Container $container;
@@ -70,7 +78,7 @@ class ExceptionInstrumentationTest extends TestCase
 
     private OperationOrigin $origins;
 
-    private UserContextResolver $userContexts;
+    private UserContextResolver&DoubleInterface $userContexts;
 
     protected function setUp(): void
     {
@@ -97,7 +105,7 @@ class ExceptionInstrumentationTest extends TestCase
             ->build();
         $this->exceptionContexts = new ExceptionContextRegistry;
         $this->origins = new OperationOrigin;
-        $this->userContexts = m::mock(UserContextResolver::class);
+        $this->userContexts = Double::for(UserContextResolver::class)->strict();
     }
 
     protected function tearDownInCoroutine(): void
@@ -195,10 +203,9 @@ class ExceptionInstrumentationTest extends TestCase
             false,
         );
         RequestTelemetryState::set($state);
-        $this->userContexts->shouldReceive('resolve')
-            ->once()
-            ->with($state)
-            ->andReturn(['user.id' => '42']);
+        $this->userContexts->expects('resolve')
+            ->with(Argument::same($state))
+            ->returns(['user.id' => '42']);
 
         $this->handler->report(new RuntimeException('Request failed.'));
 
@@ -299,6 +306,29 @@ class ExceptionInstrumentationTest extends TestCase
         $this->assertTrue($attributes->get('enricher.last'));
     }
 
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testEnrichmentCancellationStopsLaterCallbacks(bool $wrapped): void
+    {
+        $failure = $wrapped ? new RuntimeException('Enricher cleanup failed.', previous: new CanceledException) : new CanceledException;
+        $continued = false;
+        $this->instrumentation(enrichers: [
+            static fn () => throw $failure,
+            static function () use (&$continued): void { $continued = true; },
+        ])->register($this->options());
+        $caught = null;
+
+        try {
+            $this->handler->report(new RuntimeException('Application failed.'));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse($continued);
+        $this->assertCount(0, $this->records);
+    }
+
     public function testMetricsOnlyModeDoesNotEnableDirectLogDeduplication(): void
     {
         $this->instrumentation()->register($this->options([
@@ -316,7 +346,7 @@ class ExceptionInstrumentationTest extends TestCase
     public function testCustomHandlerWithoutReportableSupportIsLeftUntouched(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $container->instance(ExceptionHandlerContract::class, $handler);
         $instrumentation = $this->instrumentation(container: $container);
 
@@ -336,15 +366,15 @@ class ExceptionInstrumentationTest extends TestCase
         array $enrichers = [],
         ?Container $container = null,
     ): ExceptionInstrumentation {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('configuration')->zeroOrMoreTimes()->andReturn([
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->allows('configuration')->returns([
             'instrumentation' => [
                 HttpServerInstrumentation::class => $userContext
                     ? ['user_context' => true]
                     : false,
             ],
         ]);
-        $manager->shouldReceive('exceptionEnrichers')->zeroOrMoreTimes()->andReturn($enrichers);
+        $manager->allows('exceptionEnrichers')->returns($enrichers);
 
         return new ExceptionInstrumentation(
             $container ?? $this->container,

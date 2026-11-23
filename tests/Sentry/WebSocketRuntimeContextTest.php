@@ -17,12 +17,13 @@ use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\WebSocketServer\Collector\FdCollector;
-use Hypervel\WebSocketServer\Context as WebSocketContext;
 use Hypervel\WebSocketServer\Events\ConnectionClosed;
 use Hypervel\WebSocketServer\Events\ConnectionOpening;
 use Hypervel\WebSocketServer\Security;
 use Hypervel\WebSocketServer\Server;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Sentry\EventType;
 use Sentry\Logs\Log;
 use Sentry\Metrics\Types\Metric;
@@ -39,6 +40,8 @@ use function Sentry\traceMetrics;
 
 class WebSocketRuntimeContextTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRejectedHandshakeFlushesTelemetryRecordedBeforeValidation(): void
     {
         $this->app->make('events')->listen(ConnectionOpening::class, static function (): void {
@@ -47,8 +50,8 @@ class WebSocketRuntimeContextTest extends TestCase
 
         $server = new SentryWebSocketServer(
             $this->app,
-            m::mock(Router::class)->shouldIgnoreMissing(),
-            m::mock(SwooleWebSocketServer::class),
+            Double::for(Router::class)->strict(),
+            Double::for(SwooleWebSocketServer::class)->strict(),
         );
         $request = $this->handshakeRequest(validSecurityKey: false);
         $response = $this->handshakeResponse(Response::HTTP_INTERNAL_SERVER_ERROR, 'Handshake failed.');
@@ -73,17 +76,18 @@ class WebSocketRuntimeContextTest extends TestCase
         };
         $this->app->instance(SentryWebSocketRuntimeHandler::class, $handler);
 
-        $route = m::mock(Route::class);
-        $route->shouldReceive('getControllerClass')->andReturn(SentryWebSocketRuntimeHandler::class);
-        $router = m::mock(Router::class);
-        $router->shouldReceive('dispatchToCallback')->once()
-            ->andReturnUsing(static function (HttpRequest $request) use ($route): Response {
+        $route = Double::for(Route::class)->strict();
+        $route->allows('getControllerClass')->returns(SentryWebSocketRuntimeHandler::class);
+        $router = Double::for(Router::class)->strict();
+        $router->allows('gatherRouteMiddleware')->with(Argument::same($route))->returns([]);
+        $router->expects('dispatchToCallback')
+            ->resolves(static function (HttpRequest $request) use ($route): Response {
                 $request->setRouteResolver(static fn (): Route => $route);
 
                 return new Response('', Response::HTTP_SWITCHING_PROTOCOLS);
             });
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
-        $nativeServer->shouldReceive('isEstablished')->once()->with(42)->andReturnTrue();
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
+        $nativeServer->expects('isEstablished')->with(42)->returns(true);
         $server = new SentryWebSocketServer($this->app, $router, $nativeServer);
         $request = $this->handshakeRequest();
         $response = $this->handshakeResponse(Response::HTTP_SWITCHING_PROTOCOLS);
@@ -129,7 +133,7 @@ class WebSocketRuntimeContextTest extends TestCase
         FdCollector::set(2, SentryWebSocketRuntimeHandler::class);
 
         $server = new Server($this->app);
-        $nativeServer = m::mock(SwooleWebSocketServer::class);
+        $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
         $firstCoroutineId = Coroutine::create(static function () use ($server, $nativeServer): void {
             $server->onMessage($nativeServer, self::frame(1, 'first'));
         });
@@ -170,7 +174,7 @@ class WebSocketRuntimeContextTest extends TestCase
         FdCollector::set(42, SentryWebSocketRuntimeHandler::class);
 
         $server = new Server($this->app);
-        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer = Double::for(SwooleServer::class)->strict();
         $coroutineId = Coroutine::create(static function () use ($server, $nativeServer): void {
             $server->onClose($nativeServer, 42, 0);
         });
@@ -186,7 +190,7 @@ class WebSocketRuntimeContextTest extends TestCase
      */
     private function handshakeRequest(bool $validSecurityKey = true): SwooleRequest
     {
-        $request = m::mock(SwooleRequest::class);
+        $request = Double::for(SwooleRequest::class)->strict();
         $request->fd = 42;
         $request->server = [
             'request_method' => 'get',
@@ -201,7 +205,7 @@ class WebSocketRuntimeContextTest extends TestCase
         $request->post = [];
         $request->cookie = [];
         $request->files = [];
-        $request->shouldReceive('rawContent')->once()->andReturnFalse();
+        $request->expects('rawContent')->returns(false);
 
         return $request;
     }
@@ -211,10 +215,10 @@ class WebSocketRuntimeContextTest extends TestCase
      */
     private function handshakeResponse(int $status, string $content = ''): SwooleResponse
     {
-        $response = m::mock(SwooleResponse::class);
-        $response->shouldReceive('status')->once()->with($status)->andReturnTrue();
-        $response->shouldReceive('header')->zeroOrMoreTimes()->andReturnTrue();
-        $response->shouldReceive('end')->once()->with($content)->andReturnTrue();
+        $response = Double::for(SwooleResponse::class)->strict();
+        $response->expects('status')->with($status)->returns(true);
+        $response->allows('header')->returns(true);
+        $response->expects('end')->with($content)->returns(true);
 
         return $response;
     }
@@ -273,24 +277,22 @@ class WebSocketRuntimeContextTest extends TestCase
         );
     }
 
+    /**
+     * Release the worker-start coordinator before handling connections.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
         CoordinatorManager::until(Constants::WORKER_START)->resume();
     }
-
-    protected function tearDown(): void
-    {
-        FdCollector::flushState();
-        WebSocketContext::flushState();
-
-        parent::tearDown();
-    }
 }
 
 class SentryWebSocketServer extends Server
 {
+    /**
+     * Create a server with the test router and native transport.
+     */
     public function __construct(
         Container $container,
         private readonly Router $router,

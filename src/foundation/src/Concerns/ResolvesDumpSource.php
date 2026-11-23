@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Concerns;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 /**
  * Resolve dump sources for consumers that provide $basePath and $compiledViewPath properties.
  */
@@ -78,14 +80,15 @@ trait ResolvesDumpSource
             return null;
         }
 
-        $relativeFile = $file;
-
         if ($this->isCompiledViewFile($file)) {
             $file = $this->getOriginalFileForCompiledView($file);
             $line = null;
         }
 
-        if (str_starts_with($file, $this->basePath)) {
+        // External views keep their original path rather than the compiled filename.
+        $relativeFile = $file;
+
+        if (str_starts_with($file, $this->basePath . DIRECTORY_SEPARATOR)) {
             $relativeFile = substr($file, strlen($this->basePath) + 1);
         }
 
@@ -101,7 +104,11 @@ trait ResolvesDumpSource
             return false;
         }
 
-        return str_starts_with($file, $this->compiledViewPath) && str_ends_with($file, '.php');
+        // The compiler can use an extension other than .php; the footer identifies the source.
+        // Frames contain resolved paths, and the compiler may create a symlinked directory after boot.
+        $directory = realpath($this->compiledViewPath) ?: $this->compiledViewPath;
+
+        return str_starts_with($file, rtrim($directory, '/\\') . DIRECTORY_SEPARATOR);
     }
 
     /**
@@ -115,7 +122,8 @@ trait ResolvesDumpSource
             return $file;
         }
 
-        preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', $contents, $matches);
+        // The compiler writes the footer last; a template can contain the same text.
+        preg_match('/.*\/\*\*PATH\s(.*)\sENDPATH/s', $contents, $matches);
 
         if (isset($matches[1])) {
             $file = $matches[1];
@@ -127,11 +135,12 @@ trait ResolvesDumpSource
     /**
      * Set the resolver that resolves the source of the dump call.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every dump source resolution across all coroutines.
+     * The resolver persists in a static property for the worker lifetime and
+     * runs on every dump source resolution across all coroutines.
      *
      * @param null|(callable(): (null|array{0: string, 1: string, 2: null|int})) $callable
      */
+    #[BootOnly]
     public static function resolveDumpSourceUsing(?callable $callable): void
     {
         static::$dumpSourceResolver = $callable;
@@ -140,9 +149,10 @@ trait ResolvesDumpSource
     /**
      * Don't include the location / file of the dump in dumps.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every dump source resolution across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every dump source resolution across all coroutines.
      */
+    #[BootOnly]
     public static function dontIncludeSource(): void
     {
         static::$dumpSourceResolver = false;

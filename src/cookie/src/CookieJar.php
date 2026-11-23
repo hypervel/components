@@ -9,6 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Cookie\QueueingFactory as JarContract;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -145,7 +146,7 @@ class CookieJar implements JarContract
         if (isset($parameters[0]) && $parameters[0] instanceof Cookie) {
             $cookie = $parameters[0];
         } else {
-            $cookie = $this->make(...array_values($parameters));
+            $cookie = $this->make(...$parameters);
         }
 
         $cookies = $this->getQueuedCookiesRaw();
@@ -203,10 +204,13 @@ class CookieJar implements JarContract
     /**
      * Set the default path and domain for the jar.
      *
-     * Boot-only. The defaults persist on the worker-lifetime singleton;
+     * The defaults persist on the worker-lifetime singleton;
      * per-request mutation races across coroutines and affects every
      * subsequent request.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setDefaultPathAndDomain(string $path, ?string $domain, ?bool $secure = false, ?string $sameSite = null): static
     {
         [$this->path, $this->domain, $this->secure, $this->sameSite] = [$path, $domain, $secure, $sameSite];
@@ -226,6 +230,8 @@ class CookieJar implements JarContract
 
     /**
      * Flush the cookies which have been queued for the next request.
+     *
+     * @return $this
      */
     public function flushQueuedCookies(): static
     {

@@ -7,44 +7,48 @@ namespace Hypervel\Tests\Support;
 use Exception;
 use Hypervel\Support\Timebox;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class SupportTimeboxTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMakeExecutesCallback(): void
     {
-        $callback = function (): void {
-            $this->assertTrue(true);
-        };
+        $result = (new Timebox)->call(fn () => 'completed', 0);
 
-        (new Timebox)->call($callback, 0);
+        $this->assertSame('completed', $result);
     }
 
     public function testMakeWaitsForMicroseconds(): void
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+        $mock = Double::for(Timebox::class)->passthru();
         $mock->expects('usleep');
 
         $mock->call(function (): void {
         }, 10000);
 
-        $mock->shouldHaveReceived('usleep')->once();
+        $mock->received('usleep')->times(1);
     }
 
     public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlagged(): void
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+        $mock = Double::for(Timebox::class)->passthru();
         $mock->call(function (Timebox $timebox): void {
             $timebox->returnEarly();
         }, 10000);
 
-        $mock->shouldNotHaveReceived('usleep');
+        $mock->received('usleep')->never();
     }
 
     public function testMakeShouldSleepWhenDontEarlyReturnHasBeenFlagged(): void
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+        $mock = Double::for(Timebox::class)->passthru();
         $mock->expects('usleep');
 
         $mock->call(function (Timebox $timebox): void {
@@ -52,12 +56,12 @@ class SupportTimeboxTest extends TestCase
             $timebox->dontReturnEarly();
         }, 10000);
 
-        $mock->shouldHaveReceived('usleep')->once();
+        $mock->received('usleep')->times(1);
     }
 
     public function testMakeWaitsForMicrosecondsWhenExceptionIsThrown(): void
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+        $mock = Double::for(Timebox::class)->passthru();
         $mock->expects('usleep');
 
         try {
@@ -67,13 +71,13 @@ class SupportTimeboxTest extends TestCase
                 throw new Exception('Exception within Timebox callback.');
             }, 10000);
         } finally {
-            $mock->shouldHaveReceived('usleep')->once();
+            $mock->received('usleep')->times(1);
         }
     }
 
     public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlaggedAndExceptionIsThrown(): void
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+        $mock = Double::for(Timebox::class)->passthru();
 
         try {
             $this->expectExceptionObject(new Exception('Exception within Timebox callback.'));
@@ -83,23 +87,30 @@ class SupportTimeboxTest extends TestCase
                 throw new Exception('Exception within Timebox callback.');
             }, 10000);
         } finally {
-            $mock->shouldNotHaveReceived('usleep');
+            $mock->received('usleep')->never();
         }
     }
 
-    public function testMakeDoesNotPadCancellationFromCallback(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testMakeDoesNotPadCancellationFromCallback(bool $wrapped): void
     {
         $cancellation = new CanceledException('canceled');
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Callback cleanup failed.', previous: $cancellation);
+        }
+
+        $mock = Double::for(Timebox::class)->passthru();
 
         try {
             $mock->call(fn () => throw $cancellation, 10000);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         } finally {
-            $mock->shouldNotHaveReceived('usleep');
+            $mock->received('usleep')->never();
         }
     }
 }

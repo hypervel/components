@@ -25,6 +25,7 @@ use Hypervel\Support\Facades\Session;
 use Hypervel\Tests\Mcp\Fixtures\Client\OAuth\FakeDestinationPolicy;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -252,6 +253,129 @@ class OAuthClientTest extends TestCase
             'explicit response' => ['mcp:read', 'mcp:read'],
             'unchanged scope omitted' => [null, 'mcp:read mcp:write'],
         ];
+    }
+
+    public function testRejectsAStoredTokenEndpointThatNowResolvesToAnInternalHost(): void
+    {
+        $this->app->instance(OAuthDestinationPolicy::class, new FakeDestinationPolicy(['auth.test' => ['10.0.0.5']]));
+
+        Http::fake();
+
+        Session::put($this->pendingSessionKey(), [
+            'state' => 'the-state',
+            'verifier' => 'the-verifier',
+            'client_id' => 'client-123',
+            'client_secret' => null,
+            'token_endpoint' => 'https://auth.test/token',
+            'redirect_uri' => 'https://app.test/callback',
+            'return_to' => null,
+            'resource' => 'https://mcp.test/mcp',
+        ]);
+
+        RequestContext::set(Request::create('https://app.test/callback', 'GET', [
+            'code' => 'auth-code',
+            'state' => 'the-state',
+        ]));
+
+        try {
+            Client::web('https://mcp.test/mcp')
+                ->withOAuth(clientId: 'client-123')
+                ->oAuthClient()
+                ->exchangeCallback();
+            $this->fail('Expected the internal token endpoint to be rejected.');
+        } catch (OAuthException $exception) {
+            $this->assertStringContainsString('disallowed address [10.0.0.5]', $exception->getMessage());
+        }
+
+        Http::assertNothingSent();
+    }
+
+    public function testChecksTheStoredTokenEndpointThroughTheConfiguredDiscovery(): void
+    {
+        Http::fake();
+
+        Session::put($this->pendingSessionKey(), [
+            'state' => 'the-state',
+            'verifier' => 'the-verifier',
+            'client_id' => 'client-123',
+            'client_secret' => null,
+            'token_endpoint' => 'https://auth.test/token',
+            'redirect_uri' => 'https://app.test/callback',
+            'return_to' => null,
+            'resource' => 'https://mcp.test/mcp',
+        ]);
+
+        RequestContext::set(Request::create('https://app.test/callback', 'GET', [
+            'code' => 'auth-code',
+            'state' => 'the-state',
+        ]));
+
+        $rejection = new OAuthException('The custom discovery rejected the token endpoint.');
+        $discovery = new class($rejection) extends AuthServerDiscovery {
+            /**
+             * @var list<array{string, string}>
+             */
+            public array $checked = [];
+
+            /**
+             * Create a discovery that rejects every endpoint.
+             */
+            public function __construct(private OAuthException $rejection)
+            {
+            }
+
+            /**
+             * Record and reject the endpoint.
+             */
+            public function requireFetchable(string $url, string $resourceUrl): void
+            {
+                $this->checked[] = [$url, $resourceUrl];
+
+                throw $this->rejection;
+            }
+        };
+
+        $client = new OAuthClient(
+            new OAuthConfig(clientId: 'client-123'),
+            'https://mcp.test/mcp',
+            discovery: $discovery,
+        );
+
+        try {
+            $client->exchangeCallback();
+            $this->fail('Expected the custom discovery to reject the token endpoint.');
+        } catch (OAuthException $exception) {
+            $this->assertSame($rejection, $exception);
+        }
+
+        $this->assertSame([['https://auth.test/token', 'https://mcp.test/mcp']], $discovery->checked);
+        Http::assertNothingSent();
+    }
+
+    public function testPinsTheTokenAndRegistrationRequestsToTheCheckedAddresses(): void
+    {
+        $pins = [];
+
+        Http::fake(function ($request, array $options) use (&$pins): void {
+            $pins[$request->url()] = $options['curl'][CURLOPT_RESOLVE] ?? null;
+        });
+
+        $this->fakeDiscovery();
+
+        Http::fake([
+            'https://auth.test/register' => Http::response(['client_id' => 'dcr-999']),
+            'https://auth.test/token' => Http::response(['access_token' => 'access-token', 'token_type' => 'Bearer']),
+        ]);
+
+        $oauth = Client::web('https://mcp.test/mcp')
+            ->withOAuth(redirectUri: 'https://app.test/callback')
+            ->oAuthClient();
+
+        $oauth->redirect();
+        $oauth->refreshCredentials('refresh-token', 'dcr-999');
+
+        $this->assertSame(['auth.test:443:93.184.216.34'], $pins['https://auth.test/register']);
+        $this->assertSame(['auth.test:443:93.184.216.34'], $pins['https://auth.test/token']);
     }
 
     public function testNamedClientsForTheSameResourceKeepIndependentPendingAuthorizations(): void
@@ -715,6 +839,9 @@ class OAuthClientTest extends TestCase
     public function testUsesTheServerAdvertisedResourceMetadataUrlWhenProvided(): void
     {
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
             'https://mcp.test/.well-known/custom-resource' => Http::response([
                 'authorization_servers' => ['https://auth.test'],
             ]),
@@ -734,12 +861,37 @@ class OAuthClientTest extends TestCase
 
         $this->assertStringStartsWith('https://auth.test/authorize?', $target);
 
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://mcp.test/mcp' && $request['method'] === 'ping');
         Http::assertSent(fn ($request): bool => $request->url() === 'https://mcp.test/.well-known/custom-resource');
+    }
+
+    public function testRejectsResourceMetadataTheResourceDoesNotAdvertiseBeforeRedirecting(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
+        ]);
+
+        $this->assertThrows(
+            fn () => Client::web('https://mcp.test/mcp')
+                ->withOAuth(clientId: 'client-123', clientSecret: 'secret', redirectUri: 'https://app.test/callback')
+                ->oAuthClient('https://attacker.test/resource')->redirect(),
+            OAuthException::class,
+            'was not advertised by the resource',
+        );
+
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($request): bool => str_starts_with($request->url(), 'https://attacker.test'));
     }
 
     public function testThrowsInsteadOfFallingBackToTheOriginWhenAnExplicitResourceMetadataUrlFails(): void
     {
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
             'https://mcp.test/.well-known/custom-resource' => Http::response('', 404),
             'https://mcp.test/.well-known/oauth-authorization-server' => Http::response([
                 'issuer' => 'https://mcp.test',
@@ -766,6 +918,9 @@ class OAuthClientTest extends TestCase
     public function testThrowsWhenAnExplicitResourceMetadataUrlReturnsInvalidJson(): void
     {
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
             'https://mcp.test/.well-known/custom-resource' => Http::response('not json', 200, ['Content-Type' => 'text/plain']),
         ]);
 
@@ -932,6 +1087,72 @@ class OAuthClientTest extends TestCase
             ['token_endpoint', 'https://10.0.0.5/token'],
             ['registration_endpoint', 'https://10.0.0.5/register'],
         ];
+    }
+
+    #[TestWith(['javascript://localhost/%0aalert(1)'], 'javascript')]
+    #[TestWith(['file://localhost/etc/passwd'], 'file')]
+    #[TestWith(['data://localhost/text'], 'data')]
+    public function testRejectsANonHttpAuthorizationServerOnALocalhostHost(string $issuer): void
+    {
+        Http::fake([
+            'http://localhost/.well-known/oauth-protected-resource/mcp' => Http::response([
+                'authorization_servers' => [$issuer],
+            ]),
+        ]);
+
+        $this->expectException(OAuthException::class);
+        $this->expectExceptionMessage('must be served over HTTPS');
+        Client::web('http://localhost/mcp')
+            ->withOAuth(clientId: 'client-123', redirectUri: 'https://app.test/callback')
+            ->oAuthClient()
+            ->redirect();
+    }
+
+    public function testRejectsANonHttpAuthorizationEndpointOnALocalhostHost(): void
+    {
+        Http::fake([
+            'http://localhost/.well-known/oauth-protected-resource/mcp' => Http::response([
+                'authorization_servers' => ['http://localhost'],
+            ]),
+            'http://localhost/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'http://localhost',
+                'authorization_endpoint' => 'javascript://localhost/%0aalert(1)',
+                'token_endpoint' => 'http://localhost/token',
+                'code_challenge_methods_supported' => ['S256'],
+            ]),
+        ]);
+
+        $this->expectException(OAuthException::class);
+        $this->expectExceptionMessage('must be served over HTTPS');
+        Client::web('http://localhost/mcp')
+            ->withOAuth(clientId: 'client-123', redirectUri: 'https://app.test/callback')
+            ->oAuthClient()
+            ->redirect();
+    }
+
+    #[TestWith(['http://localhost', 'http://localhost', 'HTTP://localhost/authorize', 'http://localhost/authorize'], 'local http')]
+    #[TestWith(['https://mcp.test', 'https://auth.test', 'HTTPS://auth.test/authorize', 'https://auth.test/authorize'], 'remote https')]
+    public function testAcceptsUppercaseAuthorizationEndpointSchemes(string $resourceOrigin, string $issuer, string $authorizationEndpoint, string $expectedTarget): void
+    {
+        Http::fake([
+            "{$resourceOrigin}/.well-known/oauth-protected-resource/mcp" => Http::response([
+                'authorization_servers' => [$issuer],
+            ]),
+            "{$issuer}/.well-known/oauth-authorization-server" => Http::response([
+                'issuer' => $issuer,
+                'authorization_endpoint' => $authorizationEndpoint,
+                'token_endpoint' => "{$issuer}/token",
+                'code_challenge_methods_supported' => ['S256'],
+            ]),
+        ]);
+
+        $target = Client::web("{$resourceOrigin}/mcp")
+            ->withOAuth(clientId: 'client-123', redirectUri: 'https://app.test/callback')
+            ->oAuthClient()
+            ->redirect()
+            ->getTargetUrl();
+
+        $this->assertStringStartsWith("{$expectedTarget}?", $target);
     }
 
     public function testFallsBackToOpenidConnectDiscoveryWhenOauthMetadataIsAbsent(): void
@@ -1594,6 +1815,21 @@ class OAuthClientTest extends TestCase
         $this->assertSame('https://app.example.com:8443/client-metadata.json', $query['client_id']);
     }
 
+    public function testAcceptsAClientIdMetadataDocumentUrlWithAnUppercaseScheme(): void
+    {
+        $this->fakeCimdDiscovery();
+
+        $target = $this->cimdClient('HTTPS://app.example.com/client-metadata.json')
+            ->redirect()
+            ->getTargetUrl();
+
+        parse_str((string) parse_url($target, PHP_URL_QUERY), $query);
+
+        $this->assertSame('HTTPS://app.example.com/client-metadata.json', $query['client_id']);
+
+        Http::assertNotSent(fn ($request): bool => $request->url() === 'https://auth.test/register');
+    }
+
     public function testNeverSendsAClientSecretAlongsideAClientIdMetadataDocument(): void
     {
         $this->fakeCimdDiscovery();
@@ -1641,6 +1877,9 @@ class OAuthClientTest extends TestCase
         ]));
 
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://blocked.test/metadata"',
+            ]),
             'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::response([
                 'authorization_servers' => [$stage === 'metadata' ? 'https://blocked.test' : 'https://auth.test'],
             ]),
@@ -1788,5 +2027,32 @@ class OAuthClientTest extends TestCase
             [new DestinationResolutionException('DNS failed')],
             [new CanceledException('DNS cancelled')],
         ];
+    }
+
+    #[TestWith(['refresh'])]
+    #[TestWith(['client_credentials'])]
+    public function testDoesNotProbeTheResourceForDeveloperSuppliedMetadataOnDirectTokenGrants(string $grant): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://mcp.test/.well-known/custom-resource' => Http::response([
+                'authorization_servers' => ['https://auth.test'],
+            ]),
+            'https://auth.test/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth.test',
+                'authorization_endpoint' => 'https://auth.test/authorize',
+                'token_endpoint' => 'https://auth.test/token',
+            ]),
+            'https://auth.test/token' => Http::response(['access_token' => 'access-token']),
+        ]);
+
+        $oauth = Client::web('https://mcp.test/mcp')
+            ->withOAuth(clientId: 'client-123', clientSecret: 'secret')
+            ->oAuthClient('https://mcp.test/.well-known/custom-resource');
+
+        $token = $grant === 'refresh' ? $oauth->refreshCredentials('refresh-token') : $oauth->clientCredentials();
+
+        $this->assertSame('access-token', $token->accessToken);
+        Http::assertNotSent(fn ($request): bool => $request->url() === 'https://mcp.test/mcp');
     }
 }

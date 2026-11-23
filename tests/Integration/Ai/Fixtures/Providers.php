@@ -47,7 +47,6 @@ class Providers
     public static function diarization(): array
     {
         return [
-            'openai' => ['openai', 'OPENAI_API_KEY'],
             'gemini' => ['gemini', 'GEMINI_API_KEY'],
         ];
     }
@@ -125,6 +124,7 @@ class Providers
     public static function classification(): array
     {
         return [
+            'gemini' => ['gemini', 'GEMINI_API_KEY'],
             'openai' => ['openai', 'OPENAI_API_KEY'],
             'openrouter' => ['openrouter', 'OPENROUTER_API_KEY'],
             'typesafe' => ['typesafe', 'TYPESAFE_API_KEY'],
@@ -137,6 +137,7 @@ class Providers
     public static function imageClassification(): array
     {
         return [
+            'gemini' => ['gemini', 'GEMINI_API_KEY'],
             'openai' => ['openai', 'OPENAI_API_KEY'],
             'openrouter' => ['openrouter', 'OPENROUTER_API_KEY'],
             'typesafe' => ['typesafe', 'TYPESAFE_API_KEY'],

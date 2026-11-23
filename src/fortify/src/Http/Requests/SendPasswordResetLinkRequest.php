@@ -20,12 +20,12 @@ class SendPasswordResetLinkRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, string>
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
         return [
-            Fortify::email() => 'required|email',
+            Fortify::email() => ['required', 'email'],
         ];
     }
 }

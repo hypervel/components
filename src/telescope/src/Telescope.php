@@ -15,6 +15,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\HtmlString;
@@ -152,7 +153,11 @@ class Telescope
 
     /**
      * Register the Telescope watchers and start recording if necessary.
+     *
+     * Registers worker-lifetime watchers, listeners and the mailable tag
+     * extractor; runtime use registers them again for later requests.
      */
+    #[BootOnly]
     public static function start(Application $app): void
     {
         if (! config()->boolean('telescope.enabled')) {
@@ -242,7 +247,10 @@ class Telescope
             $recordingPaused = static::withoutRecording(
                 fn () => cache('telescope:pause-recording', false)
             );
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
 
         CoroutineContext::set(static::SHOULD_RECORD_CONTEXT_KEY, ! $recordingPaused);
@@ -318,6 +326,10 @@ class Telescope
                     $entry->user(Auth::user());
                 }
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 // Do nothing.
             }
 
@@ -592,9 +604,10 @@ class Telescope
     /**
      * Set the callback that filters the entries that should be recorded.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every Telescope entry across all coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every Telescope entry across all coroutines.
      */
+    #[BootOnly]
     public static function filter(Closure $callback): static
     {
         static::$filterUsing[] = $callback;
@@ -605,9 +618,10 @@ class Telescope
     /**
      * Set the callback that filters the batches that should be recorded.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every Telescope batch across all coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every Telescope batch across all coroutines.
      */
+    #[BootOnly]
     public static function filterBatch(Closure $callback): static
     {
         static::$filterBatchUsing[] = $callback;
@@ -618,9 +632,10 @@ class Telescope
     /**
      * Set the callback that will be executed after an entry is recorded in the queue.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every entry recording across all coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every entry recording across all coroutines.
      */
+    #[BootOnly]
     public static function afterRecording(Closure $callback): static
     {
         static::$afterRecordingHook = $callback;
@@ -631,9 +646,10 @@ class Telescope
     /**
      * Add a callback that will be executed after an entry is stored.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs after every batch store across all coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs after every batch store across all coroutines.
      */
+    #[BootOnly]
     public static function afterStoring(Closure $callback): static
     {
         static::$afterStoringHooks[] = $callback;
@@ -644,9 +660,10 @@ class Telescope
     /**
      * Add a callback that adds tags to the record.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every tag computation across all coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every tag computation across all coroutines.
      */
+    #[BootOnly]
     public static function tag(Closure $callback): static
     {
         static::$tagUsing[] = $callback;
@@ -753,9 +770,10 @@ class Telescope
     /**
      * Hide the given request header.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every recorded request across all coroutines.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every recorded request across all coroutines.
      */
+    #[BootOnly]
     public static function hideRequestHeaders(array $headers): static
     {
         static::$hiddenRequestHeaders = array_values(array_unique(array_merge(
@@ -769,9 +787,10 @@ class Telescope
     /**
      * Hide the given request parameters.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every recorded request across all coroutines.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every recorded request across all coroutines.
      */
+    #[BootOnly]
     public static function hideRequestParameters(array $attributes): static
     {
         static::$hiddenRequestParameters = array_merge(
@@ -785,9 +804,10 @@ class Telescope
     /**
      * Hide the given response parameters.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every recorded response across all coroutines.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every recorded response across all coroutines.
      */
+    #[BootOnly]
     public static function hideResponseParameters(array $attributes): static
     {
         static::$hiddenResponseParameters = array_values(array_unique(array_merge(
@@ -801,9 +821,10 @@ class Telescope
     /**
      * Specifies that Telescope should record events fired by Hypervel.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every framework-event filter across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every framework-event filter across all coroutines.
      */
+    #[BootOnly]
     public static function recordFrameworkEvents(): static
     {
         static::$ignoreFrameworkEvents = false;
@@ -814,9 +835,10 @@ class Telescope
     /**
      * Specifies that Telescope should use the dark theme.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every dashboard render.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every dashboard render.
      */
+    #[BootOnly]
     public static function night(): static
     {
         static::$useDarkTheme = true;
@@ -827,9 +849,10 @@ class Telescope
     /**
      * Register the Telescope user avatar callback.
      *
-     * Boot-only. The callback persists on the Avatar registry for the worker
-     * lifetime and runs on every avatar lookup across all coroutines.
+     * The callback persists on the Avatar registry for the worker lifetime
+     * and runs on every avatar lookup across all coroutines.
      */
+    #[BootOnly]
     public static function avatar(Closure $callback): static
     {
         Avatar::register($callback);

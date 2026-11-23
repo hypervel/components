@@ -13,7 +13,8 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 /**
  * Regression tests for DatabaseManager::setDefaultConnection() using
@@ -23,6 +24,8 @@ use Mockery as m;
  */
 class DatabaseManagerSetDefaultConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function tearDown(): void
     {
         CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
@@ -124,9 +127,9 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
 
         $app = Container::getInstance();
         $app->instance('config', $config);
-        $app->instance(PoolManager::class, m::mock(PoolManager::class));
+        $app->instance(PoolManager::class, Double::for(PoolManager::class)->strict());
 
-        $factory = m::mock(ConnectionFactory::class);
+        $factory = Double::for(ConnectionFactory::class)->strict();
 
         return new DatabaseManager($app, $factory);
     }

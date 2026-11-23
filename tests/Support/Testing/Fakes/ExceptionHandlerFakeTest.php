@@ -223,7 +223,7 @@ class ExceptionHandlerFakeTest extends TestCase
 
         Exceptions::throwFirstReported();
 
-        $this->assertTrue(true); // No exception thrown
+        Exceptions::assertNothingReported();
     }
 
     public function testSetHandler(): void

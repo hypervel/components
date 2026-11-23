@@ -17,8 +17,9 @@ use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Middleware\FailOnException;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
@@ -26,6 +27,8 @@ use Throwable;
 
 class FailOnExceptionMiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
@@ -124,8 +127,8 @@ class FailOnExceptionMiddlewareTest extends TestCase
                 return true;
             },
         );
-        $job = m::mock();
-        $job->shouldNotReceive('fail');
+        $job = Double::for(FailOnExceptionMiddlewareTestJob::class)->strict();
+        $job->expects('fail')->never();
         $gate = $this->armCurrentCoroutineCancellation();
         $cleanupException = new LogicException('Cleanup failed.');
 

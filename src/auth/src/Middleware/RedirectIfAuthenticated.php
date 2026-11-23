@@ -6,6 +6,7 @@ namespace Hypervel\Auth\Middleware;
 
 use Closure;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
@@ -84,10 +85,10 @@ class RedirectIfAuthenticated
     /**
      * Specify the callback that should be used to generate the redirect path.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every already-authenticated request handled by this
-     * middleware.
+     * The callback persists in a static property for the worker lifetime and
+     * runs on every already-authenticated request handled by this middleware.
      */
+    #[BootOnly]
     public static function redirectUsing(callable $redirectToCallback): void
     {
         static::$redirectToCallback = $redirectToCallback;

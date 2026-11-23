@@ -13,11 +13,14 @@ use Hypervel\Session\Store;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Cookie;
 
 class HttpRedirectResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testToResponseReturnsTheSameInstance(): void
     {
         $response = new RedirectResponse('foo.bar');
@@ -41,7 +44,7 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $session = m::mock(Store::class);
+        $session = Double::for(Store::class)->strict();
         $response->setSession($session);
         $session->expects('flash')->with('0', 'name');
         $session->expects('flash')->with('1', 'age');
@@ -51,7 +54,7 @@ class HttpRedirectResponseTest extends TestCase
     public function testWithAssociativeArrayOnRedirect(): void
     {
         $response = new RedirectResponse('foo.bar');
-        $session = m::mock(Store::class);
+        $session = Double::for(Store::class)->strict();
         $session->expects('flash')->with('name', 'Taylor');
         $response->setSession($session);
         $response->with(['name' => 'Taylor']);
@@ -136,8 +139,8 @@ class HttpRedirectResponseTest extends TestCase
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
         $session = new Store('test', new NullSessionHandler);
         $response->setSession($session);
-        $provider = m::mock(MessageProvider::class);
-        $provider->expects('getMessageBag')->andReturn(new MessageBag(['name' => ['required']]));
+        $provider = Double::for(MessageProvider::class)->strict();
+        $provider->expects('getMessageBag')->returns(new MessageBag(['name' => ['required']]));
         $response->withErrors($provider);
 
         $this->assertContains('errors', $session->get('_flash.new', []));

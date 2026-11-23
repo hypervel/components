@@ -15,9 +15,11 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\BufferStream;
 use GuzzleHttp\TransferStats;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Coroutine;
 use Hypervel\ObjectPool\PoolErrorReporter;
+use Hypervel\Support\Attributes\Unsupported;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
@@ -132,9 +134,11 @@ class CurlStreamingBody implements StreamInterface
             if ($onHeaders !== null) {
                 try {
                     $onHeaders($response, $this->request);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (FrameworkCoroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     throw $this->responseException('An error was encountered during the on_headers event', $response, $exception);
                 }
             }
@@ -148,9 +152,11 @@ class CurlStreamingBody implements StreamInterface
 
                 try {
                     $onTrailers(...$trailerArguments);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (FrameworkCoroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     throw $this->responseException('An error was encountered during the on_trailers event', $response, $exception);
                 }
             }
@@ -256,10 +262,6 @@ class CurlStreamingBody implements StreamInterface
     {
         $result = curl_multi_exec($this->connection->handle, $running);
 
-        if (Coroutine::isCanceled()) {
-            throw new CanceledException('The streaming request was canceled.');
-        }
-
         if ($result !== CURLM_OK) {
             throw new RuntimeException('Unable to read the streaming response: ' . curl_multi_strerror($result));
         }
@@ -327,7 +329,8 @@ class CurlStreamingBody implements StreamInterface
         try {
             $this->completedResponse = CurlFactory::finish($retry, $easy, $this->factory)->wait();
         } catch (TransferException $exception) {
-            // Completion callbacks run after the native cancellation check above.
+            // Guzzle still wraps a cancellation thrown while rewinding or replaying the request body.
+            // @phpstan-ignore hypervel.cancellation.exactType (restores the direct cancellation Guzzle wrapped; a deeper carrier still propagates)
             if ($exception->getPrevious() instanceof CanceledException) {
                 throw $exception->getPrevious();
             }
@@ -362,16 +365,15 @@ class CurlStreamingBody implements StreamInterface
             throw new RuntimeException('The streaming response read timed out.');
         }
 
+        // The hooked select runs no PHP code, so after clearing, a cancellation error can only come from this wait.
+        swoole_clear_error();
         $selected = curl_multi_select($this->connection->handle, min(1.0, $remaining));
 
-        if (Coroutine::isCanceled()) {
+        if (Coroutine::isCanceled() && swoole_last_error() === SWOOLE_ERROR_CO_CANCELED) {
             throw new CanceledException('The streaming request was canceled.');
         }
 
-        if ($selected === -1) {
-            // libcurl can briefly have no descriptors while scheduling its next action.
-            usleep(1000);
-        } elseif ($selected > 0 && $this->readTimeout > 0) {
+        if ($selected > 0 && $this->readTimeout > 0) {
             $idleDeadline = hrtime(true) / 1e9 + $this->readTimeout;
         }
     }
@@ -504,6 +506,7 @@ class CurlStreamingBody implements StreamInterface
     /**
      * Reject seeking on an incremental response.
      */
+    #[Unsupported]
     public function seek(int $offset, int $whence = SEEK_SET): void
     {
         throw new RuntimeException('Cannot seek a streaming response.');
@@ -512,6 +515,7 @@ class CurlStreamingBody implements StreamInterface
     /**
      * Reject rewinding an incremental response.
      */
+    #[Unsupported]
     public function rewind(): void
     {
         $this->seek(0);
@@ -528,6 +532,7 @@ class CurlStreamingBody implements StreamInterface
     /**
      * Reject writes to the response body.
      */
+    #[Unsupported]
     public function write(string $string): int
     {
         throw new RuntimeException('Cannot write to a streaming response.');

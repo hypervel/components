@@ -1,0 +1,24 @@
+CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement not null, "migration" varchar not null, "batch" integer not null);
+CREATE TABLE IF NOT EXISTS "model_with_casts" ("id" integer primary key autoincrement not null, "int" integer not null, "integer" integer not null, "real" float not null, "float" float not null, "double" double not null, "decimal" numeric not null, "string" varchar not null, "bool" tinyint(1) not null, "boolean" tinyint(1) not null, "object" text not null, "array" text not null, "json" text not null, "collection" text not null, "nullable_collection" text, "date" date not null, "datetime" datetime not null, "immutable_date" date not null, "immutable_datetime" datetime not null, "timestamp" datetime not null, "created_at" datetime, "updated_at" datetime, "deleted_at" datetime);
+CREATE TABLE IF NOT EXISTS "users" ("id" integer primary key autoincrement not null, "name" varchar not null, "email" varchar not null, "email_verified_at" datetime, "password" varchar not null, "stringButInt" varchar not null, "floatButRoundedDecimalString" float not null, "allowed_ips" text not null, "meta" text not null, "options" text not null, "properties" text not null, "enum_collection" text not null, "enum_array_object" text not null, "favorites" text not null, "secret" varchar not null, "blocked" tinyint(1) not null, "unknown_column" text not null, "remember_token" varchar, "enum_status" varchar check ("enum_status" in ('active', 'inactive', 'don''t know')) not null, "basic_enum" varchar not null, "backed_enum" varchar not null, "castable_with_argument" varchar not null, "int" integer not null, "integer" integer not null, "unsigned_integer" integer not null, "unsigned_integer_method" integer not null, "real" float not null, "float" float not null, "double" double not null, "decimal" numeric not null, "nullable_decimal" numeric, "string" varchar not null, "bool" tinyint(1) not null, "boolean" tinyint(1) not null, "object" text not null, "array" text not null, "json" text not null, "collection" text not null, "nullable_collection" text, "date" date not null, "datetime" datetime not null, "immutable_date" date not null, "immutable_datetime" datetime not null, "timestamp" datetime not null, "created_at" datetime, "updated_at" datetime, "deleted_at" datetime);
+CREATE UNIQUE INDEX "users_email_unique" on "users" ("email");
+CREATE TABLE IF NOT EXISTS "accounts" ("id" integer primary key autoincrement not null, "name" varchar not null, "active" varchar not null, "created_at" datetime, "updated_at" datetime);
+CREATE TABLE IF NOT EXISTS "roles" ("id" varchar not null, "name" varchar not null, "created_at" datetime, "updated_at" datetime);
+CREATE TABLE IF NOT EXISTS "guarded_models" ("id" integer primary key autoincrement not null, "name" varchar not null, "text" varchar not null, "created_at" datetime, "updated_at" datetime);
+CREATE TABLE IF NOT EXISTS "posts" ("id" integer primary key autoincrement not null, "name" varchar not null, "created_at" datetime, "updated_at" datetime);
+CREATE TABLE IF NOT EXISTS "posts_users" ("user_id" varchar not null, "post_id" varchar not null, "created_at" datetime, "updated_at" datetime);
+CREATE TABLE IF NOT EXISTS "addresses" ("id" integer primary key autoincrement not null, "uuid" varchar not null, "user_id" integer not null, "custom_foreign_id_for_name" integer not null, "address_id" varchar not null, "nullable_address_id" varchar, "foreign_id_constrained" integer not null, "nullable_foreign_id_constrained" integer, "foreign_ulid" varchar not null, "nullable_foreign_ulid" varchar, "foreign_uuid" varchar not null, "nullable_foreign_uuid" varchar, foreign key("foreign_id_constrained") references "users"("id"), foreign key("nullable_foreign_id_constrained") references "users"("id"));
+CREATE TABLE IF NOT EXISTS "role_user" ("role_id" varchar not null, "user_id" integer not null);
+CREATE TABLE IF NOT EXISTS "ulid_models" ("id" varchar not null, "created_at" datetime, "updated_at" datetime);
+CREATE TABLE IF NOT EXISTS "uuid_models" ("id" varchar not null, "created_at" datetime, "updated_at" datetime);
+
+INSERT INTO migrations VALUES(1,'2020_01_30_000000_create_model_with_casts_table.php',1);
+INSERT INTO migrations VALUES(2,'2020_01_30_000000_create_users_table',1);
+INSERT INTO migrations VALUES(3,'2020_03_20_000000_create_accounts_table',1);
+INSERT INTO migrations VALUES(4,'2020_03_25_000000_create_roles_table',1);
+INSERT INTO migrations VALUES(5,'2020_09_25_190200_create_guarded_models_table',1);
+INSERT INTO migrations VALUES(6,'2020_10_04_000000_create_posts_table',1);
+INSERT INTO migrations VALUES(7,'2021_09_10_000000_create_addresses_table',1);
+INSERT INTO migrations VALUES(8,'2023_06_12_000000_create_role_user_table',1);
+INSERT INTO migrations VALUES(9,'2025_02_12_000000_create_ulid_models_table',1);
+INSERT INTO migrations VALUES(10,'2025_02_12_000000_create_uuid_models_table',1);

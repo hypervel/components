@@ -7,13 +7,19 @@ namespace Hypervel\Tests\Bus;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class QueueableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('connectionDataProvider')]
     public function testOnConnection(mixed $connection, ?string $expected): void
     {
@@ -155,16 +161,15 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(function (FakeJob $next): bool {
-            $this->assertSame('0', $next->connection);
-            $this->assertSame('0', $next->queue);
-
-            return true;
-        }));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->with(Argument::capture($next));
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $job->dispatchNextJobInChain();
+
+        $this->assertInstanceOf(FakeJob::class, $next);
+        $this->assertSame('0', $next->connection);
+        $this->assertSame('0', $next->queue);
     }
 
     public function testDispatchNextJobInheritsChainIdentifiersForEmptyStrings(): void
@@ -174,20 +179,46 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(function (FakeJob $next): bool {
-            $this->assertSame('default-connection', $next->connection);
-            $this->assertSame('default-queue', $next->queue);
-
-            return true;
-        }));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->with(Argument::capture($next));
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $job->dispatchNextJobInChain();
+
+        $this->assertInstanceOf(FakeJob::class, $next);
+        $this->assertSame('default-connection', $next->connection);
+        $this->assertSame('default-queue', $next->queue);
+    }
+
+    public function testDispatchNextJobKeepsItsAttributesOverChainDefaults(): void
+    {
+        $job = new FakeJob;
+        $job->chain([new AttributedFakeJob]);
+        $job->chainConnection = 'default-connection';
+        $job->chainQueue = 'default-queue';
+
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->with(Argument::capture($next));
+        Container::getInstance()->instance(Dispatcher::class, $dispatcher);
+
+        $job->dispatchNextJobInChain();
+
+        $this->assertInstanceOf(AttributedFakeJob::class, $next);
+        $this->assertNull($next->connection);
+        $this->assertNull($next->queue);
+        $this->assertSame('default-connection', $next->chainConnection);
+        $this->assertSame('default-queue', $next->chainQueue);
     }
 }
 
 class FakeJob
+{
+    use Queueable;
+}
+
+#[Connection('job-connection')]
+#[QueueAttribute('job-queue')]
+class AttributedFakeJob
 {
     use Queueable;
 }

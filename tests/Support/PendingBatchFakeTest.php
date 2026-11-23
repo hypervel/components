@@ -9,10 +9,13 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\BusFake;
 use Hypervel\Support\Testing\Fakes\PendingBatchFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class PendingBatchFakeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testHasJobsMatchesObjectsClassesAndTypedClosuresInOrder(): void
     {
         $batch = $this->batch([
@@ -47,9 +50,12 @@ class PendingBatchFakeTest extends TestCase
         $this->assertSame([$first, $second], $batch->jobs->all());
     }
 
+    /**
+     * Create a fake pending batch for the given jobs.
+     */
     private function batch(array $jobs): PendingBatchFake
     {
-        $bus = new BusFake(m::mock(QueueingDispatcher::class));
+        $bus = new BusFake(Double::for(QueueingDispatcher::class)->strict());
 
         return new PendingBatchFake($bus, new Collection($jobs));
     }

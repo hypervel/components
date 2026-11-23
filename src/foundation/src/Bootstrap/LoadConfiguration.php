@@ -9,6 +9,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use SplFileInfo;
@@ -111,7 +112,9 @@ class LoadConfiguration
             ? $this->getBaseConfiguration()
             : [];
 
-        foreach ((new Collection($base))->diffKeys($files) as $name => $config) {
+        $baseOnly = (new Collection($base))->diffKeys($files)->all();
+
+        foreach ($baseOnly as $name => $config) {
             $repository->set($name, $config);
         }
 
@@ -119,8 +122,13 @@ class LoadConfiguration
             $base = $this->loadConfigurationFile($repository, $name, $path, $base);
         }
 
+        // Unlike Laravel, an unchanged base-only entry is not set again: it is already set,
+        // and setting it again discards the nested files loaded below it. Entries an
+        // overridden loadConfigurationFile() adds or changes still apply.
         foreach ($base as $name => $config) {
-            $repository->set($name, $config);
+            if (! array_key_exists($name, $baseOnly) || $baseOnly[$name] !== $config) {
+                $repository->set($name, $config);
+            }
         }
     }
 
@@ -227,6 +235,15 @@ class LoadConfiguration
     }
 
     /**
+     * Get the directory of the templates config:publish uses in place of framework
+     * configuration files when the framework configuration is merged.
+     */
+    public static function frameworkConfigStubPath(): string
+    {
+        return dirname(__DIR__, 2) . '/config-stubs';
+    }
+
+    /**
      * Get the base configuration files.
      *
      * @return array<string, array<string, mixed>>
@@ -245,12 +262,13 @@ class LoadConfiguration
     /**
      * Set a callback to return the permanent, static configuration values.
      *
-     * Boot-only. The callback persists in a static property used during the
+     * The callback persists in a static property used during the
      * LoadConfiguration bootstrapper; runtime use has no effect on already-
      * loaded config.
      *
      * @param null|(Closure(Application): array<array-key, mixed>) $alwaysUseConfig
      */
+    #[BootOnly]
     public static function alwaysUse(?Closure $alwaysUseConfig): void
     {
         static::$alwaysUseConfig = $alwaysUseConfig;

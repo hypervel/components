@@ -80,6 +80,7 @@
     - [Query Builder](/docs/{{version}}/queries)
     - [Pagination](/docs/{{version}}/pagination)
     - [Migrations](/docs/{{version}}/migrations)
+    - [Schema Parser](/docs/{{version}}/schema-parser)
     - [Seeding](/docs/{{version}}/seeding)
     - [Redis](/docs/{{version}}/redis)
 - ## Eloquent ORM
@@ -99,6 +100,7 @@
     - [Console Tests](/docs/{{version}}/console-tests)
     - [Database](/docs/{{version}}/database-testing)
     - [Mocking](/docs/{{version}}/mocking)
+    - [Static Analysis](/docs/{{version}}/static-analysis)
 - ## Packages
     - [API Client](/docs/{{version}}/api-client)
     - [Doctor](/docs/{{version}}/doctor)

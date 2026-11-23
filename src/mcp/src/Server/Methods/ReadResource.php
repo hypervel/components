@@ -52,7 +52,7 @@ class ReadResource implements Method
                 $invalidArgumentException->getMessage(),
                 ErrorCode::INVALID_PARAMS->value,
                 $request->id,
-                $uri === null || $uri === '' ? null : ['uri' => $uri],
+                is_string($uri) && $uri !== '' ? ['uri' => $uri] : null,
             );
         }
 
@@ -89,7 +89,6 @@ class ReadResource implements Method
             CoroutineContext::set(RequestContext::LIBRARY_SCRIPTS_CONTEXT_KEY, $resource->libraryScripts());
         }
 
-        // @phpstan-ignore-next-line
         return Container::getInstance()->call([$resource, 'handle']);
     }
 

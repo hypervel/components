@@ -5,42 +5,32 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Unit;
 
 use Hypervel\Horizon\Repositories\RedisMetricsRepository;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 class RedisMetricsRepositoryTest extends UnitTestCase
 {
     public function testClearUsesOneRawConnectionLeaseForTheWholeSweep(): void
     {
-        $rawConnection = m::mock(RedisConnection::class);
-        $rawConnection->shouldReceive('del')
-            ->once()
+        [$connection, $client, $rawConnection] = $this->redisConnection();
+        $client->expects('del')
             ->with('last_snapshot_at', 'measured_jobs', 'measured_queues', 'metrics:snapshot');
-        $rawConnection->shouldReceive('flushByPattern')->once()->with('queue:*');
-        $rawConnection->shouldReceive('flushByPattern')->once()->with('job:*');
-        $rawConnection->shouldReceive('flushByPattern')->once()->with('snapshot:*');
-
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('withConnection')
-            ->once()
-            ->withArgs(function (callable $callback, bool $transform) use ($rawConnection): bool {
-                $this->assertFalse($transform);
-                $callback($rawConnection);
-
-                return true;
-            });
+        $rawConnection->expects('flushByPattern')->with('queue:*');
+        $rawConnection->expects('flushByPattern')->with('job:*');
+        $rawConnection->expects('flushByPattern')->with('snapshot:*');
 
         (new RedisMetricsRepository($this->redisFactory($connection)))->clear();
+
+        $connection->received('withConnection')->with(Argument::type('callable'), false)->times(1);
     }
 
     public function testMissingSnapshotHashFieldsRemainFalse(): void
     {
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturn([[
+        $connection = Double::for(RedisProxy::class)->strict();
+        $connection->expects('transaction')
+            ->returns([[
                 'throughput' => false,
                 'runtime' => false,
             ], 0]);

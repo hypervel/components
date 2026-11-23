@@ -11,11 +11,15 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Session\NullSessionHandler;
 use Hypervel\Session\Store;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
 class RoutingRedirectorTest extends RoutingTestCase
 {
+    use VerifiesDoubles;
+
     protected HeaderBag $headers;
 
     protected Request $request;
@@ -32,22 +36,18 @@ class RoutingRedirectorTest extends RoutingTestCase
 
         $this->headers = new HeaderBag;
 
-        $this->request = m::mock(Request::class);
-        $this->request->shouldReceive('isMethod')->andReturn(true)->byDefault();
-        $this->request->shouldReceive('method')->andReturn('GET')->byDefault();
-        $this->request->shouldReceive('route')->andReturn(true)->byDefault();
-        $this->request->shouldReceive('ajax')->andReturn(false)->byDefault();
-        $this->request->shouldReceive('expectsJson')->andReturn(false)->byDefault();
+        $this->request = Request::create('/', 'GET');
+        $this->request->setRouteResolver(fn (): bool => true);
         $this->request->headers = $this->headers;
 
-        $this->url = m::mock(UrlGenerator::class);
-        $this->url->shouldReceive('getRequest')->andReturn($this->request);
-        $this->url->shouldReceive('to')->with('bar', [], null)->andReturn('http://foo.com/bar');
-        $this->url->shouldReceive('to')->with('bar', [], true)->andReturn('https://foo.com/bar');
-        $this->url->shouldReceive('to')->with('login', [], null)->andReturn('http://foo.com/login');
-        $this->url->shouldReceive('to')->with('http://foo.com/bar', [], null)->andReturn('http://foo.com/bar');
-        $this->url->shouldReceive('to')->with('/', [], null)->andReturn('http://foo.com/');
-        $this->url->shouldReceive('to')->with('http://foo.com/bar?signature=secret', [], null)->andReturn('http://foo.com/bar?signature=secret');
+        $this->url = Double::for(UrlGenerator::class)->strict();
+        $this->url->allows('getRequest')->returns($this->request);
+        $this->url->allows('to')->with('bar', [], null)->returns('http://foo.com/bar');
+        $this->url->allows('to')->with('bar', [], true)->returns('https://foo.com/bar');
+        $this->url->allows('to')->with('login', [], null)->returns('http://foo.com/login');
+        $this->url->allows('to')->with('http://foo.com/bar', [], null)->returns('http://foo.com/bar');
+        $this->url->allows('to')->with('/', [], null)->returns('http://foo.com/');
+        $this->url->allows('to')->with('http://foo.com/bar?signature=secret', [], null)->returns('http://foo.com/bar?signature=secret');
 
         $this->session = new Store('test', new NullSessionHandler);
 
@@ -77,7 +77,7 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testGuestPutCurrentUrlInSession(): void
     {
-        $this->url->expects('full')->andReturn('http://foo.com/bar');
+        $this->url->expects('full')->returns('http://foo.com/bar');
 
         $response = $this->redirect->guest('login');
 
@@ -87,8 +87,8 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testGuestPutPreviousUrlInSession(): void
     {
-        $this->request->expects('isMethod')->with('GET')->andReturn(false);
-        $this->url->expects('previous')->andReturn('http://foo.com/bar');
+        $this->request->setMethod('POST');
+        $this->url->expects('previous')->returns('http://foo.com/bar');
 
         $response = $this->redirect->guest('login');
 
@@ -119,14 +119,14 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testRefreshRedirectToCurrentUrl(): void
     {
-        $this->request->expects('path')->andReturn('http://foo.com/bar');
+        $this->url->allows('getRequest')->returns(Request::create('/bar'));
         $response = $this->redirect->refresh();
         $this->assertSame('http://foo.com/bar', $response->getTargetUrl());
     }
 
     public function testBackRedirectToHttpReferer(): void
     {
-        $this->url->expects('previous')->andReturn('http://foo.com/bar');
+        $this->url->expects('previous')->returns('http://foo.com/bar');
         $response = $this->redirect->back();
         $this->assertSame('http://foo.com/bar', $response->getTargetUrl());
     }
@@ -145,14 +145,14 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testAction(): void
     {
-        $this->url->expects('action')->with('bar@index', [])->andReturn('http://foo.com/bar');
+        $this->url->expects('action')->with('bar@index', [])->returns('http://foo.com/bar');
         $response = $this->redirect->action('bar@index');
         $this->assertSame('http://foo.com/bar', $response->getTargetUrl());
     }
 
     public function testRoute(): void
     {
-        $this->url->expects('route')->with('home', [])->andReturn('http://foo.com/bar');
+        $this->url->expects('route')->with('home', [])->returns('http://foo.com/bar');
 
         $response = $this->redirect->route('home');
         $this->assertSame('http://foo.com/bar', $response->getTargetUrl());
@@ -160,9 +160,9 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testRouteAcceptsUrlRoutableParameters(): void
     {
-        $parameter = m::mock(UrlRoutable::class);
+        $parameter = Double::for(UrlRoutable::class)->strict();
 
-        $this->url->expects('route')->with('home', $parameter)->andReturn('http://foo.com/bar');
+        $this->url->expects('route')->with('home', Argument::same($parameter))->returns('http://foo.com/bar');
 
         $response = $this->redirect->route('home', $parameter);
 
@@ -171,7 +171,7 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testSignedRoute(): void
     {
-        $this->url->expects('signedRoute')->with('home', [], null)->andReturn('http://foo.com/bar?signature=secret');
+        $this->url->expects('signedRoute')->with('home', [], null)->returns('http://foo.com/bar?signature=secret');
 
         $response = $this->redirect->signedRoute('home');
         $this->assertSame('http://foo.com/bar?signature=secret', $response->getTargetUrl());
@@ -179,7 +179,7 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testTemporarySignedRoute(): void
     {
-        $this->url->expects('temporarySignedRoute')->with('home', 10, [])->andReturn('http://foo.com/bar?signature=secret');
+        $this->url->expects('temporarySignedRoute')->with('home', 10, [])->returns('http://foo.com/bar?signature=secret');
 
         $response = $this->redirect->temporarySignedRoute('home', 10);
         $this->assertSame('http://foo.com/bar?signature=secret', $response->getTargetUrl());

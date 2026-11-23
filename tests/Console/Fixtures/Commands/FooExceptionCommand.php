@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Console\Fixtures\Commands;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Events\Dispatcher;
-use Mockery as m;
+use JMac\Testing\Double;
 use RuntimeException;
 
 class FooExceptionCommand extends Command
@@ -18,9 +18,9 @@ class FooExceptionCommand extends Command
     {
         parent::__construct($name);
 
-        $this->eventDispatcher = m::mock(Dispatcher::class);
-        $this->eventDispatcher->shouldReceive('hasListeners')->andReturnTrue();
-        $this->eventDispatcher->shouldReceive('dispatch')->andReturnNull();
+        $this->eventDispatcher = Double::for(Dispatcher::class)->strict();
+        $this->eventDispatcher->allows('hasListeners')->returns(true);
+        $this->eventDispatcher->allows('dispatch')->returns(null);
     }
 
     /**

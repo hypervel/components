@@ -10,11 +10,11 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SwooleStore implements CanFlushLocks, LockProvider, Store
@@ -292,12 +292,8 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         } catch (Throwable $failure) {
             try {
                 $this->state->withRowLock($metadataKey, fn (): bool => $this->rawForget($metadataKey));
-            } catch (CanceledException $cleanupCancellation) {
-                if (! $failure instanceof CanceledException) {
-                    throw $cleanupCancellation;
-                }
-            } catch (Throwable) {
-                // Preserve the registration failure as primary.
+            } catch (Throwable $cleanupFailure) {
+                $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
             }
 
             throw $failure;
@@ -933,16 +929,12 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             if ($claimedAt !== null) {
                 try {
                     $this->clearIntervalClaim($metadataKey, $claimedAt);
-                } catch (CanceledException $cleanupCancellation) {
-                    if (! $failure instanceof CanceledException) {
-                        throw $cleanupCancellation;
-                    }
-                } catch (Throwable) {
-                    // Preserve the refresh failure as primary.
+                } catch (Throwable $cleanupFailure) {
+                    $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
                 }
             }
 
-            if ($failure instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($failure)) {
                 throw $failure;
             }
 

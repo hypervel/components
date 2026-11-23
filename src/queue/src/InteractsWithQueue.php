@@ -67,7 +67,31 @@ trait InteractsWithQueue
     }
 
     /**
+     * Release the job back into the queue using its backoff for the current attempt.
+     */
+    public function releaseUsingBackoff(): void
+    {
+        if (! $this->job) {
+            return;
+        }
+
+        $backoff = method_exists($this->job, 'backoff') ? $this->job->backoff() : null;
+
+        if (is_null($backoff)) {
+            $this->release();
+
+            return;
+        }
+
+        $backoff = is_array($backoff) ? $backoff : explode(',', (string) $backoff);
+
+        $this->release((int) ($backoff[$this->attempts() - 1] ?? end($backoff)));
+    }
+
+    /**
      * Indicate that queue interactions like fail, delete, and release should be faked.
+     *
+     * @return $this
      */
     public function withFakeQueueInteractions(): static
     {
@@ -78,6 +102,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was deleted from the queue.
+     *
+     * @return $this
      */
     public function assertDeleted(): static
     {
@@ -93,6 +119,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was not deleted from the queue.
+     *
+     * @return $this
      */
     public function assertNotDeleted(): static
     {
@@ -108,6 +136,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was manually failed.
+     *
+     * @return $this
      */
     public function assertFailed(): static
     {
@@ -123,6 +153,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was manually failed with a specific exception.
+     *
+     * @return $this
      */
     public function assertFailedWith(string|Throwable $exception): static
     {
@@ -132,7 +164,7 @@ trait InteractsWithQueue
             PHPUnit::assertInstanceOf(
                 $exception,
                 $this->job->failedWith, // @phpstan-ignore property.notFound (FakeJob test-double property)
-                'Expected job to be manually failed with [' . $exception . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound
+                'Expected job to be manually failed with [' . $exception . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
             );
 
             return $this;
@@ -145,19 +177,19 @@ trait InteractsWithQueue
         PHPUnit::assertInstanceOf(
             get_class($exception),
             $this->job->failedWith, // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected job to be manually failed with [' . get_class($exception) . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound
+            'Expected job to be manually failed with [' . get_class($exception) . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
         );
 
         PHPUnit::assertEquals(
             $exception->getCode(),
-            $this->job->failedWith->getCode(), // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].' // @phpstan-ignore property.notFound
+            $this->job->failedWith->getCode(),
+            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].'
         );
 
         PHPUnit::assertEquals(
             $exception->getMessage(),
-            $this->job->failedWith->getMessage(), // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].' // @phpstan-ignore property.notFound
+            $this->job->failedWith->getMessage(),
+            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].'
         );
 
         return $this;
@@ -165,6 +197,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was not manually failed.
+     *
+     * @return $this
      */
     public function assertNotFailed(): static
     {
@@ -180,6 +214,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was released back onto the queue.
+     *
+     * @return $this
      */
     public function assertReleased(DateInterval|DateTimeInterface|int|null $delay = null): static
     {
@@ -208,6 +244,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was not released back onto the queue.
+     *
+     * @return $this
      */
     public function assertNotReleased(): static
     {
@@ -235,6 +273,8 @@ trait InteractsWithQueue
 
     /**
      * Set the base queue job instance.
+     *
+     * @return $this
      */
     public function setJob(JobContract $job): static
     {

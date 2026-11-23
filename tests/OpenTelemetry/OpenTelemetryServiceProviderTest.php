@@ -24,7 +24,8 @@ use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Monolog\Level;
 use Monolog\Logger as Monolog;
 use Monolog\LogRecord;
@@ -38,6 +39,8 @@ use OpenTelemetry\Context\Propagation\TextMapPropagatorInterface;
 
 class OpenTelemetryServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [OpenTelemetryServiceProvider::class];
@@ -79,8 +82,8 @@ class OpenTelemetryServiceProviderTest extends TestCase
 
     public function testProviderBindsCliWhenArtisanStartsAfterApplicationBoot(): void
     {
-        $lifecycle = m::mock(OpenTelemetryLifecycle::class);
-        $lifecycle->shouldReceive('startCli')->once();
+        $lifecycle = Double::for(OpenTelemetryLifecycle::class)->strict();
+        $lifecycle->expects('startCli');
         $this->app->instance(OpenTelemetryLifecycle::class, $lifecycle);
 
         $this->app->make(ConsoleApplicationContract::class);

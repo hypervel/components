@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the Add operation (intersection tags).
@@ -23,8 +23,8 @@ class AddTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], [serialize('myvalue'), 60, 1061, 'mykey'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], [serialize('myvalue'), 60, 1061, 'mykey'])
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -41,8 +41,8 @@ class AddTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->expects('evalWithShaCache')->andReturn(0);
-        $connection->shouldNotReceive('zadd');
+        $connection->expects('evalWithShaCache')->returns(0);
+        $connection->client()->expects('zadd')->never();
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -63,11 +63,11 @@ class AddTest extends RedisCacheTestCase
 
         $connection->expects('evalWithShaCache')
             ->with(
-                m::type('string'),
+                Argument::type('string'),
                 ['prefix:mykey', 'prefix:_all:tag:users:entries', 'prefix:_all:tag:posts:entries'],
                 [serialize('myvalue'), 120, 1121, 'mykey'],
             )
-            ->andReturn(1);
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -84,13 +84,12 @@ class AddTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldNotReceive('evalWithShaCache');
+        $connection->expects('evalWithShaCache')->never();
 
         // Only SET NX EX for add
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn(true);
+            ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -107,21 +106,16 @@ class AddTest extends RedisCacheTestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        // Should NOT use pipeline in cluster mode
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->shouldReceive('set')
-            ->once()
+        $client->expects('set')
             ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn(true)
+            ->returns(true)
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn(0)
+        $client->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1061.0, 'mykey')
+            ->returns(0)
             ->ordered();
 
         $result = $store->allTagOps()->add()->execute(
@@ -138,15 +132,14 @@ class AddTest extends RedisCacheTestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        $connection->shouldReceive('set')
-            ->once()
+        $client->expects('set')
             ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn(false)
+            ->returns(false)
             ->ordered();
 
-        $connection->shouldNotReceive('zadd');
+        $client->expects('zadd')->never();
 
         $result = $store->allTagOps()->add()->execute(
             'mykey',
@@ -161,7 +154,7 @@ class AddTest extends RedisCacheTestCase
     public function testAddReturnsFalseWhenScriptExecutionFails(): void
     {
         $connection = $this->mockConnection();
-        $connection->expects('evalWithShaCache')->andReturn(false);
+        $connection->expects('evalWithShaCache')->returns(false);
 
         $store = $this->createStore($connection);
 
@@ -175,9 +168,9 @@ class AddTest extends RedisCacheTestCase
 
     public function testAddReturnsFalseWhenClusterMembershipWriteFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('set')->once()->andReturn(true);
-        $connection->shouldReceive('zadd')->once()->andReturn(false);
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('set')->returns(true);
+        $client->expects('zadd')->returns(false);
 
         $this->assertFalse($store->allTagOps()->add()->execute(
             'mykey',
@@ -193,8 +186,8 @@ class AddTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], [serialize('myvalue'), 1, 1002, 'mykey'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], [serialize('myvalue'), 1, 1002, 'mykey'])
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -212,8 +205,8 @@ class AddTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], ['42', 60, 946684860, 'mykey'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], ['42', 60, 946684860, 'mykey'])
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(

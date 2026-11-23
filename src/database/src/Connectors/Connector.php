@@ -74,6 +74,7 @@ class Connector
             // the same: https://github.com/swoole/swoole-src/pull/6272#issuecomment-5931718685
             $previous = $exception->getPrevious();
 
+            // @phpstan-ignore hypervel.cancellation.exactType (unwraps the driver's direct wrapping of a canceled connect)
             throw $previous instanceof CanceledException ? $previous : $exception;
         }
     }

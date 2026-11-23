@@ -20,7 +20,8 @@ use Hypervel\Foundation\Application;
 use Hypervel\Support\Composer;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PhpParser\NodeVisitorAbstract;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -29,6 +30,8 @@ use Throwable;
 
 class GenerateProxiesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ClassLoader $originalLoader;
 
     private ClassLoader $loader;
@@ -73,18 +76,18 @@ class GenerateProxiesTest extends TestCase
     public function testBootstrapClosesRegistration(string $aspects): void
     {
         $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir) use ($aspects): void {
-            $app = m::mock(ApplicationContract::class);
+            $app = Double::for(ApplicationContract::class, override: true)->strict();
 
             if ($aspects === 'none') {
-                $app->shouldNotReceive('bootstrapPath');
+                $app->expects('bootstrapPath')->never();
             } else {
                 AspectCollector::setAround(OverrideSourceAspect::class, [
                     $aspects === 'matching' ? $className . '::value' : 'Missing\Target',
                 ]);
-                $app->shouldReceive('bootstrapPath')->with('cache/aop')->andReturn($proxyDir);
+                $app->allows('bootstrapPath')->with('cache/aop')->returns($proxyDir);
             }
 
-            (new IsolatedProxyGenerator)->bootstrap($app);
+            (new IsolatedProxyGenerator)->bootstrap($app->instance());
 
             $this->assertSame($aspects !== 'none', AstVisitorRegistry::exists(ProxyCallVisitor::class));
             if ($aspects === 'matching') {

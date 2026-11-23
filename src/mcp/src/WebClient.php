@@ -96,6 +96,7 @@ class WebClient extends Client
             clientIdMetadataUrl: $this->name === null
                 ? null
                 : $this->canonicalRouteUrl("mcp.oauth.{$this->name}.client-metadata"),
+            resourceHeaders: $this->httpTransport->customHeaders(),
         );
     }
 

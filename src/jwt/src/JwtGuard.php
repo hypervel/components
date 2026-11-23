@@ -26,6 +26,7 @@ use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Exceptions\UserNotDefinedException;
 use Hypervel\Jwt\Http\Parser\Parser;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Timebox;
 use Hypervel\Support\Traits\Macroable;
 use SensitiveParameter;
@@ -37,8 +38,6 @@ class JwtGuard implements Guard
     use Macroable;
 
     public const int DEFAULT_TTL = 120;
-
-    protected const string GUARD_CONTEXT_KEY_PREFIX = '__auth.guards.';
 
     private const string NO_EXPIRY = '__jwt.ttl.no_expiry';
 
@@ -311,7 +310,7 @@ class JwtGuard implements Guard
      */
     public function claims(array $claims): static
     {
-        $contextKey = $this->getContextStateKey('claims');
+        $contextKey = $this->contextKey('claims');
         $existing = CoroutineContext::get($contextKey, []);
 
         CoroutineContext::set($contextKey, array_merge($existing, $claims));
@@ -502,7 +501,7 @@ class JwtGuard implements Guard
     {
         CoroutineContext::forget($this->getExplicitUserContextKey());
         RequestContext::forgetValue($this->getUserContextKey());
-        RequestContext::forgetValue($this->getContextStateKey('user.default'));
+        RequestContext::forgetValue($this->contextKey('user.default'));
 
         return $this;
     }
@@ -522,8 +521,8 @@ class JwtGuard implements Guard
     /**
      * Register an authentication attempt event listener.
      *
-     * Boot-only. Listener registrations persist on the worker-lifetime dispatcher
-     * and affect every subsequent request.
+     * When the dispatcher is the application's worker-shared dispatcher,
+     * listener registrations persist and affect every subsequent request.
      */
     public function attempting(callable $callback): void
     {
@@ -541,9 +540,10 @@ class JwtGuard implements Guard
     /**
      * Set the event dispatcher instance.
      *
-     * Boot or tests only. The dispatcher is stored on the worker-lifetime guard
-     * and affects every subsequent request.
+     * The dispatcher is stored on the worker-lifetime guard and affects every
+     * subsequent request.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
@@ -591,7 +591,7 @@ class JwtGuard implements Guard
      */
     protected function getExplicitUserContextKey(): string
     {
-        return $this->getContextStateKey('user.explicit');
+        return $this->contextKey('user.explicit');
     }
 
     /**
@@ -599,7 +599,7 @@ class JwtGuard implements Guard
      */
     protected function pullCustomClaims(): array
     {
-        $contextKey = $this->getContextStateKey('claims');
+        $contextKey = $this->contextKey('claims');
         $claims = CoroutineContext::get($contextKey, []);
         CoroutineContext::forget($contextKey);
 
@@ -625,7 +625,7 @@ class JwtGuard implements Guard
      */
     protected function getContextState(string $key, mixed $default = null): mixed
     {
-        return CoroutineContext::get($this->getContextStateKey($key), $default);
+        return CoroutineContext::get($this->contextKey($key), $default);
     }
 
     /**
@@ -633,7 +633,7 @@ class JwtGuard implements Guard
      */
     protected function setContextState(string $key, mixed $value): void
     {
-        CoroutineContext::set($this->getContextStateKey($key), $value);
+        CoroutineContext::set($this->contextKey($key), $value);
     }
 
     /**
@@ -641,15 +641,7 @@ class JwtGuard implements Guard
      */
     protected function forgetContextState(string $key): void
     {
-        CoroutineContext::forget($this->getContextStateKey($key));
-    }
-
-    /**
-     * Get a Context state key.
-     */
-    protected function getContextStateKey(string $key): string
-    {
-        return static::GUARD_CONTEXT_KEY_PREFIX . $this->name . '.' . $key;
+        CoroutineContext::forget($this->contextKey($key));
     }
 
     /**
@@ -660,10 +652,10 @@ class JwtGuard implements Guard
         $token ??= $this->getToken();
 
         if ($token === null || $token === '') {
-            return $this->getContextStateKey('user.default');
+            return $this->contextKey('user.default');
         }
 
-        return $this->getContextStateKey('user.' . hash('xxh128', $token));
+        return $this->contextKey('user.' . hash('xxh128', $token));
     }
 
     /**
@@ -671,7 +663,7 @@ class JwtGuard implements Guard
      */
     protected function getPayloadContextKey(string $token): string
     {
-        return $this->getContextStateKey('payload.' . hash('xxh128', $token));
+        return $this->contextKey('payload.' . hash('xxh128', $token));
     }
 
     /**

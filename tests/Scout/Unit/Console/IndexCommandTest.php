@@ -7,102 +7,100 @@ namespace Hypervel\Tests\Scout\Unit\Console;
 use Hypervel\Config\Repository;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Console\IndexCommand;
-use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Scout;
+use Hypervel\Tests\Scout\Fixtures\SettingsEngine;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class IndexCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testZeroPrimaryKeyReachesTheEngine(): void
     {
-        $engine = m::mock(Engine::class);
-        $engine->shouldReceive('createIndex')
-            ->once()
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('createIndex')
             ->with('prod_posts', ['primaryKey' => '0']);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->once()->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
+        $config = new Repository(['scout' => ['prefix' => 'prod_']]);
 
         $command = $this->command('posts', '0');
-        $command->shouldReceive('info')->once()->with('Synchronized index ["prod_posts"] successfully.');
+        $command->expects('info')->with('Synchronized index ["prod_posts"] successfully.');
 
         $this->assertSame(0, $command->handle($manager, $config));
     }
 
     public function testUnsupportedCreationStillAppliesLogicalIndexSettings(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
-        $engine->shouldReceive('createIndex')
-            ->once()
+        $engine = Double::for(SettingsEngine::class)->strict();
+        $engine->expects('createIndex')
             ->with('prod_posts', [])
-            ->andThrow(new NotSupportedException);
-        $engine->shouldReceive('updateIndexSettings')
-            ->once()
+            ->throws(new NotSupportedException);
+        $engine->expects('updateIndexSettings')
             ->with('prod_posts', ['filterableAttributes' => ['status']]);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->once()->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
-        $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
-        $config->shouldReceive('get')
-            ->with('scout.meilisearch.index-settings.posts')
-            ->andReturn(['filterableAttributes' => ['status']]);
+        $config = new Repository(['scout' => [
+            'prefix' => 'prod_',
+            'driver' => 'meilisearch',
+            'meilisearch' => ['index-settings' => [
+                'posts' => ['filterableAttributes' => ['status']],
+            ]],
+        ]]);
 
         $command = $this->command('posts');
-        $command->shouldReceive('info')->once()->with('Synchronized index ["prod_posts"] successfully.');
+        $command->expects('info')->with('Synchronized index ["prod_posts"] successfully.');
 
         $this->assertSame(0, $command->handle($manager, $config));
     }
 
     public function testPhysicalIndexSettingsAreUsedAsFallback(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
-        $engine->shouldReceive('createIndex')->once()->with('prod_posts', []);
-        $engine->shouldReceive('updateIndexSettings')
-            ->once()
+        $engine = Double::for(SettingsEngine::class)->strict();
+        $engine->expects('createIndex')->with('prod_posts', []);
+        $engine->expects('updateIndexSettings')
             ->with('prod_posts', ['sortableAttributes' => ['created_at']]);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->once()->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
-        $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
-        $config->shouldReceive('get')->with('scout.meilisearch.index-settings.posts')->andReturn(null);
-        $config->shouldReceive('get')
-            ->with('scout.meilisearch.index-settings.prod_posts')
-            ->andReturn(['sortableAttributes' => ['created_at']]);
+        $config = new Repository(['scout' => [
+            'prefix' => 'prod_',
+            'driver' => 'meilisearch',
+            'meilisearch' => ['index-settings' => [
+                'prod_posts' => ['sortableAttributes' => ['created_at']],
+            ]],
+        ]]);
 
         $command = $this->command('posts');
-        $command->shouldReceive('info')->once()->with('Synchronized index ["prod_posts"] successfully.');
+        $command->expects('info')->with('Synchronized index ["prod_posts"] successfully.');
 
         $this->assertSame(0, $command->handle($manager, $config));
     }
 
     public function testLifecycleCallbackCanPrepareAnEmptyNamedIndexEntry(): void
     {
-        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
-        $engine->shouldReceive('createIndex')->once()->with('prod_posts', []);
-        $engine->shouldReceive('updateIndexSettings')
-            ->once()
+        $engine = Double::for(SettingsEngine::class)->strict();
+        $engine->expects('createIndex')->with('prod_posts', []);
+        $engine->expects('updateIndexSettings')
             ->with('prod_posts', ['filterableAttributes' => ['tenant_id']]);
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->once()->andReturn($engine);
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
-        $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
-        $config->shouldReceive('get')->with('scout.meilisearch.index-settings.posts')->andReturn(null);
-        $config->shouldReceive('get')->with('scout.meilisearch.index-settings.prod_posts')->andReturn(null);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')->returns($engine);
+        $config = new Repository(['scout' => [
+            'prefix' => 'prod_',
+            'driver' => 'meilisearch',
+        ]]);
 
         Scout::prepareIndexSettingsUsing(function (
             array $settings,
@@ -119,7 +117,7 @@ class IndexCommandTest extends TestCase
         });
 
         $command = $this->command('posts');
-        $command->shouldReceive('info')->once();
+        $command->expects('info');
 
         $this->assertSame(0, $command->handle($manager, $config));
     }
@@ -127,17 +125,16 @@ class IndexCommandTest extends TestCase
     public function testOperationalCreationFailuresPropagate(): void
     {
         $failure = new RuntimeException('Search service unavailable.');
-        $engine = m::mock(Engine::class);
-        $engine->shouldReceive('createIndex')->once()->andThrow($failure);
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('createIndex')->throws($failure);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->once()->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')->returns($engine);
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix')->andReturn('');
+        $config = new Repository(['scout' => ['prefix' => '']]);
 
         $command = $this->command('posts');
-        $command->shouldNotReceive('info');
+        $command->expects('info')->never();
 
         try {
             $command->handle($manager, $config);
@@ -147,11 +144,14 @@ class IndexCommandTest extends TestCase
         }
     }
 
-    protected function command(string $name, ?string $key = null): IndexCommand
+    /**
+     * Create a command double with the given index arguments.
+     */
+    protected function command(string $name, ?string $key = null): IndexCommand&DoubleInterface
     {
-        $command = m::mock(IndexCommand::class)->makePartial();
-        $command->shouldReceive('argument')->with('name')->andReturn($name);
-        $command->shouldReceive('option')->with('key')->andReturn($key);
+        $command = Double::for(new IndexCommand)->passthru();
+        $command->allows('argument')->with('name')->returns($name);
+        $command->allows('option')->with('key')->returns($key);
 
         return $command;
     }

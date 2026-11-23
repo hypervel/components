@@ -36,7 +36,7 @@ class PublishedConfigurationTest extends TestCase
 
         $this->assertSame([
             'db.client.connection.count' => true,
-            'db.client.connection.max' => true,
+            'db.client.connection.limit' => true,
             'db.client.connection.pending_requests' => true,
             'db.client.operation.duration' => true,
             'http.client.request.duration' => true,
@@ -45,7 +45,7 @@ class PublishedConfigurationTest extends TestCase
             'hypervel.cache.operations' => true,
             'hypervel.console.command.duration' => true,
             'hypervel.exceptions' => true,
-            'hypervel.object_pool.max' => true,
+            'hypervel.object_pool.limit' => true,
             'hypervel.object_pool.objects' => true,
             'hypervel.object_pool.pending_requests' => true,
             'hypervel.queue.jobs' => false,
@@ -143,6 +143,10 @@ class PublishedConfigurationTest extends TestCase
         $this->assertSame(1234, $configuration['metrics']['export_interval']);
         $this->assertSame('delta', $configuration['metrics']['temporality']);
         $this->assertSame('traceidratio', $configuration['traces']['sampler']);
+        $this->assertSame('App\Tracing\CustomSampler', $this->withEnvironment(
+            ['OTEL_TRACES_SAMPLER' => 'App\Tracing\CustomSampler'],
+            fn (): string => $this->publishedConfiguration()['traces']['sampler'],
+        ));
         $this->assertSame(0.25, $configuration['traces']['sampler_arg']);
         $this->assertSame('http/json', $configuration['exporters']['otlp']['protocol']);
         $this->assertSame([

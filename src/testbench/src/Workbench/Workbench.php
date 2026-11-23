@@ -9,7 +9,7 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Factories\Factory;
-use Hypervel\Foundation\Http\HealthCheckController;
+use Hypervel\Foundation\Http\HealthCheck;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
@@ -127,7 +127,7 @@ class Workbench
                 }
 
                 if ($healthCheckEnabled === true) {
-                    $router->get('/up', HealthCheckController::class);
+                    $router->get('/up', HealthCheck::class);
                 }
 
                 if ($discoversConfig['web'] === true) {
@@ -311,6 +311,7 @@ class Workbench
     public static function applicationUserModel(): ?string
     {
         if (\is_null(static::$cachedUserModel)) {
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Workbench detects the user model while configuration loads)
             $authModel = Env::get('AUTH_MODEL');
 
             /** @var class-string<AuthenticatableContract>|false $userModel */

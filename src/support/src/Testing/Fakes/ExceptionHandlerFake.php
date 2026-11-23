@@ -215,6 +215,8 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
 
     /**
      * Throw exceptions when they are reported.
+     *
+     * @return $this
      */
     public function throwOnReport(): static
     {
@@ -225,6 +227,8 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
 
     /**
      * Throw the first reported exception.
+     *
+     * @return $this
      *
      * @throws Throwable
      */
@@ -249,6 +253,8 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
 
     /**
      * Set the "original" handler that should be used by the fake.
+     *
+     * @return $this
      */
     public function setHandler(ExceptionHandler $handler): static
     {
@@ -273,6 +279,14 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
     public function buildContextForException(Throwable $e): array
     {
         return $this->handler->buildContextForException($e);
+    }
+
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        return $this->handler->shouldStopRetries($e);
     }
 
     /**

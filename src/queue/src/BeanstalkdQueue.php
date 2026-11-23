@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Queue\Job as JobContract;
@@ -232,21 +233,44 @@ class BeanstalkdQueue extends Queue implements QueueContract
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
-            static function (
-                BeanstalkdQueue $owner,
-                string $payload,
-                ?string $queue,
-                DateInterval|DateTimeInterface|int $delay
-            ) {
-                $owner->pheanstalk->useTube(new TubeName($owner->getQueue($queue)));
+            static fn (self $owner, string $payload, ?string $queue, DateInterval|DateTimeInterface|int $delay) => $owner->laterRaw($delay, $payload, $queue)
+        );
+    }
 
-                return $owner->pheanstalk->put(
-                    $payload,
-                    Pheanstalk::DEFAULT_PRIORITY,
-                    $owner->secondsUntil($delay),
-                    $owner->timeToRun
-                );
-            }
+    /**
+     * Store a delayed payload on its selected tube.
+     */
+    protected function laterRaw(DateInterval|DateTimeInterface|int $delay, string $payload, ?string $queue): mixed
+    {
+        $this->pheanstalk->useTube(new TubeName($this->getQueue($queue)));
+
+        return $this->pheanstalk->put($payload, Pheanstalk::DEFAULT_PRIORITY, $this->secondsUntil($delay), $this->timeToRun);
+    }
+
+    /**
+     * Preserve per-job transport overrides in custom queues.
+     */
+    protected function usesCustomBatchDelivery(): bool
+    {
+        return static::class !== self::class;
+    }
+
+    /**
+     * Capture an enrolled job for sending through the live Beanstalkd connection.
+     */
+    protected function prepareBatchMember(object|string $job, mixed $data, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, int $offset): Closure
+    {
+        $payload = $this->createPayload($job, $this->getQueue($queue), $data, $delay);
+        return static fn (self $owner, BatchEnqueueAttempt $attempt) => $owner->enqueueNow(
+            $job,
+            $payload,
+            $queue,
+            $delay,
+            static fn (self $sender, string $payload, ?string $queue) => $delay === null
+                ? $sender->pushRaw($payload, $queue)
+                : $sender->laterRaw($delay, $payload, $queue),
+            $attempt,
+            $offset,
         );
     }
 

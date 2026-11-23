@@ -92,6 +92,8 @@ class ValidatedInput implements ValidatedData
 
     /**
      * Dump the items.
+     *
+     * @return $this
      */
     public function dump(mixed ...$keys): static
     {

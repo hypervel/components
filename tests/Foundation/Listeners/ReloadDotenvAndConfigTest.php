@@ -16,10 +16,13 @@ use Hypervel\Support\Facades\Config as ConfigFacade;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ReloadDotenvAndConfigTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected ?string $originalAppName = null;
 
     protected function setUp(): void
@@ -27,15 +30,10 @@ class ReloadDotenvAndConfigTest extends TestCase
         parent::setUp();
 
         $this->originalAppName = getenv('APP_NAME') ?: null;
-
-        DotenvManager::flushState();
-        Env::flushState();
     }
 
     protected function tearDown(): void
     {
-        DotenvManager::flushState();
-        Env::flushState();
         $this->restoreAppName();
 
         parent::tearDown();
@@ -52,7 +50,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         // Switch to .env.testing (simulates LoadEnvironmentVariables having selected it).
         $app->loadEnvironmentFrom('.env.testing');
 
-        $event = m::mock(BeforeWorkerStart::class);
+        $event = Double::for(BeforeWorkerStart::class)->strict();
         $listener = $app->make(ReloadDotenvAndConfig::class);
         $listener->handle($event);
 
@@ -70,7 +68,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         DotenvManager::load([$app->environmentPath()]);
         $this->assertSame('Hypervel', Env::get('APP_NAME'));
 
-        $event = m::mock(BeforeWorkerStart::class);
+        $event = Double::for(BeforeWorkerStart::class)->strict();
         $listener = $app->make(ReloadDotenvAndConfig::class);
         $listener->handle($event);
 
@@ -97,14 +95,14 @@ class ReloadDotenvAndConfigTest extends TestCase
             $filesystem->put($app->getCachedConfigPath(), '<?php return ' . var_export($cached, true) . ';');
 
             $listener = $app->make(ReloadDotenvAndConfig::class);
-            $listener->handle(m::mock(BeforeWorkerStart::class));
+            $listener->handle(Double::for(BeforeWorkerStart::class)->strict());
 
             $this->assertNull(Env::get('DOCTOR_WORKER_VALUE'));
             $this->assertSame('cached', $app->make(Repository::class)->get('worker.value'));
             $this->assertTrue($app->configurationIsCached());
 
             $filesystem->delete($app->getCachedConfigPath());
-            $listener->handle(m::mock(BeforeWorkerStart::class));
+            $listener->handle(Double::for(BeforeWorkerStart::class)->strict());
 
             $this->assertSame('from-file', Env::get('DOCTOR_WORKER_VALUE'));
             $this->assertSame('from-file', $app->make(Repository::class)->get('worker.value'));
@@ -121,7 +119,7 @@ class ReloadDotenvAndConfigTest extends TestCase
 
         $originalConfig->set('app.name', 'Reloaded Hypervel');
 
-        $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
+        $app->make(ReloadDotenvAndConfig::class)->handle(Double::for(BeforeWorkerStart::class)->strict());
 
         $reloadedConfig = $app->make(Repository::class);
 
@@ -140,7 +138,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         $config->set('app.name', 'Second');
         $config->set('app', ['name' => 'Last']);
 
-        $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
+        $app->make(ReloadDotenvAndConfig::class)->handle(Double::for(BeforeWorkerStart::class)->strict());
 
         $this->assertSame(['name' => 'Last'], $config->get('app'));
     }
@@ -153,7 +151,7 @@ class ReloadDotenvAndConfigTest extends TestCase
 
         $config->set('app.name', 'Reloaded Hypervel');
 
-        $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
+        $app->make(ReloadDotenvAndConfig::class)->handle(Double::for(BeforeWorkerStart::class)->strict());
 
         $this->assertSame('Reloaded Hypervel', $config->get('app.name'));
         $this->assertSame($environment, $config->get('app.env'));
@@ -166,10 +164,10 @@ class ReloadDotenvAndConfigTest extends TestCase
         $listener = $app->make(ReloadDotenvAndConfig::class);
 
         $config->set('app.name', 'Boot Mutation');
-        $listener->handle(m::mock(BeforeWorkerStart::class));
+        $listener->handle(Double::for(BeforeWorkerStart::class)->strict());
 
         $config->set('app.name', 'Post Start Mutation');
-        $listener->handle(m::mock(BeforeWorkerStart::class));
+        $listener->handle(Double::for(BeforeWorkerStart::class)->strict());
 
         $this->assertSame('Boot Mutation', $config->get('app.name'));
     }
@@ -181,9 +179,9 @@ class ReloadDotenvAndConfigTest extends TestCase
         $listener = $app->make(ReloadDotenvAndConfig::class);
         $originalName = $config->get('app.name');
 
-        $listener->handle(m::mock(BeforeWorkerStart::class));
+        $listener->handle(Double::for(BeforeWorkerStart::class)->strict());
         $config->set('app.name', 'Post Start Mutation');
-        $listener->handle(m::mock(BeforeWorkerStart::class));
+        $listener->handle(Double::for(BeforeWorkerStart::class)->strict());
 
         $this->assertSame($originalName, $config->get('app.name'));
     }
@@ -228,7 +226,7 @@ PHP);
             $this->assertSame('bar', $config->get('custom.foo'));
 
             $app->loadEnvironmentFrom('.env.testing');
-            $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
+            $app->make(ReloadDotenvAndConfig::class)->handle(Double::for(BeforeWorkerStart::class)->strict());
 
             $this->assertSame('testing_value', $config->get('worker_package.environment'));
             $this->assertSame('testing_value', $config->get('custom.environment'));

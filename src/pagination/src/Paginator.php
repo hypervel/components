@@ -20,8 +20,9 @@ use JsonSerializable;
  * @template TKey of array-key
  *
  * @template-covariant TValue
+ * @template-covariant TCollection of Collection = Collection<array-key, mixed>
  *
- * @extends AbstractPaginator<TKey, TValue>
+ * @extends AbstractPaginator<TKey, TValue, TCollection>
  *
  * @implements Arrayable<array<string, mixed>>
  * @implements ArrayAccess<TKey, TValue>

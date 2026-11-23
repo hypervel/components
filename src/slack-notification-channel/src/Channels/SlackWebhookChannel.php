@@ -33,7 +33,7 @@ class SlackWebhookChannel
         }
 
         return $this->http->post($url, $this->buildJsonPayload(
-            $notification->toSlack($notifiable) // @phpstan-ignore method.notFound
+            $notification->toSlack($notifiable) // @phpstan-ignore method.notFound (notifications sent through this channel define toSlack())
         ));
     }
 

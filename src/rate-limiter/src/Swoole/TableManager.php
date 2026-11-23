@@ -6,6 +6,7 @@ namespace Hypervel\RateLimiter\Swoole;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Core\Swoole\StripedLock;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
@@ -50,9 +51,10 @@ class TableManager
     /**
      * Prevent tables from being created after the server initialization phase.
      *
-     * Boot-only. Creating a table after the server forks would give each worker
-     * private state instead of one shared rate limiter.
+     * Creating a table after the server forks would give each worker private
+     * state instead of one shared rate limiter.
      */
+    #[BootOnly(whenShared: true)]
     public function seal(): void
     {
         $this->sealed = true;

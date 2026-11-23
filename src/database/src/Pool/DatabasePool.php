@@ -11,12 +11,15 @@ use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\ConnectionPool\UsageTracker;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
+use LogicException;
 use PDO;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -130,6 +133,25 @@ class DatabasePool extends ConnectionPool
     public function getSharedInMemorySqlitePdo(): ?PDO
     {
         return $this->sharedInMemorySqlitePdo;
+    }
+
+    /**
+     * Restore the shared in-memory database retained between tests.
+     *
+     * Replaces the database used by every subsequent pool borrower.
+     */
+    #[TestsOnly(whenShared: true)]
+    public function restoreSharedInMemorySqlitePdo(PDO $pdo): void
+    {
+        if ($this->getBorrowedCount() > 0) {
+            throw new LogicException('Cannot restore the in-memory SQLite database while connections are borrowed.');
+        }
+
+        while ($connection = $this->popIdleConnection()) {
+            $this->destroyConnection($connection);
+        }
+
+        $this->sharedInMemorySqlitePdo = $pdo;
     }
 
     /**
@@ -505,16 +527,18 @@ class DatabasePool extends ConnectionPool
                 || ($connection->isIdleExpired($now)
                     && $this->getManagedCount() > $this->options->minRetainedConnections);
             $healthy = ! $expired && $connection->ping($this->options->heartbeatTimeout);
-        } catch (CanceledException $cancellation) {
-            try {
-                $this->discardHeartbeatConnection($connection);
-            } catch (CanceledException) {
-            } catch (Throwable $exception) {
-                $this->report($exception);
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                try {
+                    $this->discardHeartbeatConnection($connection);
+                } catch (CanceledException) {
+                } catch (Throwable $cleanupException) {
+                    $this->report($cleanupException);
+                }
+
+                throw $exception;
             }
 
-            throw $cancellation;
-        } catch (Throwable $exception) {
             $this->report('Database heartbeat failed: ' . $exception);
             $healthy = false;
         }

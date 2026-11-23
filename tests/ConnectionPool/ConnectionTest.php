@@ -17,7 +17,9 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\ConnectionPool\Fixtures\ActiveConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -27,16 +29,18 @@ use TypeError;
 
 class ConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testGetConnectionReturnsTheActiveConnection(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldNotReceive('warning');
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
-        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning')->never();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(true);
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->allows('bound')->with('events')->returns(false);
 
-        $connection = new ActiveConnectionStub($container, m::mock(ConnectionPool::class));
+        $connection = new ActiveConnectionStub($container->instance(), Double::for(ConnectionPool::class)->strict());
         $this->assertSame($connection, $connection->getConnection());
     }
 
@@ -44,15 +48,15 @@ class ConnectionTest extends TestCase
     public function testGetConnectionDoesNotRetryFailure(string $exceptionClass): void
     {
         $failure = new $exceptionClass('acquisition failed');
-        $container = m::mock(ContainerContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldNotReceive('warning');
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
-        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning')->never();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(true);
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->allows('bound')->with('events')->returns(false);
         $connection = new ConnectionCallbackStub(
-            $container,
-            m::mock(ConnectionPool::class),
+            $container->instance(),
+            Double::for(ConnectionPool::class)->strict(),
             static fn (): mixed => throw $failure,
         );
         $caught = null;
@@ -78,15 +82,15 @@ class ConnectionTest extends TestCase
     public function testGetConnectionDoesNotRetryCancellation(): void
     {
         $cancellation = new CanceledException('connection canceled');
-        $container = m::mock(ContainerContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('warning')->never();
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
-        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning')->never();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(true);
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->allows('bound')->with('events')->returns(false);
         $connection = new ConnectionCallbackStub(
-            $container,
-            m::mock(ConnectionPool::class),
+            $container->instance(),
+            Double::for(ConnectionPool::class)->strict(),
             static fn (): mixed => throw $cancellation,
         );
 
@@ -103,18 +107,18 @@ class ConnectionTest extends TestCase
     public function testConnectionReleasingEvent(): void
     {
         $assert = 0;
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(ConnectionReleasing::class)->andReturnUsing(function (ConnectionReleasing $event) use (&$assert) {
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->with(Argument::type(ConnectionReleasing::class))->resolves(function (ConnectionReleasing $event) use (&$assert) {
             $assert = $event->connection->getLastReleaseTime();
         });
 
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('release')->withAnyArgs()->andReturnNull();
-        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->allows('release')->returns(null);
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
 
         $before = hrtime(true) / 1e9;
         $connection->release();
@@ -127,15 +131,15 @@ class ConnectionTest extends TestCase
     public function testReleaseUsesTheCurrentEventDispatcher(): void
     {
         $container = new Container;
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->allows('hasListeners')->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->allows('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->never();
         $container->instance('events', $dispatcher);
 
-        $pool = m::mock(ConnectionPool::class);
-        $pool->expects('getOptions')->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
         $connection = new ActiveConnectionStub($container, $pool);
-        $pool->expects('release')->with($connection);
+        $pool->expects('release')->with(Argument::same($connection));
 
         $fake = new EventFake($dispatcher, [ConnectionReleasing::class]);
         $container->instance('events', $fake);
@@ -150,15 +154,15 @@ class ConnectionTest extends TestCase
     {
         $cancellation = new CanceledException('listener canceled');
         $failure = $cleanupThrows ? new RuntimeException('Listener cleanup failed.', previous: $cancellation) : $cancellation;
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow($failure);
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->shouldReceive('release')->once()->with($connection);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->throws($failure);
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::same($connection));
 
         try {
             $connection->release();
@@ -175,15 +179,15 @@ class ConnectionTest extends TestCase
         $cancellation = new CanceledException('listener canceled');
         $failure = $cleanupThrows ? new RuntimeException('Listener cleanup failed.', previous: $cancellation) : $cancellation;
         $cleanupCancellation = new CanceledException('release canceled');
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow($failure);
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->shouldReceive('release')->once()->with($connection)->andThrow($cleanupCancellation);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->throws($failure);
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::same($connection))->throws($cleanupCancellation);
 
         try {
             $connection->release();
@@ -196,18 +200,18 @@ class ConnectionTest extends TestCase
     public function testCancellationWhileLoggingAListenerFailureStillReturnsTheConnectionOnce(): void
     {
         $cancellation = new CanceledException('logging canceled');
-        $container = m::mock(ContainerContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')->once()->andThrow($cancellation);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('listener failed'));
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->shouldReceive('release')->once()->with($connection);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')->throws($cancellation);
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(true);
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->throws(new RuntimeException('listener failed'));
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::same($connection));
 
         try {
             $connection->release();
@@ -219,24 +223,21 @@ class ConnectionTest extends TestCase
 
     public function testOrdinaryReleaseListenerFailureIsLoggedAndTheConnectionIsReturned(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')
-            ->once()
-            ->with(m::on(static fn (string $message): bool => str_contains($message, 'listener failed')));
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('listener failed'));
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->shouldReceive('release')->once()->with($connection);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')
+            ->with(Argument::satisfies(static fn (string $message): bool => str_contains($message, 'listener failed')));
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(true);
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->throws(new RuntimeException('listener failed'));
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::same($connection));
 
         $connection->release();
-
-        $this->addToAssertionCount(1);
     }
 
     #[DataProvider('cleanupFailures')]
@@ -244,18 +245,18 @@ class ConnectionTest extends TestCase
     {
         $loggingFailure = new RuntimeException('logger failed');
         $cleanupFailure = $cleanupExceptionClass === null ? null : new $cleanupExceptionClass('cleanup failed');
-        $container = m::mock(ContainerContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')->once()->andThrow($loggingFailure);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('listener failed'));
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->shouldReceive('release')->once()->with($connection)->andReturnUsing(static function () use ($cleanupFailure): void {
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')->throws($loggingFailure);
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(true);
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->throws(new RuntimeException('listener failed'));
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::same($connection))->resolves(static function () use ($cleanupFailure): void {
             if ($cleanupFailure !== null) {
                 throw $cleanupFailure;
             }
@@ -284,18 +285,18 @@ class ConnectionTest extends TestCase
     public function testReleaseCancellationSurvivesCleanupAndReportingFailures(string $reportingExceptionClass): void
     {
         $cancellation = new CanceledException('listener canceled');
-        $container = m::mock(ContainerContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')->once()->andThrow(new $reportingExceptionClass('secondary reporting failed'));
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnTrue();
-        $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->once()->andReturn($logger);
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow($cancellation);
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->shouldReceive('release')->once()->with($connection)->andThrow(new RuntimeException('cleanup failed'));
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')->throws(new $reportingExceptionClass('secondary reporting failed'));
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(true);
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(true);
+        $dispatcher->expects('dispatch')->throws($cancellation);
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::same($connection))->throws(new RuntimeException('cleanup failed'));
         $caught = null;
 
         try {
@@ -317,60 +318,54 @@ class ConnectionTest extends TestCase
 
     public function testConfiguredReleaseEventIsNotDispatchedWithoutListeners(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnFalse();
-        $dispatcher->shouldReceive('dispatch')->never();
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->shouldReceive('release')->once()->with($connection);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(true);
+        $container->allows('make')->with('events')->returns($dispatcher = Double::for(Dispatcher::class)->strict());
+        $dispatcher->expects('hasListeners')->with(ConnectionReleasing::class)->returns(false);
+        $dispatcher->expects('dispatch')->never();
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::same($connection));
 
         $connection->release();
-
-        $this->addToAssertionCount(1);
     }
 
     public function testDontHaveEvents(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldNotReceive('bound')->with('events');
-        $container->shouldNotReceive('make')->with('events');
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->expects('bound')->never()->with('events');
+        $container->expects('make')->never()->with('events');
 
-        $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
-        $pool->shouldReceive('release')->withAnyArgs()->andReturnNull();
-        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
+        $connection = new ActiveConnectionStub($container->instance(), $pool = Double::for(ConnectionPool::class)->strict());
+        $pool->allows('release')->returns(null);
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray([]));
 
         $connection->release();
-
-        $this->assertTrue(true);
     }
 
     public function testDiscardDelegatesToOwningPool(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnFalse();
-        $pool = m::mock(ConnectionPool::class);
-        $connection = new ActiveConnectionStub($container, $pool);
-        $pool->shouldReceive('discard')->once()->with($connection);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $connection = new ActiveConnectionStub($container->instance(), $pool);
+        $pool->expects('discard')->with(Argument::same($connection));
 
         $connection->discard();
-
-        $this->addToAssertionCount(1);
     }
 
     public function testCheckDoesNotResetActivityTimestamp(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnFalse();
-        $pool = m::mock(ConnectionPool::class);
-        $pool->shouldReceive('release')->once();
-        $pool->shouldReceive('getOptions')->twice()->andReturn(PoolOptions::fromArray(['max_idle_time' => 60.0]));
-        $connection = new ActiveConnectionStub($container, $pool);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->expects('release');
+        $pool->expects('getOptions')->times(2)->returns(PoolOptions::fromArray(['max_idle_time' => 60.0]));
+        $connection = new ActiveConnectionStub($container->instance(), $pool);
 
         $connection->release();
         $lastUseTime = $connection->getLastUseTime();
@@ -381,12 +376,12 @@ class ConnectionTest extends TestCase
 
     public function testNullIdleTimeoutKeepsAnUnusedConnectionValid(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnFalse();
-        $pool = m::mock(ConnectionPool::class);
-        $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['max_idle_time' => null]));
-        $connection = new ActiveConnectionStub($container, $pool);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(StdoutLoggerInterface::class)->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->expects('getOptions')->returns(PoolOptions::fromArray(['max_idle_time' => null]));
+        $connection = new ActiveConnectionStub($container->instance(), $pool);
 
         $this->assertTrue($connection->check());
         $this->assertSame(0.0, $connection->getLastUseTime());

@@ -12,7 +12,8 @@ use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Scout\Scout;
 use Hypervel\Tests\Scout\ScoutTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 /**
@@ -20,6 +21,8 @@ use RuntimeException;
  */
 class ScoutTest extends ScoutTestCase
 {
+    use VerifiesDoubles;
+
     public function testDefaultMakeSearchableJobClass(): void
     {
         $this->assertSame(MakeSearchable::class, Scout::$makeSearchableJob);
@@ -46,9 +49,9 @@ class ScoutTest extends ScoutTestCase
 
     public function testLifecycleCallbacksPreserveValuesWhenUnset(): void
     {
-        $builder = m::mock(Builder::class);
-        $engine = m::mock(Engine::class);
-        $model = m::mock(Model::class);
+        $builder = Double::for(Builder::class)->strict();
+        $engine = Double::for(Engine::class)->strict();
+        $model = Double::for(Model::class)->strict();
 
         Scout::prepareBuilder($builder, $engine);
 
@@ -69,9 +72,9 @@ class ScoutTest extends ScoutTestCase
 
     public function testLifecycleCallbacksReceiveTheirCompleteBoundaries(): void
     {
-        $builder = m::mock(Builder::class);
-        $engine = m::mock(Engine::class);
-        $model = m::mock(Model::class);
+        $builder = Double::for(Builder::class)->strict();
+        $engine = Double::for(Engine::class)->strict();
+        $model = Double::for(Model::class)->strict();
         $preparedBuilder = false;
         $guardedFlush = false;
 
@@ -130,8 +133,8 @@ class ScoutTest extends ScoutTestCase
 
     public function testRegisteringLifecycleCallbackAgainReplacesPreviousCallback(): void
     {
-        $builder = m::mock(Builder::class);
-        $engine = m::mock(Engine::class);
+        $builder = Double::for(Builder::class)->strict();
+        $engine = Double::for(Engine::class)->strict();
         $calls = [];
 
         Scout::prepareBuilderUsing(function () use (&$calls): void {
@@ -160,9 +163,9 @@ class ScoutTest extends ScoutTestCase
         $this->assertSame(MakeSearchable::class, Scout::$makeSearchableJob);
         $this->assertSame(RemoveFromSearch::class, Scout::$removeFromSearchJob);
 
-        $builder = m::mock(Builder::class);
-        $engine = m::mock(Engine::class);
-        $model = m::mock(Model::class);
+        $builder = Double::for(Builder::class)->strict();
+        $engine = Double::for(Engine::class)->strict();
+        $model = Double::for(Model::class)->strict();
 
         Scout::prepareBuilder($builder, $engine);
         $this->assertSame([], Scout::prepareSearchableDocument([], $model, $engine));
@@ -172,13 +175,12 @@ class ScoutTest extends ScoutTestCase
 
     public function testEngineMethodReturnsEngineFromManager(): void
     {
-        $engine = m::mock(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
             ->with('meilisearch')
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
         $this->app->instance(EngineManager::class, $manager);
 
@@ -189,13 +191,12 @@ class ScoutTest extends ScoutTestCase
 
     public function testEngineMethodWithNullUsesDefaultEngine(): void
     {
-        $engine = m::mock(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
             ->with(null)
-            ->once()
-            ->andReturn($engine);
+            ->returns($engine);
 
         $this->app->instance(EngineManager::class, $manager);
 

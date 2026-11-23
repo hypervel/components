@@ -4,20 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Concurrency;
 
+use Carbon\CarbonInterval;
+use Closure;
 use Hypervel\Contracts\Concurrency\Driver;
 use Hypervel\Process\Factory as ProcessFactory;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\MultipleInstanceManager;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
+ * @method array run(Closure|array $tasks, CarbonInterval|int|null $timeout = null)
+ *
  * @mixin Driver
  */
 class ConcurrencyManager extends MultipleInstanceManager
 {
     /**
      * Get a driver instance by name.
+     *
+     * @return Driver
      */
     public function driver(UnitEnum|string|null $name = null): mixed
     {
@@ -66,8 +73,9 @@ class ConcurrencyManager extends MultipleInstanceManager
     /**
      * Set the default concurrency driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultInstance(string $name): void
     {
         $this->config->set('concurrency.default', $name);

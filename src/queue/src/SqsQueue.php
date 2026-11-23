@@ -17,13 +17,14 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\ObjectPool\PoolErrorReporter;
+use Hypervel\Queue\Concerns\EnqueuesPreparedBatches;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Str;
 use LogicException;
 use RuntimeException;
@@ -32,6 +33,8 @@ use UnitEnum;
 
 class SqsQueue extends Queue implements QueueContract, ClearableQueue, PublishesOutboxMessages
 {
+    use EnqueuesPreparedBatches;
+
     /**
      * The maximum SQS payload size in bytes (1 MB).
      */
@@ -288,7 +291,12 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
         $queueName = $this->resolveQueueName($queue);
 
         if (! $this->shouldStageViaOutbox($job)) {
-            $this->ensureDelayIsSupported($delay, $queueName);
+            try {
+                $this->ensureDelayIsSupported($delay, $queueName);
+            } catch (Throwable $failure) {
+                $this->reportForwardedFailure($job, false);
+                throw $failure;
+            }
         }
 
         return $this->enqueueUsing(
@@ -317,54 +325,9 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     }
 
     /**
-     * Push an array of jobs onto the queue.
-     */
-    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
-    {
-        $queue = $this->normalizeQueue($queue);
-        $jobs = array_values($this->stageOutboxJobs($jobs, $data, $queue));
-
-        if ($jobs === []) {
-            return null;
-        }
-
-        $this->ensureBulkDelaysAreSupported($jobs, $queue);
-
-        $transactions = null;
-
-        if ($this->container->has('db.transactions')) {
-            /** @var DatabaseTransactionsManager $transactions */
-            $transactions = $this->container->make('db.transactions');
-        }
-
-        [$afterCommit, $immediate] = $this->partitionJobsByAfterCommit($jobs, $transactions);
-
-        if ($immediate !== []) {
-            $this->sendBatchedMessages($this->prepareBatchMessages($immediate, $data, $queue), $queue);
-        }
-
-        if ($afterCommit === []) {
-            return null;
-        }
-
-        $messages = $this->prepareBatchMessages($afterCommit, $data, $queue);
-        /** @var DatabaseTransactionsManager $transactions */
-        $this->deferBatchEnqueueAfterCommit(
-            $transactions,
-            $afterCommit,
-            static function (Queue $owner) use ($messages, $queue): void {
-                /** @var SqsQueue $owner */
-                $owner->sendBatchedMessages($messages, $queue);
-            },
-        );
-
-        return null;
-    }
-
-    /**
      * Ensure the jobs do not request unsupported FIFO delays.
      */
-    protected function ensureBulkDelaysAreSupported(array $jobs, ?string $queue): void
+    protected function validateBulkJobs(array $jobs, ?string $queue): void
     {
         $queue = $this->resolveQueueName($queue);
 
@@ -422,7 +385,32 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
      */
     protected function sendBatchedMessages(array $messages, ?string $queue): void
     {
+        $this->writePreparedMessages($messages, $queue, null);
+    }
+
+    /**
+     * Preserve custom SQS batch senders and report the built-in sender's per-entry results.
+     */
+    protected function publishPreparedBatch(array $jobs, ?string $queue, ?BatchEnqueueAttempt $attempt): mixed
+    {
+        if ($attempt === null || $this->usesCustomBatchWriter(self::class, 'sendBatchedMessages')) {
+            $attempt?->attempting(array_keys($jobs));
+            $this->sendBatchedMessages(array_values($jobs), $queue);
+            $attempt?->accepted(array_keys($jobs));
+        } else {
+            $this->writePreparedMessages($jobs, $queue, $attempt);
+        }
+
+        return null;
+    }
+
+    /**
+     * Send prepared chunks and preserve each entry's confirmed outcome.
+     */
+    protected function writePreparedMessages(array $messages, ?string $queue, ?BatchEnqueueAttempt $attempt): void
+    {
         $outstandingMessageIds = array_fill_keys(array_keys($messages), true);
+        $attemptedMessageIds = [];
 
         try {
             foreach ($messages as $id => $message) {
@@ -457,11 +445,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             $store = $overflow === [] ? null : $this->overflowStore();
             $chunks = $this->chunkBatchEntries($entries);
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
-            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $exception);
 
             throw $exception;
         }
@@ -475,15 +459,14 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $this->raiseJobQueueingEvent($queue, $message['job'], $message['payload'], $message['delay']);
                 }
 
+                // Overflow storage is part of the send, as in pushRaw().
+                $attemptedMessageIds += array_fill_keys(array_column($chunk, 'Id'), true);
+
                 if ($store !== null) {
                     $this->storeBatchOverflowPayloads($chunk, $overflow, $store);
                 }
             } catch (Throwable $exception) {
-                if (Coroutine::causedByCancellation($exception)) {
-                    throw $exception;
-                }
-
-                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $exception);
 
                 throw $exception;
             }
@@ -491,20 +474,19 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             // A thrown request is ambiguous for the whole chunk, so retain its pointers.
             // Only sender-fault entries below are treated as rejected.
             try {
+                $attempt?->attempting(array_column($chunk, 'Id'));
                 $result = $this->sqs->sendMessageBatch([
                     'QueueUrl' => $queueUrl,
                     'Entries' => $chunk,
                 ]);
             } catch (Throwable $exception) {
-                if (Coroutine::causedByCancellation($exception)) {
-                    throw $exception;
-                }
-
-                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $exception);
 
                 throw $exception;
             }
 
+            $attempt?->accepted(array_column($result['Successful'] ?? [], 'Id'));
+            $attempt?->rejected(array_column(array_filter($result['Failed'] ?? [], $this->isSenderFaultRejection(...)), 'Id'));
             $accepted = [];
 
             foreach ($result['Successful'] ?? [] as $success) {
@@ -518,7 +500,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 $accepted[] = $success;
             }
 
+            // Cleanup and notification throw only cancellation, which must not skip
+            // the accepted messages' queued events or the outstanding messages' outcomes.
             $exception = null;
+            $notificationFailure = null;
+            $cancellation = null;
 
             if (! empty($result['Failed'])) {
                 $exception = $this->batchRejectionException($queueUrl, $chunk, $result);
@@ -532,32 +518,50 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                         }
                     }
 
-                    $this->cleanupOverflowPayloads($store, $rejectedPaths);
+                    try {
+                        $this->cleanupOverflowPayloads($store, $rejectedPaths);
+                    } catch (Throwable $throwable) {
+                        $cancellation = $throwable;
+                    }
                 }
             }
 
-            $notificationFailure = $this->notifyBatchMembers(
-                $accepted,
-                fn (array $success) => $this->handlePayloadPushed($messages[$success['Id']]['storedPayload'], $queue),
-                function (array $success) use ($messages, $queue): void {
-                    $message = $messages[$success['Id']];
-                    $this->raiseJobQueuedEvent($queue, $success['MessageId'], $message['job'], $message['payload'], $message['delay']);
-                },
-            );
-
-            if ($exception !== null && $notificationFailure !== null) {
-                $this->reportSecondaryFailure($notificationFailure);
+            try {
+                $notificationFailure = $this->notifyBatchMembers(
+                    $accepted,
+                    fn (array $success) => $this->handlePayloadPushed($messages[$success['Id']]['storedPayload'], $queue),
+                    function (array $success) use ($messages, $queue): void {
+                        $message = $messages[$success['Id']];
+                        $this->raiseJobQueuedEvent($queue, $success['MessageId'], $message['job'], $message['payload'], $message['delay']);
+                    },
+                );
+            } catch (Throwable $throwable) {
+                $cancellation = Coroutine::preferCancellation($cancellation, $throwable);
             }
 
-            $exception ??= $notificationFailure;
+            $failure = $exception ?? $notificationFailure ?? $cancellation;
 
-            if ($exception === null) {
+            if ($failure === null) {
                 continue;
             }
 
-            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+            // A rejection stays the outcome of the messages it left unsent. A canceled
+            // notification or report must not hide the failures still to be reported.
+            try {
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $failure);
+            } catch (Throwable $throwable) {
+                $cancellation = Coroutine::preferCancellation($cancellation, $throwable);
+            }
 
-            throw $exception;
+            if ($exception !== null && $notificationFailure !== null) {
+                try {
+                    $this->reportSecondaryFailure($notificationFailure);
+                } catch (Throwable $throwable) {
+                    $cancellation = Coroutine::preferCancellation($cancellation, $throwable);
+                }
+            }
+
+            throw $cancellation === null ? $failure : FailureReporter::preferCancellation($failure, $cancellation);
         }
     }
 
@@ -692,19 +696,30 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     }
 
     /**
-     * Raise queueing-failed events for every outstanding message.
+     * Raise queueing-failed or canceled events for every outstanding message.
+     *
+     * @param array<int, true> $outstandingMessageIds
+     * @param array<int, true> $attemptedMessageIds
      */
     protected function raiseBatchFailedEvents(
         array $messages,
         array $outstandingMessageIds,
+        array $attemptedMessageIds,
         ?string $queue,
         Throwable $exception,
     ): void {
         $this->notifyBatchMembersOfFailure(
             array_keys($outstandingMessageIds),
-            function (int $id) use ($messages, $queue, $exception): void {
+            function (int $id) use ($messages, $attemptedMessageIds, $queue, $exception): void {
                 $message = $messages[$id];
-                $this->raiseJobQueueingFailedEvent($queue, $message['job'], $message['payload'], $message['delay'], $exception);
+                $this->raiseJobQueueingFailedEvent(
+                    $queue,
+                    $message['job'],
+                    $message['payload'],
+                    $message['delay'],
+                    $exception,
+                    isset($attemptedMessageIds[$id]),
+                );
             },
         );
     }
@@ -854,7 +869,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     try {
                         $this->reportSecondaryFailure($exception);
                     } catch (Throwable $reportingCancellation) {
-                        $cancellation ??= $reportingCancellation;
+                        $cancellation = Coroutine::preferCancellation($cancellation, $reportingCancellation);
                     }
                 }
             }

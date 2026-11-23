@@ -473,11 +473,11 @@ class GdDriverTest extends TestCase
 
     public function testEnsureRequirementsPasses(): void
     {
+        $this->expectNotToPerformAssertions();
+
         $driver = new GdDriver;
 
         $driver->ensureRequirementsAreMet();
-
-        $this->assertTrue(true);
     }
 
     public function testDimensionsReturnsTheDecodedSize(): void

@@ -11,33 +11,33 @@ use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class PruneStaleTagsCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPruneCallsFlushStaleTagsOnStore(): void
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('flushStaleTags')
-            ->once()
-            ->andReturn([
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('flushStaleTags')
+            ->returns([
                 'tags_scanned' => 10,
                 'entries_removed' => 5,
                 'empty_sets_deleted' => 2,
             ]);
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')
-            ->once()
-            ->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->expects('getStore')
+            ->returns($store);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->expects('store')
             ->with(null)
-            ->once()
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -50,25 +50,22 @@ class PruneStaleTagsCommandTest extends TestCase
 
     public function testPruneUsesSpecifiedStore(): void
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('flushStaleTags')
-            ->once()
-            ->andReturn([
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('flushStaleTags')
+            ->returns([
                 'tags_scanned' => 0,
                 'entries_removed' => 0,
                 'empty_sets_deleted' => 0,
             ]);
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')
-            ->once()
-            ->andReturn($store);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->expects('getStore')
+            ->returns($store);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->expects('store')
             ->with('custom-redis')
-            ->once()
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 
@@ -81,18 +78,16 @@ class PruneStaleTagsCommandTest extends TestCase
 
     public function testPruneHandlesNonSupportedStoreGracefully(): void
     {
-        $nonRedisStore = m::mock(Store::class);
+        $nonRedisStore = Double::for(Store::class)->strict();
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')
-            ->once()
-            ->andReturn($nonRedisStore);
+        $repository = Double::for(Repository::class)->strict();
+        $repository->expects('getStore')
+            ->returns($nonRedisStore);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('store')
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $cacheManager->expects('store')
             ->with('file')
-            ->once()
-            ->andReturn($repository);
+            ->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
 

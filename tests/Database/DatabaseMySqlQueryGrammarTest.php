@@ -13,17 +13,20 @@ use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseMySqlQueryGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('jsonPathEscapingProvider')]
     public function testJsonPathsEscapeKeysUsingTheConfiguredSqlMode(array $modes, string $path): void
     {
-        $connection = new MySqlConnection(m::mock(PDO::class), config: ['modes' => $modes]);
+        $connection = new MySqlConnection(Double::for(PDO::class)->strict(), config: ['modes' => $modes]);
         $builder = $connection->table('users')->select('options->App\Models\User->a"b[0]');
 
         $this->assertSame("select json_unquote(json_extract(`options`, {$path})) from `users`", $builder->toSql());
@@ -54,14 +57,14 @@ SQL],
     {
         $this->expectException(JsonException::class);
 
-        (new MySqlGrammar(m::mock(Connection::class)))
+        (new MySqlGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
     public function testToRawSql(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('escape')->with('foo', false)->returns("'foo'");
         $grammar = new MySqlGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(
@@ -155,8 +158,8 @@ SQL],
     #[DataProvider('nestedUnionVersions')]
     public function testNestedUnionMembersUseTheSupportedServerSyntax(string $connectionClass, string $version, bool $wrapped): void
     {
-        $pdo = m::mock(PDO::class);
-        $pdo->shouldReceive('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn($version);
+        $pdo = Double::for(PDO::class)->strict();
+        $pdo->allows('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->returns($version);
         $connection = new $connectionClass($pdo, 'database');
         $member = $connection->table('posts')->select('id')->where('id', '<=', 3)
             ->unionAll($connection->table('posts')->select('id')->whereBetween('id', [4, 6]))
@@ -190,10 +193,10 @@ SQL],
 
     public function testOrdinaryUnionMembersDoNotInspectTheServerVersion(): void
     {
-        $connection = m::mock(MySqlConnection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldNotReceive('getServerVersion');
-        $connection->shouldNotReceive('isMaria');
+        $connection = Double::for(MySqlConnection::class)->strict();
+        $connection->allows('getTablePrefix')->returns('');
+        $connection->expects('getServerVersion')->never();
+        $connection->expects('isMaria')->never();
         $query = new Builder($connection, new MySqlGrammar($connection), new Processor);
         $query->from('posts')->select('id')->unionAll($query->newQuery()->from('archives')->select('id'));
 

@@ -10,9 +10,9 @@ use Generator;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
@@ -47,7 +47,8 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -62,6 +63,8 @@ use function Hypervel\Coroutine\parallel;
 // map to Feature/PoolTest, and its then() chaining cases only test promises.
 class PoolTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Get the package providers.
      */
@@ -783,8 +786,8 @@ class PoolTest extends TestCase
             return Factory::response(['ok' => true]);
         });
         $cacheRepository = new Repository(new ArrayStore);
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldReceive('store')->with(null)->andReturn($cacheRepository);
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->allows('store')->with(null)->returns($cacheRepository);
         $cacheScopes = [];
         $rateScopes = [];
         $limiter = new Limiter(
@@ -796,16 +799,17 @@ class PoolTest extends TestCase
                 return $scope;
             }),
         );
-        $rateLimiter = m::mock(RateLimiter::class);
-        $rateLimiter->shouldReceive('store')->with(null)->andReturn($limiter);
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')->with('saloon.connection.name')->andReturn('saloon');
-        $config->shouldReceive('get')->with('saloon.cache.store')->andReturn(null);
-        $config->shouldReceive('get')->with('saloon.rate_limiter.store')->andReturn(null);
+        $rateLimiter = Double::for(RateLimiter::class, override: true)->strict();
+        $rateLimiter->allows('store')->with(null)->returns($limiter);
+        $config = new ConfigRepository(['saloon' => [
+            'connection' => ['name' => 'saloon'],
+            'cache' => ['store' => null],
+            'rate_limiter' => ['store' => null],
+        ]]);
         $manager = new SaloonManager(
             new Sender($http, $config),
             $cache,
-            $rateLimiter,
+            $rateLimiter->instance(),
             $config,
             new Dispatcher,
         );
@@ -858,15 +862,12 @@ class PoolTest extends TestCase
     {
         $http = new Factory;
         $http->registerConnection('saloon');
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
-            ->with('saloon.connection.name')
-            ->andReturn('saloon');
+        $config = new ConfigRepository(['saloon' => ['connection' => ['name' => 'saloon']]]);
 
         return new SaloonManager(
             new Sender($http, $config),
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
+            Double::for(CacheFactory::class)->strict(),
+            Double::for(RateLimiter::class, override: true)->strict()->instance(),
             $config,
             new Dispatcher,
         );

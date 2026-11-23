@@ -9,13 +9,15 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\CachedConnectionResolver;
 use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Support\Attributes\TestsOnly;
+use PDO;
 use Throwable;
 use UnitEnum;
 
@@ -32,7 +34,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Connections for testing environment.
      *
-     * @var array<string, ConnectionInterface>
+     * @var array<string, Connection>
      */
     protected static array $connections = [];
 
@@ -65,9 +67,10 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
      * services. A rebinding hook is registered so Event::fake() automatically
      * updates cached connections with the new dispatcher.
      *
-     * Tests only. The cached connections are process-global, so runtime use can
-     * reset or discard a connection borrowed by another coroutine.
+     * The cached connections are process-global, so runtime use can reset or
+     * discard a connection borrowed by another coroutine.
      */
+    #[TestsOnly]
     public static function resetCachedConnections(): void
     {
         $container = Container::getInstance();
@@ -82,15 +85,13 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         $exception = null;
 
         foreach (static::$connections as $cacheKey => $connection) {
-            if ($connection instanceof Connection) {
-                $connection->resetForPool();
+            $connection->resetForPool();
 
-                if (! $connection->isReusable()) {
-                    try {
-                        static::discardCachedConnection($cacheKey);
-                    } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
-                    }
+            if (! $connection->isReusable()) {
+                try {
+                    static::discardCachedConnection($cacheKey);
+                } catch (Throwable $throwable) {
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
         }
@@ -105,9 +106,10 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Discard all cached connections and clear resolver lifecycle state.
      *
-     * Tests only. The cached connections are process-global, so runtime use can
-     * discard a connection borrowed by another coroutine.
+     * The cached connections are process-global, so runtime use can discard a
+     * connection borrowed by another coroutine.
      */
+    #[TestsOnly]
     public static function flushCachedConnections(): void
     {
         static::discardCachedConnections();
@@ -132,7 +134,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         // canonical key avoids the mismatch.
         $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
-                if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {
+                if ($dispatcher instanceof Dispatcher) {
                     $connection->setEventDispatcher($dispatcher);
                 }
             }
@@ -144,7 +146,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Get an already resolved connection from the cache.
      */
-    public function getResolvedConnection(string $name): ?ConnectionInterface
+    public function getResolvedConnection(string $name): ?Connection
     {
         if ($connection = static::$connections[$name] ?? null) {
             return $connection;
@@ -154,9 +156,21 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     }
 
     /**
+     * Get the connection owned by the active testing mode without borrowing one.
+     */
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?Connection
+    {
+        $name = $this->connectionName($name);
+
+        return $this->poolEnabled(ConnectionName::parse($name))
+            ? parent::getHeldConnection($name)
+            : $this->getResolvedConnection($name);
+    }
+
+    /**
      * Get the connections shared across the test's setup, requests and assertions.
      *
-     * @return array<string, ConnectionInterface>
+     * @return array<string, Connection>
      */
     public function getRetainedConnections(): array
     {
@@ -176,7 +190,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
 
         $connection = $this->getResolvedConnection($name);
 
-        return $connection instanceof Connection
+        return $connection !== null
             ? $connection->hasApplicableTransaction()
             : parent::hasApplicableTransaction($name);
     }
@@ -231,7 +245,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
      * Borrows connections through the pool manager and retains their owning
      * wrappers until terminal test teardown.
      */
-    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): Connection
     {
         $connectionName = ConnectionName::parse($this->connectionName($name));
 
@@ -241,11 +255,11 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         }
 
         if ($connection = static::$connections[$connectionName->requested] ?? null) {
-            if ($connectionName->role !== null && $connection instanceof Connection) {
+            if ($connectionName->role !== null) {
                 $connection->setReadWriteType($connectionName->role);
             }
 
-            if ($connectionName->isWrite() && $connection instanceof Connection) {
+            if ($connectionName->isWrite()) {
                 // resetCachedConnections() runs resetForPool() between tests and clears this flag.
                 $connection->useWriteConnectionWhenReading();
             }
@@ -259,7 +273,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         if ($cacheKey !== $connectionName->requested
             && $connection = static::$connections[$cacheKey] ?? null
         ) {
-            if ($connectionName->isWrite() && $connection instanceof Connection) {
+            if ($connectionName->isWrite()) {
                 $connection->useWriteConnectionWhenReading();
             }
 
@@ -296,6 +310,32 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     }
 
     /**
+     * Restore a pooled in-memory database, returning false when pooling is disabled.
+     *
+     * Replaces the database shared by this application's pool borrowers.
+     */
+    #[TestsOnly]
+    public function restoreInMemoryPdoIfPooled(UnitEnum|string|null $name, PDO $pdo): bool
+    {
+        $connectionName = ConnectionName::parse($this->connectionName($name));
+
+        if (! $this->poolEnabled($connectionName)) {
+            return false;
+        }
+
+        $pool = $this->poolManager->pool($connectionName->requested);
+
+        if ($pool->getSharedInMemorySqlitePdo() === $pdo) {
+            return true;
+        }
+
+        static::releaseIdleConnections();
+        $pool->restoreSharedInMemorySqlitePdo($pdo);
+
+        return true;
+    }
+
+    /**
      * Determine whether this test uses coroutine-owned pooled connections.
      */
     protected function poolEnabled(ConnectionName $name): bool
@@ -317,7 +357,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
             try {
                 $pooled->discard();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

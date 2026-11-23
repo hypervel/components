@@ -13,7 +13,8 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -21,20 +22,22 @@ use RuntimeException;
 
 class DatabaseSchemaBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('metadataMethods')]
     public function testMetadataReadsUseTheOverridableWriterHook(string $method, array $arguments, string $compile, array $compileArguments, string $process): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $processor = m::mock(Processor::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $processor = Double::for(Processor::class)->strict();
         $rows = [(object) ['name' => 'id']];
         $processed = [['name' => 'id']];
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor);
-        $connection->shouldReceive('getTablePrefix')->andReturn('prefix_');
-        $grammar->shouldReceive($compile)->once()->with(...$compileArguments)->andReturn('metadata sql');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('metadata sql')->andReturn($rows);
-        $processor->shouldReceive($process)->once()->with($rows)->andReturn($processed);
+        $connection->allows('getSchemaGrammar')->returns($grammar);
+        $connection->allows('getPostProcessor')->returns($processor);
+        $connection->allows('getTablePrefix')->returns('prefix_');
+        $grammar->expects($compile)->with(...$compileArguments)->returns('metadata sql');
+        $connection->expects('selectFromWriteConnection')->with('metadata sql')->returns($rows);
+        $processor->expects($process)->with($rows)->returns($processed);
         $builder = new DatabaseSchemaMetadataBuilder($connection);
 
         $this->assertSame($method === 'hasColumn' ? true : $processed, $builder->{$method}(...$arguments));
@@ -59,12 +62,12 @@ class DatabaseSchemaBuilderTest extends TestCase
     #[DataProvider('tableExistenceResults')]
     public function testTableExistenceUsesTheMetadataHookAndPreservesScalarValidation(array $rows, ?bool $expected): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getTablePrefix')->andReturn('prefix_');
-        $grammar->shouldReceive('compileTableExists')->once()->with('public', 'prefix_users')->andReturn('exists sql');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('exists sql')->andReturn($rows);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $connection->allows('getSchemaGrammar')->returns($grammar);
+        $connection->allows('getTablePrefix')->returns('prefix_');
+        $grammar->expects('compileTableExists')->with('public', 'prefix_users')->returns('exists sql');
+        $connection->expects('selectFromWriteConnection')->with('exists sql')->returns($rows);
         $builder = new DatabaseSchemaMetadataBuilder($connection);
 
         if ($expected === null) {
@@ -93,11 +96,11 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testCreateDatabase(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
         };
-        $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('statement')->with($grammar->compileCreateDatabase('foo'))->andReturnTrue();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('statement')->with($grammar->compileCreateDatabase('foo'))->returns(true);
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->createDatabase('foo'));
@@ -105,11 +108,11 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
         };
-        $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('statement')->with($grammar->compileDropDatabaseIfExists('foo'))->andReturnTrue();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('statement')->with($grammar->compileDropDatabaseIfExists('foo'))->returns(true);
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->dropDatabaseIfExists('foo'));
@@ -117,19 +120,19 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testTruncateTablesChecksWriteRowsAndSkipsEmptyTables(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(Grammar::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class)->strict());
 
         foreach (['public.populated' => true, 'public.empty' => false] as $name => $hasRows) {
-            $query = m::mock(QueryBuilder::class);
-            $connection->shouldReceive('table')->once()->with($name)->andReturn($query);
-            $query->shouldReceive('useWritePdo')->once()->andReturnSelf();
-            $query->shouldReceive('exists')->once()->andReturn($hasRows);
+            $query = Double::for(QueryBuilder::class)->strict();
+            $connection->expects('table')->with($name)->returns($query);
+            $query->expects('useWritePdo')->returns($query);
+            $query->expects('exists')->returns($hasRows);
 
             if ($hasRows) {
-                $query->shouldReceive('truncate')->once();
+                $query->expects('truncate');
             } else {
-                $query->shouldNotReceive('truncate');
+                $query->expects('truncate')->never();
             }
         }
 
@@ -139,15 +142,15 @@ class DatabaseSchemaBuilderTest extends TestCase
     #[DataProvider('partitionSelections')]
     public function testWithoutCoveredPartitionsKeepsOnlyPartitionsOfTablesOutsideTheSelection(array $tables, array $except, ?array $missingParents, array $links, array $expected): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $connection->allows('getSchemaGrammar')->returns($grammar);
 
         if ($missingParents === null) {
-            $grammar->shouldNotReceive('compilePartitionAncestors');
+            $grammar->expects('compilePartitionAncestors')->never();
         } else {
-            $grammar->expects('compilePartitionAncestors')->with($missingParents)->andReturn('ancestors sql');
-            $connection->expects('selectFromWriteConnection')->with('ancestors sql')->andReturn($links);
+            $grammar->expects('compilePartitionAncestors')->with($missingParents)->returns('ancestors sql');
+            $connection->expects('selectFromWriteConnection')->with('ancestors sql')->returns($links);
         }
 
         $tables = array_map(fn (array $table): array => ['schema_qualified_name' => $table[0], 'partition_of' => $table[1]], $tables);
@@ -187,28 +190,28 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testExecuteBlueprintCompilesOnceAndExecutesStatementsInOrder(): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $blueprint = m::mock(Blueprint::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $blueprint = Double::for(Blueprint::class)->strict();
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $blueprint->shouldReceive('toSql')->once()->andReturn(['first statement', 'second statement']);
-        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $blueprint->expects('toSql')->returns(['first statement', 'second statement']);
+        $connection->expects('statement')->with('first statement')->returns(true)->ordered();
+        $connection->expects('statement')->with('second statement')->returns(true)->ordered();
 
         (new Builder($connection))->executeBlueprint($blueprint);
     }
 
     public function testExecuteBlueprintThrowsWhenAStatementReturnsFalse(): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $blueprint = m::mock(Blueprint::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $blueprint = Double::for(Blueprint::class)->strict();
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $blueprint->shouldReceive('toSql')->once()->andReturn(['failed statement', 'unreached statement']);
-        $connection->shouldReceive('statement')->once()->with('failed statement')->andReturnFalse();
-        $connection->shouldReceive('statement')->never()->with('unreached statement');
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $blueprint->expects('toSql')->returns(['failed statement', 'unreached statement']);
+        $connection->expects('statement')->with('failed statement')->returns(false);
+        $connection->expects('statement')->never()->with('unreached statement');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Failed to execute schema statement [failed statement].');
@@ -218,15 +221,15 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testWithoutForeignKeyConstraintsNestsAcrossBuilderInstances(): void
     {
-        $pdo = m::mock(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $connection = new PdoConnection($pdo, 'test');
-        $grammar = m::mock(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
 
-        $grammar->shouldReceive('compileDisableForeignKeyConstraints')->once()->andReturn('disable constraints');
-        $grammar->shouldReceive('compileEnableForeignKeyConstraints')->once()->andReturn('enable constraints');
-        $pdo->shouldReceive('exec')->once()->with('disable constraints')->andReturn(0)->ordered();
-        $pdo->shouldReceive('exec')->once()->with('enable constraints')->andReturn(0)->ordered();
+        $grammar->expects('compileDisableForeignKeyConstraints')->returns('disable constraints');
+        $grammar->expects('compileEnableForeignKeyConstraints')->returns('enable constraints');
+        $pdo->expects('exec')->with('disable constraints')->returns(0)->ordered();
+        $pdo->expects('exec')->with('enable constraints')->returns(0)->ordered();
 
         $outer = new Builder($connection);
         $inner = new Builder($connection);
@@ -249,11 +252,11 @@ class DatabaseSchemaBuilderTest extends TestCase
             },
             'test'
         );
-        $grammar = m::mock(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
 
-        $grammar->shouldReceive('compileDisableForeignKeyConstraints')->once()->andReturn('disable constraints');
-        $grammar->shouldReceive('compileEnableForeignKeyConstraints')->once()->andReturn('enable constraints');
+        $grammar->expects('compileDisableForeignKeyConstraints')->returns('disable constraints');
+        $grammar->expects('compileEnableForeignKeyConstraints')->returns('enable constraints');
 
         $queries = $connection->pretend(
             fn () => (new Builder($connection))->withoutForeignKeyConstraints(fn () => null)
@@ -268,16 +271,16 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testWithoutForeignKeyConstraintsMarksTheSessionUnknownWhenRestorationFails(): void
     {
-        $pdo = m::mock(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $connection = new PdoConnection($pdo, 'test');
-        $grammar = m::mock(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
         $failure = new PDOException('Failed to restore foreign key constraints.');
 
-        $grammar->shouldReceive('compileDisableForeignKeyConstraints')->once()->andReturn('disable constraints');
-        $grammar->shouldReceive('compileEnableForeignKeyConstraints')->once()->andReturn('enable constraints');
-        $pdo->shouldReceive('exec')->once()->with('disable constraints')->andReturn(0)->ordered();
-        $pdo->shouldReceive('exec')->once()->with('enable constraints')->andThrow($failure)->ordered();
+        $grammar->expects('compileDisableForeignKeyConstraints')->returns('disable constraints');
+        $grammar->expects('compileEnableForeignKeyConstraints')->returns('enable constraints');
+        $pdo->expects('exec')->with('disable constraints')->returns(0)->ordered();
+        $pdo->expects('exec')->with('enable constraints')->throws($failure)->ordered();
 
         try {
             (new Builder($connection))->withoutForeignKeyConstraints(fn () => null);
@@ -294,17 +297,17 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testWithoutForeignKeyConstraintsPreservesNativeExceptionChainingWhenCallbackAndRestorationFail(): void
     {
-        $pdo = m::mock(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $connection = new PdoConnection($pdo, 'test');
-        $grammar = m::mock(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
         $callbackFailure = new RuntimeException('callback failed');
         $restorationFailure = new RuntimeException('restoration failed');
 
-        $grammar->shouldReceive('compileDisableForeignKeyConstraints')->once()->andReturn('disable constraints');
-        $grammar->shouldReceive('compileEnableForeignKeyConstraints')->once()->andReturn('enable constraints');
-        $pdo->shouldReceive('exec')->once()->with('disable constraints')->andReturn(0)->ordered();
-        $pdo->shouldReceive('exec')->once()->with('enable constraints')->andThrow($restorationFailure)->ordered();
+        $grammar->expects('compileDisableForeignKeyConstraints')->returns('disable constraints');
+        $grammar->expects('compileEnableForeignKeyConstraints')->returns('enable constraints');
+        $pdo->expects('exec')->with('disable constraints')->returns(0)->ordered();
+        $pdo->expects('exec')->with('enable constraints')->throws($restorationFailure)->ordered();
 
         try {
             (new Builder($connection))->withoutForeignKeyConstraints(
@@ -321,28 +324,28 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testHasTableCorrectlyCallsGrammar(): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $processor = m::mock(Processor::class);
-        $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('getPostProcessor')->andReturn($processor);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $processor = Double::for(Processor::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('getPostProcessor')->returns($processor);
         $builder = new Builder($connection);
         $grammar->expects('compileTableExists');
-        $grammar->expects('compileTables')->andReturn('sql');
-        $processor->expects('processTables')->andReturn([['name' => 'prefix_table']]);
-        $connection->expects('getTablePrefix')->andReturn('prefix_');
-        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'prefix_table']]);
+        $grammar->expects('compileTables')->returns('sql');
+        $processor->expects('processTables')->returns([['name' => 'prefix_table']]);
+        $connection->expects('getTablePrefix')->returns('prefix_');
+        $connection->expects('selectFromWriteConnection')->with('sql')->returns([['name' => 'prefix_table']]);
 
         $this->assertTrue($builder->hasTable('table'));
     }
 
     public function testTableHasColumns(): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $builder = m::mock(Builder::class . '[getColumnListing]', [$connection]);
-        $builder->expects('getColumnListing')->with('users')->times(2)->andReturn(['id', 'firstname']);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $builder = Double::for(new Builder($connection))->passthru();
+        $builder->expects('getColumnListing')->with('users')->times(2)->returns(['id', 'firstname']);
 
         $this->assertTrue($builder->hasColumns('users', ['id', 'firstname']));
         $this->assertFalse($builder->hasColumns('users', ['id', 'address']));
@@ -351,10 +354,10 @@ class DatabaseSchemaBuilderTest extends TestCase
     #[DataProvider('columnNames')]
     public function testColumnExistenceMatchesUnicodeWithoutCoercingNumericNames(string $column, bool $exists): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('getSchemaGrammar')->andReturn(m::mock(Grammar::class));
-        $builder = m::mock(Builder::class . '[getColumnListing]', [$connection]);
-        $builder->expects('getColumnListing')->with('users')->twice()->andReturn(['Émail', '01']);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class)->strict());
+        $builder = Double::for(new Builder($connection))->passthru();
+        $builder->expects('getColumnListing')->with('users')->times(2)->returns(['Émail', '01']);
 
         $this->assertSame($exists, $builder->hasColumn('users', $column));
         $this->assertSame($exists, $builder->hasColumns('users', [$column]));
@@ -380,10 +383,10 @@ class DatabaseSchemaBuilderTest extends TestCase
             ['name' => 'FOO', 'type_name' => 'varchar', 'type' => 'varchar(255)'],
             ['name' => 'Émail', 'type_name' => 'text', 'type' => 'text'],
         ];
-        $connection = m::mock(Connection::class);
-        $connection->expects('getSchemaGrammar')->andReturn(m::mock(Grammar::class));
-        $builder = m::mock(Builder::class . '[getColumns]', [$connection]);
-        $builder->expects('getColumns')->with('users')->times(3)->andReturn($columns);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class)->strict());
+        $builder = Double::for(new Builder($connection))->passthru();
+        $builder->expects('getColumns')->with('users')->times(3)->returns($columns);
 
         $this->assertSame($columns[$index], $builder->getColumn('users', $column));
         $this->assertSame($columns[$index]['type_name'], $builder->getColumnType('users', $column));
@@ -405,7 +408,7 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testGetColumnTypeAddsPrefix(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
             /**
              * Compile the query to determine the columns.
@@ -416,11 +419,11 @@ class DatabaseSchemaBuilderTest extends TestCase
             }
         };
         $processor = new Processor;
-        $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('getPostProcessor')->andReturn($processor);
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('getPostProcessor')->returns($processor);
         $builder = new Builder($connection);
-        $connection->expects('getTablePrefix')->andReturn('prefix_');
-        $connection->expects('selectFromWriteConnection')->with('columns for prefix_users')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
+        $connection->expects('getTablePrefix')->returns('prefix_');
+        $connection->expects('selectFromWriteConnection')->with('columns for prefix_users')->returns([['name' => 'id', 'type_name' => 'integer']]);
 
         $this->assertSame('integer', $builder->getColumnType('users', 'id'));
     }

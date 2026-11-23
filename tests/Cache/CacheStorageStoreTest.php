@@ -8,11 +8,16 @@ use __PHP_Incomplete_Class;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\StorageStore;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
+use Hypervel\Tests\Cache\Fixtures\CanceledDeserialization;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CacheStorageStoreTest extends TestCase
 {
@@ -26,11 +31,18 @@ class CacheStorageStoreTest extends TestCase
         $this->assertStringStartsWith('cache/', $store->path('foo'));
     }
 
-    public function testGetPreservesCancellationFromFilesystemRead(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testGetPreservesCancellationFromFilesystemRead(bool $wrapped): void
     {
         $cancellation = new CanceledException('read canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Read cleanup failed.', previous: $cancellation);
+        }
+
         $disk = new class($cancellation) extends ArrayFilesystem {
-            public function __construct(protected CanceledException $cancellation)
+            public function __construct(protected Throwable $cancellation)
             {
             }
 
@@ -44,9 +56,29 @@ class CacheStorageStoreTest extends TestCase
         try {
             $store->get('foo');
             $this->fail('Reading the cache file was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCanceledDeserializationDoesNotDeleteTheCachedValue(bool $wrapped): void
+    {
+        $disk = new ArrayFilesystem;
+        $store = new StorageStore($disk, 'cache');
+        $store->put('foo', new CanceledDeserialization($wrapped), 60);
+        $caught = null;
+
+        try {
+            $store->get('foo');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught);
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+        $this->assertTrue($disk->exists($store->path('foo')));
     }
 
     public function testGetPreservesCancellationFromSerializableClassPolicy(): void

@@ -26,16 +26,22 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\User;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
 class PassportCacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure the cache independently of the OAuth server.
      */
@@ -138,6 +144,15 @@ class PassportCacheTest extends TestCase
         DB::enableQueryLog();
         $this->assertSame($token->id, Token::findToken($token->id)->id);
         $this->assertSame([], DB::getQueryLog());
+    }
+
+    public function testPartialCacheConfigUsesPackageDefaults(): void
+    {
+        config(['cache.default' => 'passport-file', 'passport.cache' => ['enabled' => true]]);
+        $token = $this->createToken();
+
+        $this->assertSame($token->id, Token::findToken($token->id)->id);
+        $this->assertNotNull($this->app->make('cache')->store('passport-file')->get("passport:tokens:{$token->id}"));
     }
 
     public function testClientCacheHitsDoNotConstructModels(): void
@@ -389,11 +404,12 @@ class PassportCacheTest extends TestCase
     {
         $failure = new LockTimeoutException;
         $cache = $this->app->make('cache')->store('passport-file');
-        $coordinator = m::mock(ModelCacheCoordinator::class, [$this->app])->makePartial();
-        $coordinator->shouldReceive('invalidate')->once()
-            ->with($cache, 'passport:tokens:token')->andThrow($failure);
-        $coordinator->shouldReceive('invalidate')->once()
-            ->with($cache, 'passport:tokens:token-second')->passthru();
+        $realCoordinator = new ModelCacheCoordinator($this->app);
+        $coordinator = Double::for($realCoordinator)->passthru();
+        $coordinator->expects('invalidate')
+            ->with(Argument::same($cache), 'passport:tokens:token')->throws($failure);
+        $coordinator->expects('invalidate')
+            ->with(Argument::same($cache), 'passport:tokens:token-second')->resolves($realCoordinator->invalidate(...));
         $this->app->instance(ModelCacheCoordinator::class, $coordinator);
 
         $first = $this->createToken();
@@ -417,6 +433,41 @@ class PassportCacheTest extends TestCase
         $this->assertTrue($second->fresh()->revoked);
         $this->assertNull($cache->get('passport:tokens:' . $second->id));
         $this->assertTrue(Token::findToken($second->id)->revoked);
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testBatchInvalidationStopsOnCancellationAfterAnOrdinaryFailure(bool $wrapped): void
+    {
+        $failure = new CanceledException('Invalidation canceled.');
+
+        if ($wrapped) {
+            $failure = new RuntimeException('Invalidation cleanup failed.', previous: $failure);
+        }
+
+        $cache = $this->app->make('cache')->store('passport-file');
+        $coordinator = Double::for(new ModelCacheCoordinator($this->app))->passthru();
+        $coordinator->expects('invalidate')
+            ->with(Argument::same($cache), 'passport:tokens:token')->throws(new LockTimeoutException);
+        $coordinator->expects('invalidate')
+            ->with(Argument::same($cache), 'passport:tokens:token-second')->throws($failure);
+        $coordinator->expects('invalidate')->never()
+            ->with(Argument::same($cache), 'passport:tokens:token-third');
+        $this->app->instance(ModelCacheCoordinator::class, $coordinator);
+
+        $first = $this->createToken();
+        $first->replicate()->forceFill(['id' => 'token-second'])->save();
+        $first->replicate()->forceFill(['id' => 'token-third'])->save();
+        $caught = null;
+
+        try {
+            Client::findOrFail($first->client_id)->tokens()->update(['revoked' => true]);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame(0, DB::transactionLevel());
     }
 
     public function testOwnedClientRelationUpdatesAndDeletesAcrossSeveralBatches(): void

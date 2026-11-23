@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\ResponseInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
@@ -19,6 +20,7 @@ use Hypervel\Grpc\Exceptions\RpcException;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
+use Hypervel\Support\FailureReporter;
 use LogicException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -229,9 +231,11 @@ final class Connection
 
             try {
                 $this->startReceiver();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (FrameworkCoroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $this->terminateWhileLocked($this->connectionException(
                     $throwable,
                     'Unable to start the gRPC response receiver.',
@@ -454,6 +458,7 @@ final class Connection
         $this->receiving = true;
 
         try {
+            // @phpstan-ignore hypervel.rawCoroutine (receive() contains cancellation and receiver failures as the terminal owner)
             Coroutine::create(function (): void {
                 $this->receiverCoroutineId = Coroutine::id();
                 $this->receive();
@@ -497,14 +502,10 @@ final class Connection
                     $this->auditStreams($client);
                 } catch (CanceledException $exception) {
                     if (! $this->isClosed()) {
-                        try {
-                            $this->failConnection($this->connectionException(
-                                new ForeignCancellationException($exception->getMessage(), previous: $exception),
-                                'The gRPC response receiver was canceled.',
-                            ));
-                        } catch (CanceledException) {
-                            // This raw receiver is the terminal owner of cancellation.
-                        }
+                        $this->failConnection($this->connectionException(
+                            new ForeignCancellationException($exception->getMessage(), previous: $exception),
+                            'The gRPC response receiver was canceled.',
+                        ));
                     }
 
                     return;
@@ -533,8 +534,10 @@ final class Connection
                     return;
                 }
             }
-        } catch (CanceledException) {
-            // This raw receiver is the terminal owner of cancellation.
+        } catch (Throwable $throwable) {
+            // This raw receiver is the terminal owner: cancellation ends it, and a cleanup failure,
+            // such as a native close failure carrying cancellation, is reported.
+            FailureReporter::report($throwable);
         } finally {
             // This is the authoritative signal that the connection no longer owns a receiver.
             $this->receiverCoroutineId = null;
@@ -761,11 +764,7 @@ final class Connection
 
                 // Native close must wait for physical receiver and engine-client cleanup.
                 // A bounded join could still leave the socket owned when its timeout elapsed.
-                if (! Coroutine::join([$receiverCoroutineId]) && Coroutine::isCanceled()) {
-                    $cancellation = new CanceledException(
-                        'Waiting for the gRPC response receiver to stop was canceled.',
-                    );
-                }
+                FrameworkCoroutine::joinUninterruptibly([$receiverCoroutineId]);
             } catch (CanceledException $exception) {
                 $cancellation = $exception;
             }
@@ -776,10 +775,10 @@ final class Connection
                 if ($client->isConnected()) {
                     $client->close();
                 }
-            } catch (CanceledException $exception) {
-                $cancellation ??= $exception;
             } catch (Throwable $throwable) {
-                if ($cancellation === null) {
+                if (FrameworkCoroutine::causedByCancellation($throwable)) {
+                    $cancellation = FrameworkCoroutine::preferCancellation($cancellation, $throwable);
+                } elseif ($cancellation === null) {
                     $failure = new ConnectionException(
                         $this->endpoint->peer,
                         $failure->getMessage() . ' The HTTP/2 client also failed to close: '
@@ -793,9 +792,8 @@ final class Connection
 
         try {
             $this->notifyRetired();
-        } catch (CanceledException $exception) {
-            $cancellation ??= $exception;
         } catch (Throwable $throwable) {
+            // A pending cancellation stays primary over any retirement failure.
             if ($cancellation === null) {
                 throw $throwable;
             }
@@ -820,8 +818,9 @@ final class Connection
                 new ForeignCancellationException($cancellation->getMessage(), previous: $cancellation),
                 $fallback,
             ));
-        } catch (CanceledException) {
+        } catch (Throwable $throwable) {
             // The caller's original cancellation remains the primary outcome.
+            FailureReporter::report($throwable);
         }
 
         throw $cancellation;

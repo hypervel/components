@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Server Requirements](#server-requirements)
+    - [Hypervel PHP Requirements](#hypervel-php-requirements)
 - [Server Configuration](#server-configuration)
     - [Nginx](#nginx)
     - [Nginx and WebSockets](#nginx-and-websockets)
@@ -13,6 +14,7 @@
     - [Caching Events](#caching-events)
     - [Caching Routes](#optimizing-route-loading)
     - [Caching Views](#optimizing-view-loading)
+    - [Autoloader Optimization](#autoloader-optimization)
 - [Reloading Services](#reloading-services)
 - [Debug Mode](#debug-mode)
 - [The Health Route](#the-health-route)
@@ -26,32 +28,16 @@ When you're ready to deploy your Hypervel application to production, there are s
 <a name="server-requirements"></a>
 ## Server Requirements
 
-The Hypervel framework has a few system requirements. Hypervel ships with its own Swoole-based application server, so your production server should run the long-running Hypervel server process instead of PHP-FPM. You should ensure that your server has the following minimum PHP version and commonly required extensions:
+Hypervel ships with its own Swoole-based application server, so your production server should run the long-running Hypervel server process instead of PHP-FPM.
 
-<div class="content-list" markdown="1">
+<a name="hypervel-php-requirements"></a>
+### Hypervel PHP Requirements
 
-- PHP >= 8.4
-- Ctype PHP Extension
-- cURL PHP Extension
-- DOM PHP Extension
-- Fileinfo PHP Extension
-- Filter PHP Extension
-- Hash PHP Extension
-- Intl PHP Extension
-- JSON PHP Extension
-- Mbstring PHP Extension
-- OpenSSL PHP Extension
-- PCNTL PHP Extension
-- PCRE PHP Extension
-- PDO PHP Extension
-- POSIX PHP Extension
-- Redis PHP Extension >= 6.1
-- Session PHP Extension
-- Swoole PHP Extension >= 6.3.0
-- Tokenizer PHP Extension
-- XML PHP Extension
+Your server must meet Hypervel's [installation requirements](/docs/{{version}}/installation#requirements), including the PHP version, the required PHP extensions, Swoole's build options, and the `swoole.use_shortname` setting. You can check the PHP version installed on your server with:
 
-</div>
+```shell
+php -v
+```
 
 <a name="server-configuration"></a>
 ## Server Configuration
@@ -87,6 +73,10 @@ server {
         proxy_busy_buffers_size 64k;
 
         proxy_pass http://127.0.0.1:8000;
+    }
+
+    location ~ \.php$ {
+        return 404;
     }
 
     location ~ /\.(?!well-known).* {
@@ -213,6 +203,25 @@ php artisan view:cache
 ```
 
 This command precompiles all your Blade views so they are not compiled on demand, improving the performance of each request that returns a view.
+
+<a name="autoloader-optimization"></a>
+### Autoloader Optimization
+
+When deploying to production, install your dependencies with an authoritative Composer class map:
+
+```shell
+composer install --no-dev --classmap-authoritative
+```
+
+Composer will then load classes only from its generated class map. This avoids filesystem searches for missing classes and stops long-running workers from keeping a record of every missing class name they look up, including names taken from request data. Classes added after the map is built can't be loaded until it is rebuilt. Hypervel's generated AOP proxies and class map overrides use their own loaders and are not affected. Leave this option off during local development so new classes load without rebuilding the map.
+
+To check this during deployment, install [Doctor](/docs/{{version}}/doctor#installation) without `--dev`, run the following command against the built release in its production environment, and stop the deployment if it fails:
+
+```shell
+php artisan doctor --only=ComposerAutoloadIsAuthoritative --no-interaction
+```
+
+The check is skipped when Doctor runs in a [local environment](/docs/{{version}}/doctor#environment-modes).
 
 <a name="reloading-services"></a>
 ## Reloading Services

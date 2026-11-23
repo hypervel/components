@@ -120,7 +120,9 @@ class CommanderServeTest extends TestCase
         } finally {
             // Only the serve process can lead a group with its PID, and leftover workers stay in that
             // group after the master exits, so this reaps every remaining process.
-            posix_kill(-$pid, SIGKILL);
+            if ($pid !== null) {
+                posix_kill(-$pid, SIGKILL);
+            }
             $process->stop(0);
             static::$activeServePid = null;
             $filesystem->deleteDirectory($workingPath);
@@ -191,7 +193,9 @@ class CommanderServeTest extends TestCase
 
             $this->assertFalse(is_link($reverseLink));
         } finally {
-            posix_kill(-$pid, SIGKILL);
+            if ($pid !== null) {
+                posix_kill(-$pid, SIGKILL);
+            }
             $process->stop(0);
             static::$activeServePid = null;
             $filesystem->deleteDirectory($workingPath);
@@ -280,9 +284,6 @@ class CommanderServeTest extends TestCase
 
         $process->setTimeout(20);
         $process->start();
-
-        // Give Symfony a moment to spawn the process and obtain its PID.
-        usleep(200_000);
         static::$activeServePid = $process->getPid();
 
         return [$process, $serverPort];

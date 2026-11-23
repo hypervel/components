@@ -38,7 +38,7 @@ $generator = (function (): Generator {
 })();
 assertType("Generator<'first', 'value', mixed, void>", $command->withProgressBar($generator, fn (string $value): string => $value));
 
-$command->withProgressBar(['value'], fn (int $value): int => $value); // @phpstan-ignore argument.type
+$command->withProgressBar(['value'], fn (int $value): int => $value); // @phpstan-ignore argument.type (asserts the callback must accept the item type)
 
 // These supported callbacks and output styles must not be narrowed by the port.
 $command->trap(15, fn (): bool => false);
@@ -110,7 +110,7 @@ abstract class InvalidConsoleCompletionCommand extends Command
     protected function getArguments(): array
     {
         // Symfony supplies only the input when invoking a completion callback.
-        return [ // @phpstan-ignore return.type
+        return [ // @phpstan-ignore return.type (asserts a two-parameter completion callback is rejected)
             ['name', InputArgument::OPTIONAL, '', null, fn (CompletionInput $input, CompletionSuggestions $suggestions): array => ['example']],
         ];
     }

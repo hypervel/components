@@ -73,6 +73,8 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Set an attribute on the fluent instance using "dot" notation.
+     *
+     * @return $this
      */
     public function set(string|int $key, mixed $value): static
     {
@@ -85,6 +87,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
      * Fill the fluent instance with an array of attributes.
      *
      * @param array<TKey, TValue>|object $attributes
+     * @return $this
      */
     public function fill(array|object $attributes): static
     {

@@ -6,10 +6,12 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Console\ConfigPublishCommand;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
-use Mockery as m;
-use ReflectionClass;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -18,6 +20,7 @@ use Symfony\Component\Finder\Finder;
 class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
 {
     use InteractsWithPublishedFiles;
+    use VerifiesDoubles;
 
     protected array $files = [];
 
@@ -37,7 +40,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
     {
         parent::setUp();
 
-        $this->baseConfigPath = dirname((new ReflectionClass(ConfigPublishCommand::class))->getFileName(), 3) . '/config';
+        $this->baseConfigPath = LoadConfiguration::frameworkConfigPath();
     }
 
     protected function tearDown(): void
@@ -171,15 +174,15 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
     public function testSourceReadFailurePreservesExistingDestinationAndReportsNoSuccess(): void
     {
         $name = 'hashing';
-        $source = dirname((new ReflectionClass(ConfigPublishCommand::class))->getFileName()) . "/../../config/{$name}.php";
+        $source = "{$this->baseConfigPath}/{$name}.php";
         $sourceContents = file_get_contents($source);
         $destination = $this->app->configPath("{$name}.php");
         $this->preserveConfigFile($name);
         file_put_contents($destination, 'existing destination');
 
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$source}].");
-        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $files->expects('get')->with($source)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester();
 
@@ -203,12 +206,11 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         file_put_contents($destination, 'existing destination');
         chmod($destination, 0640);
 
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish configuration file.');
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($destination, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $files->expects('replace')
+            ->with($destination, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester();
 

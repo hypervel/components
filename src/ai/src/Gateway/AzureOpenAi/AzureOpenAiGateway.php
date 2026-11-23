@@ -14,6 +14,7 @@ use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Gateway\AzureOpenAi\Concerns\CreatesAzureOpenAiClient;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\ParsesIndexedEmbeddings;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\BuildsTextRequests;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\HandlesTextGeneration;
@@ -46,6 +47,7 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
     use MapsAttachments;
     use MapsMessages;
     use MapsTools;
+    use ParsesIndexedEmbeddings;
     use ParsesServerSentEvents;
     use ParsesTextResponses;
 
@@ -79,11 +81,11 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
 
         $data = $response->json();
 
-        return new EmbeddingsResponse(
-            collect($data['data'] ?? [])->pluck('embedding')->all(),
+        return (new EmbeddingsResponse(
+            $this->parseIndexedEmbeddings($data['data'] ?? [], count($inputs), $provider->name()),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -113,21 +115,21 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
                     ...$providerOptions,
                     'model' => $model,
                     'prompt' => $prompt,
-                    'moderation' => 'low',
+                    'moderation' => $providerOptions['moderation'] ?? 'low',
                     ...$provider->defaultImageOptions($size, $quality),
                 ]),
         );
 
         $data = $response->json();
 
-        return new ImageResponse(
+        return (new ImageResponse(
             collect($data['data'] ?? [])->map(fn (array $image): GeneratedImage => new GeneratedImage(
                 $image['b64_json'] ?? '',
                 'image/' . ($data['output_format'] ?? 'png'),
             )),
             $this->extractImageUsage($data),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**

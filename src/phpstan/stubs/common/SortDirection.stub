@@ -1,0 +1,8 @@
+<?php
+
+/*
+ * PHP 8.6 declares this enum, and symfony/polyfill-php86 declares it on earlier versions. Stub
+ * validation reflects only the stubs and the running PHP's internals, so the stubs declare it.
+ */
+enum SortDirection
+{}

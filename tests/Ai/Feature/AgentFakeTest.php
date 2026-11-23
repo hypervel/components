@@ -11,6 +11,8 @@ use Hypervel\Ai\Approvals\Decision;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Approvals\PendingApproval;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Events\ToolApprovalResolved;
+use Hypervel\Ai\Exceptions\ApprovalMismatchException;
 use Hypervel\Ai\Jobs\InvokeAgent;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\QueuedAgentPrompt;
@@ -32,13 +34,17 @@ use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Http\Client\Response;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ConversationalAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\EmptySchemaStructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingApprovableAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\RememberingUngatedApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
+use Hypervel\Tests\Ai\Fixtures\Tools\ApprovableNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
 use RuntimeException;
@@ -376,6 +382,186 @@ class AgentFakeTest extends TestCase
             $events->search(fn (mixed $event): bool => $event instanceof ToolApprovalRequest),
             $events->search(fn (mixed $event): bool => $event instanceof ToolCallEvent),
         );
+    }
+
+    public function testAFakedAgentRunsAnApprovedToolWhenResumingItsPausedToolCall(): void
+    {
+        $this->prepareApprovalResume();
+
+        RememberingApprovableAgent::fake([
+            new ToolCall('call-1', 'ApprovableNumberGenerator', []),
+            'Done.',
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingApprovableAgent)->forUser($user)->stream('Generate a number');
+        $paused->each(fn (): true => true);
+
+        $resumed = (new RememberingApprovableAgent)
+            ->continue($paused->conversationId, as: $user)
+            ->stream(Decisions::from(['call-1' => Decision::approve()]));
+        $resumed->each(fn (): true => true);
+
+        $result = $resumed->events->whereInstanceOf(ToolResultEvent::class)->sole();
+
+        $this->assertSame('72019', $result->toolResult->result);
+        $this->assertSame(1, ApprovableNumberGenerator::$invocations);
+        $this->assertSame('Done.', $resumed->text);
+        $this->assertStoredApprovalResult($paused->conversationId);
+    }
+
+    public function testAFakedAgentResumesAPauseFakedWithPendingApprovals(): void
+    {
+        $this->prepareApprovalResume();
+
+        RememberingApprovableAgent::fake([
+            AgentResponse::fakeWithPendingApprovals([
+                new PendingApproval('call-1', 'ApprovableNumberGenerator', [], 'Needs approval'),
+            ]),
+            'Done.',
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingApprovableAgent)->forUser($user)->stream('Generate a number');
+        $paused->each(fn (): true => true);
+
+        $resumed = (new RememberingApprovableAgent)
+            ->continue($paused->conversationId, as: $user)
+            ->stream(Decisions::from(['call-1' => Decision::approve()]));
+        $resumed->each(fn (): true => true);
+
+        $result = $resumed->events->whereInstanceOf(ToolResultEvent::class)->sole();
+
+        $this->assertSame('72019', $result->toolResult->result);
+        $this->assertSame(1, ApprovableNumberGenerator::$invocations);
+        $this->assertSame('Done.', $resumed->text);
+    }
+
+    public function testAFakedAgentRunsAnApprovedToolWhenResumingWithPrompt(): void
+    {
+        $this->prepareApprovalResume();
+
+        Event::fake([ToolApprovalResolved::class]);
+
+        RememberingApprovableAgent::fake([
+            new ToolCall('call-1', 'ApprovableNumberGenerator', []),
+            'Done.',
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingApprovableAgent)->forUser($user)->prompt('Generate a number');
+
+        $resumed = (new RememberingApprovableAgent)
+            ->continue($paused->conversationId, as: $user)
+            ->prompt(Decisions::from(['call-1' => Decision::approve()]));
+
+        $this->assertSame('72019', $resumed->toolResults->sole()->result);
+        $this->assertSame(1, ApprovableNumberGenerator::$invocations);
+        $this->assertSame('Done.', $resumed->text);
+
+        Event::assertDispatched(ToolApprovalResolved::class, fn (ToolApprovalResolved $event): bool => $event->conversationId === $paused->conversationId
+            && $event->toolResults->sole()->result === '72019');
+
+        $this->assertStoredApprovalResult($paused->conversationId);
+    }
+
+    public function testAFakedAgentRejectsDecisionsThatDoNotMatchItsPausedToolCallLikeTheRealGateway(): void
+    {
+        $this->prepareApprovalResume();
+
+        RememberingApprovableAgent::fake([
+            new ToolCall('call-1', 'ApprovableNumberGenerator', []),
+            'Done.',
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingApprovableAgent)->forUser($user)->prompt('Generate a number');
+
+        $this->expectException(ApprovalMismatchException::class);
+
+        (new RememberingApprovableAgent)
+            ->continue($paused->conversationId, as: $user)
+            ->prompt(Decisions::from(['call-9' => Decision::approve()]));
+    }
+
+    public function testAFakedAgentKeepsAnsweringAWildcardOverAPauseThatIncludesAToolItDoesNotHave(): void
+    {
+        $this->prepareApprovalResume();
+
+        RememberingApprovableAgent::fake([
+            AgentResponse::fakeWithPendingApprovals([
+                new PendingApproval('call-1', 'ApprovableNumberGenerator', [], 'Needs approval'),
+                new PendingApproval('call-2', 'DeleteFile', ['path' => 'config/app.php'], 'Deletes a file'),
+            ]),
+            'Resumed',
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingApprovableAgent)->forUser($user)->prompt('Generate a number and delete config/app.php');
+
+        $resumed = (new RememberingApprovableAgent)
+            ->continue($paused->conversationId, as: $user)
+            ->prompt(Decisions::from(['*' => true]));
+
+        $this->assertEmpty($resumed->toolResults);
+        $this->assertSame(0, ApprovableNumberGenerator::$invocations);
+        $this->assertSame('Resumed', $resumed->text);
+    }
+
+    public function testAFakedAgentKeepsAnsweringAPauseForAnApprovableToolThatDoesNotRequireApproval(): void
+    {
+        $this->prepareApprovalResume();
+
+        RememberingUngatedApprovableAgent::fake([
+            AgentResponse::fakeWithPendingApprovals([
+                new PendingApproval('call-1', 'ApprovableNumberGenerator', [], 'Needs approval'),
+            ]),
+            'Resumed',
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingUngatedApprovableAgent)->forUser($user)->prompt('Generate a number');
+
+        $resumed = (new RememberingUngatedApprovableAgent)
+            ->continue($paused->conversationId, as: $user)
+            ->prompt(Decisions::from(['call-1' => true]));
+
+        $this->assertEmpty($resumed->toolResults);
+        $this->assertSame(0, ApprovableNumberGenerator::$invocations);
+        $this->assertSame('Resumed', $resumed->text);
+    }
+
+    /**
+     * Keep title generation from consuming faked responses and reset the approvable tool's invocation count.
+     */
+    protected function prepareApprovalResume(): void
+    {
+        config(['ai.conversations.generate_title' => false]);
+
+        ApprovableNumberGenerator::$invocations = 0;
+    }
+
+    /**
+     * Assert that the resumed turn stored the approved tool's result on its paused tool call.
+     */
+    protected function assertStoredApprovalResult(string $conversationId): void
+    {
+        $assistantRow = DB::table('agent_conversation_messages')
+            ->where('conversation_id', $conversationId)
+            ->where('role', 'assistant')
+            ->sole();
+
+        $toolCalls = json_decode($assistantRow->steps, true)[0]['tool_calls'];
+
+        $this->assertCount(1, $toolCalls);
+        $this->assertSame('call-1', $toolCalls[0]['id']);
+        $this->assertSame('72019', $toolCalls[0]['result']);
     }
 
     public function testQueuedAgentsCanBeFaked(): void

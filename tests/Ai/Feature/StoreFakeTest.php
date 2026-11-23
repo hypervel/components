@@ -23,7 +23,9 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -32,6 +34,8 @@ use function Hypervel\Support\days;
 
 class StoreFakeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testStoreOperationsAcceptProviderEnums(): void
     {
         Stores::fake();
@@ -334,15 +338,15 @@ class StoreFakeTest extends TestCase
 
     public function testFileOperationsUseTheCapturedProvider(): void
     {
-        $provider = m::mock(FileProvider::class, StoreProvider::class);
-        $provider->shouldReceive('name')->andReturn('unregistered');
+        $provider = Double::for(FileProvider::class, StoreProvider::class)->strict();
+        $provider->allows('name')->returns('unregistered');
         $file = Document::fromString('Hello, world!', 'text/plain');
         $stored = new StoredFileResponse('file_123');
 
-        $provider->shouldReceive('putFile')->once()->with($file)->andReturn($stored);
-        $provider->shouldReceive('addFileToStore')->once()->with('store_123', $stored, [])->andReturn('document_456');
-        $provider->shouldReceive('removeFileFromStore')->once()->with('store_123', m::type(AddedDocumentResponse::class))->andReturnTrue();
-        $provider->shouldReceive('deleteFile')->once()->with('file_123');
+        $provider->expects('putFile')->with(Argument::same($file))->returns($stored);
+        $provider->expects('addFileToStore')->with('store_123', Argument::same($stored), [])->returns('document_456');
+        $provider->expects('removeFileFromStore')->with('store_123', Argument::type(AddedDocumentResponse::class))->returns(true);
+        $provider->expects('deleteFile')->with('file_123');
 
         $store = new Store($provider, 'store_123', 'My Store', new StoreFileCounts(0, 0, 0), true);
         $document = $store->add($file);

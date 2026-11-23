@@ -641,7 +641,7 @@ class AnthropicConnector extends Connector
 }
 ```
 
-In URL mode, the version replaces a `{version}` placeholder in the base URL, endpoint, or URL override, such as `https://generativelanguage.googleapis.com/{version}`. The version may only contain letters, numbers, dashes, underscores, and single dots, so it can only fill that subdomain label or path segment. You may override `getApiVersion` to calculate the version. When both a connector and a request send a version, the request's version is used.
+In URL mode, the version replaces a `{version}` placeholder in the base URL, endpoint, or URL override, such as `https://generativelanguage.googleapis.com/{version}`. The version may only contain letters, numbers, dashes, underscores, and single dots, so it can only fill that subdomain label or path segment. You may override `getApiVersion` to calculate the version. When a connector and a request both send a version in the same place, the request's version is used. To choose the version substituted into the URL differently, a connector with an API version may override the protected `resolveUrlApiVersion` method, which receives the pending request.
 
 <a name="authentication"></a>
 ### Authentication
@@ -678,6 +678,8 @@ $request->authenticate(new MultiAuthenticator(
     new QueryAuthenticator('api_key', $key),
 ));
 ```
+
+Headers set by an authenticator are removed when a redirect changes the scheme, host, or port. They remain removed for the rest of that redirect chain, even if it returns to the original origin. A new retry attempt applies authentication again. Custom headers added through `defaultHeaders` or `withHeaders` outside an authenticator are ordinary headers and may be forwarded to another origin.
 
 Built-in NTLM authentication is not provided. Integrations requiring NTLM must supply their own authenticator and transport middleware.
 

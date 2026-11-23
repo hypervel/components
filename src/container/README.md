@@ -11,6 +11,8 @@ Hypervel supports Laravel's named container APIs, but not container ArrayAccess 
 
 A contextual attribute's resolved value is authoritative, including `null`. Unlike Laravel, Hypervel does not fall through to class or primitive resolution, contextual bindings, or declared defaults after a contextual resolver returns `null`.
 
+`call()` selects contextual bindings for the concrete called class, including inherited methods, consistently across array and first-class callables. Laravel uses the method's declaring class. Register bindings against the concrete consumer; see [Contextual Binding](https://hypervel.org/docs/container#contextual-binding).
+
 `#[BindWhen]` conditions must depend only on boot-stable state. The first matching condition becomes a normal worker-lifetime binding; unmatched conditions remain eligible for reevaluation on later resolutions.
 
 Hypervel does not expose Laravel's protected per-parameter override helpers. Container subclasses that customize parameter override resolution should override `resolveRecipeParameters()`, which receives the current coroutine's resolution state and resolves the complete parameter list in one pass.

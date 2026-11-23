@@ -17,13 +17,17 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Scout\Fixtures\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for RemoveFromSearch job.
  */
 class RemoveFromSearchTest extends ScoutTestCase
 {
+    use VerifiesDoubles;
+
     public function testHandleCallsEngineDelete(): void
     {
         $model1 = new SearchableModel(['title' => 'First', 'body' => 'Content']);
@@ -34,24 +38,16 @@ class RemoveFromSearchTest extends ScoutTestCase
 
         $collection = new Collection([$model1, $model2]);
 
-        $engine = m::mock(Engine::class);
-        $engine->shouldReceive('runDelete')
-            ->once()
-            ->with(m::on(function ($models) {
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runDelete')
+            ->with(Argument::satisfies(function ($models) {
                 return $models instanceof RemoveableScoutCollection
                     && $models->count() === 2;
             }));
 
-        $this->app->instance(EngineManager::class, new class($engine) {
-            public function __construct(private Engine $engine)
-            {
-            }
-
-            public function engine(): Engine
-            {
-                return $this->engine;
-            }
-        });
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
 
         $job = new RemoveFromSearch($collection);
         $job->handle();
@@ -61,25 +57,15 @@ class RemoveFromSearchTest extends ScoutTestCase
     {
         $collection = new Collection([]);
 
-        $engine = m::mock(Engine::class);
-        $engine->shouldNotReceive('runDelete');
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runDelete')->never();
 
-        $this->app->instance(EngineManager::class, new class($engine) {
-            public function __construct(private Engine $engine)
-            {
-            }
-
-            public function engine(): Engine
-            {
-                return $this->engine;
-            }
-        });
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
 
         $job = new RemoveFromSearch($collection);
         $job->handle();
-
-        // If we get here without exception, the test passes
-        $this->assertTrue(true);
     }
 
     public function testConstructorWrapsCollectionInRemoveableScoutCollection(): void

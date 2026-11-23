@@ -22,6 +22,8 @@ class SlackProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Indicate that the requested token should be for a bot user.
+     *
+     * @return $this
      */
     public function asBotUser(): static
     {
@@ -40,6 +42,8 @@ class SlackProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Indicate that the requested token should be for a user.
+     *
+     * @return $this
      */
     protected function setScopeKey(string $scopeKey): static
     {

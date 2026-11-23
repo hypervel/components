@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\VendorTagPublished;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
@@ -254,14 +255,14 @@ class VendorPublishCommand extends Command
             if ($this->option('existing')) {
                 $this->components->twoColumnDetail(sprintf(
                     'File [%s] does not exist',
-                    str_replace(base_path() . '/', '', $to),
+                    Str::replaceStart(base_path() . '/', '', $to),
                 ), '<fg=yellow;options=bold>SKIPPED</>');
             } else {
                 $resolvedTo = realpath($to);
 
                 $this->components->twoColumnDetail(sprintf(
                     'File [%s] already exists',
-                    str_replace(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to),
+                    Str::replaceStart(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to),
                 ), '<fg=yellow;options=bold>SKIPPED</>');
             }
         }
@@ -444,8 +445,8 @@ class VendorPublishCommand extends Command
         $resolvedFrom = realpath($from);
         $resolvedTo = realpath($to);
 
-        $from = str_replace(base_path() . '/', '', is_string($resolvedFrom) ? $resolvedFrom : $from);
-        $to = str_replace(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to);
+        $from = Str::replaceStart(base_path() . '/', '', is_string($resolvedFrom) ? $resolvedFrom : $from);
+        $to = Str::replaceStart(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to);
 
         $this->components->task(sprintf(
             'Copying %s [%s] to [%s]',
@@ -458,9 +459,10 @@ class VendorPublishCommand extends Command
     /**
      * Instruct the command to not update the dates on migrations when publishing.
      *
-     * Boot-only. The publishing mode persists in a static property for the
-     * worker lifetime and affects every subsequent vendor:publish run.
+     * The publishing mode persists in a static property for the worker
+     * lifetime and affects every subsequent vendor:publish run.
      */
+    #[BootOnly]
     public static function dontUpdateMigrationDates(): void
     {
         static::$updateMigrationDates = false;

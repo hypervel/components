@@ -25,7 +25,9 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -33,6 +35,8 @@ use Throwable;
 
 class MaintenanceModeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
@@ -79,10 +83,10 @@ class MaintenanceModeTest extends TestCase
 
     public function testCacheMaintenanceModeAllowsRequestWhenDeactivatedWhileReadingPayload(): void
     {
-        $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('maintenance')->andReturnSelf();
-        $cache->shouldReceive('has')->with('framework:down')->andReturn(true, false);
-        $cache->shouldReceive('get')->once()->with('framework:down')->andReturnNull();
+        $cache = Double::for(Factory::class, Repository::class)->strict();
+        $cache->allows('store')->with('maintenance')->returns($cache);
+        $cache->allows('has')->with('framework:down')->returns(true, false);
+        $cache->expects('get')->with('framework:down')->returns(null);
 
         $this->app->instance(MaintenanceModeContract::class, new CacheBasedMaintenanceMode(
             $cache,
@@ -99,10 +103,10 @@ class MaintenanceModeTest extends TestCase
 
     public function testActiveCacheMaintenanceModeWithAnEmptyPayloadBlocksRequests(): void
     {
-        $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('maintenance')->andReturnSelf();
-        $cache->shouldReceive('has')->with('framework:down')->andReturnTrue();
-        $cache->shouldReceive('get')->once()->with('framework:down')->andReturn([]);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
+        $cache->allows('store')->with('maintenance')->returns($cache);
+        $cache->allows('has')->with('framework:down')->returns(true);
+        $cache->expects('get')->with('framework:down')->returns([]);
 
         $this->app->instance(MaintenanceModeContract::class, new CacheBasedMaintenanceMode(
             $cache,
@@ -118,10 +122,10 @@ class MaintenanceModeTest extends TestCase
     public function testConcurrentMaintenanceFileRemovalAllowsTheRequestToProceed(): void
     {
         $path = storage_path('framework/down');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->with($path)->andReturn(true, false);
-        $files->shouldReceive('get')->once()->with($path)
-            ->andThrow(new FileNotFoundException('removed'));
+        $files = Double::for(Filesystem::class)->strict();
+        $files->allows('exists')->with($path)->returns(true, false);
+        $files->expects('get')->with($path)
+            ->throws(new FileNotFoundException('removed'));
         $this->app->instance(MaintenanceModeContract::class, new FileBasedMaintenanceMode($files));
 
         Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
@@ -138,9 +142,9 @@ class MaintenanceModeTest extends TestCase
 
         $path = storage_path('framework/down');
         $exception = new FileNotFoundException('unreadable');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->with($path)->andReturnTrue();
-        $files->shouldReceive('get')->once()->with($path)->andThrow($exception);
+        $files = Double::for(Filesystem::class)->strict();
+        $files->allows('exists')->with($path)->returns(true);
+        $files->expects('get')->with($path)->throws($exception);
         $this->app->instance(MaintenanceModeContract::class, new FileBasedMaintenanceMode($files));
 
         Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
@@ -424,8 +428,8 @@ class MaintenanceModeTest extends TestCase
             static fn (): never => throw $eventException,
         );
 
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($eventException, [])->andThrow($reportException);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($eventException), [])->throws($reportException);
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->artisan(FailingReloadDownCommand::class)
@@ -476,9 +480,9 @@ class MaintenanceModeTest extends TestCase
 
     public function testDownReportsDriverFailureBeforeMaintenanceStateIsCommitted(): void
     {
-        $mode = m::mock(MaintenanceModeContract::class);
-        $mode->shouldReceive('active')->once()->andReturnFalse();
-        $mode->shouldReceive('activate')->once()->andThrow(new RuntimeException('activation failed'));
+        $mode = Double::for(MaintenanceModeContract::class)->strict();
+        $mode->expects('active')->returns(false);
+        $mode->expects('activate')->throws(new RuntimeException('activation failed'));
         $this->app->instance(MaintenanceModeContract::class, $mode);
 
         $this->artisan(DownCommand::class)
@@ -494,13 +498,13 @@ class MaintenanceModeTest extends TestCase
         file_put_contents(storage_path('framework/down'), json_encode(['status' => 503]));
 
         $exception = new RuntimeException('deactivation failed');
-        $mode = m::mock(MaintenanceModeContract::class);
-        $mode->shouldReceive('active')->once()->andReturnTrue();
-        $mode->shouldReceive('deactivate')->once()->andThrow($exception);
+        $mode = Double::for(MaintenanceModeContract::class)->strict();
+        $mode->expects('active')->returns(true);
+        $mode->expects('deactivate')->throws($exception);
         $this->app->instance(MaintenanceModeContract::class, $mode);
 
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($exception, []);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception), []);
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->artisan(UpCommand::class)
@@ -538,11 +542,31 @@ class MaintenanceModeTest extends TestCase
 
     public function testMaintenanceModeRetryDatetimeIsConvertedToGmt(): void
     {
-        $this->artisan(DownCommand::class, ['--retry' => '2023-01-08 12:00:00 Australia/Sydney']);
+        $timezone = date_default_timezone_get();
 
-        $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+        date_default_timezone_set('Europe/Berlin');
 
-        $this->assertSame('Sun, 08 Jan 2023 01:00:00 GMT', $data['retry']);
+        try {
+            $this->artisan(DownCommand::class, ['--retry' => '2026-12-31 15:30:00']);
+
+            $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+            $this->assertSame('Thu, 31 Dec 2026 14:30:00 GMT', $data['retry']);
+
+            $this->artisan(DownCommand::class, ['--retry' => '2026-12-31T15:30:00+02:00']);
+
+            $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+            $this->assertSame('Thu, 31 Dec 2026 13:30:00 GMT', $data['retry']);
+
+            $this->artisan(DownCommand::class, ['--retry' => '2023-01-08 12:00:00 Australia/Sydney']);
+
+            $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+            $this->assertSame('Sun, 08 Jan 2023 01:00:00 GMT', $data['retry']);
+        } finally {
+            date_default_timezone_set($timezone);
+        }
     }
 
     public function testMaintenanceModeRetryWithHttpDateHeader(): void

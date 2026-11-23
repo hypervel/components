@@ -10,6 +10,7 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnPipeMessage;
 use Hypervel\Core\Events\OnWorkerExit;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\WorkerArrayStore;
@@ -62,7 +63,6 @@ use Hypervel\Server\TlsOptions;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Swoole\Table;
 use Throwable;
 
@@ -357,7 +357,7 @@ class ReverbServiceProvider extends ServiceProvider
                         }
                     }
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
 
@@ -432,7 +432,7 @@ class ReverbServiceProvider extends ServiceProvider
                     fn () => $lifecycle->connection()?->disconnect(1001, 'Server restarting'),
                 );
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -489,9 +489,11 @@ class ReverbServiceProvider extends ServiceProvider
                     FlushWebhookBatchJob::dispatch($app->id(), $webhooks)
                         ->onQueue('reverb-webhook-flush');
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 // An unavailable Redis Cluster slot must not stop other applications' flushes.
                 FailureReporter::report($exception);
             }

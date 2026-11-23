@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher as QueueingDispatcherContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Support\ServiceProvider;
 
 class BusServiceProvider extends ServiceProvider
@@ -41,19 +42,30 @@ class BusServiceProvider extends ServiceProvider
      */
     protected function registerBatchServices(): void
     {
-        $this->app->singleton(BatchRepository::class, function ($app) {
-            return $app->make(DatabaseBatchRepository::class);
-        });
+        $arguments = static function ($app): array {
+            $config = $app->make('config');
 
-        // DynamoDB batch storage is intentionally unsupported because Hypervel does not support DynamoDB databases.
-
-        $this->app->singleton(DatabaseBatchRepository::class, function ($app) {
-            return new DatabaseBatchRepository(
+            return [
                 $app->make(BatchFactory::class),
                 $app->make('db'),
-                $app->make('config')->string('queue.batching.table'),
-                $app->make('config')->get('queue.batching.database'),
-            );
-        });
+                $config->string('queue.batching.table'),
+                $config->get('queue.batching.database'),
+                $config->string('queue.batching.results_table'),
+            ];
+        };
+
+        $this->app->singleton(BatchRepository::class, static fn ($app) => new RoutingBatchRepository(
+            ...$arguments($app),
+            container: $app,
+            config: $app->make('config'),
+        ));
+        $this->app->singleton(DatabaseBatchRepository::class, static fn ($app) => new DatabaseBatchRepository(...$arguments($app)));
+        $this->app->singleton(RedisBatchRepository::class, static fn ($app) => new RedisBatchRepository(
+            ...$arguments($app),
+            redis: $app->make(RedisFactory::class),
+            redisConnection: $app->make('config')->string('queue.batching.redis_connection'),
+            deletionsTable: $app->make('config')->string('queue.batching.deletions_table'),
+        ));
+        // DynamoDB batch storage is intentionally unsupported because Hypervel does not support DynamoDB databases.
     }
 }

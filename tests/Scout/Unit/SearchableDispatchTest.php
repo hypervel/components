@@ -11,11 +11,15 @@ use Hypervel\Engine\Channel;
 use Hypervel\Http\Request;
 use Hypervel\Scout\Searchable;
 use Hypervel\Tests\Scout\ScoutTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class SearchableDispatchTest extends ScoutTestCase
 {
+    use VerifiesDoubles;
+
     protected bool $migrateRefresh = false;
 
     public function testDispatchRunsImmediatelyOutsideARequest(): void
@@ -126,8 +130,8 @@ class SearchableDispatchTest extends ScoutTestCase
     public function testAReportedFailureDoesNotStopLaterJobs(): void
     {
         $exception = new RuntimeException('indexing failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($exception, []);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception), []);
         $this->app->instance(ExceptionHandler::class, $handler);
         $events = [];
 

@@ -14,14 +14,18 @@ class DeclinedIf extends StringValidationAttribute
 {
     protected FieldReference $field;
 
+    protected array $values;
+
     /**
      * Create a declined-if rule attribute.
      */
     public function __construct(
         string|FieldReference $field,
         protected string|bool|int|float|BackedEnum|ExternalReference $value,
+        string|bool|int|float|BackedEnum|ExternalReference ...$values,
     ) {
         $this->field = $this->parseFieldReference($field);
+        $this->values = $values;
     }
 
     /**
@@ -40,6 +44,7 @@ class DeclinedIf extends StringValidationAttribute
         return [
             $this->field,
             $this->value,
+            $this->values,
         ];
     }
 

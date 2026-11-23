@@ -58,9 +58,11 @@ class StreamedAgentResponseTest extends TestCase
             new ReasoningDelta('reasoning-2', 'second', 'Second block.', 1),
             new ReasoningDelta('reasoning-3', 'first', 'block.', 1),
             new StreamEnd('end-1', 'tool_calls', new TextUsage(10, 4, 3, null, 1), 1),
+            new ToolResult('result-1', new ToolResultData('call-1', 'lookup', [], 'Found.'), true, null, 1),
             new StreamStart('start-2', 'openai', 'model', 2),
             new TextDelta('text-3', 'blank', " \n", 2),
             new ReasoningDelta('reasoning-4', 'blank', ' ', 2),
+            new ToolResult('result-2', new ToolResultData('call-2', 'lookup', [], 'Found.'), true, null, 2),
             new StreamStart('start-3', 'openai', 'model', 3),
             new TextDelta('text-4', 'block-3', 'Done.', 3),
             new StreamEnd('end-3', 'stop', new TextUsage(8, 2, null, null, 0), 3),
@@ -69,9 +71,25 @@ class StreamedAgentResponseTest extends TestCase
         $response = new StreamedAgentResponse('invocation-id', $events, new Meta);
 
         $this->assertSame("Hello world.\n\nDone.", $response->text);
+        $this->assertSame(TextDelta::combine($events), $response->text);
         $this->assertSame("First block.\n\nSecond block.", $response->reasoning);
         $this->assertEquals(new TextUsage(18, 6, 3, null, 1), $response->usage);
         $this->assertSame($events, $response->events);
+    }
+
+    public function testAggregationContinuesAStepThatRanNoToolsWithoutASeparator(): void
+    {
+        $events = collect([
+            new StreamStart('start-1', 'anthropic', 'model', 1),
+            new TextDelta('text-1', 'block-1', 'The latest figures show that', 1),
+            new StreamStart('start-2', 'anthropic', 'model', 2),
+            new TextDelta('text-2', 'block-2', ' revenue grew.', 2),
+        ]);
+
+        $response = new StreamedAgentResponse('invocation-id', $events, new Meta);
+
+        $this->assertSame('The latest figures show that revenue grew.', $response->text);
+        $this->assertSame(TextDelta::combine($events), $response->text);
     }
 
     public function testAggregationRetainsSettledToolsCitationsAndTheLatestSteps(): void

@@ -27,7 +27,7 @@ abstract class StreamEvent implements Stringable
     {
         try {
             Broadcast::on($channels)
-                ->as($this->type())
+                ->as($this->broadcastAs())
                 ->with($this->toArray())
                 ->{$now ? 'sendNow' : 'send'}();
         } catch (BroadcastException $broadcastException) {
@@ -41,6 +41,14 @@ abstract class StreamEvent implements Stringable
     public function broadcastNow(Channel|array $channels): void
     {
         $this->broadcast($channels, now: true);
+    }
+
+    /**
+     * Get the name the event is broadcast under.
+     */
+    public function broadcastAs(): string
+    {
+        return $this->type();
     }
 
     /**

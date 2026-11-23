@@ -19,7 +19,10 @@
             "type": "path",
             "url": "../..",
             "options": {
-                "symlink": true
+                "symlink": true,
+                "versions": {
+                    "hypervel/components": "0.4.x-dev"
+                }
             }
         }
     ],
@@ -37,6 +40,13 @@
         "mockery/mockery": "1.6.x-dev",
         "phpunit/phpunit": "~13.4.3",
         "symfony/yaml": "^8.1"
+    },
+    "config": {
+        "policy": {
+            "cooldown": {
+                "period": "3 days"
+            }
+        }
     },
     "extra": {
         "hypervel": {

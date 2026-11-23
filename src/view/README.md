@@ -6,6 +6,7 @@ Documentation: https://hypervel.org/docs/views
 
 ## Differences From Laravel
 
+- `ViewFinderInterface` includes `prependLocation()`, `getPaths()` and `getHints()` so callers can prepend locations and read the registered paths and namespace hints. Extending `FileViewFinder` supplies these methods.
 - `Blade::component()` accepts the component alias before the class name: `Blade::component('package-alert', Alert::class)`.
 - A `View` passed as section content is rendered before the content is stored, so later changes to that `View` instance do not affect the section.
 

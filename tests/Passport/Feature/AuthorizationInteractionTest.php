@@ -23,12 +23,15 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class AuthorizationInteractionTest extends PassportTestCase
 {
+    use VerifiesDoubles;
     use WithHypervelMigrations;
 
     /**
@@ -113,11 +116,11 @@ class AuthorizationInteractionTest extends PassportTestCase
     {
         $client = ClientFactory::new()->create();
         $this->actingAs(UserFactory::new()->create(), 'web');
-        $response = m::mock(ReauthenticationResponse::class);
-        $response->shouldReceive('withParameters')->once()->with(m::on(
+        $response = Double::for(ReauthenticationResponse::class)->strict();
+        $response->expects('withParameters')->with(Argument::satisfies(
             static fn (array $parameters): bool => $parameters['client']->is($client),
-        ))->andReturnSelf();
-        $response->shouldReceive('toResponse')->once()->andReturn(response('Confirm identity'));
+        ));
+        $response->expects('toResponse')->returns(response('Confirm identity'));
         $this->app->instance(ReauthenticationResponse::class, $response);
 
         $this->get('/oauth/authorize?' . http_build_query([

@@ -8,6 +8,13 @@ Copyright (c) Alexander <iam.asm89@gmail.com>
 
 Copyright (c) Barryvdh <barryvdh@gmail.com>
 
+Copyright (c) 2015 Michael Dowling <mtdowling@gmail.com>
+Copyright (c) 2015 Márk Sági-Kazár <mark.sagikazar@gmail.com>
+Copyright (c) 2015 Graham Campbell <hello@gjcampbell.co.uk>
+Copyright (c) 2016 Tobias Schultze <webmaster@tubo-world.de>
+Copyright (c) 2016 George Mponos <gmponos@gmail.com>
+Copyright (c) 2018 Tobias Nyholm <tobias.nyholm@gmail.com>
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights

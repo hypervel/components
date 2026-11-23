@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Hypervel\Contracts\Process\InvokedProcess;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use Swoole\Coroutine\Http\Client;
-use Symfony\Component\Process\Process;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
 class SwooleMaintenanceTimerWorkerRecycleTest extends TestCase
@@ -36,7 +37,7 @@ class SwooleMaintenanceTimerWorkerRecycleTest extends TestCase
         $port = $this->reservePort();
         $statePath = $this->tempDir . '/state.log';
         $logPath = $this->tempDir . '/swoole.log';
-        $process = new Process([
+        $process = (new ProcessFactory)->start([
             PHP_BINARY,
             __DIR__ . '/Fixtures/SwooleMaintenanceTimerRecycleServer.php',
             dirname(__DIR__, 2) . '/vendor/autoload.php',
@@ -44,7 +45,6 @@ class SwooleMaintenanceTimerWorkerRecycleTest extends TestCase
             $statePath,
             $logPath,
         ]);
-        $process->start();
 
         try {
             $this->waitForState(
@@ -65,12 +65,13 @@ class SwooleMaintenanceTimerWorkerRecycleTest extends TestCase
                     && substr_count($state, "start\n") >= 2,
             );
         } finally {
+            // Give the server time to shut down its workers before inspecting its logs.
             $process->stop(2);
         }
 
         $output = strtolower(
-            $process->getOutput()
-            . $process->getErrorOutput()
+            $process->output()
+            . $process->errorOutput()
             . (is_file($logPath) ? file_get_contents($logPath) : '')
         );
 
@@ -78,7 +79,7 @@ class SwooleMaintenanceTimerWorkerRecycleTest extends TestCase
         $this->assertStringNotContainsString('forced to terminate', $output);
     }
 
-    private function waitForState(Process $process, string $statePath, callable $condition): void
+    private function waitForState(InvokedProcess $process, string $statePath, callable $condition): void
     {
         $deadline = microtime(true) + 5;
 
@@ -89,8 +90,8 @@ class SwooleMaintenanceTimerWorkerRecycleTest extends TestCase
                 return;
             }
 
-            if (! $process->isRunning()) {
-                $this->fail('The Swoole timer recycle server exited early: ' . $process->getErrorOutput());
+            if (! $process->running()) {
+                $this->fail('The Swoole timer recycle server exited early: ' . $process->errorOutput());
             }
 
             usleep(10_000);

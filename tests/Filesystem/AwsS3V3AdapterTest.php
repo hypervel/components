@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
+use Aws\Command;
 use Aws\CommandInterface;
 use Aws\MockHandler;
 use Aws\Result;
+use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
+use GuzzleHttp\Handler\InflateBodyStream;
+use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
@@ -21,20 +25,24 @@ use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\UnableToReadFile;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
 class AwsS3V3AdapterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConfiguredAndNativeUrlsEncodeRawPathsIdentically(): void
     {
         $path = 'nested/report%2F v?x#y+z.txt';
@@ -324,10 +332,10 @@ class AwsS3V3AdapterTest extends TestCase
             'report' => true,
             'options' => ['@http' => ['timeout' => 12]],
         ]);
-        $adapter->getDriver()->shouldReceive('fileExists')->andReturn(true);
-        $emptyDriver = m::mock(FilesystemOperator::class);
-        $emptyDriver->shouldReceive('fileExists')->andReturn(false);
-        $empty = new FilesystemAdapter($emptyDriver, m::mock(FlysystemAdapter::class));
+        $adapter->getDriver()->allows('fileExists')->returns(true);
+        $emptyDriver = Double::for(FilesystemOperator::class)->strict();
+        $emptyDriver->allows('fileExists')->returns(false);
+        $empty = new FilesystemAdapter($emptyDriver, Double::for(FlysystemAdapter::class)->strict());
         $pools = new PoolManager;
         $definition = new PoolDefinition('filesystem:read-through-range', 's3', 'test', PoolOptions::fromArray([]));
         $cloud = match ($poolType) {
@@ -346,8 +354,8 @@ class AwsS3V3AdapterTest extends TestCase
             ),
             null => $adapter,
         };
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('report')->never();
         Container::getInstance()->instance(ExceptionHandler::class, $exceptionHandler);
         $manager = new FilesystemManager(Container::getInstance());
         $manager->set('primary', $primary ? $cloud : $empty);
@@ -419,38 +427,88 @@ class AwsS3V3AdapterTest extends TestCase
         $adapter->readStreamRange('file.txt', 1, 2);
     }
 
-    public function testReadStreamRangePreservesCancellationWithoutReporting(): void
+    #[TestWith([false, false], 'direct whole read')]
+    #[TestWith([false, true], 'direct range read')]
+    #[TestWith([true, false], 'wrapped whole read')]
+    #[TestWith([true, true], 'wrapped range read')]
+    public function testReadStreamRangePreservesCancellationWithoutReporting(bool $wrapped, bool $range): void
     {
         $cancellation = new CanceledException('read canceled');
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $failure = $wrapped ? new S3Exception('SDK request canceled.', new Command('GetObject'), previous: $cancellation) : $cancellation;
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('report')->never();
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
-        $handler = new MockHandler([$cancellation]);
+        $handler = new MockHandler([$failure]);
         $adapter = $this->adapter($handler, [
             'bucket' => 'bucket',
             'report' => true,
             'throw' => false,
         ]);
 
+        $caught = null;
+
         try {
-            $adapter->readStreamRange('file.txt', 1, 2);
-            $this->fail('Expected the cancellation to escape.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            $range ? $adapter->readStreamRange('file.txt', 1, 2) : $adapter->readStream('file.txt');
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught);
+        $this->assertSame($failure, $caught);
     }
 
     public function testReadStreamRangeRejectsAResultWithoutAResource(): void
     {
-        $body = m::mock(StreamInterface::class);
-        $body->shouldReceive('detach')->once()->andReturnNull();
+        $body = Double::for(StreamInterface::class)->strict();
+        $body->allows('isReadable')->returns(false);
+        $body->allows('isWritable')->returns(false);
         $handler = new MockHandler([new Result(['Body' => $body])]);
         $adapter = $this->adapter($handler, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessageIsOrContains('Downloaded object does not contain a file resource.');
+        $this->expectExceptionMessageIsOrContains('The stream must be readable, writable, or both.');
 
         $adapter->readStreamRange('file.txt', 1, 2);
+    }
+
+    public function testReadStreamPreservesCancellationWhileReadingADecodedBody(): void
+    {
+        $failure = new RuntimeException('Read cleanup failed.', previous: new CanceledException);
+        $body = new InflateBodyStream(new PumpStream(static fn () => throw $failure));
+        $adapter = $this->adapter(new MockHandler([new Result(['Body' => $body])]), ['bucket' => 'bucket']);
+        $resource = $adapter->readStream('file.gz');
+        $caught = null;
+
+        try {
+            fread($resource, 1);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            fclose($resource);
+        }
+
+        $this->assertSame($failure, $caught);
+    }
+
+    public function testClosingReadStreamClosesARetainedDecodedBody(): void
+    {
+        $native = fopen('php://temp', 'w+b');
+        fwrite($native, gzencode('contents'));
+        rewind($native);
+        $body = new InflateBodyStream(Utils::streamFor($native));
+        $adapter = $this->adapter(new MockHandler([new Result(['Body' => $body])]), ['bucket' => 'bucket']);
+        $resource = $adapter->readStream('file.gz');
+
+        try {
+            $this->assertSame('contents', stream_get_contents($resource));
+            fclose($resource);
+            $this->assertFalse(is_resource($native));
+        } finally {
+            if (is_resource($resource)) {
+                fclose($resource);
+            }
+            $body->close();
+        }
     }
 
     public function testReadFailuresReturnNullWhenExceptionsAreDisabled(): void
@@ -475,8 +533,8 @@ class AwsS3V3AdapterTest extends TestCase
         ]);
 
         return new AwsS3V3Adapter(
-            m::mock(FilesystemOperator::class),
-            m::mock(FlysystemAdapter::class),
+            Double::for(FilesystemOperator::class)->strict(),
+            Double::for(FlysystemAdapter::class)->strict(),
             $config,
             $client,
         );

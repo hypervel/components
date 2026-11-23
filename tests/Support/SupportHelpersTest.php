@@ -13,6 +13,7 @@ use Exception;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
 use Hypervel\Support\Optional;
 use Hypervel\Support\Sleep;
@@ -502,6 +503,12 @@ class SupportHelpersTest extends TestCase
 
         $data = collect(['foo' => 'bar']);
         $this->assertEquals(['bar'], data_get($data, '*'));
+
+        $taylor = (object) ['name' => 'Taylor'];
+        $abigail = (object) ['name' => 'Abigail'];
+        $data = (object) ['first' => $taylor, 'second' => $abigail];
+        $this->assertSame([$taylor, $abigail], data_get($data, '*'));
+        $this->assertSame(['Taylor', 'Abigail'], data_get($data, '*.name'));
     }
 
     public function testDataGetNullKey(): void
@@ -527,6 +534,23 @@ class SupportHelpersTest extends TestCase
             ['foo' => ['bar' => 'kaboom'], 'baz' => 'boom'],
             data_fill($data, 'foo.bar', 'kaboom')
         );
+    }
+
+    public function testDataFillWritesNestedArrayAccessValuesWithoutOverwriting(): void
+    {
+        $data = new Collection(['profile' => ['name' => 'Taylor']]);
+
+        data_fill($data, 'profile.name', 'Other');
+        data_fill($data, 'profile.role', 'Developer');
+        data_fill($data, 'missing.name', 'New');
+
+        $this->assertSame(['name' => 'Taylor', 'role' => 'Developer'], $data['profile']);
+        $this->assertSame(['name' => 'New'], $data['missing']);
+
+        $data = new Collection([['name' => 'Taylor'], []]);
+        data_fill($data, '*.name', 'New');
+
+        $this->assertSame([['name' => 'Taylor'], ['name' => 'New']], $data->all());
     }
 
     public function testDataFillWithStar(): void
@@ -628,6 +652,49 @@ class SupportHelpersTest extends TestCase
         );
     }
 
+    public function testDataSetWritesNestedArrayAccessValuesAndWildcards(): void
+    {
+        $data = new Collection(['profile' => ['name' => 'Taylor', 'role' => 'Developer']]);
+
+        data_set($data, 'profile.name', 'Other');
+        data_set($data, 'missing.name', 'New');
+
+        $this->assertSame(['name' => 'Other', 'role' => 'Developer'], $data['profile']);
+        $this->assertSame(['name' => 'New'], $data['missing']);
+
+        data_set($data, '*.name', 'Updated');
+
+        $this->assertSame(['profile' => ['name' => 'Updated', 'role' => 'Developer'], 'missing' => ['name' => 'Updated']], $data->all());
+
+        data_set($data, '*', 'replaced');
+
+        $this->assertSame(['profile' => 'replaced', 'missing' => 'replaced'], $data->all());
+    }
+
+    public function testDataHelpersWriteModelArrayCastsWithoutConvertingRelationsToAttributes(): void
+    {
+        $model = new class extends Model {
+            protected array $casts = ['options' => 'array'];
+        };
+        $model->forceFill(['options' => ['theme' => 'light', 'language' => 'en']]);
+        $profile = new Collection(['name' => 'Taylor', 'role' => 'Developer']);
+        $model->setRelation('profile', $profile);
+
+        data_set($model, 'options.theme', 'dark');
+        data_set($model, 'profile.name', 'Other');
+
+        $this->assertSame(['theme' => 'dark', 'language' => 'en'], $model->options);
+        $this->assertSame('Other', $profile['name']);
+        $this->assertArrayNotHasKey('profile', $model->getAttributes());
+
+        data_forget($model, 'options.theme');
+        data_forget($model, 'profile.name');
+
+        $this->assertSame(['language' => 'en'], $model->options);
+        $this->assertSame(['role' => 'Developer'], $profile->all());
+        $this->assertArrayNotHasKey('profile', $model->getAttributes());
+    }
+
     public function testDataSetWithStar(): void
     {
         $data = ['foo' => 'bar'];
@@ -651,6 +718,11 @@ class SupportHelpersTest extends TestCase
             ['foo' => [], 'bar' => ['overwritten', 'overwritten']],
             data_set($data, 'bar.*', 'overwritten')
         );
+
+        $data = (object) ['one' => (object) ['price' => 1], 'two' => (object) ['price' => 2]];
+        data_set($data, '*.price', 0);
+
+        $this->assertEquals((object) ['one' => (object) ['price' => 0], 'two' => (object) ['price' => 0]], $data);
     }
 
     public function testDataSetWithDoubleStar(): void
@@ -714,6 +786,29 @@ class SupportHelpersTest extends TestCase
             ['one' => ['two' => ['four' => ['five']]]],
             data_forget($data, 'one.two.three')
         );
+
+        $data = (object) ['price' => null, 'name' => 'Desk'];
+        data_forget($data, 'price.amount');
+
+        $this->assertEquals((object) ['price' => null, 'name' => 'Desk'], $data);
+
+        data_forget($data, 'price');
+
+        $this->assertEquals((object) ['name' => 'Desk'], $data);
+    }
+
+    public function testDataRemoveWritesNestedArrayAccessValuesAndWildcards(): void
+    {
+        $data = new Collection(['name' => 'Taylor', 'profile' => ['name' => 'Other', 'role' => 'Developer']]);
+
+        data_forget($data, 'name');
+        data_forget($data, 'profile.name');
+
+        $this->assertSame(['profile' => ['role' => 'Developer']], $data->all());
+
+        data_forget($data, '*.role');
+
+        $this->assertSame(['profile' => []], $data->all());
     }
 
     public function testDataRemoveWithStar(): void
@@ -740,6 +835,14 @@ class SupportHelpersTest extends TestCase
             ],
             data_forget($data, 'article.comments.*.name')
         );
+
+        $data = (object) [
+            'one' => (object) ['price' => 1, 'name' => 'Desk'],
+            'two' => (object) ['price' => null, 'name' => 'Chair'],
+        ];
+        data_forget($data, '*.price');
+
+        $this->assertEquals((object) ['one' => (object) ['name' => 'Desk'], 'two' => (object) ['name' => 'Chair']], $data);
     }
 
     public function testDataRemoveWithDoubleStar(): void

@@ -66,13 +66,17 @@ class TimeoutTest extends TestCase
 
     public function testRejectsInvalidOrUnrepresentableDurations(): void
     {
-        foreach ([-0.1, INF, NAN, 100_000_000 * 3600.0] as $seconds) {
+        foreach ([-0.1, INF, NAN] as $seconds) {
             try {
                 Timeout::encode($seconds);
                 $this->fail('Expected the gRPC timeout to be rejected.');
-            } catch (InvalidArgumentException) {
-                $this->addToAssertionCount(1);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('The gRPC timeout must be a non-negative finite number of seconds.', $exception->getMessage());
             }
         }
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('The gRPC timeout exceeds the eight-digit wire limit.');
+        Timeout::encode(100_000_000 * 3600.0);
     }
 }

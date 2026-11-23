@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Workbench\Integrations\Auth;
 
 use Hypervel\Auth\Events\Verified;
-use Hypervel\Contracts\Auth\MustVerifyEmail;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Tests\Workbench\Integrations\TestCase;
-use Workbench\App\Models\User;
 use Workbench\Database\Factories\UserFactory;
 
 class EmailVerificationTest extends TestCase
@@ -28,8 +26,7 @@ class EmailVerificationTest extends TestCase
 
     public function testEmailCanBeVerified(): void
     {
-        // Hypervel's Verified event requires a user that implements MustVerifyEmail.
-        $user = VerifiableUser::query()->findOrFail(UserFactory::new()->unverified()->create()->getKey());
+        $user = UserFactory::new()->unverified()->create();
 
         Event::fake();
 
@@ -60,9 +57,4 @@ class EmailVerificationTest extends TestCase
 
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
-}
-
-class VerifiableUser extends User implements MustVerifyEmail
-{
-    protected ?string $table = 'users';
 }

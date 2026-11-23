@@ -23,12 +23,16 @@ use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\ServerSettings;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use League\OAuth2\Server\Exception\OAuthServerException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class ClientAuthenticatorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[TestWith([null, 'client_secret_basic'])]
     #[TestWith([null, 'client_secret_post'])]
     #[TestWith(['client_secret_basic', 'client_secret_basic'])]
@@ -75,13 +79,13 @@ class ClientAuthenticatorTest extends TestCase
         $request = (new ServerRequest('POST', '/token'))
             ->withHeader('Authorization', 'Basic ' . base64_encode('client:secret'))
             ->withParsedBody(['client_id' => 'client', 'client_secret' => 'secret']);
-        $clients = m::mock(ClientRepository::class);
-        $clients->shouldNotReceive('findActive');
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->never();
         $authenticator = new ClientAuthenticator(
             $clients,
-            m::mock(ClientKeyRepository::class),
-            m::mock(ReplayCache::class),
-            m::mock(ServerFactory::class),
+            Double::for(ClientKeyRepository::class)->strict(),
+            Double::for(ReplayCache::class)->strict(),
+            Double::for(ServerFactory::class)->strict(),
         );
 
         $this->expectException(OAuthServerException::class);
@@ -127,10 +131,10 @@ class ClientAuthenticatorTest extends TestCase
     public function testSignedAssertionsUseTheIssuerAndCannotBeReplayed(string|array $audience): void
     {
         [$client, $privateKey] = $this->assertionClient();
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldReceive('consume')->twice()->with(m::on(static fn (string $identifier): bool => json_decode($identifier, true) === [
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->times(2)->with(Argument::satisfies(static fn (string $identifier): bool => json_decode($identifier, true) === [
             'client', 'https://auth.example', 'client', 'assertion',
-        ]), m::type('int'))->andReturn(true, false);
+        ]), Argument::type('int'))->returns(true, false);
         $authenticator = $this->authenticator($client, $replays);
         $request = $this->assertionRequest($privateKey, ['aud' => $audience]);
 
@@ -154,8 +158,8 @@ class ClientAuthenticatorTest extends TestCase
     public function testInvalidAssertionsDoNotConsumeReplayEntries(string $claim, mixed $value): void
     {
         [$client, $privateKey] = $this->assertionClient();
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldNotReceive('consume');
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->never();
 
         $this->expectException(OAuthServerException::class);
         $this->authenticator($client, $replays)->authenticate($this->assertionRequest($privateKey, [$claim => $value]));
@@ -175,7 +179,7 @@ class ClientAuthenticatorTest extends TestCase
     {
         $now = $this->freezeSecond()->getTimestamp();
         [$client, $privateKey] = $this->assertionClient();
-        $replays = m::mock(ReplayCache::class);
+        $replays = Double::for(ReplayCache::class)->strict();
         $expiresAt = $now + $remaining + ClientJwt::$leeway;
         $assertion = JWT::encode([
             'iss' => 'client', 'sub' => 'client', 'aud' => 'https://auth.example',
@@ -187,9 +191,9 @@ class ClientAuthenticatorTest extends TestCase
         ]);
 
         if ($accepted) {
-            $replays->shouldReceive('consume')->once()->with(m::type('string'), $expiresAt + ClientJwt::$leeway)->andReturnTrue();
+            $replays->expects('consume')->with(Argument::type('string'), $expiresAt + ClientJwt::$leeway)->returns(true);
         } else {
-            $replays->shouldNotReceive('consume');
+            $replays->expects('consume')->never();
             $this->expectException(OAuthServerException::class);
         }
 
@@ -204,14 +208,14 @@ class ClientAuthenticatorTest extends TestCase
     {
         $now = $this->freezeSecond()->getTimestamp();
         [$client, $privateKey] = $this->assertionClient();
-        $replays = m::mock(ReplayCache::class);
+        $replays = Double::for(ReplayCache::class)->strict();
         $request = $this->assertionRequest($privateKey, ['iat' => $now, 'exp' => $now + 120, $claim => $now + $offset]);
         $previousLeeway = JWT::$leeway;
 
         if ($accepted) {
-            $replays->shouldReceive('consume')->once()->with(m::type('string'), $now + 180)->andReturnTrue();
+            $replays->expects('consume')->with(Argument::type('string'), $now + 180)->returns(true);
         } else {
-            $replays->shouldNotReceive('consume');
+            $replays->expects('consume')->never();
             $this->expectException(OAuthServerException::class);
         }
 
@@ -242,8 +246,8 @@ class ClientAuthenticatorTest extends TestCase
             'kty' => 'RSA', 'e' => 'AQAB',
             'n' => JWT::urlsafeB64Encode("\x80" . random_bytes(511) . "\x01"),
         ]]];
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldNotReceive('consume');
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->never();
 
         try {
             $this->authenticator($client, $replays)->authenticate($this->assertionRequest($privateKey));
@@ -269,8 +273,8 @@ class ClientAuthenticatorTest extends TestCase
         $client->jwks = null;
         $client->jwks_uri = 'https://keys.example/jwks';
         Http::fake(['https://keys.example/jwks' => Http::response($body, $status)]);
-        $replays = m::mock(ReplayCache::class);
-        $replays->shouldNotReceive('consume');
+        $replays = Double::for(ReplayCache::class)->strict();
+        $replays->expects('consume')->never();
         $authenticator = $this->authenticator($client, $replays, keys: $this->app->make(ClientKeyRepository::class));
 
         try {
@@ -287,8 +291,8 @@ class ClientAuthenticatorTest extends TestCase
     {
         [$client, $privateKey] = $this->assertionClient();
         $failure = new DestinationPolicyException('The HTTP transport cannot enforce the destination policy.');
-        $keys = m::mock(ClientKeyRepository::class);
-        $keys->shouldReceive('find')->once()->andThrow($failure);
+        $keys = Double::for(ClientKeyRepository::class)->strict();
+        $keys->expects('find')->throws($failure);
 
         $this->expectExceptionObject($failure);
         $this->authenticator($client, keys: $keys)->authenticate($this->assertionRequest($privateKey));
@@ -303,13 +307,13 @@ class ClientAuthenticatorTest extends TestCase
         ?string $issuer = 'https://auth.example',
         ?ClientKeyRepository $keys = null,
     ): ClientAuthenticator {
-        $clients = m::mock(ClientRepository::class);
-        $clients->shouldReceive('findActive')->with($client->getKey())->andReturn($client);
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldReceive('settings')->andReturn(new ServerSettings([], issuer: $issuer));
-        $keys ??= new ClientKeyRepository(m::mock(Factory::class), new Repository, m::mock(RemoteDocumentFetcher::class), new JwkValidator);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->allows('findActive')->with($client->getKey())->returns($client);
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->allows('settings')->returns(new ServerSettings([], issuer: $issuer));
+        $keys ??= new ClientKeyRepository(Double::for(Factory::class)->strict(), new Repository, Double::for(RemoteDocumentFetcher::class)->strict(), new JwkValidator);
 
-        return new ClientAuthenticator($clients, $keys, $replays ?? m::mock(ReplayCache::class), $servers);
+        return new ClientAuthenticator($clients, $keys, $replays ?? Double::for(ReplayCache::class)->strict(), $servers);
     }
 
     /**

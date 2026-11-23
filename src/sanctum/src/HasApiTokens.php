@@ -30,7 +30,7 @@ trait HasApiTokens
     public static function bootHasApiTokens(): void
     {
         $invalidateTokenableCache = static function (Model $tokenable): void {
-            if (! config()->boolean('sanctum.cache.enabled', false)) {
+            if (! Sanctum::cacheEnabled(config())) {
                 return;
             }
 

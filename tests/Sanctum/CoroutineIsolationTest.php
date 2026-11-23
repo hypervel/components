@@ -14,19 +14,22 @@ use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Sanctum\SanctumGuard;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 use function Hypervel\Coroutine\parallel;
 
 class CoroutineIsolationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSharedRequestDoesNotShareResolvedSessionUsers(): void
     {
         $container = new Container;
-        $provider = m::mock(UserProvider::class);
-        $sessionGuard = new SessionGuard('web', $provider, m::mock(Session::class), $container);
-        $auth = m::mock(Factory::class);
-        $auth->shouldReceive('guard')->with('web')->andReturn($sessionGuard);
+        $provider = Double::for(UserProvider::class)->strict();
+        $sessionGuard = new SessionGuard('web', $provider, Double::for(Session::class)->strict(), $container);
+        $auth = Double::for(Factory::class)->strict();
+        $auth->allows('guard')->with('web')->returns($sessionGuard);
         $container->instance('auth', $auth);
         $container->bind('request', static fn (): Request => RequestContext::get());
         $guard = new SanctumGuard('sanctum', $provider, $container, ['web']);

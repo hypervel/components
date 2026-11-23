@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\Aop;
 
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\SplPriorityQueue;
 use InvalidArgumentException;
 
@@ -36,9 +37,10 @@ class AstVisitorRegistry
     /**
      * Insert a visitor class name with optional priority.
      *
-     * Boot-only. Visitor registrations persist in a static queue for the worker
-     * lifetime and are used by proxy generation.
+     * Visitor registrations persist in a static queue for the worker lifetime
+     * and are used by proxy generation.
      */
+    #[BootOnly]
     public static function insert(string $value, int $priority = 0): bool
     {
         static::$values[] = $value;

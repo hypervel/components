@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeDisabled;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -59,7 +60,7 @@ class UpCommand extends Command
             try {
                 $this->reloadWorkers();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             if ($exception !== null) {

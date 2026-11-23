@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Client\Transport;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Mcp\Client\Contracts\Transport;
 use Hypervel\Mcp\Client\Exceptions\TimeoutException;
 use Hypervel\Mcp\Client\Exceptions\TransportException;
 use Hypervel\Process\InvokedProcess;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ExceptionInterface;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
@@ -238,9 +238,7 @@ class StdioTransport implements Transport
         try {
             $this->disconnect();
         } catch (Throwable $cleanupException) {
-            if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                throw $cleanupException;
-            }
+            throw Coroutine::preferCancellation($exception, $cleanupException);
         }
 
         throw $exception;

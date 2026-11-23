@@ -10,18 +10,21 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use Hypervel\OpenTelemetry\Support\ExportScheduler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Swoole\Coroutine\CanceledException;
 
 class ExportSchedulerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUsesOneTimerAtTheSmallestCadenceAndFlushesOnlyDueSignals(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
-        $manager->shouldReceive('flushSignals')->once()->with(['logs'])->andReturnTrue();
-        $manager->shouldReceive('flushSignals')->once()->with(['traces', 'logs'])->andReturnTrue();
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
+        $manager->expects('flushSignals')->with(['logs'])->returns(true);
+        $manager->expects('flushSignals')->with(['traces', 'logs'])->returns(true);
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
 
@@ -44,20 +47,19 @@ class ExportSchedulerTest extends TestCase
 
     public function testAdvancesDueTimesPastASlowExportWithoutCatchUpBursts(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
-        $manager->shouldReceive('flushSignals')
-            ->once()
+        $manager->expects('flushSignals')
             ->with(['traces', 'logs'])
-            ->andReturnUsing(function () use ($scheduler): bool {
+            ->resolves(function () use ($scheduler): bool {
                 $scheduler->time = 12500;
 
                 return true;
             });
-        $manager->shouldReceive('flushSignals')->once()->with(['logs'])->andReturnTrue();
+        $manager->expects('flushSignals')->with(['logs'])->returns(true);
         $scheduler->start();
 
         $scheduler->time = 5000;
@@ -70,15 +72,14 @@ class ExportSchedulerTest extends TestCase
 
     public function testStopDuringAnInFlightExportDoesNotRescheduleClearedCadence(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
-        $manager->shouldReceive('flushSignals')
-            ->once()
+        $manager->expects('flushSignals')
             ->with(['logs'])
-            ->andReturnUsing(function () use ($scheduler): bool {
+            ->resolves(function () use ($scheduler): bool {
                 $scheduler->stop();
 
                 return true;
@@ -93,21 +94,23 @@ class ExportSchedulerTest extends TestCase
 
     public function testStaleExportDoesNotAdvanceRestartedCadence(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->twice()->andReturnTrue();
-        $manager->shouldReceive('configuration')->twice()->andReturn($this->configuration());
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->times(2)->returns(true);
+        $manager->expects('configuration')->times(2)->returns($this->configuration());
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
-        $manager->shouldReceive('flushSignals')
-            ->once()
+        $flushCalls = 0;
+        $manager->expects('flushSignals')
+            ->times(2)
             ->with(['logs'])
-            ->andReturnUsing(function () use ($scheduler): bool {
-                $scheduler->stop();
-                $scheduler->start();
+            ->resolves(function () use ($scheduler, &$flushCalls): bool {
+                if (++$flushCalls === 1) {
+                    $scheduler->stop();
+                    $scheduler->start();
+                }
 
                 return true;
             });
-        $manager->shouldReceive('flushSignals')->once()->with(['logs'])->andReturnTrue();
         $scheduler->start();
         $scheduler->time = 1000;
 
@@ -126,10 +129,10 @@ class ExportSchedulerTest extends TestCase
 
     public function testPeriodicContentionSkipsWithoutReportingProviderFailure(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
-        $manager->shouldReceive('flushSignals')->once()->with(['logs'])->andReturnNull();
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
+        $manager->expects('flushSignals')->with(['logs'])->returns(null);
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
         $scheduler->start();
@@ -144,10 +147,10 @@ class ExportSchedulerTest extends TestCase
     public function testPeriodicCancellationEscapesToTheTimerOwner(): void
     {
         $cancellation = new CanceledException;
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
-        $manager->shouldReceive('flushSignals')->once()->with(['logs'])->andThrow($cancellation);
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
+        $manager->expects('flushSignals')->with(['logs'])->throws($cancellation);
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
         $scheduler->start();
@@ -169,9 +172,9 @@ class ExportSchedulerTest extends TestCase
         $configuration['metrics']['exporter'] = 'none';
         $configuration['traces']['exporter'] = 'none';
         $configuration['logs']['exporter'] = 'none';
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($configuration);
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($configuration);
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
 
@@ -183,10 +186,10 @@ class ExportSchedulerTest extends TestCase
 
     public function testClosingTickShutsDownProvidersAndStopsTheTimer(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
-        $manager->shouldReceive('shutdown')->once()->andReturnTrue();
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
+        $manager->expects('shutdown')->returns(true);
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
         $scheduler->start();
@@ -199,10 +202,10 @@ class ExportSchedulerTest extends TestCase
     public function testClosingCancellationEscapesToTheTimerOwner(): void
     {
         $cancellation = new CanceledException;
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
-        $manager->shouldReceive('shutdown')->once()->andThrow($cancellation);
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
+        $manager->expects('shutdown')->throws($cancellation);
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
         $scheduler->start();
@@ -219,10 +222,10 @@ class ExportSchedulerTest extends TestCase
 
     public function testExplicitShutdownClearsTheTimerBeforeClosingProviders(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
-        $manager->shouldReceive('shutdown')->once()->andReturnTrue();
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(true);
+        $manager->expects('configuration')->returns($this->configuration());
+        $manager->expects('shutdown')->returns(true);
         $timer = new ExportSchedulerTimer;
         $scheduler = new TestExportScheduler($manager, $timer);
         $scheduler->start();

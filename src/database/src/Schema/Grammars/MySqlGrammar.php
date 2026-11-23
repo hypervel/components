@@ -79,7 +79,7 @@ class MySqlGrammar extends Grammar
         return sprintf(
             'select exists (select 1 from information_schema.tables where '
             . "table_schema = %s and table_name = %s and table_type in ('BASE TABLE', 'SYSTEM VERSIONED')) as `exists`",
-            $schema ? $this->quoteString($schema) : 'schema()',
+            $schema !== null ? $this->quoteString($schema) : 'schema()',
             $this->quoteString($table)
         );
     }
@@ -114,7 +114,7 @@ class MySqlGrammar extends Grammar
     {
         return $column . (match (true) {
             ! empty($schema) && is_array($schema) => ' in (' . $this->quoteString($schema) . ')',
-            ! empty($schema) => ' = ' . $this->quoteString($schema),
+            is_string($schema) => ' = ' . $this->quoteString($schema),
             default => " not in ('information_schema', 'mysql', 'ndbinfo', 'performance_schema', 'sys')",
         });
     }
@@ -131,7 +131,7 @@ class MySqlGrammar extends Grammar
             . 'generation_expression as `expression`, extra as `extra` '
             . 'from information_schema.columns where table_schema = %s and table_name = %s '
             . 'order by ordinal_position asc',
-            $schema ? $this->quoteString($schema) : 'schema()',
+            $schema !== null ? $this->quoteString($schema) : 'schema()',
             $this->quoteString($table)
         );
     }
@@ -141,12 +141,13 @@ class MySqlGrammar extends Grammar
      */
     public function compileIndexes(?string $schema, string $table): string
     {
+        // Keep native rows: comma aggregation loses names and can truncate long keys.
         return sprintf(
-            'select index_name as `name`, group_concat(column_name order by seq_in_index) as `columns`, '
+            'select index_name as `name`, column_name as `column_name`, '
             . 'index_type as `type`, not non_unique as `unique` '
             . 'from information_schema.statistics where table_schema = %s and table_name = %s '
-            . 'group by index_name, index_type, non_unique',
-            $schema ? $this->quoteString($schema) : 'schema()',
+            . 'order by index_name, seq_in_index',
+            $schema !== null ? $this->quoteString($schema) : 'schema()',
             $this->quoteString($table)
         );
     }
@@ -156,20 +157,26 @@ class MySqlGrammar extends Grammar
      */
     public function compileForeignKeys(?string $schema, string $table): string
     {
+        $schema = $schema !== null ? $this->quoteString($schema) : 'schema()';
+        $table = $this->quoteString($table);
+
         return sprintf(
             'select kc.constraint_name as `name`, '
-            . 'group_concat(kc.column_name order by kc.ordinal_position) as `columns`, '
+            . 'kc.column_name as `column_name`, '
             . 'kc.referenced_table_schema as `foreign_schema`, '
             . 'kc.referenced_table_name as `foreign_table`, '
-            . 'group_concat(kc.referenced_column_name order by kc.ordinal_position) as `foreign_columns`, '
+            . 'kc.referenced_column_name as `foreign_column_name`, '
             . 'rc.update_rule as `on_update`, '
             . 'rc.delete_rule as `on_delete` '
             . 'from information_schema.key_column_usage kc join information_schema.referential_constraints rc '
             . 'on kc.constraint_schema = rc.constraint_schema and kc.constraint_name = rc.constraint_name '
             . 'where kc.table_schema = %s and kc.table_name = %s and kc.referenced_table_name is not null '
-            . 'group by kc.constraint_name, kc.referenced_table_schema, kc.referenced_table_name, rc.update_rule, rc.delete_rule',
-            $schema ? $this->quoteString($schema) : 'schema()',
-            $this->quoteString($table)
+            . 'and rc.constraint_schema = %s and rc.table_name = %s '
+            . 'order by kc.constraint_name, kc.ordinal_position',
+            $schema,
+            $table,
+            $schema,
+            $table
         );
     }
 

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Sleep;
+use Hypervel\Support\Traits\GuardsProcessOutput;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\artisan_binary;
@@ -13,6 +15,8 @@ use function Hypervel\Support\php_binary;
 
 class Listener
 {
+    use GuardsProcessOutput;
+
     /**
      * The environment the workers should run under.
      */
@@ -121,7 +125,7 @@ class Listener
             '--once',
             "--name={$options->name}",
             "--queue={$queue}",
-            "--backoff={$options->backoff}",
+            '--backoff=' . (is_array($options->backoff) ? implode(',', $options->backoff) : $options->backoff),
             "--memory={$options->memory}",
             "--sleep={$options->sleep}",
             "--tries={$options->maxTries}",
@@ -136,9 +140,9 @@ class Listener
      */
     public function runProcess(Process $process, float|string $memory): void
     {
-        $process->run(function ($type, $line) {
+        $process->run($this->guardProcessOutput($process, function ($type, $line) {
             $this->handleWorkerOutput($type, $line);
-        });
+        }));
 
         // Once we have run the job we'll go check if the memory limit has been exceeded
         // for the script. If it has, we will kill this script so the process manager
@@ -179,9 +183,10 @@ class Listener
     /**
      * Set the output handler callback.
      *
-     * Boot-only. The callback persists on the singleton listener for the
-     * command lifetime and handles every subsequent worker output line.
+     * The callback persists on the singleton listener for the command
+     * lifetime and handles every subsequent worker output line.
      */
+    #[BootOnly(whenShared: true)]
     public function setOutputHandler(Closure $outputHandler): void
     {
         $this->outputHandler = $outputHandler;

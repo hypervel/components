@@ -9,19 +9,22 @@ use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Tests\Integration\Horizon\Controller\Fixtures\User;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class MonitoringControllerTest extends ControllerTestCase
 {
+    use VerifiesDoubles;
+
     public function testMonitoredTagsAndJobCountsAreReturned(): void
     {
-        $tags = m::mock(TagRepository::class);
+        $tags = Double::for(TagRepository::class)->strict();
 
-        $tags->shouldReceive('monitoring')->andReturn(['first', 'second']);
-        $tags->shouldReceive('count')->with('first')->andReturn(1);
-        $tags->shouldReceive('count')->with('failed:first')->andReturn(1);
-        $tags->shouldReceive('count')->with('second')->andReturn(2);
-        $tags->shouldReceive('count')->with('failed:second')->andReturn(2);
+        $tags->allows('monitoring')->returns(['first', 'second']);
+        $tags->allows('count')->with('first')->returns(1);
+        $tags->allows('count')->with('failed:first')->returns(1);
+        $tags->allows('count')->with('second')->returns(2);
+        $tags->allows('count')->with('failed:second')->returns(2);
 
         $this->app->instance(TagRepository::class, $tags);
 

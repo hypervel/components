@@ -9,10 +9,10 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Support\now;
@@ -54,19 +54,18 @@ class ConcurrencyLimiter
     {
         $id = Str::random(20);
 
-        $starting = ((int) now()->format('Uu')) / 1000;
-
-        $milliseconds = $timeout * 1000;
+        $deadline = (int) now()->format('Uu') + $timeout * 1_000_000;
 
         while (! $lock = $this->claimSlot($id)) {
-            $now = ((int) now()->format('Uu')) / 1000;
+            $remaining = $deadline - (int) now()->format('Uu');
 
-            if (($now + $sleep - $milliseconds) >= $starting) {
+            if ($remaining <= 0) {
                 throw new LimiterTimeoutException;
             }
 
             ConnectionResolver::releaseIdleConnections();
-            Sleep::usleep($sleep * 1000);
+            // Allow a final attempt without sleeping beyond the remaining wait.
+            Sleep::usleep(min($sleep * 1000, $remaining));
         }
 
         return $lock instanceof RefreshableLock
@@ -94,12 +93,8 @@ class ConcurrencyLimiter
             } catch (Throwable $throwable) {
                 try {
                     $lease->release();
-                } catch (CanceledException $cleanupCancellation) {
-                    if (! $throwable instanceof CanceledException) {
-                        throw $cleanupCancellation;
-                    }
-                } catch (Throwable) {
-                    // Preserve the callback failure as primary.
+                } catch (Throwable $cleanupFailure) {
+                    throw Coroutine::preferCancellation($throwable, $cleanupFailure);
                 }
 
                 throw $throwable;

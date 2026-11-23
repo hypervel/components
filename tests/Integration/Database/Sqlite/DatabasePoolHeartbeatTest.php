@@ -21,7 +21,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\AbstractLogger;
 use ReflectionProperty;
@@ -34,6 +35,8 @@ use function Hypervel\Coroutine\run;
 
 class DatabasePoolHeartbeatTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     protected string $databasePath;
@@ -111,8 +114,8 @@ class DatabasePoolHeartbeatTest extends TestCase
             $property = new ReflectionProperty(DatabasePool::class, 'heartbeatTimer');
             $timer = $property->getValue($pool);
             $failure = new RuntimeException('Timer creation failed.');
-            $failingTimer = m::mock(Timer::class);
-            $failingTimer->shouldReceive('tick')->once()->andThrow($failure);
+            $failingTimer = Double::for(Timer::class)->strict();
+            $failingTimer->expects('tick')->throws($failure);
             $property->setValue($pool, $failingTimer);
             $caught = null;
 
@@ -492,12 +495,12 @@ class DatabasePoolHeartbeatTest extends TestCase
             $secondary = $path === 'evaluation with failed close'
                 ? new RuntimeException('close failed')
                 : new CanceledException('secondary close cancellation');
-            $logger = m::mock(StdoutLoggerInterface::class);
+            $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
             if ($path === 'evaluation with failed close') {
-                $logger->shouldReceive('error')->once()->with((string) $secondary);
+                $logger->expects('error')->with((string) $secondary);
             } else {
-                $logger->shouldNotReceive('error');
+                $logger->expects('error')->never();
             }
 
             $this->app->instance(StdoutLoggerInterface::class, $logger);

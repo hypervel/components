@@ -10,17 +10,20 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PDO;
 
 class DatabasePostgresQueryGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUpdateBindingsRejectUnencodableArrays(): void
     {
         $this->expectException(JsonException::class);
 
-        (new PostgresGrammar(m::mock(Connection::class)))
+        (new PostgresGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
@@ -34,14 +37,14 @@ class DatabasePostgresQueryGrammarTest extends TestCase
 
         $this->expectException(JsonException::class);
 
-        (new PostgresGrammar(m::mock(Connection::class)))
+        (new PostgresGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdateFrom([], ['payload' => $value]);
     }
 
     public function testToRawSql(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('escape')->with('foo', false)->returns("'foo'");
         $grammar = new PostgresGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(
@@ -72,8 +75,8 @@ class DatabasePostgresQueryGrammarTest extends TestCase
 
     public function testCompileTruncate(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('getTablePrefix')->times(3)->andReturn('');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getTablePrefix')->times(3)->returns('');
 
         $postgres = new PostgresGrammar($connection);
         $builder = new Builder($connection, $postgres, new Processor);
@@ -98,11 +101,11 @@ class DatabasePostgresQueryGrammarTest extends TestCase
 
     public function testFlushStateRestoresDefaults(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getTablePrefix')->returns('');
 
         $postgres = new PostgresGrammar($connection);
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->from = 'users';
 
         PostgresGrammar::customOperators(['@@@']);

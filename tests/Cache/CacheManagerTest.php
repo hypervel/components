@@ -36,8 +36,8 @@ use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use ReflectionProperty;
@@ -47,6 +47,7 @@ use stdClass;
 class CacheManagerTest extends TestCase
 {
     use InteractsWithSwooleTables;
+    use VerifiesDoubles;
 
     public function testCustomDriverClosureBoundObjectIsCacheManager(): void
     {
@@ -123,9 +124,8 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
         $cacheManager = new CacheManager($app);
 
-        /** @var CacheRepository&MockInterface */
-        $repository = m::mock(CacheRepository::class);
-        $repository->shouldReceive('get')->with('foo')->andReturn('bar');
+        $repository = Double::for(CacheRepository::class)->strict();
+        $repository->allows('get')->with('foo')->returns('bar');
 
         $cacheManager->extend('array', fn (): CacheRepository => $repository);
 
@@ -179,14 +179,14 @@ class CacheManagerTest extends TestCase
             ],
         ]);
         $failure = new RuntimeException('primary unavailable');
-        $primary = m::mock(Store::class);
-        $primary->expects('get')->with('key')->andThrow($failure);
-        $secondary = m::mock(Store::class);
-        $secondary->expects('get')->with('key')->andReturn('value');
+        $primary = Double::for(Store::class)->strict();
+        $primary->expects('get')->with('key')->throws($failure);
+        $secondary = Double::for(Store::class)->strict();
+        $secondary->expects('get')->with('key')->returns('value');
         $captured = null;
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
-        $events->expects('dispatch')->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(CacheFailedOver::class)->returns(true);
+        $events->expects('dispatch')->resolves(function (CacheFailedOver $event) use (&$captured): void {
             $captured = $event;
         });
         $app->instance(Dispatcher::class, $events);
@@ -326,10 +326,10 @@ class CacheManagerTest extends TestCase
                 ],
             ],
         ]);
-        $app->instance('db', m::mock(ConnectionResolverInterface::class));
+        $app->instance('db', Double::for(ConnectionResolverInterface::class)->strict());
         $app->instance('files', new Filesystem);
-        $filesystem = m::mock(FilesystemFactory::class);
-        $filesystem->expects('disk')->with('test')->andReturn(new ArrayFilesystem);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
+        $filesystem->expects('disk')->with('test')->returns(new ArrayFilesystem);
         $app->instance('filesystem', $filesystem);
         $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
         $manager = new CacheManager($app);
@@ -407,8 +407,8 @@ class CacheManagerTest extends TestCase
     {
         $disk = new ArrayFilesystem;
 
-        $filesystem = m::mock(FilesystemFactory::class);
-        $filesystem->expects('disk')->with('s3')->andReturn($disk);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
+        $filesystem->expects('disk')->with('s3')->returns($disk);
 
         $app = $this->getApp([
             'cache' => [
@@ -505,7 +505,7 @@ class CacheManagerTest extends TestCase
         ];
 
         $cacheManager = new CacheManager($this->getApp($userConfig));
-        $repository = m::mock(CacheRepository::class);
+        $repository = Double::for(CacheRepository::class)->strict();
 
         $cacheManager->extend('worker-array', fn (): CacheRepository => $repository);
 
@@ -535,7 +535,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($theStore, $repo->getStore());
 
         // binding dispatcher after the repo's birth will have no effect.
-        $eventDispatcher = m::mock(Dispatcher::class);
+        $eventDispatcher = Double::for(Dispatcher::class)->strict();
         $app->instance(Dispatcher::class, $eventDispatcher);
 
         $this->assertNull($repo->getEventDispatcher());
@@ -566,7 +566,7 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
 
-        $originalDispatcher = m::mock(Dispatcher::class);
+        $originalDispatcher = Double::for(Dispatcher::class)->strict();
         $app->instance(Dispatcher::class, $originalDispatcher);
 
         $cacheManager = new CacheManager($app);
@@ -576,7 +576,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($originalDispatcher, $repo1->getEventDispatcher());
         $this->assertSame($originalDispatcher, $repo2->getEventDispatcher());
 
-        $replacementDispatcher = m::mock(Dispatcher::class);
+        $replacementDispatcher = Double::for(Dispatcher::class)->strict();
         $app->instance(Dispatcher::class, $replacementDispatcher);
 
         $cacheManager->refreshEventDispatcher();
@@ -595,11 +595,10 @@ class CacheManagerTest extends TestCase
                 ],
             ],
         ]);
-        $app->instance(Dispatcher::class, m::mock(Dispatcher::class));
+        $app->instance(Dispatcher::class, Double::for(Dispatcher::class)->strict());
 
         $cacheManager = new CacheManager($app);
-        $repository = m::mock(CacheRepository::class);
-        $repository->shouldNotReceive('setEventDispatcher');
+        $repository = Double::for(CacheRepository::class)->strict();
         $cacheManager->extend('custom', fn (): CacheRepository => $repository);
 
         $this->assertSame($repository, $cacheManager->store('custom'));
@@ -607,6 +606,7 @@ class CacheManagerTest extends TestCase
         $cacheManager->refreshEventDispatcher();
 
         $this->assertSame($repository, $cacheManager->store('custom'));
+        $repository->unused();
     }
 
     public function testItSetsDefaultDriverChangesGlobalConfig(): void
@@ -677,17 +677,15 @@ class CacheManagerTest extends TestCase
 
     public function testForgetDriver(): void
     {
-        $cacheManager = m::mock(CacheManager::class)
-            ->shouldAllowMockingProtectedMethods()
-            ->makePartial();
+        $cacheManager = Double::for(new CacheManager($this->getApp([])))->passthru();
 
         $cacheManager->expects('resolve')
-            ->withArgs(['array'])
+            ->with('array')
             ->times(4)
-            ->andReturn(m::mock(CacheRepository::class));
+            ->returns(Double::for(CacheRepository::class)->strict());
 
         $cacheManager->expects('getDefaultDriver')
-            ->andReturn('array');
+            ->returns('array');
 
         foreach (['array', ['array'], null] as $option) {
             $cacheManager->store('array');
@@ -712,24 +710,8 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
 
-        $count = 0;
-
         $cacheManager = new CacheManager($app);
-        $cacheManager->extend('forget', function () use (&$count): CacheRepository {
-            /** @var CacheRepository&MockInterface */
-            $repository = m::mock(CacheRepository::class);
-
-            if ($count++ === 0) {
-                $repository->expects('forever')->with('foo', 'bar');
-                $repository->expects('get')->with('foo')->andReturn('bar');
-
-                return $repository;
-            }
-
-            $repository->expects('get')->with('foo')->andReturnNull();
-
-            return $repository;
-        });
+        $cacheManager->extend('forget', fn (): Repository => new Repository(new ArrayStore));
 
         $cacheManager->store('forget')->forever('foo', 'bar');
         $this->assertSame('bar', $cacheManager->store('forget')->get('foo'));
@@ -737,29 +719,53 @@ class CacheManagerTest extends TestCase
         $this->assertNull($cacheManager->store('forget')->get('foo'));
     }
 
-    public function testForgetDriverForgetsTheCallingCoroutinesMemoizedRepository(): void
+    #[DataProvider('memoizedStoresToForget')]
+    public function testForgetDriverForgetsTheCallingCoroutinesMemoizedRepository(string $store, bool $forgetConfiguredStores): void
     {
-        $app = $this->getApp([
-            'cache' => [
-                'stores' => [
-                    'array' => ['driver' => 'array'],
-                ],
-            ],
-        ]);
-        $cacheManager = new CacheManager($app);
-        $firstRepository = $cacheManager->memo('array');
+        $stores = [$store => ['driver' => 'array']];
+        $cacheManager = new CacheManager($this->getApp(['cache' => ['stores' => $stores]]));
+        $firstRepository = $cacheManager->memo($store);
         $firstMemoizedStore = $firstRepository->getStore();
 
         $this->assertInstanceOf(MemoizedStore::class, $firstMemoizedStore);
 
-        $cacheManager->forgetDriver('array');
+        $cacheManager->forgetDriver($forgetConfiguredStores ? array_keys($stores) : $store);
 
-        $secondRepository = $cacheManager->memo('array');
+        $secondRepository = $cacheManager->memo($store);
         $secondMemoizedStore = $secondRepository->getStore();
 
         $this->assertInstanceOf(MemoizedStore::class, $secondMemoizedStore);
         $this->assertNotSame($firstRepository, $secondRepository);
         $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
+    }
+
+    /**
+     * Provide store names and whether to forget them through the configured store keys.
+     */
+    public static function memoizedStoresToForget(): array
+    {
+        return [
+            'string name' => ['array', false],
+            'numeric name from the configured store keys' => ['0', true],
+        ];
+    }
+
+    public function testMemoizedRepositoriesBelongToTheirManager(): void
+    {
+        $config = ['cache' => ['stores' => ['array' => ['driver' => 'array']]]];
+        $first = new CacheManager($this->getApp($config));
+        $second = new CacheManager($this->getApp($config));
+
+        $first->memo('array')->put('key', 'first', 60);
+        $second->memo('array')->put('key', 'second', 60);
+        $firstMemo = $first->memo('array');
+
+        $this->assertSame('first', $firstMemo->get('key'));
+        $this->assertSame('second', $second->memo('array')->get('key'));
+
+        $second->forgetDriver('array');
+
+        $this->assertSame($firstMemo, $first->memo('array'));
     }
 
     public function testMemoizedRepositoriesPreserveStoreIdentityAndSuppressDuplicateEvents(): void
@@ -922,7 +928,7 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
 
-        $session = m::mock(Session::class);
+        $session = Double::for(Session::class)->strict();
         $app->instance('session.store', $session);
 
         $cacheManager = new CacheManager($app);
@@ -1150,29 +1156,29 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
 
         // Mock Redis client
-        $redisClient = m::mock();
-        $redisClient->shouldReceive('getOption')
+        $redisClient = Double::for(Redis::class)->strict();
+        $redisClient->allows('getOption')
             ->with(Redis::OPT_COMPRESSION)
-            ->andReturn(Redis::COMPRESSION_NONE);
-        $redisClient->shouldReceive('getOption')
+            ->returns(Redis::COMPRESSION_NONE);
+        $redisClient->allows('getOption')
             ->with(Redis::OPT_PREFIX)
-            ->andReturn('');
+            ->returns('');
 
         // Mock RedisConnection
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('release')->zeroOrMoreTimes();
-        $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('client')->andReturn($redisClient);
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->allows('release');
+        $connection->allows('serialized')->returns(false);
+        $connection->allows('client')->returns($redisClient);
 
         // Mock RedisPool
-        $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('borrow')->andReturn($connection);
+        $pool = Double::for(RedisPool::class)->strict();
+        $pool->allows('borrow')->returns($connection);
 
-        $poolManager = m::mock(PoolManager::class);
-        $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
+        $poolManager = Double::for(PoolManager::class)->strict();
+        $poolManager->allows('pool')->with('default')->returns($pool);
 
         // Mock RedisFactory
-        $redisFactory = m::mock(RedisFactory::class);
+        $redisFactory = Double::for(RedisFactory::class)->strict();
 
         $app->instance('redis', $redisFactory);
         $app->instance(PoolManager::class, $poolManager);

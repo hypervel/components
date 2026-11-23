@@ -12,7 +12,7 @@ use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use ReflectionProperty;
 
 class DeferredWebhookManagerTest extends ReverbTestCase
@@ -21,6 +21,9 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
     protected Application $testApp;
 
+    /**
+     * Set up the deferred webhook manager.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -50,13 +53,12 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         $callback = null;
         $this->captureDeferredCallback(10, $callback);
 
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('getSubscriptionCount')
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->allows('getSubscriptionCount')
             ->with('test-app', 'test-channel')
-            ->andReturn(0);
-        $sharedState->shouldReceive('clearSmoothingPending')
-            ->with('test-app', 'test-channel', 5000)
-            ->once();
+            ->returns(0);
+        $sharedState->expects('clearSmoothingPending')
+            ->with('test-app', 'test-channel', 5000);
         $this->app->instance(SharedState::class, $sharedState);
 
         $this->manager->deferChannelVacated($this->testApp, 'test-channel', 0.05, 5000);
@@ -73,8 +75,8 @@ class DeferredWebhookManagerTest extends ReverbTestCase
     public function testChannelVacatedSuppressedOnCancel(): void
     {
         $timer = $this->replaceTimer();
-        $timer->shouldReceive('after')->once()->andReturn(11);
-        $timer->shouldReceive('clear')->with(11)->once();
+        $timer->expects('after')->returns(11);
+        $timer->expects('clear')->with(11);
 
         $this->manager->deferChannelVacated($this->testApp, 'test-channel', 0.05, 5000);
 
@@ -88,13 +90,12 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         $callback = null;
         $this->captureDeferredCallback(13, $callback);
 
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('getSubscriptionCount')
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->allows('getSubscriptionCount')
             ->with('test-app', 'test-channel')
-            ->andReturn(1); // Client reconnected
-        $sharedState->shouldReceive('clearSmoothingPending')
-            ->with('test-app', 'test-channel', 5000)
-            ->once();
+            ->returns(1); // Client reconnected
+        $sharedState->expects('clearSmoothingPending')
+            ->with('test-app', 'test-channel', 5000);
         $this->app->instance(SharedState::class, $sharedState);
 
         $this->manager->deferChannelVacated($this->testApp, 'test-channel', 0.05, 5000);
@@ -114,13 +115,12 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         $callback = null;
         $this->captureDeferredCallback(14, $callback);
 
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('getUserSubscriptionCount')
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->allows('getUserSubscriptionCount')
             ->with('test-app', 'presence-test', 'user-1')
-            ->andReturn(0);
-        $sharedState->shouldReceive('clearMemberSmoothingPending')
-            ->with('test-app', 'presence-test', 'user-1', 5000)
-            ->once();
+            ->returns(0);
+        $sharedState->expects('clearMemberSmoothingPending')
+            ->with('test-app', 'presence-test', 'user-1', 5000);
         $this->app->instance(SharedState::class, $sharedState);
 
         $this->manager->deferMemberRemoved($this->testApp, 'presence-test', 'user-1', 0.05, 5000);
@@ -140,8 +140,8 @@ class DeferredWebhookManagerTest extends ReverbTestCase
     public function testMemberRemovedSuppressedOnCancel(): void
     {
         $timer = $this->replaceTimer();
-        $timer->shouldReceive('after')->once()->andReturn(12);
-        $timer->shouldReceive('clear')->with(12)->once();
+        $timer->expects('after')->returns(12);
+        $timer->expects('clear')->with(12);
 
         $this->manager->deferMemberRemoved($this->testApp, 'presence-test', 'user-1', 0.05, 5000);
 
@@ -155,13 +155,12 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         $callback = null;
         $this->captureDeferredCallback(15, $callback);
 
-        $sharedState = m::mock(SharedState::class);
-        $sharedState->shouldReceive('getUserSubscriptionCount')
+        $sharedState = Double::for(SharedState::class)->strict();
+        $sharedState->allows('getUserSubscriptionCount')
             ->with('test-app', 'presence-test', 'user-1')
-            ->andReturn(1); // User reconnected
-        $sharedState->shouldReceive('clearMemberSmoothingPending')
-            ->with('test-app', 'presence-test', 'user-1', 5000)
-            ->once();
+            ->returns(1); // User reconnected
+        $sharedState->expects('clearMemberSmoothingPending')
+            ->with('test-app', 'presence-test', 'user-1', 5000);
         $this->app->instance(SharedState::class, $sharedState);
 
         $this->manager->deferMemberRemoved($this->testApp, 'presence-test', 'user-1', 0.05, 5000);
@@ -178,10 +177,10 @@ class DeferredWebhookManagerTest extends ReverbTestCase
     public function testCancelAllClearsAllPendingTimers(): void
     {
         $timer = $this->replaceTimer();
-        $timer->shouldReceive('after')->times(3)->andReturn(1, 2, 3);
-        $timer->shouldReceive('clear')->with(1)->once();
-        $timer->shouldReceive('clear')->with(2)->once();
-        $timer->shouldReceive('clear')->with(3)->once();
+        $timer->expects('after')->times(3)->returns(1, 2, 3);
+        $timer->expects('clear')->with(1);
+        $timer->expects('clear')->with(2);
+        $timer->expects('clear')->with(3);
 
         $this->manager->deferChannelVacated($this->testApp, 'channel-a', 0.05, 5000);
         $this->manager->deferChannelVacated($this->testApp, 'channel-b', 0.05, 5000);
@@ -199,7 +198,7 @@ class DeferredWebhookManagerTest extends ReverbTestCase
      */
     protected function replaceTimer(): Timer
     {
-        $timer = m::mock(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
 
         (new ReflectionProperty($this->manager, 'timer'))->setValue($this->manager, $timer);
 
@@ -212,9 +211,8 @@ class DeferredWebhookManagerTest extends ReverbTestCase
     protected function captureDeferredCallback(int $timerId, ?Closure &$callback): void
     {
         $timer = $this->replaceTimer();
-        $timer->shouldReceive('after')
-            ->once()
-            ->andReturnUsing(function (float $timeout, Closure $deferredCallback) use ($timerId, &$callback): int {
+        $timer->expects('after')
+            ->resolves(function (float $timeout, Closure $deferredCallback) use ($timerId, &$callback): int {
                 $callback = $deferredCallback;
 
                 return $timerId;

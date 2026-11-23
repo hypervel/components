@@ -93,6 +93,14 @@ class TestCaseExceptionHandler implements ExceptionHandler
     }
 
     /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        return $this->handler->shouldStopRetries($e);
+    }
+
+    /**
      * Forward calls to the wrapped handler.
      */
     public function __call(string $name, array $arguments): mixed

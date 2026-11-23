@@ -18,6 +18,7 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
+        // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
         return view('profile.edit', [
             'user' => $request->user(),
         ]);

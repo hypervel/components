@@ -21,19 +21,23 @@ use Hypervel\Queue\QueueServiceProvider;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 
 class QueueServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: DynamoDbFailedJobProviderTest; DynamoDB failed-job storage is unsupported.
 
     public function testBackgroundAndDeferredConnectionsAreLazyAndReportExceptions(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->twice()->with(m::type(RuntimeException::class));
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->times(2)->with(Argument::type(RuntimeException::class));
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $manager = $this->app->make('queue');

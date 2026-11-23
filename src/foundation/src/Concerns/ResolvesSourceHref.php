@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Concerns;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Str;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -51,10 +51,10 @@ trait ResolvesSourceHref
     {
         try {
             $editor = config('app.editor');
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
-            // ..
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
 
         if (! isset($editor)) {
@@ -68,7 +68,12 @@ trait ResolvesSourceHref
         $basePath = $editor['base_path'] ?? false;
 
         if ($basePath !== false) {
-            $file = Str::replaceStart($this->basePath, $basePath, $file);
+            // Remap application files without rewriting neighboring directories that share its name.
+            $file = Str::replaceStart(
+                $this->basePath . DIRECTORY_SEPARATOR,
+                rtrim($basePath, '/\\') . DIRECTORY_SEPARATOR,
+                $file,
+            );
         }
 
         return str_replace(

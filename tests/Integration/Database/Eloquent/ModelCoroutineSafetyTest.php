@@ -13,15 +13,12 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;
 
 use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
 
 /**
- * Tests coroutine safety of Model state methods.
- *
- * These tests verify that withoutEvents(), withoutBroadcasting(),
- * withoutTouching(), and withoutTimestamps() use Context
- * (per-coroutine storage) rather than static properties
- * (process-global), ensuring concurrent requests don't interfere
- * with each other.
+ * Tests that Model's scoped state methods use Context (per-coroutine storage)
+ * rather than static properties (process-global), so concurrent requests
+ * don't interfere with each other.
  */
 class ModelCoroutineSafetyTest extends DatabaseTestCase
 {
@@ -406,6 +403,63 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
 
         $this->assertTrue($results[1], 'Coroutine 1 should be ignoring timestamps');
         $this->assertFalse($results[2], 'Coroutine 2 should NOT be ignoring timestamps (isolated context)');
+    }
+
+    public function testWithoutAutomaticallyEagerLoadingRelationshipsRestoresNestedStateAfterException(): void
+    {
+        Model::automaticallyEagerLoadRelationships();
+        $expectedException = new RuntimeException('Test exception');
+        $caughtException = null;
+
+        try {
+            $result = Model::withoutAutomaticallyEagerLoadingRelationships(function () use ($expectedException, &$caughtException) {
+                try {
+                    Model::withoutAutomaticallyEagerLoadingRelationships(function () use ($expectedException): never {
+                        $this->assertFalse(Model::isAutomaticallyEagerLoadingRelationships());
+
+                        throw $expectedException;
+                    });
+                } catch (RuntimeException $exception) {
+                    $caughtException = $exception;
+                }
+
+                $this->assertFalse(Model::isAutomaticallyEagerLoadingRelationships());
+
+                return 'result';
+            });
+
+            $this->assertSame('result', $result);
+            $this->assertSame($expectedException, $caughtException);
+            $this->assertTrue(Model::isAutomaticallyEagerLoadingRelationships());
+        } finally {
+            Model::automaticallyEagerLoadRelationships(false);
+        }
+    }
+
+    public function testWithoutAutomaticallyEagerLoadingRelationshipsIsCoroutineIsolated(): void
+    {
+        Model::automaticallyEagerLoadRelationships();
+
+        try {
+            [$suppressed, $isolated] = parallel([
+                fn () => Model::withoutAutomaticallyEagerLoadingRelationships(function () {
+                    usleep(50000);
+
+                    return Model::isAutomaticallyEagerLoadingRelationships();
+                }),
+                function () {
+                    usleep(10000);
+
+                    return Model::isAutomaticallyEagerLoadingRelationships();
+                },
+            ]);
+
+            $this->assertFalse($suppressed, 'Coroutine 1 should not automatically eager load relationships');
+            $this->assertTrue($isolated, 'Coroutine 2 should keep the boot setting (isolated context)');
+            $this->assertTrue(Model::isAutomaticallyEagerLoadingRelationships());
+        } finally {
+            Model::automaticallyEagerLoadRelationships(false);
+        }
     }
 
     public function testWithoutRecursionIsCoroutineIsolated(): void

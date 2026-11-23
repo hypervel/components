@@ -6,6 +6,7 @@ namespace Hypervel\Translation;
 
 use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -147,7 +148,11 @@ class FileLoader implements Loader
 
     /**
      * Add a new namespace to the loader.
+     *
+     * On the shared loader, the namespace affects every subsequent translation
+     * lookup in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function addNamespace(string $namespace, string $hint): void
     {
         $this->hints[$namespace] = $hint;
@@ -165,7 +170,11 @@ class FileLoader implements Loader
 
     /**
      * Add a new path to the loader.
+     *
+     * On the shared loader, the path affects every subsequent translation lookup
+     * in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function addPath(string $path): void
     {
         $this->paths[] = $path;
@@ -173,7 +182,11 @@ class FileLoader implements Loader
 
     /**
      * Add a new JSON path to the loader.
+     *
+     * On the shared loader, the path affects every subsequent translation lookup
+     * in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function addJsonPath(string $path): void
     {
         $this->jsonPaths[] = $path;

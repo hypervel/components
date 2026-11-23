@@ -18,8 +18,10 @@ use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use stdClass;
 use Typesense\Client as Typesense;
@@ -728,6 +730,20 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
     }
 
     /**
+     * Wrap the given filter value in backticks if it contains any of the given characters.
+     *
+     * @param array<int, string> $characters
+     */
+    protected function quoteFilterValue(mixed $value, array $characters): mixed
+    {
+        if (! is_string($value) || ! Str::contains($value, $characters)) {
+            return $value;
+        }
+
+        return '`' . Str::remove('`', $value) . '`';
+    }
+
+    /**
      * Create a "where" filter string.
      *
      * @param array<mixed>|float|int|string $value
@@ -738,7 +754,9 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
         string $operator = '='
     ): string {
         $operator = match ($operator) {
-            '=' => ':=',
+            // Array values are filter expressions, such as geo filters, so equality leaves the operator out. Unlike
+            // upstream, explicit operators are kept for array values instead of being dropped.
+            '=' => is_array($value) ? ':' : ':=',
             '!=' => ':!=',
             '<' => ':<',
             '>' => ':>',
@@ -747,9 +765,23 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
             default => throw new InvalidArgumentException("Unsupported Typesense filter operator [{$operator}]."),
         };
 
-        return is_array($value)
-            ? sprintf('%s%s%s', $key, $operator, implode('', $value))
-            : sprintf('%s%s%s', $key, $operator, $value);
+        if (is_array($value)) {
+            return sprintf('%s%s%s', $key, $operator, collect($value)
+                ->map(fn (mixed $value): mixed => $this->quoteFilterValue($value, ['&&', '||', '`']))
+                ->implode(''));
+        }
+
+        $quotedValue = $this->quoteFilterValue($value, ['&&', '||', '`', '(', ')']);
+
+        // Unlike upstream, a quoted equality value is sent as a one-member list. Typesense decodes a list member's
+        // backticks as delimiters but keeps them in a scalar value, so a quoted scalar misses its record on a field
+        // that indexes backticks. A value with its own backticks stays scalar: Typesense can't quote them, and the
+        // list would match the value without them, which is a different record on such a field.
+        if (in_array($operator, [':=', ':!='], true) && is_string($value) && $quotedValue !== $value && ! str_contains($value, '`')) {
+            return sprintf('%s%s[%s]', $key, $operator, $quotedValue);
+        }
+
+        return sprintf('%s%s%s', $key, $operator, $quotedValue);
     }
 
     /**
@@ -759,7 +791,9 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
      */
     protected function parseWhereInFilter(array $value, string $key): string
     {
-        return sprintf('%s:=[%s]', $key, implode(', ', $value));
+        return sprintf('%s:=[%s]', $key, collect($value)
+            ->map(fn (mixed $value): mixed => $this->quoteFilterValue($value, ['&&', '||', '`', '(', ')', ',']))
+            ->implode(', '));
     }
 
     /**
@@ -769,7 +803,9 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
      */
     protected function parseWhereNotInFilter(array $value, string $key): string
     {
-        return sprintf('%s:!=[%s]', $key, implode(', ', $value));
+        return sprintf('%s:!=[%s]', $key, collect($value)
+            ->map(fn (mixed $value): mixed => $this->quoteFilterValue($value, ['&&', '||', '`', '(', ')', ',']))
+            ->implode(', '));
     }
 
     /**
@@ -928,6 +964,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
      *
      * @throws NotSupportedException
      */
+    #[Unsupported('Indexes are created automatically when objects are added.')]
     public function createIndex(string $name, array $options = []): mixed
     {
         throw new NotSupportedException('Typesense indexes are created automatically upon adding objects.');

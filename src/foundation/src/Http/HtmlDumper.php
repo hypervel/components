@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Http;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Concerns\ResolvesDumpSource;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\Data;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
@@ -41,12 +42,12 @@ class HtmlDumper extends BaseHtmlDumper
     /**
      * Create a new HTML dumper instance and register it as the default dumper.
      *
-     * Boot-only. Registers a process-wide VarDumper handler for the worker
-     * lifetime.
+     * Registers a process-wide VarDumper handler for the worker lifetime.
      */
+    #[BootOnly]
     public static function register(string $basePath, string $compiledViewPath): void
     {
-        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO); // @phpstan-ignore method.notFound (tap proxy __call)
+        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
         $dumper = new static($basePath, $compiledViewPath);
 

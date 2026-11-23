@@ -36,6 +36,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Session\Store;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Lottery;
@@ -233,9 +234,10 @@ class Handler implements ExceptionHandlerContract
      * The callback receives exceptions matching its first parameter type, along with
      * the exception's log context. Returning false stops further reporting.
      *
-     * Boot-only. The callback persists on the shared handler and affects exception
-     * reporting for every subsequent request and job in the worker.
+     * The callback persists on the shared handler and affects exception reporting
+     * for every subsequent request and job in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function reportable(callable $reportUsing): ReportableHandler
     {
         if (! $reportUsing instanceof Closure) {
@@ -250,9 +252,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a renderable callback.
      *
-     * Boot-only. The callback persists on the shared handler and affects exception
-     * rendering for every subsequent request in the worker.
+     * The callback persists on the shared handler and affects exception rendering
+     * for every subsequent request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function renderable(callable $renderUsing): static
     {
         if (! $renderUsing instanceof Closure) {
@@ -267,11 +272,14 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a new exception mapping.
      *
-     * Boot-only. The mapping persists on the shared handler and affects exception
-     * reporting and rendering for every subsequent request and job in the worker.
+     * The mapping persists on the shared handler and affects exception reporting
+     * and rendering for every subsequent request and job in the worker.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function map(callable|string $from, Closure|string|null $to = null): static
     {
         if (is_string($to)) {
@@ -296,9 +304,12 @@ class Handler implements ExceptionHandlerContract
      *
      * Alias of "ignore".
      *
-     * Boot-only. The exception types persist on the shared handler and affect
-     * exception reporting for every subsequent request and job in the worker.
+     * The exception types persist on the shared handler and affect exception
+     * reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function dontReport(array|string $exceptions): static
     {
         return $this->ignore($exceptions);
@@ -307,11 +318,13 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a callback to determine if an exception should not be reported.
      *
-     * Boot-only. The callback persists on the shared handler and affects exception
-     * reporting for every subsequent request and job in the worker.
+     * The callback persists on the shared handler and affects exception reporting
+     * for every subsequent request and job in the worker.
      *
      * @param (callable(Throwable): bool) $dontReportWhen
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function dontReportWhen(callable $dontReportWhen): static
     {
         if (! $dontReportWhen instanceof Closure) {
@@ -326,9 +339,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Indicate that the given exception type should not be reported.
      *
-     * Boot-only. The exception types persist on the shared handler and affect
-     * exception reporting for every subsequent request and job in the worker.
+     * The exception types persist on the shared handler and affect exception
+     * reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function ignore(array|string $exceptions): static
     {
         $exceptions = Arr::wrap($exceptions);
@@ -341,9 +357,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Indicate that jobs should stop retrying for the given exception types.
      *
-     * Boot-only. The exception types persist on the shared handler and affect
-     * every subsequently failed job in the worker.
+     * The exception types persist on the shared handler and affect every
+     * subsequently failed job in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function dontRetry(array|string $exceptions): static
     {
         $exceptions = Arr::wrap($exceptions);
@@ -356,13 +375,15 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a callback to determine if jobs should stop retrying for an exception.
      *
-     * Boot-only. The callback persists on the shared handler and affects job retry
-     * decisions for every subsequent job in the worker.
+     * The callback persists on the shared handler and affects job retry decisions
+     * for every subsequent job in the worker.
      *
      * @template TException of Throwable
      *
      * @param callable(TException): bool $dontRetryWhen
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function dontRetryWhen(callable $dontRetryWhen): static
     {
         if (! $dontRetryWhen instanceof Closure) {
@@ -434,9 +455,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Indicate that the given attributes should never be flashed to the session on validation errors.
      *
-     * Boot-only. The attributes persist on the shared handler and are omitted
-     * from every subsequent validation redirect in the worker.
+     * The attributes persist on the shared handler and are omitted from every
+     * subsequent validation redirect in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function dontFlash(array|string $attributes): static
     {
         $this->dontFlash = array_values(array_unique(
@@ -449,12 +473,14 @@ class Handler implements ExceptionHandlerContract
     /**
      * Set the log level for the given exception type.
      *
-     * Boot-only. The level persists on the shared handler and affects how later
-     * exceptions of that type are logged in the worker.
+     * The level persists on the shared handler and affects how later exceptions
+     * of that type are logged in the worker.
      *
      * @param class-string<Throwable> $type
      * @param LogLevel::* $level
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function level(string $type, string $level): static
     {
         $this->levels[$type] = $level;
@@ -473,14 +499,34 @@ class Handler implements ExceptionHandlerContract
     public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         // Cancellation must not reach user-defined exception mappers.
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported once below)
         if ($e instanceof CanceledException) {
+            return;
+        }
+
+        // Cancellation unwinds through multiple reporting boundaries. Suppress duplicates
+        // using the original exception because mappers may create new wrappers each time.
+        $original = $e;
+        $canceled = Coroutine::causedByCancellation($e);
+
+        if (($this->withoutDuplicates || $canceled) && $this->reportedExceptionMap()->offsetExists($original)) {
             return;
         }
 
         $e = $this->mapException($e);
 
         if ($this->shouldntReport($e)) {
+            // Rejected cleanup failures must not redraw sampling or consume limits at each boundary.
+            if ($canceled) {
+                $this->reportedExceptionMap()[$original] = false;
+            }
+
             return;
+        }
+
+        // reportThrowable() records the mapped exception; retain a distinct original for later boundaries.
+        if ($e !== $original) {
+            $this->reportedException($original);
         }
 
         $this->reportThrowable($e, $context, $level);
@@ -496,9 +542,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function reportThrowable(Throwable $e, array $context = [], ?string $level = null): void
     {
-        if ($this->withoutDuplicates) {
-            $this->reportedException($e);
-        }
+        $this->reportedException($e);
 
         if (Reflector::isCallable($reportCallable = [$e, 'report'])
             && $this->container->call($reportCallable) !== false
@@ -518,9 +562,11 @@ class Handler implements ExceptionHandlerContract
 
         try {
             $logger = $this->newLogger();
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             throw $e;
         }
 
@@ -585,11 +631,15 @@ class Handler implements ExceptionHandlerContract
      */
     protected function hasReportedException(Throwable $e): bool
     {
-        return $this->reportedExceptionMap()->offsetExists($e);
+        return ($this->reportedExceptionMap()[$e] ?? false) === true;
     }
 
     /**
-     * Get the reported exception map for the current request.
+     * Get the reporting decisions for the current request.
+     *
+     * True records an accepted exception; false records a rejected cancellation chain.
+     *
+     * @return WeakMap<Throwable, bool>
      */
     protected function reportedExceptionMap(): WeakMap
     {
@@ -608,7 +658,8 @@ class Handler implements ExceptionHandlerContract
      */
     public function shouldReport(Throwable $e): bool
     {
-        return ! $this->shouldntReport($e);
+        // Later checks must not sample or consume a rate limit again after a reporting decision.
+        return $this->reportedExceptionMap()[$e] ?? ! $this->shouldntReport($e);
     }
 
     /**
@@ -616,6 +667,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function shouldntReport(Throwable $e): bool
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported once)
         if ($e instanceof CanceledException) {
             return true;
         }
@@ -683,9 +735,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Specify the callback that should be used to throttle reportable exceptions.
      *
-     * Boot-only. The callback persists on the shared handler and affects exception
-     * reporting for every subsequent request and job in the worker.
+     * The callback persists on the shared handler and affects exception reporting
+     * for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function throttleUsing(callable $throttleUsing): static
     {
         if (! $throttleUsing instanceof Closure) {
@@ -700,9 +755,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Remove the given exception class from the list of exceptions that should be ignored.
      *
-     * Boot-only. The exception lists persist on the shared handler and affect
-     * exception reporting for every subsequent request and job in the worker.
+     * The exception lists persist on the shared handler and affect exception
+     * reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function stopIgnoring(array|string $exceptions): static
     {
         $exceptions = Arr::wrap($exceptions);
@@ -780,9 +838,11 @@ class Handler implements ExceptionHandlerContract
             return array_filter([
                 'userId' => Auth::id(),
             ]);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return [];
         }
     }
@@ -790,11 +850,13 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a closure that should be used to build exception context data.
      *
-     * Boot-only. The closure persists on the shared handler and runs for every
+     * The closure persists on the shared handler and runs for every
      * subsequently logged exception in the worker.
      *
      * @param Closure(Throwable, array): array $contextCallback
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function buildContextUsing(Closure $contextCallback): static
     {
         $this->contextCallbacks[] = $contextCallback;
@@ -809,7 +871,7 @@ class Handler implements ExceptionHandlerContract
      */
     public function render(Request $request, Throwable $e): SymfonyResponse
     {
-        if ($e instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($e)) {
             throw $e;
         }
 
@@ -866,11 +928,13 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a callback before final exception response customization.
      *
-     * Boot-only. The callback is shared by every request in the worker.
-     * Callback return values are ignored.
+     * The callback is shared by every request in the worker. Callback
+     * return values are ignored.
      *
      * @param callable(SymfonyResponse, Throwable, Request): mixed $callback
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function beforeResponding(callable $callback): static
     {
         $this->beforeRespondingCallbacks[] = Closure::fromCallable($callback);
@@ -902,9 +966,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Prepare the final, rendered response for an exception using the given callback.
      *
-     * Boot-only. The callback replaces the shared handler's response callback for
-     * every subsequent request in the worker.
+     * The callback replaces the shared handler's response callback for every
+     * subsequent request in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function respondUsing(callable $callback): static
     {
         $this->finalizeResponseCallback = $callback;
@@ -1056,11 +1123,13 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register the callable that determines if the exception handler response should be JSON.
      *
-     * Boot-only. The callable replaces the shared handler's JSON check for every
-     * subsequent request in the worker.
+     * The callable replaces the shared handler's JSON check for every subsequent
+     * request in the worker.
      *
      * @param callable(Request $request, Throwable): bool $callback
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function shouldRenderJsonWhen(callable $callback): static
     {
         $this->shouldRenderJsonWhenCallback = $callback;
@@ -1115,9 +1184,11 @@ class Handler implements ExceptionHandlerContract
             }
 
             return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
         }
     }
@@ -1160,9 +1231,11 @@ class Handler implements ExceptionHandlerContract
                     $e->getStatusCode(),
                     $e->getHeaders()
                 );
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $t) {
+                if (Coroutine::causedByCancellation($t)) {
+                    throw $t;
+                }
+
                 config()->boolean('app.debug') && throw $t;
 
                 $this->report($t);
@@ -1256,7 +1329,7 @@ class Handler implements ExceptionHandlerContract
      */
     public function renderForConsole(OutputInterface $output, Throwable $e): void
     {
-        if ($e instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($e)) {
             throw $e;
         }
 
@@ -1283,9 +1356,12 @@ class Handler implements ExceptionHandlerContract
     /**
      * Do not report duplicate exceptions.
      *
-     * Boot-only. The setting persists on the shared handler and applies to every
-     * subsequent request and job in the worker.
+     * The setting persists on the shared handler and applies to every subsequent
+     * request and job in the worker.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function dontReportDuplicates(): static
     {
         $this->withoutDuplicates = true;

@@ -129,18 +129,22 @@ class ClassificationTest extends TestCase
         ]);
     }
 
-    public function testNumericChoiceNamesRemainJsonObjectMembers(): void
+    public function testNumericNamesRemainJsonObjectMembersAndEmptyCriteriaAreOmitted(): void
     {
         Http::fake(['*' => Http::response(fakeTypeSafeResponse())]);
 
         Classification::of('Invoice question')
-            ->question('department', new Choice('Which department?', ['0' => 'Billing', '1' => 'Technical']))
+            ->question('0', new Choice('Which department?', ['0' => 'Billing', '1' => 'Technical']))
+            ->question('1', new Boolean('Urgent?', []))
             ->classify(provider: 'typesafe');
 
         Http::assertSent(function (Request $request): bool {
-            $criteria = json_decode($request->body())->questions->department->criteria;
+            $questions = json_decode($request->body())->questions;
 
-            return is_object($criteria) && (array) $criteria === ['0' => 'Billing', '1' => 'Technical'];
+            return is_object($questions)
+                && is_object($questions->{'0'}->criteria)
+                && (array) $questions->{'0'}->criteria === ['0' => 'Billing', '1' => 'Technical']
+                && (array) $questions->{'1'} === ['type' => 'noul', 'instructions' => 'Urgent?'];
         });
     }
 

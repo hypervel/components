@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Pennant\Contracts;
 
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+
 interface Driver
 {
     /**
@@ -11,6 +13,7 @@ interface Driver
      *
      * @param (callable(mixed $scope): mixed) $resolver
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function define(string $feature, callable $resolver): void;
 
     /**

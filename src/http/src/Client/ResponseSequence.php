@@ -36,6 +36,7 @@ class ResponseSequence
      * Push a response to the sequence.
      *
      * @param null|array|resource|StreamInterface|string $body
+     * @return $this
      */
     public function push(mixed $body = null, int $status = 200, array $headers = []): static
     {
@@ -46,6 +47,8 @@ class ResponseSequence
 
     /**
      * Push a response with the given status code to the sequence.
+     *
+     * @return $this
      */
     public function pushStatus(int $status, array $headers = []): static
     {
@@ -56,6 +59,8 @@ class ResponseSequence
 
     /**
      * Push a response with the contents of a file as the body to the sequence.
+     *
+     * @return $this
      */
     public function pushFile(string $filePath, int $status = 200, array $headers = []): static
     {
@@ -68,6 +73,8 @@ class ResponseSequence
 
     /**
      * Push a connection exception to the sequence.
+     *
+     * @return $this
      */
     public function pushFailedConnection(?string $message = null): static
     {
@@ -78,6 +85,8 @@ class ResponseSequence
 
     /**
      * Push a response to the sequence.
+     *
+     * @return $this
      */
     public function pushResponse(mixed $response): static
     {
@@ -88,6 +97,8 @@ class ResponseSequence
 
     /**
      * Make the sequence return a default response when it is empty.
+     *
+     * @return $this
      */
     public function whenEmpty(Closure|PromiseInterface $response): static
     {
@@ -99,6 +110,8 @@ class ResponseSequence
 
     /**
      * Make the sequence return a default response when it is empty.
+     *
+     * @return $this
      */
     public function dontFailWhenEmpty(): static
     {

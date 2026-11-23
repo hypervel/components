@@ -6,7 +6,11 @@ namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
 use Exception;
+use Generator;
+use Hypervel\Ai\Agents\ConversationTitleAgent;
 use Hypervel\Ai\Approvals\Decisions;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\CanActAsTool;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\ConversationStore;
 use Hypervel\Ai\Events\AgentFailed;
@@ -36,14 +40,22 @@ use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
+use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Streaming\Events\Error;
+use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Ai\Tools\AgentTool;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\Client\Request as HttpRequest;
+use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\DelegatingAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\DelegatingViaCustomToolAgent;
@@ -51,18 +63,25 @@ use Hypervel\Tests\Ai\Fixtures\Agents\MiddleManagerAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\OrchestratorAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RateLimitedToolAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\RememberingApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingThrowingApprovableAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\RememberingToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ResearchAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
+use Hypervel\Tests\Ai\Fixtures\ConversationStores\InMemoryConversationStore;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
+use Hypervel\Tests\Ai\Fixtures\Tools\ApprovableNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Tests\Ai\Fixtures\fakeGroqResponse;
 use function Hypervel\Tests\Ai\Fixtures\fakeGroqStreamErrorResponse;
@@ -75,6 +94,7 @@ require_once __DIR__ . '/../Fixtures/helpers.php';
 class AgentEventsTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     public function testASynchronousPromptThreadsOneInvocationIdThroughThePromptAndItsEvents(): void
     {
@@ -321,12 +341,119 @@ class AgentEventsTest extends TestCase
 
         $response = (new RememberingAssistantAgent)->forUser($user)->prompt('Test prompt');
 
-        // Title generation runs its own loop on the same provider, and must not be attributed to this run...
-        Event::assertDispatchedTimes(StartingStep::class, 1);
-        Event::assertDispatchedTimes(StepCompleted::class, 1);
+        $this->assertCount(1, Event::dispatched(StartingStep::class, fn (StartingStep $event): bool => $event->invocationId === $response->invocationId));
+        $this->assertCount(1, Event::dispatched(StepCompleted::class, fn (StepCompleted $event): bool => $event->invocationId === $response->invocationId));
+    }
 
-        Event::assertDispatched(StartingStep::class, fn (StartingStep $event): bool => $event->invocationId === $response->invocationId
-            && $event->stepNumber === 0);
+    public function testConversationTitleGenerationIsReportedAsItsOwnAgentRun(): void
+    {
+        $this->prepareConversationTitleRun();
+
+        Event::fake();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqResponse('Hello there.'))
+            ->pushResponse(fakeGroqResponse('Greeting Conversation'));
+
+        $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        $title = Event::dispatched(AgentPrompted::class, fn (AgentPrompted $event): bool => $event->prompt->parentInvocationId === $response->invocationId)->sole()[0];
+
+        $this->assertNotSame($response->invocationId, $title->invocationId);
+        $this->assertSame('groq', $title->prompt->provider->name());
+        $this->assertSame('openai/gpt-oss-20b', $title->prompt->model);
+        $this->assertSame('Hello', $title->prompt->prompt);
+        $this->assertSame('Greeting Conversation', $title->response->text);
+
+        Event::assertDispatched(StepCompleted::class, fn (StepCompleted $event): bool => $event->invocationId === $title->invocationId);
+    }
+
+    public function testAFailedConversationTitleRunFallsBackToThePromptWithoutFailingTheTurn(): void
+    {
+        $store = $this->prepareConversationTitleRun();
+
+        Event::fake();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqResponse('Hello there.'))
+            ->pushStatus(500);
+
+        $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        $this->assertSame('Hello there.', $response->text);
+        $this->assertSame('Hello', $store->conversations[$response->conversationId]['title']);
+
+        $failed = Event::dispatched(AgentFailed::class)->sole()[0];
+
+        $this->assertInstanceOf(ConversationTitleAgent::class, $failed->prompt->agent);
+        $this->assertSame($response->invocationId, $failed->prompt->parentInvocationId);
+        $this->assertInstanceOf(RequestException::class, $failed->exception);
+    }
+
+    public function testATurnThatFailsAfterAStepReportsItsTitleRunAgainstTheFailedRun(): void
+    {
+        $this->prepareConversationTitleRun();
+
+        Event::fake();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqToolCallResponse())
+            ->pushStatus(500)
+            ->pushResponse(fakeGroqResponse('Number Report'));
+
+        $this->assertThrows(fn (): AgentResponse => (new RememberingToolUsingAgent)->forUser((object) ['id' => 1])->prompt('Generate a number', provider: 'groq'), RequestException::class);
+
+        $failedRun = Event::dispatched(AgentFailed::class)->sole()[0];
+
+        Event::assertDispatched(AgentPrompted::class, fn (AgentPrompted $event): bool => $event->prompt->parentInvocationId === $failedRun->invocationId
+            && $event->response->text === 'Number Report');
+    }
+
+    public function testAThrowingListenerOnTheTitleRunDoesNotFailTheTurn(): void
+    {
+        $store = $this->prepareConversationTitleRun();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqResponse('Hello there.'))
+            ->pushResponse(fakeGroqResponse('Greeting Conversation'));
+
+        Event::listen(AgentPrompted::class, function (AgentPrompted $event): void {
+            if ($event->prompt->parentInvocationId !== null) {
+                throw new RuntimeException('observability backend is down');
+            }
+        });
+
+        $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        $this->assertSame('Hello there.', $response->text);
+        $this->assertSame('Hello', $store->conversations[$response->conversationId]['title']);
+    }
+
+    public function testDisabledConversationTitleGenerationMakesNoTitleCall(): void
+    {
+        $this->prepareConversationTitleRun();
+
+        config(['ai.conversations.generate_title' => false]);
+
+        Http::fakeSequence()->pushResponse(fakeGroqResponse('Hello there.'));
+
+        (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        Http::assertSentCount(1);
+    }
+
+    /**
+     * Remember conversations in memory against a Groq provider that must not send unexpected requests.
+     */
+    protected function prepareConversationTitleRun(): InMemoryConversationStore
+    {
+        $this->app->instance(ConversationStore::class, $store = new InMemoryConversationStore);
+
+        config(['ai.providers.groq' => [...config('ai.providers.groq'), 'key' => 'test-key']]);
+
+        Http::preventStrayRequests();
+
+        return $store;
     }
 
     public function testStepEventsAreDispatchedOnTheStreamingPath(): void
@@ -413,7 +540,7 @@ class AgentEventsTest extends TestCase
         $this->assertSame($starting->agent, $completed->agent);
     }
 
-    public function testAThrowingToolDispatchesToolFailedAndStillPropagatesTheException(): void
+    public function testAThrowingToolDispatchesToolFailedAndTheRunContinues(): void
     {
         Event::fake();
 
@@ -422,14 +549,14 @@ class AgentEventsTest extends TestCase
             ['number' => 5],
         ]);
 
-        $this->assertThrows(fn (): AgentResponse => (new ToolUsingAgent(fixed: true, toolThrowsException: true))->prompt('Generate'), Exception::class, 'Forced to throw exception.');
+        (new ToolUsingAgent(fixed: true, toolThrowsException: true))->prompt('Generate');
 
         Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->tool instanceof FixedNumberGenerator
             && $event->exception->getMessage() === 'Forced to throw exception.');
 
         Event::assertNotDispatched(ToolInvoked::class);
 
-        Event::assertDispatched(AgentFailed::class);
+        Event::assertNotDispatched(AgentFailed::class);
 
         $invoking = Event::dispatched(InvokingTool::class)->first()[0];
         $failed = Event::dispatched(ToolFailed::class)->first()[0];
@@ -438,9 +565,104 @@ class AgentEventsTest extends TestCase
         $this->assertSame($invoking->invocationId, $failed->invocationId);
     }
 
+    #[WithConfig('app.debug', true)]
+    public function testASubAgentThatThrowsDispatchesToolFailedAndTheRunContinues(): void
+    {
+        Event::fake();
+
+        DelegatingAgent::fake([
+            new ToolCall('call_123', 'research_agent', ['task' => 'Research Hypervel']),
+            'The research could not be completed.',
+        ]);
+
+        ResearchAgent::fake(fn () => throw new RuntimeException('Research failed.'));
+
+        $response = (new DelegatingAgent)->prompt('Delegate research about Hypervel');
+
+        $invoking = Event::dispatched(InvokingTool::class)->first()[0];
+
+        Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->toolInvocationId === $invoking->toolInvocationId
+            && $event->exception->getMessage() === 'Research failed.');
+
+        Event::assertNotDispatched(ToolInvoked::class);
+
+        Event::assertDispatched(AgentFailed::class, fn (AgentFailed $event): bool => $event->prompt->agent instanceof ResearchAgent);
+
+        $result = $response->steps->first()->toolResults[0];
+
+        $this->assertTrue($result->failed);
+        $this->assertSame('The tool call failed: Research failed.', $result->result);
+    }
+
+    #[WithConfig('app.debug', true)]
+    public function testASubAgentThatThrowsWhileStreamedAsAToolDispatchesToolFailedAndTheRunContinues(): void
+    {
+        Event::fake();
+
+        DelegatingAgent::fake([
+            new ToolCall('call_123', 'research_agent', ['task' => 'Research Hypervel']),
+            'The research could not be completed.',
+        ]);
+
+        ResearchAgent::fake(fn () => throw new RuntimeException('Research failed.'));
+
+        $events = iterator_to_array((new DelegatingAgent)->stream('Delegate research about Hypervel'), false);
+
+        $invoking = Event::dispatched(InvokingTool::class)->first()[0];
+
+        Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->toolInvocationId === $invoking->toolInvocationId
+            && $event->exception->getMessage() === 'Research failed.');
+
+        Event::assertNotDispatched(ToolInvoked::class);
+
+        Event::assertDispatched(AgentFailed::class, fn (AgentFailed $event): bool => $event->prompt->agent instanceof ResearchAgent);
+
+        $result = collect($events)->first(fn ($event): bool => $event instanceof ToolResultEvent && ! $event->preliminary);
+
+        $this->assertFalse($result->successful);
+        $this->assertSame('The tool call failed: Research failed.', $result->error);
+    }
+
+    #[WithConfig('app.debug', true)]
+    public function testASubAgentThatThrowsAfterStreamingOutputEndsItsToolCallWithAFailedResult(): void
+    {
+        Event::fake();
+
+        DelegatingAgent::fake([
+            new ToolCall('call_123', 'middle_manager', ['task' => 'Research Hypervel']),
+            'The research could not be completed.',
+        ]);
+
+        // Unlike upstream, only text output produces a preliminary result, so the sub-agent streams a snapshot's worth of text before it throws...
+        $subAgent = Double::for(Agent::class, CanActAsTool::class)->strict();
+        $subAgent->allows('name')->returns('middle_manager');
+        $subAgent->allows('description')->returns('Delegate research tasks.');
+        $subAgent->expects('stream')->returns(new StreamableAgentResponse('sub-invocation', function (): Generator {
+            yield new TextDelta('event-1', 'message-1', str_repeat('Hypervel is a PHP framework. ', 10), time());
+
+            throw new RuntimeException('Research failed.');
+        }));
+
+        $results = collect(iterator_to_array((new DelegatingAgent)->withTools([new AgentTool($subAgent)])->stream('Delegate research about Hypervel'), false))
+            ->filter(fn ($event): bool => $event instanceof ToolResultEvent)
+            ->values();
+
+        Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->tool instanceof AgentTool
+            && $event->tool->name() === 'middle_manager'
+            && $event->exception->getMessage() === 'Research failed.');
+
+        $this->assertTrue($results->first()->preliminary);
+        $this->assertTrue($results->first()->successful);
+        $this->assertFalse($results->last()->preliminary);
+        $this->assertFalse($results->last()->successful);
+        $this->assertSame('The tool call failed: Research failed.', $results->last()->error);
+    }
+
+    #[WithConfig('app.debug', false)]
     public function testAToolThatFailsWhileResumingAnApprovalReportsTheFailureOnceAndContinuesTheRun(): void
     {
         Event::fake();
+        Exceptions::fake();
 
         config(['ai.conversations.generate_title' => false]);
 
@@ -494,6 +716,57 @@ class AgentEventsTest extends TestCase
 
         $this->assertSame('Forced to throw exception.', $failed->exception->getMessage());
         $this->assertSame($invoking->toolInvocationId, $failed->toolInvocationId);
+
+        // Outside debug mode, the model receives the failure without the exception message...
+        Http::assertSent(fn (HttpRequest $request): bool => str_contains($request->body(), 'The tool call failed.')
+            && ! str_contains($request->body(), 'Forced to throw'));
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (Exception $exception): bool => $exception === $failed->exception);
+    }
+
+    public function testAToolInvokedListenerExceptionWhileResumingAnApprovalFailsTheRunInsteadOfFailingTheTool(): void
+    {
+        config(['ai.conversations.generate_title' => false]);
+
+        ApprovableNumberGenerator::$invocations = 0;
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_tool_1',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-sonnet-4-6',
+                'content' => [[
+                    'type' => 'tool_use',
+                    'id' => 'toolu_1',
+                    'name' => 'ApprovableNumberGenerator',
+                    'input' => (object) [],
+                ]],
+                'stop_reason' => 'tool_use',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingApprovableAgent)->forUser($user)->prompt('Generate a number', provider: 'anthropic');
+
+        $this->assertTrue($paused->hasPendingApprovals());
+
+        Event::listen(ToolInvoked::class, fn () => throw new RuntimeException('Listener failed.'));
+
+        $this->assertThrows(
+            fn (): mixed => (new RememberingApprovableAgent)
+                ->continue($paused->conversationId, $user)
+                ->prompt(Decisions::from(['toolu_1' => true]), provider: 'anthropic'),
+            RuntimeException::class,
+            'Listener failed.',
+        );
+
+        // The tool succeeded, so the model is never told it failed...
+        $this->assertSame(1, ApprovableNumberGenerator::$invocations);
+        Http::assertSentCount(1);
     }
 
     public function testASubAgentPromptIsLinkedToTheParentInvocationAndToolInvocation(): void
@@ -615,8 +888,8 @@ class AgentEventsTest extends TestCase
             'ai.providers.primary' => ['driver' => 'groq', 'key' => 'test-key'],
             'ai.providers.backup' => ['driver' => 'groq', 'key' => 'test-key'],
         ]);
-        $tool = m::mock(NamedTool::class, ['send_email'])->makePartial();
-        $tool->shouldReceive('handle')->once()->andReturn('Sent');
+        $tool = Double::for(new NamedTool('send_email'))->passthru();
+        $tool->expects('handle')->returns('Sent');
         Http::preventStrayRequests();
         Http::fakeSequence()
             ->pushResponse(fakeGroqToolCallResponse('send_email'))
@@ -755,6 +1028,31 @@ class AgentEventsTest extends TestCase
         Event::assertNotDispatched(AgentFailedOver::class);
     }
 
+    #[DataProvider('publicInvocationMethods')]
+    public function testFailureRecordingPreservesCancellationBeforeGeneration(string $method): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Agent failure observer failed.');
+        Event::listen(AgentFailed::class, static fn () => throw $observerFailure);
+        Http::preventStrayRequests();
+        $agent = (new AssistantAgent)->withMiddleware([static fn () => throw $cancellation]);
+        $caught = null;
+
+        try {
+            $response = $agent->{$method}('Hello');
+
+            if ($method === 'stream') {
+                iterator_to_array($response);
+            }
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
     public function testAFailingGatewayDispatchesStepFailedAndAgentFailedInsteadOfAgentPrompted(): void
     {
         Event::fake();
@@ -775,6 +1073,98 @@ class AgentEventsTest extends TestCase
         $agentFailed = Event::dispatched(AgentFailed::class)->first()[0];
 
         $this->assertSame($agentFailed->invocationId, $stepFailed->invocationId);
+    }
+
+    #[DataProvider('publicInvocationMethods')]
+    public function testThrowingStepFailureObserverPreservesCancellation(string $method): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Step failure observer failed.');
+        AssistantAgent::fake(static fn () => throw $cancellation);
+        Event::listen(StepFailed::class, static fn () => throw $observerFailure);
+        $caught = null;
+
+        try {
+            $response = (new AssistantAgent)->{$method}('Hello');
+
+            if ($method === 'stream') {
+                iterator_to_array($response);
+            }
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
+    public function testThrowingStepFailureObserverPreservesMiddlewareCancellationAfterGeneration(): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Step failure observer failed.');
+        AssistantAgent::fake(['Hello']);
+        Event::listen(StepFailed::class, static fn () => throw $observerFailure);
+        $agent = (new AssistantAgent)->withMiddleware([
+            static function (PendingStep $step, Closure $next) use ($cancellation): never {
+                $next($step);
+
+                throw $cancellation;
+            },
+        ]);
+        $caught = null;
+
+        try {
+            $agent->prompt('Hello');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
+    public function testThrowingToolFailureObserverPreservesToolCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Tool failure observer failed.');
+        $tool = Double::for(new NamedTool('cancel_tool'))->passthru();
+        $tool->expects('handle')->throws($cancellation);
+        ToolUsingAgent::fake([new ToolCall('call_1', 'cancel_tool', [])]);
+        $agent = (new ToolUsingAgent)->withTools([$tool]);
+        Event::listen(ToolFailed::class, static fn () => throw $observerFailure);
+        $caught = null;
+
+        try {
+            $agent->prompt('Generate');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
+    public function testThrowingStreamingToolFailureObserverPreservesCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Tool failure observer failed.');
+        DelegatingAgent::fake([new ToolCall('research', 'research_agent', ['task' => 'Research'])]);
+        ResearchAgent::fake(static fn () => throw $cancellation);
+        Event::listen(ToolFailed::class, static fn () => throw $observerFailure);
+        $caught = null;
+
+        try {
+            iterator_to_array((new DelegatingAgent)->stream('Research'));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
     }
 
     public function testAFailingStreamDispatchesAgentFailedInsteadOfAgentStreamed(): void
@@ -807,8 +1197,8 @@ class AgentEventsTest extends TestCase
         config(['ai.conversations.generate_title' => false]);
         RememberingAssistantAgent::fake(['Hello']);
         $exception = new RuntimeException('Database unavailable.');
-        $store = m::mock(FakeConversationStore::class)->makePartial();
-        $store->shouldReceive('storeConversation')->once()->andThrow($exception);
+        $store = Double::for(FakeConversationStore::class)->passthru();
+        $store->expects('storeConversation')->throws($exception);
         app()->instance(ConversationStore::class, $store);
         $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->stream('Hi');
 
@@ -879,17 +1269,22 @@ class AgentEventsTest extends TestCase
         Event::assertNotDispatched(AgentFailed::class);
     }
 
-    public function testStreamingSubAgentCancellationReportsToolFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamingSubAgentCancellationReportsToolFailure(bool $cleanupThrows): void
     {
         Event::fake();
         DelegatingAgent::fake([new ToolCall('research', 'research_agent', ['task' => 'Research'])]);
         $exception = new CanceledException('Research canceled.');
+        if ($cleanupThrows) {
+            $exception = new RuntimeException('Research cleanup failed.', previous: $exception);
+        }
         ResearchAgent::fake([fn (): never => throw $exception]);
 
         try {
             iterator_to_array((new DelegatingAgent)->stream('Research'));
             $this->fail('Cancellation must reach the caller.');
-        } catch (CanceledException $caught) {
+        } catch (Throwable $caught) {
             $this->assertSame($exception, $caught);
         }
 
@@ -942,7 +1337,9 @@ class AgentEventsTest extends TestCase
 
     public function testAStreamedFailureAfterTheStreamStartedReportsTheRunAsFailed(): void
     {
-        Event::fake();
+        Event::fakeExcept([ToolFailed::class]);
+
+        Event::listen(ToolFailed::class, fn (ToolFailed $event) => throw $event->exception);
 
         config([
             'ai.providers.primary' => ['driver' => 'groq', 'key' => 'test-key'],

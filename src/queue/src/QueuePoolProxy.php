@@ -22,13 +22,14 @@ use Hypervel\Queue\Jobs\Job as PoolLeaseAwareJob;
 use Hypervel\Queue\Outbox\Concerns\PublishesOutboxMessagesSequentially;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxMessage;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
-class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue, PublishesOutboxMessages
+class QueuePoolProxy extends PoolProxy implements QueueContract, EnqueuesBatchJobs, IndexAwareQueue, PublishesOutboxMessages
 {
     use PublishesOutboxMessagesSequentially;
 
@@ -231,6 +232,51 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     }
 
     /**
+     * Check the borrowed transport's transaction requirements before enrolling a batch.
+     *
+     * @internal
+     */
+    public function ensureBatchCanBeEnqueued(array $jobs, string $connection, bool $ownerHasTransaction): void
+    {
+        $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Enqueue through one lease and preserve its result if releasing the lease fails.
+     *
+     * @internal
+     */
+    public function bulkForBatch(
+        array $jobs,
+        Closure $onDeferredRejection,
+        mixed $data = '',
+        UnitEnum|string|null $queue = null,
+        ?string $batchTransactionConnection = null,
+    ): BatchEnqueueResult {
+        $result = null;
+        try {
+            return $this->usingConnection(static function (Queue $owner) use ($jobs, $onDeferredRejection, $data, $queue, $batchTransactionConnection, &$result) {
+                return $result = $owner->bulkForBatch($jobs, $onDeferredRejection, $data, $queue, $batchTransactionConnection);
+            });
+        } catch (Throwable $failure) {
+            if ($result === null) {
+                return BatchEnqueueResult::failed($failure, $jobs);
+            }
+
+            if ($result->failure === null) {
+                return new BatchEnqueueResult($failure, array_keys($jobs));
+            }
+
+            return new BatchEnqueueResult(
+                Coroutine::preferCancellation($result->failure, $failure),
+                $result->accepted,
+                $result->unknown,
+                $result->rejected,
+            );
+        }
+    }
+
+    /**
      * Publish a stored batch while borrowing its transport only once.
      *
      * @param list<OutboxMessage> $messages
@@ -245,7 +291,10 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Run a callback with the underlying SQS queue.
      *
-     * @param Closure(SqsQueue): mixed $callback
+     * @template T
+     *
+     * @param Closure(SqsQueue): T $callback
+     * @return T
      */
     public function withConnection(Closure $callback): mixed
     {
@@ -334,7 +383,14 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 
     /**
      * Set the connection name for the queue.
+     *
+     * Queue connection proxies are cached on QueueManager; runtime use races
+     * across coroutines and changes every concurrent dispatch through this
+     * connection.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConnectionName(string $name): static
     {
         $this->connectionName = $name;

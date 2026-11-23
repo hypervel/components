@@ -25,6 +25,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'ext-swoole',
+            'hypervel/attributes',
             'hypervel/bus',
             'hypervel/collections',
             'hypervel/console',

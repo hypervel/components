@@ -284,6 +284,45 @@ class FormRequestCastingTest extends TestCase
         }
     }
 
+    #[DataProvider('decimalParsingProvider')]
+    public function testDecimalParsingPreservesPrecisionAndBoundsExponentExpansion(float|int|string $value, ?string $expected): void
+    {
+        $request = $this->validateRequest(ConfigurableDecimalRequest::class, [
+            'value' => $value,
+            'declaration' => 'decimal:2',
+        ]);
+
+        if ($expected === null) {
+            $this->expectException(MathException::class);
+            $this->expectExceptionMessageIs('Unable to cast value to a decimal.');
+            $request->validated();
+
+            return;
+        }
+
+        $this->assertSame($expected, $request->validated('value'));
+        $this->assertSame($expected, $request->safe()->all()['value']);
+    }
+
+    /**
+     * Provide decimal inputs for precision and exponent-limit checks.
+     */
+    public static function decimalParsingProvider(): array
+    {
+        return [
+            'positive exponent rejected' => ['1e1001', null],
+            'negative exponent rejected' => ['1E-1001', null],
+            'positive boundary accepted' => ['1e1000', '1' . str_repeat('0', 1000) . '.00'],
+            'negative boundary accepted' => ['1e-1000', '0.00'],
+            'explicit long decimal preserved' => [str_repeat('9', 1002) . '.125', str_repeat('9', 1002) . '.13'],
+            'fraction preserved' => ['1/4', '0.25'],
+            'integer precision preserved' => [9007199254740993, '9007199254740993.00'],
+            'float rounded only to declared scale' => [1234567890123.455, '1234567890123.46'],
+            'float arithmetic rounded to declared scale' => [0.1 + 0.2, '0.30'],
+            'NAN rejected without warnings' => [NAN, null],
+        ];
+    }
+
     /**
      * Test invalid decimal input uses the framework math exception boundary.
      */

@@ -35,6 +35,7 @@ use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Validation\References\FieldReference;
 use Hypervel\Validation\Rules\RequiredIf as NativeRequiredIf;
 use Hypervel\Validation\Rules\RequiredUnless as NativeRequiredUnless;
+use Hypervel\Validation\ValidationRuleParser;
 use TypeError;
 use UnitEnum;
 
@@ -748,7 +749,9 @@ class DataValidationCompiler
                 $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath, $resolveField);
                 $hasPresenceRule = $hasPresenceRule
                     || $attribute instanceof RequiringRule
-                    || $this->hasPresenceRule($denormalizedRules);
+                    || ($attribute instanceof ValidationAttribute
+                        ? in_array($attribute::keyword(), self::PRESENCE_RULES, true)
+                        : $this->hasPresenceRule($denormalizedRules));
                 $hasEnumAttribute = $hasEnumAttribute || $attribute instanceof Enum;
                 array_push($attributeRules, ...$denormalizedRules);
             }
@@ -1591,9 +1594,7 @@ class DataValidationCompiler
                 return true;
             }
 
-            if (is_string($rule)
-                && strtolower(trim(explode(':', $rule, 2)[0])) === 'distinct'
-            ) {
+            if ($this->ruleKeyword($rule) === 'distinct') {
                 return true;
             }
         }
@@ -1633,18 +1634,24 @@ class DataValidationCompiler
                 return true;
             }
 
-            if (! is_string($rule)) {
-                continue;
-            }
-
-            $name = strtolower(trim(explode(':', $rule, 2)[0]));
-
-            if (in_array($name, self::PRESENCE_RULES, true)) {
+            if (in_array($this->ruleKeyword($rule), self::PRESENCE_RULES, true)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Get the keyword of a string or structured validation rule.
+     */
+    protected function ruleKeyword(mixed $rule): ?string
+    {
+        if (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
+            $rule = $rule->toArray()[0];
+        }
+
+        return is_string($rule) ? strtolower(trim(explode(':', $rule, 2)[0])) : null;
     }
 
     /**

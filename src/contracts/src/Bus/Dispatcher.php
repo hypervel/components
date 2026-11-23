@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Bus;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 interface Dispatcher
 {
     /**
@@ -45,11 +47,17 @@ interface Dispatcher
 
     /**
      * Set the pipes commands should be piped through before dispatching.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function pipeThrough(array $pipes): static;
 
     /**
      * Map a command to a handler.
+     *
+     * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function map(array $map): static;
 }

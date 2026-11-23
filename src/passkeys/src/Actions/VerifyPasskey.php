@@ -19,6 +19,7 @@ use ParagonIE\ConstantTime\Base64UrlSafe;
 use RuntimeException;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\CredentialRecord;
+use Webauthn\Exception\InvalidUserHandleException;
 use Webauthn\Exception\WebauthnException;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialRequestOptions;
@@ -78,7 +79,7 @@ class VerifyPasskey
     protected function getResponse(PublicKeyCredential $credential): AuthenticatorAssertionResponse
     {
         if (! $credential->response instanceof AuthenticatorAssertionResponse) {
-            throw InvalidPasskeyException::make('Unable to verify passkey. Please try again.');
+            throw InvalidPasskeyException::make(__('Unable to verify passkey. Please try again.'));
         }
 
         return $credential->response;
@@ -93,7 +94,7 @@ class VerifyPasskey
     {
         // Assertion ceremonies do not run CheckCredentialId, so enforce its CTAP2 limit before lookup.
         if (strlen($credential->rawId) > 1023) {
-            throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
+            throw InvalidPasskeyException::make(__('Passkey not recognized. It may have been removed from your account.'));
         }
 
         $credentialId = Base64UrlSafe::encodeUnpadded($credential->rawId);
@@ -108,7 +109,7 @@ class VerifyPasskey
         $passkey = $query->first();
 
         if (! $passkey instanceof Passkey) {
-            throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
+            throw InvalidPasskeyException::make(__('Passkey not recognized. It may have been removed from your account.'));
         }
 
         return $passkey;
@@ -130,7 +131,7 @@ class VerifyPasskey
         if (! is_scalar($identifier)
             || $passkey->user_type !== $user->getMorphClass()
             || (string) $passkey->user_id !== (string) $identifier) {
-            throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
+            throw InvalidPasskeyException::make(__('Passkey not recognized. It may have been removed from your account.'));
         }
     }
 
@@ -143,13 +144,13 @@ class VerifyPasskey
     {
         // Compare the stored type first so another provider's owner type is never resolved.
         if ($passkey->user_type !== $ownerType) {
-            throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
+            throw InvalidPasskeyException::make(__('Passkey not recognized. It may have been removed from your account.'));
         }
 
         $user = $passkey->user;
 
         if (! $user instanceof PasskeyUser) {
-            throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
+            throw InvalidPasskeyException::make(__('Passkey not recognized. It may have been removed from your account.'));
         }
 
         return $user;
@@ -178,6 +179,8 @@ class VerifyPasskey
 
     /**
      * Validate the credential against the stored passkey.
+     *
+     * @throws InvalidPasskeyException
      */
     protected function validate(
         AuthenticatorAssertionResponse $response,
@@ -199,8 +202,16 @@ class VerifyPasskey
                 host: $this->hostFromOptions($options),
                 userHandle: $source->userHandle,
             );
+        } catch (InvalidUserHandleException) {
+            // Some platforms corrupt binary user handles by treating them as
+            // UTF-8 text, so the handle returned by the authenticator never
+            // matches the stored one again. Surface a validation error so
+            // the user can re-register the passkey instead of hitting a 500.
+            throw InvalidPasskeyException::make(
+                __('This passkey can no longer be used. Please remove it from your account and register a new one.')
+            );
         } catch (WebauthnException) {
-            throw InvalidPasskeyException::make('Unable to verify passkey. Please try again.');
+            throw InvalidPasskeyException::make(__('Unable to verify passkey. Please try again.'));
         }
     }
 

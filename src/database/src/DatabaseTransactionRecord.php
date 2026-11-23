@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 class DatabaseTransactionRecord
@@ -75,9 +75,11 @@ class DatabaseTransactionRecord
         foreach ($this->callbacks as $callback) {
             try {
                 $callback();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
@@ -92,21 +94,14 @@ class DatabaseTransactionRecord
      */
     public function executeCallbacksForRollback(): void
     {
-        $cancellation = null;
         $exception = null;
 
         foreach ($this->callbacksForRollback as $callback) {
             try {
                 $callback();
-            } catch (CanceledException $canceledException) {
-                $cancellation ??= $canceledException;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
-        }
-
-        if ($cancellation !== null) {
-            throw $cancellation;
         }
 
         if ($exception !== null) {

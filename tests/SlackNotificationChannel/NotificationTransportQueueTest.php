@@ -30,7 +30,8 @@ use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Notifications\Slack\SlackRoute;
 use Hypervel\Notifications\SlackChannelServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
 use stdClass;
@@ -41,6 +42,8 @@ use Throwable;
 
 class NotificationTransportQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Register the Slack channel package.
      */
@@ -195,7 +198,7 @@ class NotificationTransportQueueTest extends TestCase
 
     public function testExistingSymfonyMailFailureConversionRemainsUnchanged(): void
     {
-        $response = m::mock(SymfonyResponse::class);
+        $response = Double::for(SymfonyResponse::class)->strict();
         $original = new HttpTransportException('Mailer HTTP failure', $response);
         $manager = $this->app->make(ChannelManager::class);
         $manager->extend('test-mail', fn (): NotificationTransportFailingChannel => new NotificationTransportFailingChannel($original));

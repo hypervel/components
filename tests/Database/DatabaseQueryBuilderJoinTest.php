@@ -12,11 +12,14 @@ use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseQueryBuilderJoinTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testNestedJoinSupportsGroupedOnConditions(): void
     {
         $query = $this->builder()->from('users')
@@ -131,8 +134,8 @@ class DatabaseQueryBuilderJoinTest extends TestCase
      */
     protected function builder(): Builder
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getTablePrefix')->returns('');
 
         return new Builder($connection, new Grammar($connection), new Processor);
     }

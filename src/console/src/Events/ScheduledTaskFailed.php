@@ -15,6 +15,7 @@ class ScheduledTaskFailed
     public function __construct(
         public Event $task,
         public Throwable $exception,
+        public ?float $runtime = null,
     ) {
     }
 }

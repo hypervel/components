@@ -5,21 +5,85 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\DatabaseTransactionsManager as TestingTransactionsManager;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use LogicException;
+use PDO;
 use ReflectionProperty;
 use RuntimeException;
 
 #[WithConfig('database.default', 'testing')]
 class DatabaseConnectionResolverTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    /**
+     * Use coroutine-owned SQLite sessions for restoration tests.
+     */
+    protected function definePooledDatabase(Application $app): void
+    {
+        $app->make('config')->set('database.connections.testing.pool.testing_enabled', true);
+    }
+
+    #[DefineEnvironment('definePooledDatabase')]
+    public function testRestoredPdoSurvivesIdleRelease(): void
+    {
+        $resolver = $this->app->make('db.resolver');
+        $connection = $resolver->connection('testing::read');
+        $connection->statement('create table previous_database (value integer)');
+        $pool = $this->app->make(PoolManager::class)->pool('testing');
+        $saved = new PDO('sqlite::memory:');
+        $saved->exec('create table restored_database (value integer)');
+        $saved->exec('insert into restored_database values (42)');
+
+        $this->assertTrue($resolver->restoreInMemoryPdoIfPooled('testing::read', $saved));
+        $this->assertSame($saved, $pool->getSharedInMemorySqlitePdo());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(42, $connection->table('restored_database')->value('value'));
+        $this->assertSame($this->app->make('events'), $connection->getEventDispatcher());
+
+        $resolver->releaseIdleConnections();
+
+        $this->assertSame(42, $connection->table('restored_database')->value('value'));
+    }
+
+    #[DefineEnvironment('definePooledDatabase')]
+    public function testRestorationRejectsAPinnedSessionWithoutReplacingTheDatabase(): void
+    {
+        $resolver = $this->app->make('db.resolver');
+        $connection = $resolver->connection('testing');
+        $pool = $this->app->make(PoolManager::class)->pool('testing');
+        $previous = $pool->getSharedInMemorySqlitePdo();
+        $saved = new PDO('sqlite::memory:');
+
+        $connection->withPinnedSession(function () use ($resolver, $connection, $pool, $previous, $saved): void {
+            $this->assertSame($previous, $connection->getPdo());
+
+            try {
+                $resolver->restoreInMemoryPdoIfPooled('testing', $saved);
+                $this->fail('Expected restoration to reject the borrowed session.');
+            } catch (LogicException $exception) {
+                $this->assertSame('Cannot restore the in-memory SQLite database while connections are borrowed.', $exception->getMessage());
+            }
+
+            $this->assertSame($previous, $pool->getSharedInMemorySqlitePdo());
+            $this->assertSame($previous, $connection->getPdo());
+        });
+
+        $this->assertTrue($resolver->restoreInMemoryPdoIfPooled('testing', $saved));
+        $this->assertSame($saved, $connection->getPdo());
+    }
+
     public function testFlushDisconnectsCachedConnection(): void
     {
         $resolver = $this->app->make(DatabaseConnectionResolver::class);
@@ -71,8 +135,8 @@ class DatabaseConnectionResolverTest extends TestCase
     {
         $manager = $this->app->make('db');
         $connection = $manager->connection('testing::read');
-        $transactions = m::mock(DatabaseTransactionsManager::class);
-        $transactions->shouldReceive('rollback')->with('testing', 0)->once();
+        $transactions = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactions->expects('rollback')->with('testing', 0);
         $connection->setTransactionManager($transactions);
 
         $manager->purge('testing::read');
@@ -156,17 +220,17 @@ class DatabaseConnectionResolverTest extends TestCase
     {
         DatabaseConnectionResolver::flushCachedConnections();
 
-        $firstConnection = m::mock(Connection::class);
-        $firstConnection->shouldReceive('resetForPool')->once();
-        $firstConnection->shouldReceive('isReusable')->once()->andReturnFalse();
-        $secondConnection = m::mock(Connection::class);
-        $secondConnection->shouldReceive('resetForPool')->once();
-        $secondConnection->shouldReceive('isReusable')->once()->andReturnFalse();
+        $firstConnection = Double::for(Connection::class)->strict();
+        $firstConnection->expects('resetForPool');
+        $firstConnection->expects('isReusable')->returns(false);
+        $secondConnection = Double::for(Connection::class)->strict();
+        $secondConnection->expects('resetForPool');
+        $secondConnection->expects('isReusable')->returns(false);
         $failure = new RuntimeException('discard failed');
-        $firstPooledConnection = m::mock(PooledConnection::class);
-        $firstPooledConnection->shouldReceive('discard')->once()->andThrow($failure);
-        $secondPooledConnection = m::mock(PooledConnection::class);
-        $secondPooledConnection->shouldReceive('discard')->once();
+        $firstPooledConnection = Double::for(PooledConnection::class)->strict();
+        $firstPooledConnection->expects('discard')->throws($failure);
+        $secondPooledConnection = Double::for(PooledConnection::class)->strict();
+        $secondPooledConnection->expects('discard');
 
         (new ReflectionProperty(DatabaseConnectionResolver::class, 'connections'))->setValue([
             'first' => $firstConnection,
@@ -247,8 +311,16 @@ class DatabaseConnectionResolverTest extends TestCase
         $resolver = $this->app->make(DatabaseConnectionResolver::class);
 
         $this->assertSame($resolver->connection(), $resolver->connection(''));
-        $this->assertSame('0', $resolver->connection(DatabaseTestingConnectionName::Zero)->getName());
-        $this->assertSame('1', $resolver->connection(DatabaseTestingConnectionName::One)->getName());
+        $this->assertSame($resolver->connection(), $resolver->getHeldConnection());
+        $this->assertSame($resolver->getHeldConnection(), $resolver->getHeldConnection(''));
+
+        $zero = $resolver->connection(DatabaseTestingConnectionName::Zero);
+        $one = $resolver->connection(DatabaseTestingConnectionName::One);
+
+        $this->assertSame('0', $zero->getName());
+        $this->assertSame('1', $one->getName());
+        $this->assertSame($zero, $resolver->getHeldConnection(DatabaseTestingConnectionName::Zero));
+        $this->assertSame($one, $resolver->getHeldConnection(DatabaseTestingConnectionName::One));
     }
 
     public function testPooledTransactionChecksIgnoreARetainedTestingConnection(): void
@@ -259,6 +331,7 @@ class DatabaseConnectionResolverTest extends TestCase
             config(['database.connections.testing.database' => $database]);
             $resolver = $this->app->make(DatabaseConnectionResolver::class);
             $retained = $resolver->connection();
+            $this->assertSame($retained, $resolver->getHeldConnection());
             $pool = $this->app->make(PoolManager::class)->pool('testing');
             $borrowed = $pool->getBorrowedCount();
             $retained->beginTransaction();
@@ -267,6 +340,7 @@ class DatabaseConnectionResolverTest extends TestCase
                 $this->assertTrue($resolver->hasApplicableTransaction());
                 config(['database.connections.testing.pool.testing_enabled' => true]);
                 $this->assertFalse($resolver->hasApplicableTransaction());
+                $this->assertNull($resolver->getHeldConnection());
                 $this->assertSame($borrowed, $pool->getBorrowedCount());
             } finally {
                 $retained->rollBack();
@@ -274,6 +348,8 @@ class DatabaseConnectionResolverTest extends TestCase
 
             $pooled = $resolver->connection();
             $this->assertNotSame($retained, $pooled);
+            $this->assertSame($pooled, $resolver->getHeldConnection());
+            $this->assertSame($retained, $resolver->getResolvedConnection('testing'));
             $pooled->beginTransaction();
 
             try {

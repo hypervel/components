@@ -7,6 +7,9 @@ namespace Hypervel\Support;
 use Closure;
 use Countable;
 use DateTimeInterface;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\TestsOnly;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use League\CommonMark\Environment\Environment;
@@ -17,7 +20,6 @@ use League\CommonMark\GithubFlavoredMarkdownConverter;
 use League\CommonMark\MarkdownConverter;
 use LogicException;
 use Stringable as BaseStringable;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Uid\UuidV7;
@@ -606,6 +608,7 @@ class Str
             return false;
         }
 
+        // Require hyphenated text even for versioned checks, unlike Ramsey's parser.
         if (preg_match('/^[\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12}$/D', $value) !== 1) {
             return false;
         }
@@ -622,7 +625,7 @@ class Str
             return strtolower($value) === 'ffffffff-ffff-ffff-ffff-ffffffffffff';
         }
 
-        return (int) $value[14] === $version;
+        return (int) $value[14] === $version && str_contains('89abAB', $value[19]);
     }
 
     /**
@@ -1003,11 +1006,12 @@ class Str
     /**
      * Set the callable that will be used to generate random strings.
      *
-     * Tests only. The factory persists in a static property for the worker
-     * lifetime and affects every subsequent random string generation.
+     * The factory persists in a static property for the worker lifetime
+     * and affects every subsequent random string generation.
      *
      * @param null|(callable(int): string) $factory
      */
+    #[TestsOnly]
     public static function createRandomStringsUsing(?callable $factory = null): void
     {
         static::$randomStringFactory = $factory === null ? null : $factory(...);
@@ -1016,12 +1020,13 @@ class Str
     /**
      * Set the sequence that will be used to generate random strings.
      *
-     * Tests only. The sequence factory persists in a static property for the
-     * worker lifetime and affects every subsequent random string generation.
+     * The sequence factory persists in a static property for the worker
+     * lifetime and affects every subsequent random string generation.
      *
      * @param string[] $sequence
      * @param null|(callable(int): string) $whenMissing
      */
+    #[TestsOnly]
     public static function createRandomStringsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
         $next = 0;
@@ -1054,10 +1059,10 @@ class Str
     /**
      * Indicate that random strings should be created normally and not using a custom factory.
      *
-     * Tests only. Clears the worker-wide random string factory; concurrent
-     * coroutines may observe different random string behavior depending on
-     * timing.
+     * Clears the worker-wide random string factory; concurrent coroutines
+     * may observe different random string behavior depending on timing.
      */
+    #[TestsOnly]
     public static function createRandomStringsNormally(): void
     {
         static::$randomStringFactory = null;
@@ -1082,12 +1087,14 @@ class Str
             $replace = iterator_to_array($replace);
         }
 
+        // Indexing avoids repeatedly renumbering large binding lists while formatting query errors.
+        $replace = array_values($replace);
         $segments = explode($search, $subject);
 
         $result = array_shift($segments);
 
-        foreach ($segments as $segment) {
-            $result .= self::toStringOr(array_shift($replace) ?? $search, $search) . $segment;
+        foreach ($segments as $index => $segment) {
+            $result .= self::toStringOr($replace[$index] ?? $search, $search) . $segment;
         }
 
         return $result;
@@ -1100,9 +1107,11 @@ class Str
     {
         try {
             return (string) $value;
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $fallback;
         }
     }
@@ -1110,10 +1119,12 @@ class Str
     /**
      * Replace the given value in the given string.
      *
+     * @template TKey of array-key
+     *
      * @param iterable<string>|string $search
      * @param iterable<string>|string $replace
-     * @param iterable<string>|string $subject
-     * @return ($subject is string ? string : string[])
+     * @param iterable<TKey, string>|string $subject
+     * @return ($subject is string ? string : array<TKey, string>)
      */
     public static function replace(string|iterable $search, string|iterable $replace, string|iterable $subject, bool $caseSensitive = true): string|array
     {
@@ -1137,10 +1148,12 @@ class Str
     /**
      * Replace the given value in the given string regardless of case.
      *
+     * @template TKey of array-key
+     *
      * @param string|string[] $search
      * @param string|string[] $replace
-     * @param string|string[] $subject
-     * @return ($subject is string ? string : string[])
+     * @param array<TKey, string>|string $subject
+     * @return ($subject is string ? string : array<TKey, string>)
      */
     protected static function replaceWhileIgnoringCase(string|array $search, string|array $replace, string|array $subject): string|array
     {
@@ -1280,11 +1293,17 @@ class Str
      * Remove any occurrence of the given string in the subject.
      *
      * @param iterable<string>|string $search
+     * @param iterable<string>|string $subject
+     * @return ($subject is string ? string : string[])
      */
-    public static function remove(string|iterable $search, string $subject, bool $caseSensitive = true): string
+    public static function remove(string|iterable $search, string|iterable $subject, bool $caseSensitive = true): string|array
     {
         if ($search instanceof Traversable) {
             $search = iterator_to_array($search);
+        }
+
+        if ($subject instanceof Traversable) {
+            $subject = iterator_to_array($subject);
         }
 
         return $caseSensitive
@@ -1641,11 +1660,7 @@ class Str
      */
     public static function substrCount(string $haystack, string $needle, int $offset = 0, ?int $length = null): int
     {
-        if (! is_null($length)) {
-            return substr_count($haystack, $needle, $offset, $length);
-        }
-
-        return substr_count($haystack, $needle, $offset);
+        return substr_count(static::substr($haystack, $offset, $length), $needle);
     }
 
     /**
@@ -1887,11 +1902,12 @@ class Str
     /**
      * Set the callable that will be used to generate UUIDs.
      *
-     * Tests only. The factory persists in a static property for the worker
-     * lifetime and affects every subsequent UUID generation.
+     * The factory persists in a static property for the worker lifetime
+     * and affects every subsequent UUID generation.
      *
      * @param null|(callable(): (string|Uuid)) $factory
      */
+    #[TestsOnly]
     public static function createUuidsUsing(?callable $factory = null): void
     {
         static::$uuidFactory = $factory === null ? null : $factory(...);
@@ -1900,12 +1916,13 @@ class Str
     /**
      * Set the sequence that will be used to generate UUIDs.
      *
-     * Tests only. The sequence factory persists in a static property for the
-     * worker lifetime and affects every subsequent UUID generation.
+     * The sequence factory persists in a static property for the worker
+     * lifetime and affects every subsequent UUID generation.
      *
      * @param array<string|Uuid> $sequence
      * @param null|(callable(): (string|Uuid)) $whenMissing
      */
+    #[TestsOnly]
     public static function createUuidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
         $next = 0;
@@ -1938,12 +1955,12 @@ class Str
     /**
      * Always return the same UUID when generating new UUIDs.
      *
-     * Tests only unless a callback is supplied. Without a callback, the factory
-     * persists in a static property for the worker lifetime and affects every
-     * subsequent UUID generation.
+     * The factory persists in a static property and affects every UUID the
+     * worker generates, until the callback returns when one is supplied.
      *
      * @param null|(Closure(Uuid): mixed) $callback
      */
+    #[TestsOnly]
     public static function freezeUuids(?Closure $callback = null): Uuid
     {
         $uuid = Str::uuid();
@@ -1964,9 +1981,10 @@ class Str
     /**
      * Indicate that UUIDs should be created normally and not using a custom factory.
      *
-     * Tests only. Clears the worker-wide UUID factory; concurrent coroutines
-     * may observe different UUID behavior depending on timing.
+     * Clears the worker-wide UUID factory; concurrent coroutines may observe
+     * different UUID behavior depending on timing.
      */
+    #[TestsOnly]
     public static function createUuidsNormally(): void
     {
         static::$uuidFactory = null;
@@ -1991,9 +2009,10 @@ class Str
     /**
      * Indicate that ULIDs should be created normally and not using a custom factory.
      *
-     * Tests only. Clears the worker-wide ULID factory; concurrent coroutines
-     * may observe different ULID behavior depending on timing.
+     * Clears the worker-wide ULID factory; concurrent coroutines may observe
+     * different ULID behavior depending on timing.
      */
+    #[TestsOnly]
     public static function createUlidsNormally(): void
     {
         static::$ulidFactory = null;
@@ -2002,11 +2021,12 @@ class Str
     /**
      * Set the callable that will be used to generate ULIDs.
      *
-     * Tests only. The factory persists in a static property for the worker
-     * lifetime and affects every subsequent ULID generation.
+     * The factory persists in a static property for the worker lifetime
+     * and affects every subsequent ULID generation.
      *
      * @param null|(callable(): Ulid) $factory
      */
+    #[TestsOnly]
     public static function createUlidsUsing(?callable $factory = null): void
     {
         static::$ulidFactory = $factory === null ? null : $factory(...);
@@ -2015,12 +2035,13 @@ class Str
     /**
      * Set the sequence that will be used to generate ULIDs.
      *
-     * Tests only. The sequence factory persists in a static property for the
-     * worker lifetime and affects every subsequent ULID generation.
+     * The sequence factory persists in a static property for the worker
+     * lifetime and affects every subsequent ULID generation.
      *
      * @param Ulid[] $sequence
      * @param null|(callable(): Ulid) $whenMissing
      */
+    #[TestsOnly]
     public static function createUlidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
         $next = 0;
@@ -2053,12 +2074,12 @@ class Str
     /**
      * Always return the same ULID when generating new ULIDs.
      *
-     * Tests only unless a callback is supplied. Without a callback, the factory
-     * persists in a static property for the worker lifetime and affects every
-     * subsequent ULID generation.
+     * The factory persists in a static property and affects every ULID the
+     * worker generates, until the callback returns when one is supplied.
      *
      * @param null|(Closure(Ulid): mixed) $callback
      */
+    #[TestsOnly]
     public static function freezeUlids(?Closure $callback = null): Ulid
     {
         $ulid = Str::ulid();
@@ -2079,6 +2100,7 @@ class Str
     /**
      * Remove all strings from the casing caches.
      */
+    #[Unsupported('Str keeps no casing caches; use StrCache for persistent casing caching.')]
     public static function flushCache(): void
     {
         throw new LogicException('Str::flushCache() is not implemented in Hypervel because Str casing caches are intentionally not used. Use StrCache for persistent casing caching.');
@@ -2087,9 +2109,10 @@ class Str
     /**
      * Return all factory functions to their default state.
      *
-     * Tests only. Clears the worker-wide random string, UUID, and ULID
-     * factories, affecting generation in every coroutine.
+     * Clears the worker-wide random string, UUID, and ULID factories,
+     * affecting generation in every coroutine.
      */
+    #[TestsOnly]
     public static function resetFactoryState(): void
     {
         static::createRandomStringsNormally();
