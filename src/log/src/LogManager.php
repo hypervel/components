@@ -598,7 +598,7 @@ class LogManager implements LoggerInterface
      */
     protected function configurationFor(?string $name): ?array
     {
-        return $this->app->make('config')->get("logging.channels.{$name}");
+        return $this->app->make('config')->nullableArray("logging.channels.{$name}", null);
     }
 
     /**
@@ -606,7 +606,7 @@ class LogManager implements LoggerInterface
      */
     public function getDefaultDriver(): ?string
     {
-        return $this->app->make('config')->get('logging.default');
+        return $this->app->make('config')->nullableString('logging.default');
     }
 
     /**

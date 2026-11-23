@@ -65,9 +65,9 @@ class TableManager
      */
     protected function resolve(string $name): TableState
     {
-        $config = $this->config->get("rate-limiter.stores.{$name}");
+        $config = $this->config->nullableArray("rate-limiter.stores.{$name}", null);
 
-        if (! is_array($config) || ($config['driver'] ?? null) !== 'swoole') {
+        if (($config['driver'] ?? null) !== 'swoole') {
             throw new InvalidArgumentException("Swoole rate limiter store [{$name}] is not defined.");
         }
 

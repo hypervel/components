@@ -48,6 +48,15 @@ class Foo
         // A custom getter keeps its own semantics
         $config->integer('test.foo');
     }
+
+    public function nullableGetters(bool $secondary): void
+    {
+        Config::nullableString('typed.nullable', 'fallback');
+        Config::nullableBoolean('test.missing', null);
+        Config::nullableString($secondary ? 'test.missing' : 'test.foo');
+        Config::nullableInteger('test.missing');
+        Config::nullableInteger('test.foo');
+    }
 }
 
 class LenientRepository extends Repository

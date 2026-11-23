@@ -66,6 +66,7 @@ class ValidateOrigin
         // browser user's machine is not necessarily one the server operator trusts. A configured
         // entry with a path never matches either, rather than trusting every app on its host.
         return array_any(
+            // @phpstan-ignore hypervel.untypedConfigRead (An origin may be configured as one string or a list.)
             Arr::wrap($this->config->get('mcp.allowed_origins')),
             fn (mixed $allowed): bool => $allowed === '*' || (
                 is_string($allowed)

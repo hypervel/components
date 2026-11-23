@@ -316,21 +316,21 @@ class MailManager implements FactoryContract
             ),
             'resend' => [
                 'transport' => $transport,
-                'key' => $config['key'] ?? $this->config->get('services.resend.key'),
+                'key' => $config['key'] ?? $this->config->nullableString('services.resend.key', null),
             ],
             'cloudflare' => [
                 'transport' => $transport,
                 'account_id' => $config['account_id']
-                    ?? $this->config->get('services.cloudflare.account_id'),
+                    ?? $this->config->nullableString('services.cloudflare.account_id', null),
                 // Laravel's legacy "token" credential name is not supported.
-                'key' => $config['key'] ?? $this->config->get('services.cloudflare.key'),
+                'key' => $config['key'] ?? $this->config->nullableString('services.cloudflare.key', null),
                 ...$this->httpClientConstructionConfig($config),
             ],
             'mailgun' => $this->mailgunTransportConstructionConfig($config),
             'postmark' => [
                 'transport' => $transport,
                 // Laravel's legacy "token" credential name is not supported.
-                'key' => $config['key'] ?? $this->config->get('services.postmark.key'),
+                'key' => $config['key'] ?? $this->config->nullableString('services.postmark.key', null),
                 ...(isset($config['message_stream_id'])
                     ? ['message_stream_id' => $config['message_stream_id']]
                     : []),
@@ -662,7 +662,7 @@ class MailManager implements FactoryContract
      */
     protected function setGlobalAddress(Mailer $mailer, array $config, string $type): void
     {
-        $address = Arr::get($config, $type, $this->config->get('mail.' . $type));
+        $address = Arr::get($config, $type, $this->config->nullableArray('mail.' . $type, null));
 
         if (is_array($address) && isset($address['address'])) {
             $mailer->{'always' . Str::studly($type)}($address['address'], $address['name'] ?? null);
@@ -675,7 +675,7 @@ class MailManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         // REMOVED: Laravel 6-style mail.driver configuration; use named mail.mailers entries.
-        $config = $this->config->get("mail.mailers.{$name}");
+        $config = $this->config->nullableArray("mail.mailers.{$name}", null);
 
         if (isset($config['url'])) {
             $config = array_merge($config, (new ConfigurationUrlParser)->parseConfiguration($config));

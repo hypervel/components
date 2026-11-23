@@ -63,7 +63,7 @@
         "hypervel/guzzle-promises": "^3.1",
         "laravel/agent-detector": "^2.0.5",
         "laravel/serializable-closure": "^2.0.11",
-        "lcobucci/jwt": "^5.6",
+        "lcobucci/jwt": "^5.7",
         "league/commonmark": "^2.10.3",
         "league/flysystem": "^3.25.1",
         "league/flysystem-aws-s3-v3": "^3.25.1",
@@ -135,6 +135,7 @@
         "mockery/mockery": "^1.6.15",
         "opis/json-schema": "^2.6.0",
         "pda/pheanstalk": "^8.0.2",
+        "phpstan/extension-installer": "^1.4.3",
         "phpstan/phpstan": "^2.3.6",
         "phpstan/phpstan-deprecation-rules": "^2.0.5",
         "phpunit/phpunit": "~13.4.3",
@@ -403,7 +404,8 @@
     "config": {
         "allow-plugins": {
             "php-http/discovery": true,
-            "tbachert/spi": true
+            "tbachert/spi": true,
+            "phpstan/extension-installer": false
         },
         "sort-packages": true,
         "policy": {

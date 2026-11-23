@@ -70,7 +70,7 @@ class RoutingBatchRepository extends DatabaseBatchRepository
     private function runsInline(?string $connection, array $visited = []): bool
     {
         $connection = $connection === null || $connection === '' ? $this->config->string('queue.default') : $connection;
-        $config = $this->config->get("queue.connections.{$connection}");
+        $config = $this->config->nullableArray("queue.connections.{$connection}", null);
         if (($config['driver'] ?? null) === 'sync') {
             return true;
         }

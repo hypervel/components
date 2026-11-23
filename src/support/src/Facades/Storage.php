@@ -192,7 +192,7 @@ class Storage extends Facade
     {
         /** @var ContainerContract $app */
         $app = static::$app;
-        $originalConfig = $app->make('config')->get("filesystems.disks.{$disk}") ?? [];
+        $originalConfig = $app->make('config')->nullableArray("filesystems.disks.{$disk}", null) ?? [];
 
         return array_merge(
             ['throw' => $originalConfig['throw'] ?? false],

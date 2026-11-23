@@ -117,12 +117,14 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
         $keys = ["{$prefix}.url"];
 
         foreach (['publish', 'subscribe'] as $side) {
+            // @phpstan-ignore hypervel.untypedConfigRead (Mercure chooses the effective credential by its truthiness.)
             $keys[] = config("{$prefix}.{$side}_secret") ? "{$prefix}.{$side}_secret" : "{$prefix}.secret";
         }
 
         $missing = [];
 
         foreach ($keys as $key) {
+            // @phpstan-ignore hypervel.untypedConfigRead (Check missing credentials even when other settings are malformed.)
             $value = config($key);
 
             if (! $value || blank($value)) {
@@ -178,10 +180,10 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
             return $this->values("logging.channels.{$channel}", ['url'], 'slack log channel');
         }
 
-        if ($driver === 'monolog' && config("logging.channels.{$channel}.handler") === SyslogUdpHandler::class) {
+        if ($driver === 'monolog' && Configured::string("logging.channels.{$channel}.handler") === SyslogUdpHandler::class) {
             $prefix = "logging.channels.{$channel}";
-            $with = config("{$prefix}.with") ?? [];
-            $handlerWith = config("{$prefix}.handler_with") ?? [];
+            $with = Configured::array("{$prefix}.with") ?? [];
+            $handlerWith = Configured::array("{$prefix}.handler_with") ?? [];
             $values = [];
 
             foreach (['host', 'port'] as $key) {
@@ -245,6 +247,7 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
 
             if ($value === null && in_array($transport, ['postmark', 'resend', 'cloudflare'], true)) {
                 $location = "services.{$transport}.{$key}";
+                // @phpstan-ignore hypervel.untypedConfigRead (Check missing credentials even when other settings are malformed.)
                 $value = config($location);
             }
 
@@ -268,7 +271,9 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
 
         foreach (ActiveDrivers::queueConnections($connection) as $name) {
             if (Configured::string("queue.connections.{$name}.driver", $name) !== 'sqs'
+                // @phpstan-ignore hypervel.untypedConfigRead (Inspect the configured overflow options even when their types are invalid.)
                 || config("queue.connections.{$name}.overflow.enabled") !== true
+                // @phpstan-ignore hypervel.untypedConfigRead (Inspect the configured overflow options even when their types are invalid.)
                 || config("queue.connections.{$name}.overflow.store") === null) {
                 continue;
             }

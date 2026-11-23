@@ -43,7 +43,6 @@ use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Sleep;
 use InvalidArgumentException;
-use UnitEnum;
 
 class SaloonManager
 {
@@ -525,10 +524,7 @@ class SaloonManager
      */
     protected function resolveCache(PendingRequest $pendingRequest, array $transport): array
     {
-        /** @var null|string|UnitEnum $configuredStore */
-        $configuredStore = $this->config->get('saloon.cache.store');
-        $store = $pendingRequest->cacheStore()
-            ?? $configuredStore;
+        $store = $pendingRequest->cacheStore() ?? $this->config->nullableString('saloon.cache.store', null);
         $repository = $this->cache->store($store);
         $key = (new CacheKey)->make(
             $pendingRequest,
@@ -644,11 +640,8 @@ class SaloonManager
      */
     protected function rateLimiterFor(Connector|Request $resource): Limiter
     {
-        /** @var null|string|UnitEnum $configuredStore */
-        $configuredStore = $this->config->get('saloon.rate_limiter.store');
-
         return $this->rateLimiter->store(
-            $resource->resolveRateLimitStoreName() ?? $configuredStore,
+            $resource->resolveRateLimitStoreName() ?? $this->config->nullableString('saloon.rate_limiter.store', null),
         );
     }
 

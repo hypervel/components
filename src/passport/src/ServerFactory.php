@@ -429,7 +429,7 @@ class ServerFactory
         if (KeyStore::from($this->config->string('passport.key_store')) === KeyStore::Files) {
             return $this->defaultEntry ??= $this->makeEntry(new ServerSettings(
                 $this->fileKeys(),
-                issuer: ($issuer = $this->config->get('passport.issuer')) === '' ? null : $issuer,
+                issuer: ($issuer = $this->config->nullableString('passport.issuer')) === '' ? null : $issuer,
             ));
         }
 
@@ -454,7 +454,7 @@ class ServerFactory
                 $identifiers = array_map(static fn (StoredServerKey $key): string => $key->id, $keys);
 
                 if ($previous === null || $identifiers !== $this->storedKeyIds) {
-                    $issuer = $this->config->get('passport.issuer');
+                    $issuer = $this->config->nullableString('passport.issuer');
                     $this->defaultEntry = $this->makeEntry(new ServerSettings(
                         $keys,
                         issuer: $issuer === '' ? null : $issuer,
@@ -486,8 +486,8 @@ class ServerFactory
      */
     public function fileKeys(): array
     {
-        $private = $this->config->get('passport.private_key');
-        $public = $this->config->get('passport.public_key');
+        $private = $this->config->nullableString('passport.private_key');
+        $public = $this->config->nullableString('passport.public_key');
 
         if ($private === null || $private === '') {
             $path = Passport::keyPath('oauth-private.key');

@@ -136,7 +136,7 @@ class Config
      */
     public static function defaultModel(): ?string
     {
-        return self::repository()->get('permission.models.default_model');
+        return self::repository()->nullableString('permission.models.default_model', null);
     }
 
     /**

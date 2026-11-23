@@ -59,7 +59,7 @@ class UserFactory extends Factory
     public function modelName(): string
     {
         // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (falls back to the variable the auth configuration reads when that key is missing)
-        return $this->model ?? config('auth.providers.users.model') ?? Env::get('AUTH_MODEL', User::class);
+        return $this->model ?? config()->nullableString('auth.providers.users.model', null) ?? Env::get('AUTH_MODEL', User::class);
     }
 
     /**

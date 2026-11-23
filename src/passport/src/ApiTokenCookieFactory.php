@@ -79,10 +79,10 @@ class ApiTokenCookieFactory
     {
         return StartSession::resolveCookieConfig($this->app->make('request'), [
             'path' => $this->config->string('session.path'),
-            'domain' => $this->config->get('session.domain'),
-            'secure' => $this->config->get('session.secure'),
+            'domain' => $this->config->nullableString('session.domain'),
+            'secure' => $this->config->nullableBoolean('session.secure'),
             'http_only' => true,
-            'same_site' => $this->config->get('session.same_site'),
+            'same_site' => $this->config->nullableString('session.same_site'),
             'partitioned' => $this->config->boolean('session.partitioned'),
         ]);
     }

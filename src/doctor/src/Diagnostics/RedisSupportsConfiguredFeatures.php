@@ -107,9 +107,9 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
         $default = Configured::string('cache.default');
 
         foreach ($default === null ? [] : ActiveDrivers::cacheStores($default) as $store) {
-            $configuration = config("cache.stores.{$store}");
+            $configuration = Configured::array("cache.stores.{$store}");
 
-            if (! is_array($configuration) || ($configuration['driver'] ?? null) !== 'redis') {
+            if ($configuration === null || ($configuration['driver'] ?? null) !== 'redis') {
                 continue;
             }
 
@@ -121,7 +121,7 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
             }
         }
 
-        if (config('session.driver') === 'redis' && config()->boolean('session.track_user_sessions')) {
+        if (Configured::string('session.driver') === 'redis' && config()->boolean('session.track_user_sessions')) {
             $connections[] = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
         }
 

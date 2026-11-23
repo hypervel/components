@@ -119,15 +119,14 @@ class FortifyServiceProvider extends ServiceProvider
         Passkeys::ignoreRoutes();
 
         $this->configureUsing(static function (Config $config): void {
-            /** @var null|string $appUrl */
-            $appUrl = $config->get('app.url');
+            $appUrl = $config->nullableString('app.url');
             $defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
             $defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
 
             $config->set([
-                'passkeys.relying_party_id' => $config->get('fortify.passkeys.relying_party_id', $defaultRelyingPartyId),
-                'passkeys.allowed_origins' => $config->get('fortify.passkeys.allowed_origins', $defaultAllowedOrigins),
-                'passkeys.user_handle_secret' => $config->get('fortify.passkeys.user_handle_secret', $config->get('app.key')),
+                'passkeys.relying_party_id' => $config->nullableString('fortify.passkeys.relying_party_id', $defaultRelyingPartyId),
+                'passkeys.allowed_origins' => $config->nullableArray('fortify.passkeys.allowed_origins', $defaultAllowedOrigins),
+                'passkeys.user_handle_secret' => $config->nullableString('fortify.passkeys.user_handle_secret', $config->nullableString('app.key')),
                 'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', Passkeys::DEFAULT_TIMEOUT),
             ]);
         });
@@ -204,7 +203,7 @@ class FortifyServiceProvider extends ServiceProvider
             $config = $this->app->make(Config::class);
 
             Route::group([
-                'domain' => $config->get('fortify.domain'),
+                'domain' => $config->nullableString('fortify.domain'),
                 'prefix' => $config->string('fortify.prefix'),
             ], function (): void {
                 $this->loadRoutesFrom(__DIR__ . '/../routes/routes.php');

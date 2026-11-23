@@ -70,7 +70,9 @@ class InertiaServiceProvider extends ServiceProvider
 
         // A null timeout is left out so the HTTP client's global options apply.
         $http->registerConnection(HttpGateway::CONNECTION, array_filter([
+            // @phpstan-ignore hypervel.untypedConfigRead (HTTP timeouts may be integer or fractional seconds, or null to inherit global options.)
             'connect_timeout' => $config->get('inertia.ssr.connect_timeout', 2.0),
+            // @phpstan-ignore hypervel.untypedConfigRead (HTTP timeouts may be integer or fractional seconds, or null to inherit global options.)
             'timeout' => $config->get('inertia.ssr.timeout', 5.0),
         ], fn (mixed $timeout): bool => $timeout !== null));
 

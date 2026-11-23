@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Fortify\Features;
 
-/** @var null|string $appUrl */
-$appUrl = config('app.url');
+$appUrl = config()->nullableString('app.url');
 $defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
 $defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
 
@@ -101,7 +100,7 @@ return [
     'passkeys' => [
         'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
         'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
-        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config()->nullableString('app.key')),
         'timeout' => (int) env('PASSKEYS_TIMEOUT', 60_000),
     ],
     'features' => [

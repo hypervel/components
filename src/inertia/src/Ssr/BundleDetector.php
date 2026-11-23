@@ -38,7 +38,7 @@ class BundleDetector
     private function findBundle(): ?string
     {
         return collect([
-            config('inertia.ssr.bundle'),
+            config()->nullableString('inertia.ssr.bundle', null),
             base_path('bootstrap/ssr/ssr.js'),
             base_path('bootstrap/ssr/app.js'),
             base_path('bootstrap/ssr/ssr.mjs'),

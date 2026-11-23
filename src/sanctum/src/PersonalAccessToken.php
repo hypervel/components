@@ -292,7 +292,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     protected static function getCache(): CacheRepository
     {
         $cacheManager = Container::getInstance()->make('cache');
-        $store = config()->get('sanctum.cache.store');
+        $store = config()->nullableString('sanctum.cache.store', null);
 
         return $store !== null && $store !== ''
             ? $cacheManager->store($store)

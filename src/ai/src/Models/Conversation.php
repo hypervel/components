@@ -66,7 +66,7 @@ class Conversation extends Model
     #[Override]
     public function getConnectionName(): ?string
     {
-        return config('ai.conversations.connection');
+        return config()->nullableString('ai.conversations.connection', null);
     }
 
     /**
