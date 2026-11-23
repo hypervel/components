@@ -51,7 +51,7 @@ class RedisSupportsConfiguredFeaturesTest extends TestCase
 
     #[RequiresPhpExtension('redis', '>=' . RedisRequirements::HASH_FIELD_EXPIRATION_PHPREDIS_VERSION)]
     #[DataProvider('activeFeatures')]
-    public function testOnlyChecksServersForActiveHashFieldFeatures(TagMode|string $mode, bool $trackSessions, array $servers, string $status, string $cacheConnection = 'data'): void
+    public function testOnlyChecksServersForActiveHashFieldFeatures(TagMode|string $mode, bool $trackSessions, array $servers, string $status, string|false $cacheConnection = 'data'): void
     {
         config([
             'cache.default' => 'stack',
@@ -66,6 +66,10 @@ class RedisSupportsConfiguredFeaturesTest extends TestCase
         $result = (new RedisSupportsConfiguredFeatures)->check();
 
         $this->assertSame($status, $result->status->value, $result->details ?? $result->summary);
+
+        if ($cacheConnection === false) {
+            $this->assertStringContainsString('Configuration value for key [cache.stores.feature-cache.connection]', $result->details);
+        }
 
         if ($status === 'fail') {
             $this->assertStringContainsString('data', $result->details);
@@ -82,6 +86,7 @@ class RedisSupportsConfiguredFeaturesTest extends TestCase
             'any-tag cache' => ['any', false, ['data' => ['redis_version' => '7.4.0']], 'fail'],
             'enum any-tag cache' => [TagMode::Any, false, ['data' => ['redis_version' => '8.0.0']], 'pass'],
             'empty cache connection uses default' => ['any', false, ['default' => ['redis_version' => '8.0.0']], 'pass', ''],
+            'invalid cache and unsupported session' => ['any', true, ['data' => ['redis_version' => '7.4.0']], 'fail', false],
             'session tracking' => ['all', true, ['data' => ['redis_version' => '7.4.0']], 'fail'],
             'shared feature connection on Valkey' => ['any', true, ['data' => ['valkey_version' => '9.0.0', 'redis_version' => '7.2.0']], 'pass'],
             'no hash-field features' => ['all', false, [], 'pass'],

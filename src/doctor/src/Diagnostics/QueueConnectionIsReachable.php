@@ -106,7 +106,7 @@ class QueueConnectionIsReachable extends Diagnostic
         match ($configuration['driver'] ?? null) {
             'sync' => null,
             'database' => $this->probeDatabaseQueue($configuration),
-            'redis' => RedisConnections::ensureReachable(RedisConnections::name($configuration['connection'] ?? null)),
+            'redis' => RedisConnections::ensureReachable(RedisConnections::name("queue.connections.{$connection}.connection")),
             'sqs', 'beanstalkd' => Queue::connection($connection)->size(),
             default => Queue::connection($connection),
         };
@@ -145,6 +145,11 @@ class QueueConnectionIsReachable extends Diagnostic
 
         if ($configuration === null) {
             throw new RuntimeException(sprintf('The [%s] queue connection is not configured.', $connection));
+        }
+
+        $driver = $configuration['driver'] ?? null;
+        if (! is_string($driver) || trim($driver) === '') {
+            throw new RuntimeException("The [{$connection}] queue connection does not have a driver.");
         }
 
         return $configuration;

@@ -124,6 +124,16 @@ class QueueConnectionIsReachableTest extends TestCase
         $this->assertSame("[redis]: Redis connection [{$expected}] rejected PING: ERR max number of clients reached", $result->details);
     }
 
+    public function testReportsAMissingQueueDriver(): void
+    {
+        config(['queue.default' => 'remote', 'queue.connections.remote' => []]);
+
+        $result = (new QueueConnectionIsReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('[remote]: The [remote] queue connection does not have a driver.', $result->details);
+    }
+
     public function testBuiltInNullConnectionNeedsNoConfigurationRecord(): void
     {
         config(['queue.default' => 'null', 'queue.connections' => []]);

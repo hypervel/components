@@ -127,6 +127,20 @@ class RedisConnectionsAreReachableTest extends TestCase
         $this->assertSame('- default: Redis rejected PING: ERR max number of clients reached', $result->details);
     }
 
+    public function testMalformedDataConnectionDoesNotHideARejectedLockConnection(): void
+    {
+        config([
+            'cache.default' => 'redis',
+            'cache.stores.redis' => ['driver' => 'redis', 'connection' => false, 'lock_connection' => 'locks'],
+        ]);
+
+        $result = RedisPingServer::check(new RedisConnectionsAreReachable, 'locks', '-ERR too many clients');
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertStringContainsString('Configuration value for key [cache.stores.redis.connection]', $result->details);
+        $this->assertStringContainsString('locks: Redis rejected PING: ERR too many clients', $result->details);
+    }
+
     public function testReportsTheClusterErrorReturnedByTheSelectedNode(): void
     {
         config(['session.driver' => 'redis', 'session.connection' => 'cluster']);

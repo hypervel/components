@@ -74,7 +74,7 @@ class SessionDriverIsReachable extends Diagnostic
             'array', 'cookie' => null,
             'file', 'native' => $this->probeFileSessions(),
             'database' => $this->probeDatabaseSessions(),
-            'redis' => RedisConnections::ensureReachable(RedisConnections::sessionName()),
+            'redis' => RedisConnections::ensureReachable(RedisConnections::name('session.connection')),
             default => $this->probeSessionManager(),
         };
     }

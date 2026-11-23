@@ -9,7 +9,6 @@ use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
-use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Doctor\Support\Details;
 use Hypervel\Doctor\Support\RedisConnections;
 use Throwable;
@@ -42,13 +41,13 @@ class RedisConnectionsAreReachable extends Diagnostic
      */
     public function check(): DiagnosticResult
     {
-        $connections = ActiveDrivers::redisConnections();
+        $selectors = RedisConnections::selectors();
 
-        if ($connections === []) {
+        if ($selectors === []) {
             return $this->skip('not-configured');
         }
 
-        $failures = [];
+        [$connections, $failures] = RedisConnections::resolve($selectors);
 
         foreach ($connections as $connection) {
             try {

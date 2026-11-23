@@ -25,6 +25,10 @@ final class ActiveDrivers
             throw new InvalidArgumentException('Circular cache store definition detected: ' . implode(' -> ', [...array_slice($seen, $cycleStart), $store]) . '.');
         }
 
+        if ($store === 'null') {
+            return [$store];
+        }
+
         $driver = Configured::string("cache.stores.{$store}.driver");
 
         if (! in_array($driver, ['stack', 'failover'], true)) {
@@ -159,7 +163,7 @@ final class ActiveDrivers
             throw new InvalidArgumentException('Circular queue connection definition detected: ' . implode(' -> ', [...array_slice($seen, $cycleStart), $connection]) . '.');
         }
 
-        if (Configured::string("queue.connections.{$connection}.driver") !== 'failover') {
+        if ($connection === 'null' || Configured::string("queue.connections.{$connection}.driver") !== 'failover') {
             return [$connection];
         }
 
@@ -181,35 +185,6 @@ final class ActiveDrivers
      */
     public static function redisConnections(): array
     {
-        $connections = [];
-        $cache = Configured::string('cache.default');
-
-        foreach ($cache === null ? [] : self::cacheStores($cache) as $store) {
-            $configuration = Configured::array("cache.stores.{$store}");
-
-            if (($configuration['driver'] ?? null) !== 'redis') {
-                continue;
-            }
-
-            $connection = $configuration['connection'] ?? null;
-            $connections[] = RedisConnections::name($connection);
-            $connections[] = RedisConnections::name($configuration['lock_connection'] ?? $connection);
-        }
-
-        $queue = Configured::string('queue.default');
-
-        foreach ($queue === null ? [] : self::queueConnections($queue) as $name) {
-            $configuration = Configured::array("queue.connections.{$name}");
-
-            if (($configuration['driver'] ?? null) === 'redis') {
-                $connections[] = RedisConnections::name($configuration['connection'] ?? null);
-            }
-        }
-
-        if (Configured::string('session.driver') === 'redis') {
-            $connections[] = RedisConnections::sessionName();
-        }
-
-        return array_values(array_unique($connections));
+        return array_values(array_unique(array_map(RedisConnections::name(...), RedisConnections::selectors())));
     }
 }
