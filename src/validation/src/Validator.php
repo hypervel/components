@@ -99,7 +99,8 @@ class Validator implements ValidatorContract
     /**
      * The conditions read from the database rule builder that is validating.
      *
-     * A failure reports these instead of reading the builder a second time.
+     * A failure reports these instead of reading the builder a second time, and the
+     * default getUniqueExtra() consults them to decide whether the shared hook applies.
      */
     private ?DatabaseConditions $currentRuleConditions = null;
 

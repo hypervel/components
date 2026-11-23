@@ -1227,25 +1227,21 @@ trait ValidatesAttributes
 
         // A hook may validate another attribute, so read the rule being validated first.
         $rule = $this->currentRule;
+        $declared = match (true) {
+            $rule instanceof DatabaseRulePlan => $rule->conditions,
+            $rule instanceof Unique => $rule->queryConditions(),
+            default => null,
+        };
+
+        // getUniqueExtra() consults a builder's conditions, and a failure reports them.
+        $this->currentRuleConditions = $rule instanceof Unique ? $declared : null;
 
         // As in Laravel, parameters after the header pass through the hook and combine with the
         // rule's own conditions, so validator subclasses can scope a fluent rule either way.
         $conditions = $this->getUniqueExtra($parameters);
 
-        if ($rule instanceof DatabaseRulePlan) {
-            $conditions = $conditions->merge($rule->conditions);
-        } elseif ($rule instanceof Unique) {
-            $declared = $rule->queryConditions();
-
-            // Laravel renders a builder's predicates as extra parameters, which sends them through
-            // the shared hook. This header carries none, so consult the hook for them here.
-            if (! isset($parameters[4])
-                && array_any($declared->all(), static fn (mixed $condition): bool => $condition instanceof DatabaseCondition)
-            ) {
-                $conditions = $conditions->merge($this->getExtraConditions([]));
-            }
-
-            $conditions = $conditions->merge($this->currentRuleConditions = $declared);
+        if ($declared !== null) {
+            $conditions = $conditions->merge($declared);
         }
 
         return $verifier->getCount(
@@ -1299,6 +1295,14 @@ trait ValidatesAttributes
     {
         if (isset($parameters[4])) {
             return $this->getExtraConditions(array_slice($parameters, 4));
+        }
+
+        // Laravel renders a builder's predicates as extra parameters, which sends them through
+        // the shared hook. They stay typed here, so reach the hook for them without segments.
+        if ($this->currentRuleConditions !== null
+            && array_any($this->currentRuleConditions->all(), static fn (mixed $condition): bool => $condition instanceof DatabaseCondition)
+        ) {
+            return $this->getExtraConditions([]);
         }
 
         return new DatabaseConditions;

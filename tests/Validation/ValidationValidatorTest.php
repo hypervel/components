@@ -5291,6 +5291,27 @@ class ValidationValidatorTest extends TestCase
             }
         };
 
+        $globallyUnique = new class($this->getArrayTranslator(), [], []) extends Validator {
+            /**
+             * Scope the extra conditions shared by the exists and unique rules to a tenant.
+             */
+            protected function getExtraConditions(array $segments): DatabaseConditions
+            {
+                return new DatabaseConditions(
+                    ...parent::getExtraConditions($segments)->all(),
+                    ...[new DatabaseCondition('tenant_id', DatabaseConditionOperator::Equals, '42')],
+                );
+            }
+
+            /**
+             * Keep unique checks global by resolving their extra conditions without the shared hook.
+             */
+            protected function getUniqueExtra(array $parameters): DatabaseConditions
+            {
+                return DatabaseConditions::fromParameters(array_slice($parameters, 4));
+            }
+        };
+
         $scoped = new DatabaseConditions($tenant, $active);
         $unique = fn (): Unique => (new Unique('users', 'email'))->where('active', true);
         $exists = fn (): Exists => (new Exists('users', 'email'))->where('active', true);
@@ -5303,6 +5324,9 @@ class ValidationValidatorTest extends TestCase
             [$uniqueExtraScoped::class, $unique(), new PresenceQuery(null, 'users', 'email', $scoped, null, 'id'), 0],
             // As in Laravel, a unique rule without extra conditions does not reach the shared hook.
             [$extraConditionsScoped::class, new Unique('users', 'email'), new PresenceQuery(null, 'users', 'email', new DatabaseConditions, null, 'id'), 0],
+            // A getUniqueExtra() override decides whether the shared hook applies to unique rules.
+            [$globallyUnique::class, $unique(), new PresenceQuery(null, 'users', 'email', new DatabaseConditions($active), null, 'id'), 0],
+            [$globallyUnique::class, $exists(), new PresenceQuery(null, 'users', 'email', $scoped), 1],
         ] as [$class, $rule, $query, $count]) {
             $validator = new $class($this->getArrayTranslator(), ['email' => 'foo'], ['email' => [$rule]]);
             $verifier = Double::for(PresenceVerifierInterface::class)->strict();
