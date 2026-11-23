@@ -52,7 +52,7 @@ class PushedAuthorizationRequestController
             $parameters = RequestParameters::fromForm($request);
             $client = $this->authenticator->authenticate($psrRequest->withParsedBody($parameters));
 
-            if (! $client->supportsProvider($this->auth->getUserProviderName($this->config->get('passport.guard')))) {
+            if (! $client->supportsProvider($this->auth->getUserProviderName($this->config->nullableString('passport.guard')))) {
                 throw LeagueException::invalidClient($psrRequest);
             }
 

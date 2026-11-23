@@ -103,7 +103,7 @@ class PasswordConfirmationTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Configuration value for key [auth.guards.admin.password_timeout] must be an integer, string given.');
+        $this->expectExceptionMessageIs('Configuration value for key [auth.guards.admin.password_timeout] must be an integer or null, string given.');
 
         PasswordConfirmation::timeout($config, 'admin');
     }

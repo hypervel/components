@@ -166,8 +166,8 @@ class BearerTokenValidatorTest extends TestCase
         $this->assertSame('token-id', $result->getAttribute('oauth_access_token_id'));
     }
 
-    #[DataProvider('invalidIdentifiers')]
-    public function testSignedArtifactsWithoutTokenIdentifiersAreRejectedBeforeLookup(string $scenario): void
+    #[DataProvider('invalidAccessTokenClaims')]
+    public function testInvalidAccessTokenClaimsAreRejectedBeforeLookup(string $scenario): void
     {
         $repository = Double::for(AccessTokenRepositoryInterface::class)->strict();
         $repository->expects('isAccessTokenRevoked')->never();
@@ -182,11 +182,11 @@ class BearerTokenValidatorTest extends TestCase
     }
 
     /**
-     * Supply signed artifacts that cannot identify an access token.
+     * Supply invalid access token claims.
      */
-    public static function invalidIdentifiers(): array
+    public static function invalidAccessTokenClaims(): array
     {
-        return [['missing identifier'], ['empty identifier'], ['missing client identifier'], ['invalid client identifier']];
+        return [['missing expiration'], ['missing identifier'], ['empty identifier'], ['missing client identifier'], ['invalid client identifier']];
     }
 
     /**
@@ -207,8 +207,11 @@ class BearerTokenValidatorTest extends TestCase
             ->relatedTo('user-id')
             ->withClaim('scopes', ['read'])
             ->issuedAt(new DateTimeImmutable($scenario === 'future issue time' ? '+1 hour' : '-2 minutes'))
-            ->canOnlyBeUsedAfter(new DateTimeImmutable($scenario === 'future not before' ? '+1 hour' : '-2 minutes'))
-            ->expiresAt(new DateTimeImmutable($scenario === 'expired' ? '-1 minute' : '+1 hour'));
+            ->canOnlyBeUsedAfter(new DateTimeImmutable($scenario === 'future not before' ? '+1 hour' : '-2 minutes'));
+
+        if ($scenario !== 'missing expiration') {
+            $builder = $builder->expiresAt(new DateTimeImmutable($scenario === 'expired' ? '-1 minute' : '+1 hour'));
+        }
 
         if ($scenario !== 'missing identifier') {
             $builder = $builder->identifiedBy($scenario === 'empty identifier' ? '' : 'token-id');

@@ -35,27 +35,31 @@ class PermissionServiceProviderTest extends TestCase
     }
 
     #[DataProvider('migrations')]
-    public function testMigrationReportsWhenPermissionConfigurationIsNotLoaded(string $file): void
+    public function testMigrationReportsWhenPermissionConfigurationIsNotLoaded(string $file, string $method, array $configuration, string $message): void
     {
-        config(['permission.table_names' => null]);
+        config(['permission' => $configuration]);
         $migration = require dirname(__DIR__, 2) . '/src/permission/database/migrations/' . $file;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIsOrContains('Error: config/permission.php not loaded.');
+        $this->expectExceptionMessageIs($message);
 
-        $migration->up();
+        $migration->{$method}();
     }
 
     /**
      * Get the package migration files.
      *
-     * @return array<string, array{string}>
+     * @return iterable<string, array{string, string, array, string}>
      */
-    public static function migrations(): array
+    public static function migrations(): iterable
     {
-        return [
-            'create permission tables' => ['2025_07_02_000000_create_permission_tables.php'],
-            'add teams fields' => ['add_teams_fields.php.stub'],
-        ];
+        foreach (['missing' => [], 'null' => ['table_names' => null]] as $case => $configuration) {
+            $clear = 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.';
+            $publish = 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.';
+
+            yield "create up, {$case}" => ['2025_07_02_000000_create_permission_tables.php', 'up', $configuration, $clear];
+            yield "create down, {$case}" => ['2025_07_02_000000_create_permission_tables.php', 'down', $configuration, $publish];
+            yield "teams up, {$case}" => ['add_teams_fields.php.stub', 'up', $configuration, $clear];
+        }
     }
 }

@@ -75,7 +75,7 @@ if (Passport::$deviceCodeGrantEnabled) {
     ]);
 }
 
-$guard = config('passport.guard');
+$guard = config()->nullableString('passport.guard');
 
 Route::middleware(['web', $guard ? 'auth:' . $guard : 'auth'])->group(function (): void {
     Route::post('/token/refresh', [

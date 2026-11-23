@@ -553,7 +553,7 @@ class OAuthAccounts
             return $this->cache;
         }
 
-        $cache = $this->cacheFactory->store($this->config->get('saloon.oauth_accounts.cache.store'));
+        $cache = $this->cacheFactory->store($this->config->nullableString('saloon.oauth_accounts.cache.store', null));
         $this->cacheValidator->validate($cache, 'Saloon OAuth account cache');
         $ttl = $this->config->integer('saloon.oauth_accounts.cache.ttl', self::DEFAULT_CACHE_TTL);
 
@@ -575,8 +575,8 @@ class OAuthAccounts
             return $this->renewalCache;
         }
 
-        $store = $this->config->get('saloon.oauth_accounts.lock_store')
-            ?? $this->config->get('saloon.oauth_accounts.cache.store')
+        $store = $this->config->nullableString('saloon.oauth_accounts.lock_store', null)
+            ?? $this->config->nullableString('saloon.oauth_accounts.cache.store', null)
             ?? $this->config->string('cache.default');
         $cache = $this->cacheFactory->store($store);
         $this->cacheValidator->validate($cache, 'Saloon OAuth account renewal');

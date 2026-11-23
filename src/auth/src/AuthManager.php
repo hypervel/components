@@ -132,7 +132,7 @@ class AuthManager implements FactoryContract
             $this->app,
             rehashOnLogin: $repository->boolean('hashing.rehash_on_login'),
             timeboxDuration: $repository->integer('auth.timebox_duration'),
-            hashKey: $repository->get('app.key'),
+            hashKey: $repository->nullableString('app.key'),
         );
 
         // When using the remember me functionality of the authentication services we
@@ -173,7 +173,7 @@ class AuthManager implements FactoryContract
      */
     protected function getConfig(string $name): ?array
     {
-        return $this->app->make('config')->get("auth.guards.{$name}");
+        return $this->app->make('config')->nullableArray("auth.guards.{$name}", null);
     }
 
     /**

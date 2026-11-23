@@ -150,9 +150,9 @@ class RateLimiter extends MultipleInstanceManager
      */
     public function getInstanceConfig(string $name): array
     {
-        $config = $this->config->get('rate-limiter.stores.' . $name);
+        $config = $this->config->nullableArray('rate-limiter.stores.' . $name, null);
 
-        if (! is_array($config)) {
+        if ($config === null) {
             throw new InvalidArgumentException("Rate limiter store [{$name}] is not defined.");
         }
 

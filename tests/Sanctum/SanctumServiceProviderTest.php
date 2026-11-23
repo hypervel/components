@@ -439,7 +439,7 @@ class SanctumServiceProviderTest extends TestCase
 
         $this->assertInstanceOf(Closure::class, $bootedCallback);
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Sanctum cache store must be a string or null.');
+        $this->expectExceptionMessageIs('Configuration value for key [sanctum.cache.store] must be a string or null, array given.');
 
         $bootedCallback();
     }

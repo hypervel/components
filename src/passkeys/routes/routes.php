@@ -8,9 +8,9 @@ use Hypervel\Passkeys\Http\Controllers\PasskeyRegistrationController;
 use Hypervel\Support\Facades\Route;
 
 $groupMiddleware = config()->array('passkeys.middleware');
-$guard = config('passkeys.guard');
+$guard = config()->nullableString('passkeys.guard');
 
-if (is_string($guard) && $guard !== '') {
+if ($guard !== null && $guard !== '') {
     $groupMiddleware[] = 'auth.guard:' . $guard;
 }
 
@@ -18,7 +18,7 @@ Route::group(['middleware' => $groupMiddleware], function () {
     $managementMiddleware = array_values(array_filter(config()->array('passkeys.management_middleware')));
 
     $middleware = function (string ...$middleware): array {
-        $throttle = config('passkeys.throttle', 'throttle:6,1');
+        $throttle = config()->nullableString('passkeys.throttle', 'throttle:6,1');
 
         return array_values(array_filter([...$middleware, $throttle]));
     };

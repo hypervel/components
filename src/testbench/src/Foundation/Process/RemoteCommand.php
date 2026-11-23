@@ -88,7 +88,7 @@ final class RemoteCommand
             $env['HYPERVEL_INVOKABLE_CLOSURE'] = base64_encode(
                 serialize(new SerializableClosure($command))
             );
-            $env['APP_KEY'] ??= config('app.key') ?? false;
+            $env['APP_KEY'] ??= config()->nullableString('app.key') ?? false;
             $commands = ['invoke-serialized-closure'];
         } else {
             $commands = $command;

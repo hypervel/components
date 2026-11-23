@@ -14,8 +14,6 @@ class RoutePath
      */
     public static function for(string $routeName, string $default): string
     {
-        return (string) (Container::getInstance()
-            ->make(Config::class)
-            ->get('fortify.paths.' . $routeName) ?? $default);
+        return Container::getInstance()->make(Config::class)->nullableString('fortify.paths.' . $routeName, null) ?? $default;
     }
 }

@@ -60,6 +60,7 @@ abstract class EntryController
             return 'paused';
         }
 
+        // @phpstan-ignore hypervel.untypedConfigRead (Watcher definitions accept a boolean or an array of options.)
         $watcher = config('telescope.watchers.' . $this->watcher());
 
         if (! $watcher || (isset($watcher['enabled']) && ! $watcher['enabled'])) {

@@ -80,11 +80,11 @@ trait HandlesDatabases
         /** @var Repository $config */
         $config = $app->make('config');
 
-        $connection ??= $config->get('database.default');
+        $connection ??= $config->nullableString('database.default', null);
 
-        $configuration = $config->get("database.connections.{$connection}");
+        $configuration = $config->nullableArray("database.connections.{$connection}", null);
 
-        return is_array($configuration)
+        return $configuration !== null
             && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 

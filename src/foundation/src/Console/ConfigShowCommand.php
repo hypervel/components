@@ -46,6 +46,7 @@ class ConfigShowCommand extends Command
 
         if ($this->option('json')) {
             $this->output->writeln(
+                // @phpstan-ignore hypervel.untypedConfigRead (The command displays an arbitrary user-selected configuration value.)
                 json_encode($this->config->get($config), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
                 OutputInterface::OUTPUT_RAW,
             );
@@ -65,6 +66,7 @@ class ConfigShowCommand extends Command
      */
     public function render(string $name): void
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (The command displays an arbitrary user-selected configuration value.)
         $data = $this->config->get($name);
 
         if (! is_array($data)) {

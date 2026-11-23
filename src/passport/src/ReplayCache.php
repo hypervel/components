@@ -34,7 +34,7 @@ class ReplayCache
             return false;
         }
 
-        $name = $this->config->get('passport.replay.store');
+        $name = $this->config->nullableString('passport.replay.store', null);
         $repository = $this->cache->store($name === '' ? null : $name);
         $store = $repository->getStore();
 

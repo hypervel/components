@@ -276,7 +276,7 @@ class PermissionRegistrar
         /** @var class-string<Role> $roleClass */
         $roleClass = $this->config->string('permission.models.role');
         /** @var null|class-string<Model> $teamClass */
-        $teamClass = $this->config->get('permission.models.team');
+        $teamClass = $this->config->nullableString('permission.models.team', null);
         /** @var class-string<PermissionsTeamResolver> $teamResolverClass */
         $teamResolverClass = $this->config->string('permission.team_resolver');
 

@@ -13,7 +13,7 @@ abstract class PennantMigration extends Migration
      */
     public function getConnection(): ?string
     {
-        $connection = config('pennant.stores.database.connection');
+        $connection = config()->nullableString('pennant.stores.database.connection', null);
 
         // Without a connection of its own, the migration runs on the migrator's connection, so --database applies.
         return $connection === '' ? null : $connection;

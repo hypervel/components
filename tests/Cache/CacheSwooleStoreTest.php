@@ -54,8 +54,8 @@ class CacheSwooleStoreTest extends TestCase
     public function testMissingSwooleTableConfigThrowsTableNotDefinedException(): void
     {
         $config = Double::for(ConfigRepository::class)->strict();
-        $config->expects('get')
-            ->with('cache.swoole_tables.missing')
+        $config->expects('nullableArray')
+            ->with('cache.swoole_tables.missing', null)
             ->returns(null);
 
         $container = Double::for(ContainerContract::class, override: true)->strict();
@@ -70,8 +70,8 @@ class CacheSwooleStoreTest extends TestCase
     public function testSealingRetainsExistingTablesAndRejectsLateCreation(): void
     {
         $config = Double::for(ConfigRepository::class)->strict();
-        $config->expects('get')
-            ->with('cache.swoole_tables.first')
+        $config->expects('nullableArray')
+            ->with('cache.swoole_tables.first', null)
             ->returns([
                 'rows' => 64,
                 'bytes' => 1024,

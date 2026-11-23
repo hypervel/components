@@ -300,6 +300,7 @@ class RedisBatchRepositoryTest extends TestCase
             DB::purge($driver);
             Artisan::call('queue:work', ['--stop-when-empty' => true]);
         }, [
+            'TESTBENCH_BASE_PATH' => false,
             'DB_CONNECTION' => $driver,
             'DB_DATABASE' => $databaseName,
             'DB_URL' => false,

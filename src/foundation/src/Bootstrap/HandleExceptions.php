@@ -201,12 +201,14 @@ class HandleExceptions
      */
     protected function ensureDeprecationLoggerIsConfigured(ConfigRepository $config): void
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (Deprecation handling must inspect partially configured log channels.)
         if ($config->get('logging.channels.deprecations')) {
             return;
         }
 
         // A deprecation raised while the server boots must be derived again from each worker's rebuilt configuration.
         static::$app->make(ConfigMutationTracker::class)->applyAndRecord($config, function (ConfigRepository $config): void {
+            // @phpstan-ignore hypervel.untypedConfigRead (Deprecation handling must inspect partially configured log channels.)
             if ($config->get('logging.channels.deprecations')) {
                 return;
             }
@@ -227,6 +229,7 @@ class HandleExceptions
      */
     protected function ensureNullLogDriverIsConfigured(ConfigRepository $config): void
     {
+        // @phpstan-ignore hypervel.untypedConfigRead (Deprecation handling must inspect partially configured log channels.)
         if ($config->get('logging.channels.null')) {
             return;
         }
