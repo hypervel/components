@@ -21,6 +21,7 @@ use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use PHPUnit\Framework\Attributes\WithEnvironmentVariable;
 use Redis;
 use RedisCluster;
 use RedisException;
@@ -728,6 +729,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     }
 
     #[DataProvider('clusterTransports')]
+    #[WithEnvironmentVariable('SSL_CERT_FILE', __DIR__ . '/Fixtures/Tls/ca.crt')]
     public function testClusterSchemeSelectsTheExpectedTransport(string $scheme, array $context): void
     {
         $tls = $scheme === 'tls';
