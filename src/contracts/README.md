@@ -7,6 +7,8 @@ Documentation: https://hypervel.org/docs/contracts
 
 ## Differences From Laravel
 
+The `Config\Repository` contract requires `string()`, `integer()`, `float()`, `boolean()`, `array()`, `collection()`, `nullableString()`, `nullableInteger()`, `nullableFloat()`, `nullableBoolean()` and `nullableArray()`. Code that type-hints the contract can use these getters directly. Extending `Hypervel\Config\Repository` supplies them.
+
 The `Container` contract also requires `isScoped()`, `isScopedInstance()`, `resolvedShared()`, `forgetInstance()`, `makeTransient()`, `build()`, `buildWith()`, `resolveContextualParameters()`, and `rebinding()`. Custom implementations must provide these methods; extending `Hypervel\Container\Container` supplies them. Lifetime inspection lets consumers cache only the instances the container shares for the worker, instead of caching scoped or fresh services across requests.
 
 The `View` contract also requires `gatherData(): array`, which exposes the data used to render the view, including shared values, for response assertions. The standard `Hypervel\View\View` already provides it.
