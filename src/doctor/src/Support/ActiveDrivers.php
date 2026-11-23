@@ -26,7 +26,7 @@ final class ActiveDrivers
             throw new InvalidArgumentException('Circular cache store definition detected: ' . implode(' -> ', [...array_slice($seen, $cycleStart), $store]) . '.');
         }
 
-        $driver = config("cache.stores.{$store}.driver");
+        $driver = Configured::string("cache.stores.{$store}.driver");
 
         if (! in_array($driver, ['stack', 'failover'], true)) {
             return [$store];
@@ -62,10 +62,11 @@ final class ActiveDrivers
             return [];
         }
 
-        if (config("logging.channels.{$channel}.driver") !== 'stack') {
+        if (Configured::string("logging.channels.{$channel}.driver") !== 'stack') {
             return [$channel];
         }
 
+        // @phpstan-ignore hypervel.untypedConfigRead (A stack accepts a comma-separated string or an array of channels.)
         $channels = config("logging.channels.{$channel}.channels");
 
         if (is_string($channels)) {
@@ -132,9 +133,9 @@ final class ActiveDrivers
      */
     public static function mailerConfiguration(string $mailer): array
     {
-        $configuration = config("mail.mailers.{$mailer}");
+        $configuration = Configured::array("mail.mailers.{$mailer}");
 
-        if (! is_array($configuration)) {
+        if ($configuration === null) {
             return [];
         }
 
@@ -158,7 +159,7 @@ final class ActiveDrivers
             throw new InvalidArgumentException('Circular queue connection definition detected: ' . implode(' -> ', [...array_slice($seen, $cycleStart), $connection]) . '.');
         }
 
-        if (config("queue.connections.{$connection}.driver") !== 'failover') {
+        if (Configured::string("queue.connections.{$connection}.driver") !== 'failover') {
             return [$connection];
         }
 
@@ -184,9 +185,9 @@ final class ActiveDrivers
         $cache = Configured::string('cache.default');
 
         foreach ($cache === null ? [] : self::cacheStores($cache) as $store) {
-            $configuration = config("cache.stores.{$store}");
+            $configuration = Configured::array("cache.stores.{$store}");
 
-            if (! is_array($configuration) || ($configuration['driver'] ?? null) !== 'redis') {
+            if (($configuration['driver'] ?? null) !== 'redis') {
                 continue;
             }
 
@@ -198,14 +199,14 @@ final class ActiveDrivers
         $queue = Configured::string('queue.default');
 
         foreach ($queue === null ? [] : self::queueConnections($queue) as $name) {
-            $configuration = config("queue.connections.{$name}");
+            $configuration = Configured::array("queue.connections.{$name}");
 
-            if (is_array($configuration) && ($configuration['driver'] ?? null) === 'redis') {
+            if (($configuration['driver'] ?? null) === 'redis') {
                 $connections[] = $configuration['connection'] ?? 'default';
             }
         }
 
-        if (config('session.driver') === 'redis') {
+        if (Configured::string('session.driver') === 'redis') {
             $connections[] = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
         }
 

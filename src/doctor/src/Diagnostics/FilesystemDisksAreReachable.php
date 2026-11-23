@@ -110,8 +110,6 @@ class FilesystemDisksAreReachable extends Diagnostic
      */
     private function configuration(string $disk): ?array
     {
-        $configuration = config("filesystems.disks.{$disk}");
-
-        return is_array($configuration) ? $configuration : null;
+        return Configured::array("filesystems.disks.{$disk}");
     }
 }

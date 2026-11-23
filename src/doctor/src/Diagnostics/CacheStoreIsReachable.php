@@ -232,10 +232,10 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
     private function cacheTableIsMissing(): bool
     {
         try {
-            $configuration = config('cache.stores.database');
+            $configuration = Configured::array('cache.stores.database');
             $defaultConnection = DB::getDefaultConnection();
 
-            if (! is_array($configuration)
+            if ($configuration === null
                 || ($configuration['driver'] ?? null) !== 'database'
                 || ($configuration['table'] ?? null) !== CacheTableCommand::TABLE
                 || ($configuration['lock_table'] ?? DatabaseStore::DEFAULT_LOCK_TABLE) !== DatabaseStore::DEFAULT_LOCK_TABLE
