@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\RateLimiter;
 
+use Closure;
 use Hypervel\Config\Repository;
+use Hypervel\Core\Swoole\StripedLock;
+use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\Cooldown;
@@ -174,6 +177,34 @@ class SwooleStoreTest extends TestCase
         $this->assertSame(0, $state->table()->count());
     }
 
+    public function testPruningPreservesAWindowRenewedAfterTheScan(): void
+    {
+        [$store, $state] = $this->store();
+        $policy = Limit::perSecond(1);
+        CarbonImmutable::setTestNow('2026-08-04 00:00:00');
+        $store->consume('123', $policy);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
+
+        $pruningState = new class('swoole', $state->table(), new StripedLock) extends TableState {
+            public Closure $renew;
+
+            /**
+             * Renew the expired window before the pruner acquires its stripe.
+             */
+            public function withLock(string $key, callable $callback): mixed
+            {
+                ($this->renew)($key);
+
+                return parent::withLock($key, $callback);
+            }
+        };
+        $pruningState->renew = fn (string $key) => $store->consume($key, $policy);
+        $pruner = new SwooleStore($pruningState, 0.05, new NullLogger);
+
+        $this->assertSame(0, $pruner->pruneExpiredRows());
+        $this->assertTrue($store->inspect('123', $policy)->denied());
+    }
+
     public function testPeriodicMaintenanceReportsPostPrunePressure(): void
     {
         $logger = Double::for(LoggerInterface::class)->strict();
@@ -202,7 +233,7 @@ class SwooleStoreTest extends TestCase
             'expires_at' => $now - 1,
         ]));
 
-        $result = @$store->consume($capacity['failed_key'], Limit::perMinute(1));
+        $result = $this->withProductionWarnings(fn () => $store->consume($capacity['failed_key'], Limit::perMinute(1)));
 
         $this->assertTrue($result->allowed());
         $this->assertFalse($table->exist($capacity['conflict_key']));
@@ -219,7 +250,7 @@ class SwooleStoreTest extends TestCase
         $this->expectException(SwooleTableFullException::class);
         $this->expectExceptionMessageIsOrContains('cannot allocate a new entry after pruning expired state');
 
-        @$store->consume($capacity['failed_key'], Limit::perMinute(1));
+        $this->withProductionWarnings(fn () => $store->consume($capacity['failed_key'], Limit::perMinute(1)));
     }
 
     public function testFullTableRestoresEarlierGroupChargesBeforeFailing(): void
@@ -232,11 +263,11 @@ class SwooleStoreTest extends TestCase
         $this->assertTrue($state->table()->del($capacity['conflict_key']));
 
         try {
-            @$store->consumeMany([
+            $this->withProductionWarnings(fn () => $store->consumeMany([
                 ['key' => 'capacity:0', 'policy' => Limit::perMinute(10)],
                 ['key' => $capacity['conflict_key'], 'policy' => Limit::perMinute(10)],
                 ['key' => $capacity['failed_key'], 'policy' => Limit::perMinute(10)],
-            ]);
+            ]));
             $this->fail('The full table must reject the group.');
         } catch (SwooleTableFullException) {
             $this->assertSame($original, $state->table()->get('capacity:0'));
@@ -252,10 +283,10 @@ class SwooleStoreTest extends TestCase
         $now = (int) CarbonImmutable::now()->getPreciseTimestamp(6);
         $capacity = $this->fillUntilAllocationFails($state, $now - 1);
 
-        $results = @$store->consumeMany([
+        $results = $this->withProductionWarnings(fn () => $store->consumeMany([
             ['key' => $capacity['conflict_key'], 'policy' => Limit::perMinute(10)],
             ['key' => $capacity['failed_key'], 'policy' => Limit::perMinute(10)],
-        ]);
+        ]));
 
         $this->assertSame(9, $results[0]->remaining());
         $this->assertSame(9, $results[1]->remaining());
@@ -322,6 +353,24 @@ class SwooleStoreTest extends TestCase
             new SwooleStore($state, $memoryLimitBuffer, $logger ?? new NullLogger),
             $state,
         ];
+    }
+
+    /**
+     * Run an operation with framework warning conversion enabled.
+     */
+    private function withProductionWarnings(Closure $operation): mixed
+    {
+        $displayErrors = ini_set('swoole.display_errors', '1');
+        $reporting = error_reporting(-1);
+        set_error_handler([new HandleExceptions, 'handleError']);
+
+        try {
+            return $operation();
+        } finally {
+            restore_error_handler();
+            error_reporting($reporting);
+            ini_set('swoole.display_errors', $displayErrors);
+        }
     }
 
     /**
