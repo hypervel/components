@@ -10,6 +10,7 @@ use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Configured;
+use Hypervel\Filesystem\LocalFilesystemAdapter;
 use Hypervel\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
@@ -29,6 +30,10 @@ class FilesystemDisksAreReachable extends Diagnostic
     {
         return [
             'not-configured' => 'The application does not have a default filesystem disk configured.',
+            'missing-driver' => Message::make(
+                summary: 'The default filesystem disk [{disk}] does not have a configured driver.',
+                remediation: 'Set FILESYSTEM_DISK to a disk with a driver in config/filesystems.php.',
+            )->link(Link::docs('filesystem', 'configuration')),
             'unreachable' => Message::make(
                 summary: 'The application cannot reach the default filesystem disk [{disk}].',
                 remediation: 'Check filesystem disk roots, credentials, and network access.',
@@ -49,7 +54,27 @@ class FilesystemDisksAreReachable extends Diagnostic
         }
 
         try {
-            $this->probe($disk);
+            $resolved = Storage::getDisks()[$disk] ?? null;
+
+            if ($resolved instanceof LocalFilesystemAdapter) {
+                $this->probeLocalDisk($resolved->getConfig());
+            } elseif ($resolved !== null) {
+                $resolved->exists('.hypervel-doctor');
+            } else {
+                $configuration = Configured::array("filesystems.disks.{$disk}");
+                $driver = $configuration['driver'] ?? null;
+
+                if (! is_string($driver) || trim($driver) === '') {
+                    return $this->fail('missing-driver', ['disk' => $disk]);
+                }
+
+                // Resolving a local disk would create the missing root that Doctor is checking.
+                if ($driver === 'local') {
+                    $this->probeLocalDisk($configuration);
+                } else {
+                    Storage::disk($disk)->exists('.hypervel-doctor');
+                }
+            }
         } catch (Throwable $e) {
             if (Coroutine::causedByCancellation($e)) {
                 throw $e;
@@ -60,23 +85,6 @@ class FilesystemDisksAreReachable extends Diagnostic
         }
 
         return $this->pass('reachable');
-    }
-
-    /**
-     * Probe a filesystem disk.
-     */
-    private function probe(string $disk): void
-    {
-        $configuration = Configured::array("filesystems.disks.{$disk}");
-
-        if (($configuration['driver'] ?? null) === 'local') {
-            $this->probeLocalDisk($configuration);
-
-            return;
-        }
-
-        // Storage::set() can register a working disk without a configuration record.
-        Storage::disk($disk)->exists('.hypervel-doctor');
     }
 
     /**
