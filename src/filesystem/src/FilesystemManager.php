@@ -987,6 +987,16 @@ class FilesystemManager implements FactoryContract
     }
 
     /**
+     * Get the disks that have already been resolved.
+     *
+     * @return array<string, Filesystem>
+     */
+    public function getDisks(): array
+    {
+        return $this->disks;
+    }
+
+    /**
      * Set the given disk instance.
      *
      * Mutates the singleton's disk cache; concurrent coroutines may

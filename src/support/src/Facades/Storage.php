@@ -28,6 +28,7 @@ use function Hypervel\Support\enum_value;
  * @method static void flushState()
  * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array<string|UnitEnum>|string|UnitEnum $disk)
  * @method static string getDefaultDriver()
+ * @method static array<string, \Hypervel\Contracts\Filesystem\Filesystem> getDisks()
  * @method static array getPoolableDrivers()
  * @method static \Closure|null getReleaseCallback(string $driver)
  * @method static void purge(UnitEnum|string|null $name = null)
