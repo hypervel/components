@@ -119,6 +119,33 @@ class SessionDriverIsReachableTest extends TestCase
         return [[null, 'session'], ['', 'session'], ['custom', 'custom']];
     }
 
+    public function testReportsRedisSessionsWhenTheServerRejectsThePing(): void
+    {
+        config(['session.driver' => 'redis', 'session.connection' => 'session']);
+        Redis::swap(new class {
+            /**
+             * Resolve a connection whose server rejects the probe.
+             */
+            public function connection(string $name): object
+            {
+                return new class {
+                    /**
+                     * Reject the reachability probe.
+                     */
+                    public function ping(): false
+                    {
+                        return false;
+                    }
+                };
+            }
+        });
+
+        $result = (new SessionDriverIsReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('Redis connection [session] returned an error for PING.', $result->details);
+    }
+
     public function testDatabaseSessionsKeepTheDefaultSchemaConnection(): void
     {
         config(['session.driver' => 'database', 'session.connection' => null, 'session.table' => 'custom_sessions']);
