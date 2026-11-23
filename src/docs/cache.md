@@ -227,6 +227,10 @@ The table itself is configured in the `swoole_tables` section of your `config/ca
 
 When a Swoole store is used in a cache stack, `bytes` must be large enough for the serialized stack record, including its value and expiration data. Hypervel throws an exception when a record is too large instead of silently skipping the Swoole layer.
 
+When you call `add` with a positive TTL, it returns `false` if the item already exists. Likewise, calling `get` on a lock returns `false` if the lock is already held. If the table has no room to add the item, acquire the lock, or store the result of an `increment` or `decrement`, Hypervel throws an exception.
+
+When flushing a large Swoole table with `flush` or `flushLocks`, choose a time when traffic is low. If another worker waits more than one second to write to the table or remove an expired item during a read, it throws an exception.
+
 <a name="cache-intervals"></a>
 #### Cache Intervals
 

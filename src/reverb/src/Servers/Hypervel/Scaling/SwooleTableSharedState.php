@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Servers\Hypervel\Scaling;
 
-use ErrorException;
 use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Facades\Log;
@@ -57,7 +56,7 @@ class SwooleTableSharedState implements SharedState
         $channelKey = $this->physicalKey(self::SUBSCRIPTION_KEY_TYPE, $appId, $channel);
 
         if ($userId === null) {
-            $newCount = $this->atomicIncr($channelKey);
+            $newCount = $this->locks->withLock($channelKey, fn (): int => $this->incrementCount($channelKey));
             $memberAdded = false;
         } else {
             $userKey = $this->physicalKey(self::USER_KEY_TYPE, $appId, $channel, $userId);
@@ -67,8 +66,8 @@ class SwooleTableSharedState implements SharedState
                     $this->ensurePresenceRowsExist($channelKey, $userKey);
 
                     return [
-                        $this->table->incr($channelKey, 'count', 1),
-                        $this->table->incr($userKey, 'count', 1),
+                        $this->incrementCount($channelKey),
+                        $this->incrementCount($userKey),
                     ];
                 },
             );
@@ -93,20 +92,16 @@ class SwooleTableSharedState implements SharedState
         $channelKey = $this->physicalKey(self::SUBSCRIPTION_KEY_TYPE, $appId, $channel);
 
         if ($userId === null) {
-            $newCount = $this->atomicDecrAndCleanup($channelKey);
+            $newCount = $this->locks->withLock($channelKey, fn (): int => $this->decrAndCleanup($channelKey));
             $memberRemoved = false;
         } else {
             $userKey = $this->physicalKey(self::USER_KEY_TYPE, $appId, $channel, $userId);
             [$newCount, $userCount] = $this->locks->withLocks(
                 [$channelKey, $userKey],
-                function () use ($channelKey, $userKey): array {
-                    $this->ensurePresenceRowsExist($channelKey, $userKey);
-
-                    return [
-                        $this->decrAndCleanup($channelKey),
-                        $this->decrAndCleanup($userKey),
-                    ];
-                },
+                fn (): array => [
+                    $this->decrAndCleanup($channelKey),
+                    $this->decrAndCleanup($userKey),
+                ],
             );
 
             $memberRemoved = ($userCount <= 0);
@@ -127,15 +122,16 @@ class SwooleTableSharedState implements SharedState
     public function acquireConnectionSlot(string $appId, int $maxConnections): bool
     {
         $key = $this->physicalKey(self::CONNECTION_KEY_TYPE, $appId);
-        $newCount = $this->atomicIncr($key);
 
-        if ($newCount > $maxConnections) {
-            $this->atomicDecrAndCleanup($key);
+        return $this->locks->withLock($key, function () use ($key, $maxConnections): bool {
+            if ((int) $this->table->get($key, 'count') >= $maxConnections) {
+                return false;
+            }
 
-            return false;
-        }
+            $this->incrementCount($key);
 
-        return true;
+            return true;
+        });
     }
 
     /**
@@ -145,17 +141,7 @@ class SwooleTableSharedState implements SharedState
     {
         $key = $this->physicalKey(self::CONNECTION_KEY_TYPE, $appId);
 
-        $this->locks->withLock($key, function () use ($key): void {
-            if (! $this->table->exists($key)) {
-                return;
-            }
-
-            $newCount = $this->table->decr($key, 'count', 1);
-
-            if ($newCount <= 0) {
-                $this->table->del($key);
-            }
-        });
+        $this->locks->withLock($key, fn (): int => $this->decrAndCleanup($key));
     }
 
     /**
@@ -227,12 +213,7 @@ class SwooleTableSharedState implements SharedState
      */
     public function clearCacheMissLock(string $appId, string $channel): void
     {
-        $key = $this->physicalKey(self::CACHE_MISS_LOCK_KEY_TYPE, $appId, $channel);
-
-        $this->locks->withLock(
-            $key,
-            fn (): bool => $this->lockTable->del($key),
-        );
+        $this->lockTable->del($this->physicalKey(self::CACHE_MISS_LOCK_KEY_TYPE, $appId, $channel));
     }
 
     /**
@@ -240,12 +221,7 @@ class SwooleTableSharedState implements SharedState
      */
     public function clearSubscriptionCountLock(string $appId, string $channel): void
     {
-        $key = $this->physicalKey(self::SUBSCRIPTION_COUNT_LOCK_KEY_TYPE, $appId, $channel);
-
-        $this->locks->withLock(
-            $key,
-            fn (): bool => $this->lockTable->del($key),
-        );
+        $this->lockTable->del($this->physicalKey(self::SUBSCRIPTION_COUNT_LOCK_KEY_TYPE, $appId, $channel));
     }
 
     /**
@@ -253,15 +229,7 @@ class SwooleTableSharedState implements SharedState
      */
     public function setSmoothingPending(string $appId, string $channel, int $ttlMs): void
     {
-        $key = $this->physicalKey(self::CHANNEL_SMOOTHING_KEY_TYPE, $appId, $channel);
-        $stored = $this->locks->withLock(
-            $key,
-            fn (): bool => $this->setLockRow($key, microtime(true)),
-        );
-
-        if (! $stored) {
-            $this->reportFullLockTable($key);
-        }
+        $this->setMarker($this->physicalKey(self::CHANNEL_SMOOTHING_KEY_TYPE, $appId, $channel));
     }
 
     /**
@@ -280,15 +248,7 @@ class SwooleTableSharedState implements SharedState
      */
     public function setMemberSmoothingPending(string $appId, string $channel, string $userId, int $ttlMs): void
     {
-        $key = $this->physicalKey(self::MEMBER_SMOOTHING_KEY_TYPE, $appId, $channel, $userId);
-        $stored = $this->locks->withLock(
-            $key,
-            fn (): bool => $this->setLockRow($key, microtime(true)),
-        );
-
-        if (! $stored) {
-            $this->reportFullLockTable($key);
-        }
+        $this->setMarker($this->physicalKey(self::MEMBER_SMOOTHING_KEY_TYPE, $appId, $channel, $userId));
     }
 
     /**
@@ -304,54 +264,43 @@ class SwooleTableSharedState implements SharedState
 
     /**
      * Attempt to acquire a timestamp-based lock in the lock table.
-     *
-     * Uses the same striped Atomic locks for inter-worker safety.
-     * If the lock row doesn't exist or the timestamp has expired,
-     * the lock is (re-)acquired. Otherwise returns false.
      */
     protected function tryLock(string $key, int $ttlMs): bool
     {
-        $writeFailed = false;
-        $stored = $this->locks->withLock($key, function () use ($key, $ttlMs, &$writeFailed): bool {
-            $row = $this->lockTable->get($key, 'locked_at');
+        do {
+            $lockedAt = $this->lockTable->get($key, 'locked_at');
             $now = microtime(true);
 
-            if ($row !== false && ($now - (float) $row) < ($ttlMs / 1000.0)) {
+            if ($lockedAt === false) {
+                $acquired = $this->addRow($this->lockTable, $key, ['locked_at' => $now]);
+
+                if ($acquired === null) {
+                    $this->reportFullLockTable($key);
+
+                    return false;
+                }
+            } elseif ($now - (float) $lockedAt < $ttlMs / 1000.0) {
                 return false;
+            } else {
+                $acquired = $this->lockTable->cmpset($key, ['locked_at' => $lockedAt], ['locked_at' => $now]);
             }
+        } while (! $acquired);
 
-            $stored = $this->setLockRow($key, $now);
-            $writeFailed = ! $stored;
+        return true;
+    }
 
-            return $stored;
-        });
-
-        if ($writeFailed) {
+    /**
+     * Store a webhook smoothing marker.
+     */
+    protected function setMarker(string $key): void
+    {
+        if (! @$this->lockTable->set($key, ['locked_at' => microtime(true)])) {
             $this->reportFullLockTable($key);
         }
-
-        return $stored;
     }
 
     /**
-     * Write a timestamp row to the lock table, handling table-full failures.
-     *
-     * Returns true if the row was written, false if the table is full.
-     * Must be called while holding the stripe lock for the key.
-     */
-    protected function setLockRow(string $key, float $timestamp): bool
-    {
-        try {
-            $this->lockTable->set($key, ['locked_at' => $timestamp]);
-
-            return true;
-        } catch (ErrorException) {
-            return false;
-        }
-    }
-
-    /**
-     * Report a failed write after releasing its stripe lock.
+     * Report a full webhook lock table.
      */
     protected function reportFullLockTable(string $key): void
     {
@@ -363,60 +312,26 @@ class SwooleTableSharedState implements SharedState
 
     /**
      * Atomically consume a timestamp-based marker if it is still live.
-     *
-     * Checks the marker under the stripe lock. If the marker exists and has
-     * not expired, deletes it and returns true. If the marker is expired or
-     * does not exist, cleans up the stale row and returns false.
      */
     protected function consumeMarker(string $key, int $ttlMs): bool
     {
-        return $this->locks->withLock($key, function () use ($key, $ttlMs): bool {
-            $row = $this->lockTable->get($key, 'locked_at');
+        $lockedAt = $this->lockTable->getdel($key, 'locked_at');
 
-            if ($row === false) {
-                return false;
-            }
-
-            $this->lockTable->del($key);
-
-            $now = microtime(true);
-
-            if (($now - (float) $row) >= ($ttlMs / 1000.0)) {
-                return false;
-            }
-
-            return true;
-        });
+        return $lockedAt !== false && microtime(true) - (float) $lockedAt < $ttlMs / 1000.0;
     }
 
     /**
-     * Atomically ensure a row exists and increment it.
-     *
-     * Guarded by a striped lock to prevent a concurrent del() from
-     * another worker between ensureRowExists() and incr().
+     * Increment a counter while its caller holds the stripe.
      */
-    protected function atomicIncr(string $key): int
+    protected function incrementCount(string $key): int
     {
-        return $this->locks->withLock($key, function () use ($key): int {
-            $this->ensureRowExists($key);
+        $count = @$this->table->incr($key, 'count', 1);
 
-            return $this->table->incr($key, 'count', 1);
-        });
-    }
+        if ($count === false) {
+            throw $this->fullCounterTableException($key);
+        }
 
-    /**
-     * Atomically decrement a counter and delete the row if it reaches zero.
-     *
-     * Guarded by a striped lock to prevent a concurrent incr() from
-     * another worker between decr() and del().
-     */
-    protected function atomicDecrAndCleanup(string $key): int
-    {
-        return $this->locks->withLock($key, function () use ($key): int {
-            $this->ensureRowExists($key);
-
-            return $this->decrAndCleanup($key);
-        });
+        return $count;
     }
 
     /**
@@ -426,6 +341,10 @@ class SwooleTableSharedState implements SharedState
      */
     protected function decrAndCleanup(string $key): int
     {
+        if (! $this->table->exists($key)) {
+            return 0;
+        }
+
         $newCount = $this->table->decr($key, 'count', 1);
 
         if ($newCount <= 0) {
@@ -438,26 +357,37 @@ class SwooleTableSharedState implements SharedState
     /**
      * Ensure a row exists in the table before incrementing.
      *
-     * Must be called within a lock — another worker's del() could
-     * remove the row between exists() and set() otherwise.
+     * Return whether this operation created the row and owns its rollback.
      */
     protected function ensureRowExists(string $key): bool
     {
-        if ($this->table->exists($key)) {
-            return false;
+        return $this->addRow($this->table, $key, ['count' => 0]) ?? throw $this->fullCounterTableException($key);
+    }
+
+    /**
+     * Insert a row, returning false for a duplicate or null when the table is full.
+     */
+    protected function addRow(Table $table, string $key, array $values): ?bool
+    {
+        // Both failures return false, but only exhaustion sets the native error.
+        swoole_clear_error();
+
+        if (@$table->add($key, $values)) {
+            return true;
         }
 
-        try {
-            $this->table->set($key, ['count' => 0]);
-        } catch (ErrorException $exception) {
-            throw new RuntimeException(
-                "Reverb shared state table is full — increase 'reverb.servers.reverb.swoole_shared_state.rows' in config. "
-                . "Failed to create row for key [{$key}].",
-                previous: $exception,
-            );
-        }
+        return swoole_last_error() === SWOOLE_ERROR_PHP_RUNTIME_NOTICE ? null : false;
+    }
 
-        return true;
+    /**
+     * Create the exception for an exhausted subscription or connection table.
+     */
+    protected function fullCounterTableException(string $key): RuntimeException
+    {
+        return new RuntimeException(
+            "Reverb shared state table is full — increase 'reverb.servers.reverb.swoole_shared_state.rows' in config. "
+            . "Failed to create row for key [{$key}]."
+        );
     }
 
     /**
