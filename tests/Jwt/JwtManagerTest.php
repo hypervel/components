@@ -166,8 +166,8 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([ValidationStub::class]);
         $this->config->allows('array')->with('jwt')->returns([]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->returns($payload);
@@ -252,9 +252,9 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(true);
         $this->config->allows('array')->with('jwt.validations')->returns([ValidationStub::class]);
         $this->config->allows('array')->with('jwt')->returns([]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns(['iss']);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->claimFactory->expects('refresh')->with(
             $payload,
@@ -290,9 +290,9 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(true);
         $this->config->allows('array')->with('jwt.validations')->returns([RequiredClaims::class]);
         $this->config->allows('array')->with('jwt')->returns(['required_claims' => ['iat', 'sub']]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->claimFactory->expects('refresh')->returns($refreshPayload);
         $this->provider->expects('decode')->with($token)->returns($payload);
@@ -326,9 +326,9 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([ValidationStub::class]);
         $this->config->allows('array')->with('jwt')->returns([]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns(['iss']);
-        $this->config->allows('get')->with('jwt.ttl')->returns(null);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(null);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->claimFactory->expects('refresh')->with(
             $payload,
@@ -432,8 +432,8 @@ class JwtManagerTest extends TestCase
             'issuer' => 'http://example.com',
             'leeway' => 0,
         ]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->with(
@@ -468,8 +468,8 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([RequiredClaims::class, ExpiredClaim::class]);
         $this->config->allows('array')->with('jwt')->returns(['required_claims' => ['iat', 'sub']]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->with($payload, 120, false, false, [], [])->returns($refreshPayload);
@@ -525,9 +525,9 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([RequiredClaims::class, $validation]);
         $this->config->allows('array')->with('jwt')->returns(['required_claims' => ['iat', 'sub'], 'leeway' => 60]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
         $this->config->allows('integer')->with('jwt.leeway')->returns(60);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(true);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->with($payload, 120, true, false, [], [])->returns($refreshPayload);
@@ -568,8 +568,8 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([RequiredClaims::class, NotBeforeClaim::class]);
         $this->config->allows('array')->with('jwt')->returns(['required_claims' => ['iat', 'sub'], 'leeway' => 0]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->with(
@@ -602,7 +602,7 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([RequiredClaims::class]);
         $this->config->allows('array')->with('jwt')->returns(['required_claims' => ['iat', 'sub']]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(true);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns(['tenant']);
         $this->claimFactory->expects('refresh')->with(
@@ -643,7 +643,7 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(true);
         $this->config->allows('array')->with('jwt.validations')->returns([ValidationStub::class]);
         $this->config->allows('array')->with('jwt')->returns([]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(10);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(10);
         $this->config->allows('integer')->with('jwt.leeway')->returns($leeway);
         $this->provider->expects('decode')->with('foo.bar.baz')->returns($payload);
         $this->provider->expects('encode')->never();
@@ -684,9 +684,9 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([ValidationStub::class]);
         $this->config->allows('array')->with('jwt')->returns([]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(10);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(10);
         $this->config->allows('integer')->with('jwt.leeway')->returns(60);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->with($payload, 120, false, false, [], [])->returns($refreshPayload);
@@ -718,9 +718,9 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([ValidationStub::class]);
         $this->config->allows('array')->with('jwt')->returns([]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(null);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(null);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns(['iss']);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->claimFactory->expects('refresh')->with(
             $payload,
@@ -751,8 +751,8 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(false);
         $this->config->allows('array')->with('jwt.validations')->returns([RequiredClaims::class]);
         $this->config->allows('array')->with('jwt')->returns(['required_claims' => ['sub']]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(null);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(null);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(true);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->never();
@@ -789,8 +789,8 @@ class JwtManagerTest extends TestCase
         $this->config->allows('boolean')->with('jwt.blacklist_enabled')->returns(true);
         $this->config->allows('array')->with('jwt.validations')->returns([ValidationStub::class]);
         $this->config->allows('array')->with('jwt')->returns([]);
-        $this->config->allows('get')->with('jwt.refresh_ttl')->returns(20160);
-        $this->config->allows('get')->with('jwt.ttl')->returns(120);
+        $this->config->allows('nullableInteger')->with('jwt.refresh_ttl')->returns(20160);
+        $this->config->allows('nullableInteger')->with('jwt.ttl')->returns(120);
         $this->config->allows('boolean')->with('jwt.refresh_iat')->returns(false);
         $this->config->allows('array')->with('jwt.persistent_claims')->returns([]);
         $this->claimFactory->expects('refresh')->returns($refreshPayload);

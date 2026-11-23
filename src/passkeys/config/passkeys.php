@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-/** @var null|string $appUrl */
-$appUrl = config('app.url');
+$appUrl = config()->nullableString('app.url');
 $defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
 $defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
 
@@ -47,7 +46,7 @@ return [
     |
     */
 
-    'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+    'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config()->nullableString('app.key')),
 
     /*
     |--------------------------------------------------------------------------
