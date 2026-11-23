@@ -57,7 +57,7 @@ class FilesystemDisksAreReachable extends Diagnostic
             $resolved = Storage::getDisks()[$disk] ?? null;
 
             if ($resolved instanceof LocalFilesystemAdapter) {
-                $this->probeLocalDisk($resolved->getConfig());
+                $this->probeLocalDisk($resolved->getConfig(), $resolved);
             } elseif ($resolved !== null) {
                 $resolved->exists('.hypervel-doctor');
             } else {
@@ -92,12 +92,20 @@ class FilesystemDisksAreReachable extends Diagnostic
      *
      * @param array<string, mixed> $configuration
      */
-    private function probeLocalDisk(array $configuration): void
+    private function probeLocalDisk(array $configuration, ?LocalFilesystemAdapter $disk = null): void
     {
         $root = $configuration['root'] ?? null;
 
         if (! is_string($root) || $root === '') {
-            throw new RuntimeException('The local disk root is not configured.');
+            if ($disk === null) {
+                throw new RuntimeException('The local disk root is not configured.');
+            }
+
+            if (! $disk->directoryExists('')) {
+                throw new RuntimeException('The registered local disk root does not exist.');
+            }
+
+            return;
         }
 
         if (! is_dir($root) || ! is_readable($root)) {

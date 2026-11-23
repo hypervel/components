@@ -6,10 +6,13 @@ namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 
 use Hypervel\Doctor\Diagnostics\FilesystemDisksAreReachable;
 use Hypervel\Doctor\Results\Link;
+use Hypervel\Filesystem\LocalFilesystemAdapter;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
+use League\Flysystem\Filesystem;
+use League\Flysystem\Local\LocalFilesystemAdapter as LocalAdapter;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class FilesystemDisksAreReachableTest extends TestCase
@@ -80,10 +83,18 @@ class FilesystemDisksAreReachableTest extends TestCase
     public function testProbesADiskRegisteredWithoutAConfigurationRecord(): void
     {
         config(['filesystems.default' => 'registered']);
-        Storage::set('registered', Storage::build(['driver' => 'local', 'root' => $this->root]));
+        $adapter = new LocalAdapter($this->root);
+        Storage::set('registered', new LocalFilesystemAdapter(new Filesystem($adapter), $adapter));
 
         $result = (new FilesystemDisksAreReachable)->check();
         $this->assertSame('pass', $result->status->value);
+
+        File::deleteDirectory($this->root);
+        $result = (new FilesystemDisksAreReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('The registered local disk root does not exist.', $result->details);
+        $this->assertDirectoryDoesNotExist($this->root);
     }
 
     public function testChecksTheRootOfTheRegisteredDiskWhenItReplacesAConfiguredDisk(): void
