@@ -504,88 +504,72 @@ class ResponseBridge
      * producer. Ordinary callbacks use echo, so their output is routed through
      * a non-throwing output-buffer handler instead.
      *
-     * The chunk_size of 1 means the buffer flushes after every output
-     * operation that produces 1+ bytes (not per byte). A single
-     * `echo "data: ...\n\n"` triggers one write() call with the full string.
+     * A buffer size of 1 flushes each nonempty output operation as a single
+     * write, so an echo sends its entire string at once.
      *
-     * Removable output buffers are cleaned without spinning on a non-removable
-     * user buffer before the earliest callback, write, or end failure is rethrown.
+     * Trailer responses send their trailers after every chunk has been written.
      */
     protected static function sendStreamedContent(StreamedResponse $response, SwooleResponse $swooleResponse): void
     {
-        if ($response instanceof IterableStreamedResponse
-            && static::sendIterableContent($response, $swooleResponse)) {
-            return;
-        }
-
-        if ($response instanceof HasTrailers) {
-            static::sendTrailerStreamedContent($response, $swooleResponse);
-
-            return;
-        }
-
-        $level = ob_get_level();
         $exception = null;
-        $writable = true;
+        $writeFailed = false;
+        $handled = false;
 
-        ob_start(function (string $chunk) use ($swooleResponse, &$exception, &$writable): string {
-            if ($chunk === '' || ! $writable) {
-                return '';
-            }
-
+        if ($response instanceof IterableStreamedResponse) {
             try {
-                $writable = $swooleResponse->write($chunk);
+                $handled = $response->streamTo(static function (string $chunk) use ($swooleResponse, &$writeFailed): bool {
+                    if ($chunk === '' || $swooleResponse->write($chunk)) {
+                        return true;
+                    }
+
+                    $writeFailed = true;
+
+                    return false;
+                });
             } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
-                $writable = false;
+                $handled = true;
+                $exception = $throwable;
             }
+        }
 
-            return '';
-        }, 1);
+        if (! $handled) {
+            $level = ob_get_level();
 
-        try {
+            // Throwing inside the output handler can leak the original chunk to process output.
+            ob_start(static function (string $chunk) use ($swooleResponse, &$exception, &$writeFailed): string {
+                if ($chunk !== '' && ! $writeFailed && $exception === null) {
+                    try {
+                        $writeFailed = ! $swooleResponse->write($chunk);
+                    } catch (Throwable $throwable) {
+                        $exception = $throwable;
+                    }
+                }
+
+                return '';
+            }, 1);
+
             try {
                 $response->sendContent();
             } catch (Throwable $throwable) {
                 $exception = Coroutine::preferCancellation($exception, $throwable);
-            }
-        } finally {
-            static::restoreOutputBufferLevel($level);
-
-            try {
-                $swooleResponse->end();
-            } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
+            } finally {
+                static::restoreOutputBufferLevel($level);
             }
         }
 
-        if ($exception !== null) {
-            throw $exception;
-        }
-    }
-
-    /**
-     * Stream retained iterable chunks directly through Swoole.
-     */
-    protected static function sendIterableContent(IterableStreamedResponse $response, SwooleResponse $swooleResponse): bool
-    {
         if ($response instanceof HasTrailers) {
-            return static::sendTrailerIterableContent($response, $swooleResponse);
-        }
+            if ($writeFailed && ($exception === null || ! Coroutine::causedByCancellation($exception))) {
+                throw new RuntimeException('Unable to write the streamed response.', previous: $exception);
+            }
 
-        $exception = null;
+            if ($exception !== null) {
+                throw $exception;
+            }
 
-        try {
-            $handled = $response->streamTo(
-                static fn (string $chunk): bool => $chunk === '' || $swooleResponse->write($chunk)
-            );
-        } catch (Throwable $throwable) {
-            $handled = true;
-            $exception = $throwable;
-        }
+            static::sendTrailers($response, $swooleResponse);
+            static::end($swooleResponse);
 
-        if (! $handled) {
-            return false;
+            return;
         }
 
         try {
@@ -597,128 +581,6 @@ class ResponseBridge
         if ($exception !== null) {
             throw $exception;
         }
-
-        return true;
-    }
-
-    /**
-     * Stream retained iterable chunks with one-chunk trailer lookahead.
-     */
-    protected static function sendTrailerIterableContent(
-        IterableStreamedResponse&HasTrailers $response,
-        SwooleResponse $swooleResponse
-    ): bool {
-        // TODO: Remove this lookahead once the minimum Swoole release includes
-        // https://github.com/swoole/swoole-src/pull/6124. Current releases close
-        // HTTP/2 before trailers after write() + bare end(); then write every
-        // chunk immediately, emit trailers, and call bare end().
-        $pendingChunk = null;
-        $writeFailed = false;
-
-        $handled = $response->streamTo(function (string $chunk) use (&$pendingChunk, &$writeFailed, $swooleResponse): bool {
-            if ($chunk === '') {
-                return true;
-            }
-
-            if ($pendingChunk !== null && $swooleResponse->write($pendingChunk) === false) {
-                $writeFailed = true;
-
-                return false;
-            }
-
-            $pendingChunk = $chunk;
-
-            return true;
-        });
-
-        if (! $handled) {
-            return false;
-        }
-
-        if ($writeFailed) {
-            throw new RuntimeException('Unable to write the streamed response.');
-        }
-
-        static::sendTrailers($response, $swooleResponse);
-        static::end($swooleResponse, $pendingChunk);
-
-        return true;
-    }
-
-    /**
-     * Stream a trailer-bearing callback response through an output buffer.
-     */
-    protected static function sendTrailerStreamedContent(
-        StreamedResponse&HasTrailers $response,
-        SwooleResponse $swooleResponse
-    ): void {
-        // TODO: Remove this lookahead once the minimum Swoole release includes
-        // https://github.com/swoole/swoole-src/pull/6124. Current releases close
-        // HTTP/2 before trailers after write() + bare end(); then write every
-        // chunk immediately, emit trailers, and call bare end().
-        $pendingChunk = null;
-        $writeFailed = false;
-        $writeFailure = null;
-        $producerFailure = null;
-        $level = ob_get_level();
-
-        // Output handlers cannot safely throw: PHP may bypass a failing handler
-        // and emit the original chunk to process output.
-        ob_start(function (string $chunk) use (
-            &$pendingChunk,
-            &$writeFailed,
-            &$writeFailure,
-            $swooleResponse
-        ): string {
-            if ($chunk === '' || $writeFailed) {
-                return '';
-            }
-
-            if ($pendingChunk !== null) {
-                try {
-                    $writeFailed = $swooleResponse->write($pendingChunk) === false;
-                } catch (Throwable $throwable) {
-                    $writeFailure = $throwable;
-                    $writeFailed = true;
-                }
-
-                if ($writeFailed) {
-                    return '';
-                }
-            }
-
-            $pendingChunk = $chunk;
-
-            return '';
-        }, 1);
-
-        try {
-            try {
-                $response->sendContent();
-            } catch (Throwable $throwable) {
-                $producerFailure = $throwable;
-            }
-        } finally {
-            static::restoreOutputBufferLevel($level);
-        }
-
-        if ($writeFailure !== null) {
-            throw $writeFailure;
-        }
-
-        if ($writeFailed) {
-            throw new RuntimeException(
-                'Unable to write the streamed response.',
-                previous: $producerFailure,
-            );
-        }
-
-        if ($producerFailure !== null) {
-            throw $producerFailure;
-        }
-
-        static::sendTrailers($response, $swooleResponse);
-        static::end($swooleResponse, $pendingChunk);
     }
 
     /**

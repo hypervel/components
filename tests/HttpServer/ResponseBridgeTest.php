@@ -19,6 +19,7 @@ use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use SplTempFileObject;
@@ -968,10 +969,9 @@ class ResponseBridgeTest extends TestCase
     }
 
     #[DataProvider('trailerChunkCases')]
-    public function testTrailerIterableUsesOneChunkLookahead(
+    public function testTrailerIterableWritesEveryNonemptyChunk(
         array $chunks,
-        array $expectedWrites,
-        ?string $expectedEndContent
+        array $expectedWrites
     ): void {
         $response = new ResponseBridgeTrailerIterableResponse(
             $chunks,
@@ -979,19 +979,17 @@ class ResponseBridgeTest extends TestCase
             ['X-Known' => 'known', 'X-Late' => 'late'],
         );
 
-        [$writes, $endContent, $announcement, $trailers] = $this->sendTrailerStream($response);
+        [$writes, $announcement, $trailers] = $this->sendTrailerStream($response);
 
         $this->assertSame($expectedWrites, $writes);
-        $this->assertSame($expectedEndContent, $endContent);
         $this->assertSame('x-known', $announcement);
         $this->assertSame(['x-known' => 'known', 'x-late' => 'late'], $trailers);
     }
 
     #[DataProvider('trailerChunkCases')]
-    public function testSymfonyTrailerStreamUsesOneChunkLookahead(
+    public function testSymfonyTrailerStreamWritesEveryNonemptyChunk(
         array $chunks,
-        array $expectedWrites,
-        ?string $expectedEndContent
+        array $expectedWrites
     ): void {
         $response = new ResponseBridgeTrailerStreamedResponse(
             function () use ($chunks): void {
@@ -1003,10 +1001,9 @@ class ResponseBridgeTest extends TestCase
             ['X-Known' => 'known', 'X-Late' => 'late'],
         );
 
-        [$writes, $endContent, $announcement, $trailers] = $this->sendTrailerStream($response);
+        [$writes, $announcement, $trailers] = $this->sendTrailerStream($response);
 
         $this->assertSame($expectedWrites, $writes);
-        $this->assertSame($expectedEndContent, $endContent);
         $this->assertSame('x-known', $announcement);
         $this->assertSame(['x-known' => 'known', 'x-late' => 'late'], $trailers);
     }
@@ -1014,10 +1011,10 @@ class ResponseBridgeTest extends TestCase
     public static function trailerChunkCases(): array
     {
         return [
-            'zero' => [[], [], null],
-            'one' => [['one'], [], 'one'],
-            'multiple' => [['one', 'two', 'three'], ['one', 'two'], 'three'],
-            'empty chunks ignored' => [['', 'one', '', 'two', ''], ['one'], 'two'],
+            'zero' => [[], []],
+            'one' => [['one'], ['one']],
+            'multiple' => [['one', 'two', 'three'], ['one', 'two', 'three']],
+            'empty chunks ignored' => [['', 'one', '', 'two', ''], ['one', 'two']],
         ];
     }
 
@@ -1029,13 +1026,12 @@ class ResponseBridgeTest extends TestCase
             echo 'two';
         });
 
-        [$writes, $endContent] = $this->sendTrailerStream($response);
+        [$writes] = $this->sendTrailerStream($response);
 
-        $this->assertSame(['one'], $writes);
-        $this->assertSame('two', $endContent);
+        $this->assertSame(['one', 'two'], $writes);
     }
 
-    public function testTrailerIterableEmitsTrailersOnlyAfterProductionAndEndsWithFinalChunk(): void
+    public function testTrailerIterableWritesBeforeAdvancingAndEmitsTrailersAfterProduction(): void
     {
         $operations = [];
         $response = new ResponseBridgeTrailerIterableResponse(
@@ -1055,8 +1051,8 @@ class ResponseBridgeTest extends TestCase
         );
         $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->expects('write')->with('one')->resolves(function () use (&$operations): bool {
-            $operations[] = 'write-one';
+        $swooleResponse->allows('write')->resolves(function (string $chunk) use (&$operations): bool {
+            $operations[] = 'write-' . $chunk;
 
             return true;
         });
@@ -1065,8 +1061,8 @@ class ResponseBridgeTest extends TestCase
 
             return true;
         });
-        $swooleResponse->expects('end')->with('two')->resolves(function () use (&$operations): bool {
-            $operations[] = 'end-two';
+        $swooleResponse->expects('end')->with()->resolves(function () use (&$operations): bool {
+            $operations[] = 'end';
 
             return true;
         });
@@ -1075,12 +1071,13 @@ class ResponseBridgeTest extends TestCase
 
         $this->assertSame([
             'produce-one',
-            'produce-two',
             'write-one',
+            'produce-two',
+            'write-two',
             'producer-complete',
             'evaluate-trailers',
             'trailer',
-            'end-two',
+            'end',
         ], $operations);
     }
 
@@ -1117,7 +1114,7 @@ class ResponseBridgeTest extends TestCase
             $this->assertSame('Unable to write the streamed response.', $exception->getMessage());
         }
 
-        $this->assertSame(2, $produced);
+        $this->assertSame(1, $produced);
         $this->assertTrue($closed);
     }
 
@@ -1158,7 +1155,6 @@ class ResponseBridgeTest extends TestCase
         $response = new ResponseBridgeTrailerStreamedResponse(
             static function (): void {
                 echo 'rejected';
-                echo 'trigger';
                 echo 'hidden';
             },
             ['x-status'],
@@ -1184,13 +1180,14 @@ class ResponseBridgeTest extends TestCase
         $this->assertSame('', $output);
     }
 
-    public function testSymfonyTrailerStreamWriteFailureTakesPrecedenceOverProducerFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSymfonyTrailerStreamPreservesCancellationAfterAFailedWrite(bool $canceled): void
     {
-        $producerFailure = new RuntimeException('Producer failed.');
+        $producerFailure = $canceled ? new CanceledException : new RuntimeException('Producer failed.');
         $response = new ResponseBridgeTrailerStreamedResponse(
             function () use ($producerFailure): void {
                 echo 'rejected';
-                echo 'trigger';
                 throw $producerFailure;
             },
             ['x-status'],
@@ -1203,7 +1200,10 @@ class ResponseBridgeTest extends TestCase
         try {
             ResponseBridge::send($response, $swooleResponse);
             $this->fail('Expected the write failure to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($producerFailure, $exception);
         } catch (RuntimeException $exception) {
+            $this->assertFalse($canceled);
             $this->assertSame('Unable to write the streamed response.', $exception->getMessage());
             $this->assertSame($producerFailure, $exception->getPrevious());
         }
@@ -1215,7 +1215,6 @@ class ResponseBridgeTest extends TestCase
         $response = new ResponseBridgeTrailerStreamedResponse(
             static function (): void {
                 echo 'rejected';
-                echo 'trigger';
                 throw new RuntimeException('Producer failed.');
             },
             ['x-status'],
@@ -1488,13 +1487,12 @@ class ResponseBridgeTest extends TestCase
     /**
      * Send a streamed trailer response and capture its transport output.
      *
-     * @return array{list<string>, ?string, null|array|string, array<string, string>}
+     * @return array{list<string>, null|array|string, array<string, string>}
      */
     private function sendTrailerStream(Response $response): array
     {
         $swooleResponse = $this->mockSwooleResponse('status');
         $writes = [];
-        $endContent = null;
         $announcement = null;
         $trailers = [];
 
@@ -1515,15 +1513,11 @@ class ResponseBridgeTest extends TestCase
 
             return true;
         });
-        $swooleResponse->expects('end')->resolves(function (...$arguments) use (&$endContent): bool {
-            $endContent = $arguments[0] ?? null;
-
-            return true;
-        });
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
 
-        return [$writes, $endContent, $announcement, $trailers];
+        return [$writes, $announcement, $trailers];
     }
 }
 

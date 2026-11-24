@@ -81,6 +81,20 @@ class HypervelServerTest extends GrpcIntegrationTestCase
         }
     }
 
+    public function testClientCanAcknowledgeTheFirstMessageBeforeTheServerProducesTheNext(): void
+    {
+        $client = $this->newTestClient(['timeout' => 5.0]);
+        $request = (new TestRequest)->setValue('ack-stream:' . bin2hex(random_bytes(8)));
+        $stream = $client->serverStream($request);
+
+        $this->assertSame('first', $stream->read()?->getValue());
+        $this->assertSame('acknowledged', $client->unary($request)->wait()->getValue());
+        $this->assertSame('second', $stream->read()?->getValue());
+        $this->assertNull($stream->read());
+        $this->assertSame('hypervel', $stream->trailers()->first('x-test-trailer'));
+        $this->assertSame(StatusCode::Ok, $stream->status()->code());
+    }
+
     public function testStandardHealthServiceImplementsCheckListAndWatchFallback(): void
     {
         $client = $this->newHealthClient(['timeout' => 2.0]);
