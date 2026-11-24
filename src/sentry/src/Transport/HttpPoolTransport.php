@@ -9,10 +9,8 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\ObjectPool\Exceptions\PoolClosedException;
-use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use Sentry\Event;
 use Sentry\Options;
-use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Sentry\Transport\TransportInterface;
@@ -40,7 +38,7 @@ class HttpPoolTransport implements TransportInterface
     /**
      * Send an event to Sentry via a pooled transport.
      *
-     * Skip the event when there is nowhere to send it, pool acquisition times out, or the pool is closed.
+     * Skip the event when there is nowhere to send it, every transport is busy, or the pool is closed.
      */
     public function send(Event $event): Result
     {
@@ -51,9 +49,12 @@ class HttpPoolTransport implements TransportInterface
         }
 
         try {
-            /** @var HttpTransport $transport */
-            $transport = $this->pool->borrow();
-        } catch (PoolExhaustedException|PoolClosedException) {
+            $transport = $this->pool->tryBorrow();
+        } catch (PoolClosedException) {
+            return new Result(ResultStatus::skipped());
+        }
+
+        if ($transport === null) {
             return new Result(ResultStatus::skipped());
         }
 

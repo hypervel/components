@@ -244,12 +244,9 @@ return [
     // HTTP timeout for the Sentry SDK transport (seconds)
     'http_timeout' => (float) env('SENTRY_HTTP_TIMEOUT', 2.0),
 
-    // HTTP transport pool configuration for async Sentry event sending via Swoole coroutines.
-    // wait_timeout is set low (10ms) so pool exhaustion fails fast (backpressure)
-    // rather than blocking request coroutines for seconds during exception storms.
+    // Events are skipped when every HTTP transport is busy. Increase max_objects to handle larger bursts.
     'pool' => [
         'max_objects' => 10,
-        'wait_timeout' => 0.01,
         'max_lifetime' => 60.0,
     ],
 ];

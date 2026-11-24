@@ -28,7 +28,7 @@ class HttpPoolTransportNonCoroutineTest extends TestCase
         $httpTransport->expects('send')
             ->returns(new Result(ResultStatus::success()));
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('tryBorrow')->returns($httpTransport);
         $pool->expects('release')->with(Argument::same($httpTransport));
         $transport = new HttpPoolTransport($pool, new Options(['dsn' => 'https://public@example.com/1']));
         $event = Event::createEvent();

@@ -469,7 +469,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function sentryPoolOptions(array $config): PoolOptions
     {
-        $supported = ['max_objects', 'wait_timeout', 'max_lifetime'];
+        $supported = ['max_objects', 'max_lifetime'];
         $unknown = array_diff(array_keys($config), $supported);
 
         if ($unknown !== []) {

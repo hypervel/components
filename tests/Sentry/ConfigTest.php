@@ -24,7 +24,6 @@ class ConfigTest extends TestCase
             'sentry.dsn' => 'https://key@sentry.io/123',
             'sentry.pool' => [
                 'max_objects' => 7,
-                'wait_timeout' => 0.05,
                 'max_lifetime' => 120,
             ],
         ]);
@@ -39,7 +38,6 @@ class ConfigTest extends TestCase
         $pool = $this->getPoolFromTransport($transport);
 
         $this->assertSame(7, $pool->getOptions()->maxObjects);
-        $this->assertSame(0.05, $pool->getOptions()->waitTimeout);
         $this->assertSame(120.0, $pool->getOptions()->maxLifetime);
         $this->assertNull($pool->getOptions()->maxIdleTime);
         $this->assertNull($pool->getOptions()->poolIdleTimeout);
@@ -64,7 +62,7 @@ class ConfigTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs(
-            "Unsupported Sentry pool option(s) [{$name}]. Supported options are [max_objects, wait_timeout, max_lifetime]."
+            "Unsupported Sentry pool option(s) [{$name}]. Supported options are [max_objects, max_lifetime]."
         );
 
         $this->resetApplicationWithConfig([
@@ -79,6 +77,7 @@ class ConfigTest extends TestCase
     public static function unsupportedPoolOptions(): array
     {
         return [
+            ['wait_timeout', 0.01],
             ['min_retained_objects', 1],
             ['max_idle_time', 30],
             ['pool_idle_timeout', 300],
@@ -235,17 +234,6 @@ class ConfigTest extends TestCase
         $this->assertSame(250, $config['tracing']['sql_origin_threshold_ms']);
         $this->assertFalse($config['tracing']['http_client_requests_origin']);
         $this->assertSame(0, $config['tracing']['http_client_requests_origin_threshold_ms']);
-    }
-
-    public function testPoolWaitTimeoutDefaultIsSetForFastFail(): void
-    {
-        // Default config should have a low wait_timeout for backpressure
-        /** @var ClientBuilder $builder */
-        $builder = $this->app->make(ClientBuilder::class);
-        $pool = $this->getPoolFromTransport($builder->getTransport());
-
-        // Should be 10ms or less for fast-fail backpressure
-        $this->assertLessThanOrEqual(0.01, $pool->getOptions()->waitTimeout);
     }
 
     /**
