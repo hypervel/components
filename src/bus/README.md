@@ -17,4 +17,6 @@ Overrides of `Batch::invokeCallbacks()` must accept the optional trailing `?int 
 
 Subclasses customizing `DatabaseBatchRepository` accounting should override the counting methods. Laravel's protected `updateAtomicValues()` hook is omitted.
 
+`BatchRepository` resolves to a repository that reads each batch and routes it to the `DatabaseBatchRepository` or `RedisBatchRepository` binding for its results driver. Rebinding one of those classes customizes that driver's hydration, accounting and cleanup, but not lookups such as `Bus::findBatch()`. To customize `find()` or `get()`, bind your repository to `BatchRepository` instead.
+
 Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/Bus
