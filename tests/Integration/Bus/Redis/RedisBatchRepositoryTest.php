@@ -519,6 +519,50 @@ class RedisBatchRepositoryTest extends TestCase
         $this->assertFalse($batch->fresh()->finished());
     }
 
+    public function testPruningSeveralUnfinishedBatchesRestoresAnUnprojectedFinishAndDeletesTheRest(): void
+    {
+        $repository = $this->app->make(BatchRepository::class);
+        $finished = $repository->store(Bus::batch([]));
+        $repository->incrementTotalJobs($finished->id, 1);
+        $failure = new RuntimeException('SQL finish could not be written.');
+        $interrupt = true;
+        DB::connection()->beforeExecuting(static function (string $sql) use (&$interrupt, $failure): void {
+            if ($interrupt && str_starts_with($sql, 'update') && str_contains($sql, 'finished_at')) {
+                $interrupt = false;
+                throw $failure;
+            }
+        });
+        try {
+            $finished->recordSuccessfulJob('last');
+            $this->fail('Expected the SQL projection to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+        $this->assertNull(DB::table('job_batches')->where('id', $finished->id)->value('finished_at'));
+        $finishedAt = $finished->fresh()->finishedAt;
+        $this->assertNotNull($finishedAt);
+        $results = $this->app->make(RedisBatchRepository::class);
+        $unfinished = [];
+        foreach (['first', 'second'] as $job) {
+            $batch = $repository->store(Bus::batch([])->allowFailures());
+            $repository->incrementTotalJobs($batch->id, 2);
+            $repository->incrementFailedJobs($batch->id, $job, $job);
+            $this->assertSame([$job], $results->getFailedJobIds($batch->id));
+            $unfinished[] = $batch->id;
+        }
+        DB::table('job_batches')->update(['created_at' => now()->subDays(5)->getTimestamp()]);
+
+        $this->assertSame(2, $repository->pruneUnfinished(now()->subDay()));
+
+        $this->assertSame([$finished->id], DB::table('job_batches')->pluck('id')->all());
+        $this->assertSame($finishedAt->getTimestamp(), (int) DB::table('job_batches')->where('id', $finished->id)->value('finished_at'));
+        $this->assertSame([], DB::table('job_batch_deletions')->pluck('batch_id')->all());
+        foreach ($unfinished as $id) {
+            $this->assertSame([], $results->getFailedJobIds($id));
+        }
+        $this->assertTrue($finished->fresh()->finished());
+    }
+
     public function testReboundRedisDriverHandlesHydratedAndIdOnlyCallsAndRetriesCleanup(): void
     {
         $driver = new class($this->app->make(BatchFactory::class), $this->app->make('db'), 'job_batches', config('database.default'), 'job_batch_results', $this->app->make(RedisFactory::class), 'default', 'job_batch_deletions') extends RedisBatchRepository {
