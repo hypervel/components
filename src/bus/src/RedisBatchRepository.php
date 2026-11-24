@@ -16,6 +16,7 @@ use Hypervel\Support\Collection;
 use LogicException;
 use Redis;
 use RuntimeException;
+use Throwable;
 
 class RedisBatchRepository extends DatabaseBatchRepository
 {
@@ -501,8 +502,17 @@ class RedisBatchRepository extends DatabaseBatchRepository
             foreach ($calls as [$keys, $arguments]) {
                 $pipeline->eval($script, [...$keys, ...$arguments], count($keys));
             }
-            // Execute through the connection so a failover error keeps this client out of the pool.
-            $results = $redis->exec();
+
+            try {
+                // The connection's own exec() would clear its WATCH tracking, which a pipeline does not consume.
+                $results = $pipeline->exec();
+            } catch (Throwable $exception) {
+                // Keep a client that failed over or lost its transport out of the pool.
+                $redis->invalidate();
+
+                throw $exception;
+            }
+
             if ($results === false || in_array(false, $results, true)) {
                 throw new RuntimeException('Unable to run the Redis batch script: ' . $client->getLastError());
             }
