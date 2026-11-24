@@ -19,6 +19,8 @@ use Hypervel\Routing\RouteGroup;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\UrlGenerator;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class RoutePortTest extends RoutingTestCase
@@ -258,6 +260,31 @@ class RoutePortTest extends RoutingTestCase
         // Wrong port — 404
         $this->expectException(NotFoundHttpException::class);
         $compiledCollection->match(Request::create('http://localhost:8000/foo', 'GET'));
+    }
+
+    #[TestWith(['health', 'health'])]
+    #[TestWith(['health/{id}', 'health/7'])]
+    public function testCompiledMatchingContinuesPastRoutesOnAnotherListener(string $pattern, string $path): void
+    {
+        [$router, $container] = $this->getRouter();
+        $router->port(8001)->get($pattern, ['uses' => 'HealthController@index', 'as' => 'health']);
+        $router->port(8001)->post($pattern, ['uses' => 'HealthController@store', 'as' => 'store']);
+        $router->port(8002)->put($pattern, ['uses' => 'HealthController@update', 'as' => 'update']);
+        $router->get('{page}', ['uses' => 'PageController@show', 'as' => 'page'])->where('page', '.*');
+        $routes = $router->getRoutes()->toCompiledRouteCollection($router, $container);
+
+        $route = $routes->match(Request::create("http://localhost:8000/{$path}"));
+        $this->assertSame('page', $route->getName());
+        $this->assertSame($path, $route->parameter('page'));
+        $this->assertSame('health', $routes->match(Request::create("http://localhost:8001/{$path}"))->getName());
+        $this->assertSame('update', $routes->match(Request::create("http://localhost:8002/{$path}", 'PUT'))->getName());
+
+        try {
+            $routes->match(Request::create("http://localhost:8000/{$path}", 'DELETE'));
+            $this->fail('Expected the route to reject DELETE.');
+        } catch (MethodNotAllowedHttpException $exception) {
+            $this->assertSame('GET, HEAD', $exception->getHeaders()['Allow']);
+        }
     }
 
     public function testRoutePortUsesTheListenerBehindAProxy(): void

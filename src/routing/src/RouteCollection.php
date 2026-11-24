@@ -83,7 +83,7 @@ class RouteCollection extends AbstractRouteCollection
                 if ($existing !== null && $existing->getPort() !== $route->getPort()) {
                     throw new LogicException(
                         "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
-                        . 'Same-path cross-port routes are not supported by the compiled matcher.'
+                        . 'Routes with the same method, domain and URI must use the same port.'
                     );
                 }
 
@@ -98,7 +98,7 @@ class RouteCollection extends AbstractRouteCollection
                 if ($existing !== null && $existing->getPort() !== $route->getPort()) {
                     throw new LogicException(
                         "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
-                        . 'Same-path cross-port routes are not supported by the compiled matcher.'
+                        . 'Routes with the same method, domain and URI must use the same port.'
                     );
                 }
 
