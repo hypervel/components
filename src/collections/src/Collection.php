@@ -49,9 +49,13 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Create a new collection.
      *
-     * @param null|Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
+     * The object template preserves key and value inference for Arrayable inputs.
+     *
+     * @template TObject of object = object
+     *
+     * @param null|Arrayable<array<TKey, TValue>>|iterable<TKey, TValue>|scalar|TObject $items
      */
-    public function __construct($items = [])
+    public function __construct(mixed $items = [])
     {
         $this->items = $this->getArrayableItems($items);
     }

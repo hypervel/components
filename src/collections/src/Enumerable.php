@@ -37,13 +37,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Create a new collection instance if the value isn't one already.
      *
-     * @template TMakeKey of array-key
-     * @template TMakeValue
+     * @template TMakeKey of array-key = array-key
+     * @template TMakeValue = mixed
+     * @template TObject of object = object
      *
-     * @param null|Arrayable<array<array-key, mixed>>|iterable<TMakeKey, TMakeValue> $items
-     * @return ($items is Arrayable<array<TMakeKey, TMakeValue>> ? static<TMakeKey, TMakeValue> : static<TMakeKey, TMakeValue>)
+     * @param null|Arrayable<array<TMakeKey, TMakeValue>>|iterable<TMakeKey, TMakeValue>|scalar|TObject $items
+     * @return static<TMakeKey, TMakeValue>
      */
-    public static function make(Arrayable|iterable|null $items = []): static;
+    public static function make(mixed $items = []): static;
 
     /**
      * Create a new instance by invoking the callback a given amount of times.

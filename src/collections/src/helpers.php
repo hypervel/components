@@ -10,13 +10,14 @@ if (! function_exists('collect')) {
     /**
      * Create a collection from the given value.
      *
-     * @template TKey of array-key
-     * @template TValue
+     * @template TKey of array-key = array-key
+     * @template TValue = mixed
+     * @template TObject of object = object
      *
-     * @param null|Arrayable<array<array-key, mixed>>|iterable<TKey, TValue> $value
-     * @return ($value is Arrayable<array<TKey, TValue>> ? Collection<TKey, TValue> : Collection<TKey, TValue>)
+     * @param null|Arrayable<array<TKey, TValue>>|iterable<TKey, TValue>|scalar|TObject $value
+     * @return Collection<TKey, TValue>
      */
-    function collect($value = []): Collection
+    function collect(mixed $value = []): Collection
     {
         return new Collection($value);
     }

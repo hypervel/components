@@ -5,6 +5,9 @@ declare(strict_types=1);
 use function Hypervel\Support\enum_value;
 use function PHPStan\Testing\assertType;
 
+assertType('Hypervel\Support\Collection<0, 123>', collect(123));
+assertType('Hypervel\Support\Collection<(int|string), mixed>', collect(\Random\IntervalBoundary::ClosedOpen));
+
 assertType("'foo'", value('foo', 42)); // @phpstan-ignore hypervel.uselessConstructs.value (asserts the helper's own type)
 assertType('42', value(fn () => 42));
 assertType('42', value(function ($foo) {
