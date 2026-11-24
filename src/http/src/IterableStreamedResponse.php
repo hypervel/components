@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use Closure;
-use Hypervel\ObjectPool\PoolErrorReporter;
+use Hypervel\Support\FailureReporter;
 use Override;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -129,7 +129,7 @@ class IterableStreamedResponse extends StreamedResponse
     }
 
     /**
-     * Release retained chunks while preserving an earlier failure.
+     * Release retained chunks and propagate the primary failure or cancellation.
      */
     private function clearChunks(?Throwable $primaryException = null): void
     {
@@ -139,11 +139,7 @@ class IterableStreamedResponse extends StreamedResponse
             parent::setCallback(static function (): void {
             });
         } catch (Throwable $throwable) {
-            if ($primaryException === null) {
-                throw $throwable;
-            }
-
-            PoolErrorReporter::report($throwable);
+            $primaryException = FailureReporter::preferCancellation($primaryException, $throwable);
         }
 
         if ($primaryException !== null) {
