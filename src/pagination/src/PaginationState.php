@@ -29,16 +29,7 @@ class PaginationState
         });
 
         Paginator::currentPageResolver(static function (string $pageName = 'page'): int {
-            $request = RequestContext::getOrNull();
-
-            if ($request === null) {
-                return 1;
-            }
-
-            // Use the filtered value: a numeric Stringable passes the filter, but casting it to int fails.
-            $page = filter_var($request->input($pageName), FILTER_VALIDATE_INT);
-
-            return $page !== false && $page >= 1 ? $page : 1;
+            return max(1, RequestContext::getOrNull()?->integer($pageName, 1, strict: true) ?? 1);
         });
 
         Paginator::queryStringResolver(static function (): array {
