@@ -41,9 +41,16 @@ $profilerId = $continuousProfiler->getProfilerId();
 
 A separate upstream change owns a verified SDK defect. When a stop yields during delivery, a concurrent root can be attached to the stopping session and then cleared. With stock SDK 4.37.1 and 4.38.0, two roots produced one chunk during this interleaving and two chunks with sequential delivery. Complete the outgoing batch and retire its recording state before calling transport code and preserve a newly started session and queued chunks. Keep the usual no-client, manual, fork and failure behavior. Cover stop during a yielding or reentrant transport with an upstream regression. Hypervel uses released APIs throughout. Track the first fixed SDK release for the dependency minimum.
 
+## Transport admission
+
+The SDK catches transport exceptions inside `Client::captureEvent()`. If a request waits for a pooled HTTP transport and is canceled there, the SDK drops the event and the request can continue. In `HttpPoolTransport::send()`, use `tryBorrow()` to take an idle transport or create one within the configured limit. Skip the event immediately when every transport is busy or the pool is closed. Start a delivery coroutine only after checkout succeeds. Remove the Sentry-specific `wait_timeout` option and document the effect of `max_objects` on bursts.
+
+Expose `tryBorrow(): ?object` on the Hypervel object pool contract. Share the ordinary checkout path for ownership, expiration, factories and concurrent closure. Return null only when capacity is unavailable. The regular `borrow()` retains its deadline and timeout exception.
+
 ## Verification and delivery
 
-- Reproduce request contamination using the existing native Excimer test with its skip removed. Assert the owning request's stacks and an idle gap across unrelated work. Exercise attached and detached children, missing runtime context, collector cleanup and the duration boundary.
+- Reproduce request contamination using the existing native Excimer test with its skip removed. Assert the owning request's stacks and an idle gap across unrelated work. Exercise attached and detached children, missing runtime context, collector cleanup and the duration boundary. Feed retained samples with both real and idle predecessors to the SDK formatter and verify that it drops each for excess duration.
+- Exercise the generic pool at capacity, after release and after close. Exercise a real SDK capture with the only transport already checked out and verify that the caller completes before yielding.
 - Verify application factory precedence, failed start and factory cancellation through the Hub, ignored-route cleanup, continuous profile IDs on overlapping roots, final-owner cleanup, and client binding before or after manual profiling starts. Isolate process-wide SDK session sampling between test cases.
 - Install Excimer in the existing CI image using its PIE package. Exercise the relevant package with the extension both enabled and absent. Keep any remaining native pre-collection optimization in the todo entry, alongside the upstream release follow-up.
 - Run each edited test file immediately. At the review boundary run formatting, full static analysis and targeted suites sequentially. Trace the final diff through provider registration, scope inheritance, middleware, queue and scheduler call sites, cancellation, SDK lifecycle and package installation. Obtain independent code review and commit whole files by concern. Keep both branches local until the owner authorizes publication.
