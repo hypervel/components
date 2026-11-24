@@ -175,6 +175,8 @@ try {
 $pool->release($client);
 ```
 
+Call `tryBorrow()` to take an idle object or create one without waiting for pool capacity. It returns `null` when the pool is full. A closed pool or a failing factory still throws. Release or discard a successfully borrowed object as usual.
+
 Use `release()` only when the object remains healthy. Use `discard()` after a protocol or network failure, or when a failed reset may have left it in an unknown state. The pool rejects foreign objects, repeated releases or discards, and factories that return an object the pool already manages.
 
 <a name="leases"></a>

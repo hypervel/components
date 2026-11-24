@@ -351,6 +351,11 @@ class ContractOnlyObjectPool implements ObjectPoolContract
         return new stdClass;
     }
 
+    public function tryBorrow(): ?object
+    {
+        return $this->borrow();
+    }
+
     public function release(object $object): void
     {
         $this->released[] = $object;

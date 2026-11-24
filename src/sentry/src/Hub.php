@@ -20,6 +20,8 @@ use Sentry\EventHint;
 use Sentry\EventId;
 use Sentry\Integration\IntegrationInterface;
 use Sentry\MonitorConfig;
+use Sentry\Profiling\ProfileChunk;
+use Sentry\Profiling\Profiles;
 use Sentry\Severity;
 use Sentry\State\HubInterface;
 use Sentry\State\Layer;
@@ -52,6 +54,10 @@ class Hub implements HubInterface
     public function __construct(protected ?ClientInterface $client = null, ?Scope $scope = null)
     {
         $this->scope = $scope ?? new Scope;
+
+        if ($client !== null) {
+            Profiles::getInstance()->continuousProfiler()->onClientBound($client);
+        }
     }
 
     /**
@@ -72,6 +78,7 @@ class Hub implements HubInterface
     public function bindClient(ClientInterface $client): void
     {
         $this->client = $client;
+        Profiles::getInstance()->continuousProfiler()->onClientBound($client);
     }
 
     /**
@@ -269,6 +276,10 @@ class Hub implements HubInterface
                 ['context' => $context]
             );
 
+            if ($options?->getProfileLifecycle() === 'trace') {
+                $logger->warning('The "profile_lifecycle" option is set to "trace" but tracing is not enabled, so no profiles will be collected.');
+            }
+
             return $transaction;
         }
 
@@ -376,6 +387,22 @@ class Hub implements HubInterface
 
         $transaction->initSpanRecorder();
 
+        if ($options->getProfileLifecycle() === 'trace') {
+            $continuousProfiler = Profiles::getInstance()->continuousProfiler();
+            $continuousProfiler->startForRootSpan((string) $transaction->getSpanId());
+
+            $profilerId = $continuousProfiler->getProfilerId();
+
+            // Backfill profiling data because the profiler was started after the transaction.
+            if ($profilerId !== null) {
+                $transaction->setData([
+                    'thread.id' => ProfileChunk::THREAD_ID,
+                    'thread.name' => ProfileChunk::THREAD_NAME,
+                    'profiler_id' => $profilerId,
+                ]);
+            }
+        }
+
         $profilesSampleSource = 'config:profiles_sample_rate';
         $profilesSampler = $options->getProfilesSampler();
 
@@ -417,7 +444,16 @@ class Hub implements HubInterface
                 )
             );
 
-            $transaction->initProfiler()->start();
+            try {
+                $transaction->initProfiler()->start();
+            } catch (Throwable $exception) {
+                $transaction->detachProfiler();
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
+                $logger->error(sprintf('Failed to start the profiler. Reason: "%s".', $exception->getMessage()), ['exception' => $exception]);
+            }
         } else {
             $logger->info(
                 sprintf(

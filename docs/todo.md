@@ -158,11 +158,8 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
 
 ## Sentry
 
-- Make Sentry profiles record only the profiled transaction's work. Excimer samples whichever coroutine's PHP stack is running when it takes a sample, so a transaction profile currently includes work from other coroutines in the same worker, such as concurrent requests. Profiling stays disabled by default, with a config comment and documentation warning, until this is fixed. Use released dependencies only.
-  - Once a `sentry/sentry` release includes the per-transaction profiler factory ([sentry-php#2253](https://github.com/getsentry/sentry-php/pull/2253)), raise the package's SDK minimum and supply a Hypervel profiler through it. The integration requires this hook.
-  - Once a released Excimer includes `ExcimerProfiler::setSampleFilter()` ([Excimer change 1354126](https://gerrit.wikimedia.org/r/c/mediawiki/php/excimer/+/1354126)), have that profiler accept only samples taken in its own coroutine, through a static closure that captures the coroutine ID rather than the profiler, and flush the log normally when it stops. Without the filter, the profiler must flush after every sample and discard samples from other coroutines after their stacks have been collected.
-  - Child coroutines started during the transaction, such as `parallel()` calls, run under other coroutine IDs. Decide whether their samples belong in the profile and test the chosen behavior.
-  - Add tests for attribution under concurrent coroutines, starting and stopping with the transaction, and cleanup when a transaction never finishes, then measure sampling overhead under concurrent load. Remove the comment and warning only after these pass.
+- Once a released Excimer includes `ExcimerProfiler::setSampleFilter()` ([Excimer change 1354126](https://gerrit.wikimedia.org/r/c/mediawiki/php/excimer/+/1354126)), compare native filtering with the transaction collector under concurrent load. Preserve request context ownership, idle intervals and SDK drop reporting.
+- Raise the Sentry SDK minimum once a release fixes continuous profiling shutdown when a new recording starts during profile-chunk delivery. The SDK owns this fix.
 
 ## Notifications
 

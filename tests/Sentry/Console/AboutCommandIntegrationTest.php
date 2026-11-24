@@ -20,9 +20,13 @@ class AboutCommandIntegrationTest extends TestCase
             'sentry.release' => '1.2.3',
             'sentry.environment' => 'testing',
             'sentry.traces_sample_rate' => 0.95,
+            'sentry.profile_session_sample_rate' => 0.25,
+            'sentry.profile_lifecycle' => 'trace',
         ]);
 
         $expectedData = [
+            'continuous_profile_lifecycle' => 'trace',
+            'sample_rate_continuous_profiling' => '25%',
             'data_collection' => 'NOT SET',
             'environment' => 'testing',
             'release' => '1.2.3',

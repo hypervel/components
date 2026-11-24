@@ -30,24 +30,27 @@ class HttpPoolTransportTest extends TestCase
 {
     use VerifiesDoubles;
 
-    public function testAcquisitionTimeoutReturnsSkippedWithoutReleasingTheBorrowedTransport(): void
+    public function testSdkCaptureSkipsImmediatelyWhenEveryTransportIsBusy(): void
     {
-        $pool = Double::for(new HttpTransportPool(
-            new ClientBuilder,
-            PoolOptions::fromArray(['max_objects' => 1, 'wait_timeout' => 0.001]),
-        ))->passthru();
-        $pool->expects('createObject')->returns(Double::for(HttpTransport::class)->strict());
+        $options = new Options(['dsn' => 'https://public@example.com/1', 'default_integrations' => false]);
+        $builder = new ClientBuilder($options);
+        $pool = new HttpTransportPool($builder, PoolOptions::fromArray(['max_objects' => 1]));
+        $transport = Double::for(new HttpPoolTransport($pool, $options))->passthru();
+        $transport->expects('createCoroutine')->never();
+        $client = $builder->setTransport($transport)->getClient();
         $borrowed = $pool->borrow();
-        $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
+        $captures = [];
 
         try {
-            $result = $transport->send(Event::createEvent());
+            Coroutine::create(static function () use ($client, &$captures): void {
+                $captures[] = $client->captureEvent(Event::createClientReport());
+            });
 
-            $this->assertSame(ResultStatus::skipped(), $result->getStatus());
+            $this->assertSame([null], $captures);
             $this->assertSame(1, $pool->getBorrowedCount());
         } finally {
-            $pool->release($borrowed);
             $transport->shutdown();
+            $pool->release($borrowed);
         }
     }
 
@@ -58,7 +61,7 @@ class HttpPoolTransportTest extends TestCase
             ->returns(new Result(ResultStatus::success()));
 
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')
+        $pool->expects('tryBorrow')
             ->returns($httpTransport);
         $pool->expects('release')
             ->with(Argument::same($httpTransport));
@@ -90,7 +93,7 @@ class HttpPoolTransportTest extends TestCase
             ++$createdCoroutines;
         });
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')->never();
+        $pool->expects('tryBorrow')->never();
         $transport = new HttpPoolTransport($pool, new Options);
         $event = Event::createEvent();
 
@@ -116,7 +119,7 @@ class HttpPoolTransportTest extends TestCase
             }
         );
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('tryBorrow')->returns($httpTransport);
         $pool->expects('release')->with(Argument::same($httpTransport));
         $transport = new HttpPoolTransport($pool, new Options(['spotlight' => true]));
 
@@ -164,7 +167,7 @@ class HttpPoolTransportTest extends TestCase
         $httpTransport->expects('send')
             ->returns(new Result(ResultStatus::success()));
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('tryBorrow')->returns($httpTransport);
         $pool->expects('release')->with(Argument::same($httpTransport));
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
@@ -181,7 +184,7 @@ class HttpPoolTransportTest extends TestCase
             ->throws(new RuntimeException('Send failed'));
 
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')
+        $pool->expects('tryBorrow')
             ->returns($httpTransport);
         $pool->expects('discard')
             ->with(Argument::same($httpTransport));
@@ -212,7 +215,7 @@ class HttpPoolTransportTest extends TestCase
             ->returns(new Result(ResultStatus::success()));
 
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')
+        $pool->expects('tryBorrow')
             ->times(3)
             ->returns($httpTransport1, $httpTransport2, $httpTransport3);
         // transport2 is discarded immediately on exception.
@@ -259,7 +262,7 @@ class HttpPoolTransportTest extends TestCase
         );
 
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')->times(2)->returns($first, $second);
+        $pool->expects('tryBorrow')->times(2)->returns($first, $second);
         $pool->expects('release')->with(Argument::same($first));
         $pool->expects('release')->with(Argument::same($second));
 
@@ -298,7 +301,7 @@ class HttpPoolTransportTest extends TestCase
         $httpTransport->expects('send')->never();
 
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('tryBorrow')->returns($httpTransport);
         $pool->expects('release')->with(Argument::same($httpTransport));
 
         $transport = new FailingCoroutineHttpPoolTransport($pool, $this->optionsWithDsn());
@@ -315,7 +318,7 @@ class HttpPoolTransportTest extends TestCase
         $httpTransport = Double::for(HttpTransport::class)->strict();
         $httpTransport->expects('send')->never();
         $pool = Double::for(HttpTransportPool::class)->strict();
-        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('tryBorrow')->returns($httpTransport);
         $pool->expects('release')->with(Argument::same($httpTransport));
         $pool->expects('discard')->never();
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());

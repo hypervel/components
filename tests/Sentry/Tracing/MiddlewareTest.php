@@ -9,8 +9,11 @@ use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\Sentry\Tracing\Middleware;
 use Hypervel\Tests\Sentry\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Sentry\Profiling\ProfilerInterface;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
@@ -21,6 +24,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class MiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
     ];
@@ -179,6 +184,44 @@ class MiddlewareTest extends TestCase
             'wrapped' => SpanStatus::internalError(),
             'sent', 'sent after a failure' => SpanStatus::ok(),
         }, $transaction->getStatus());
+    }
+
+    #[TestWith([null])]
+    #[TestWith([RuntimeException::class])]
+    #[TestWith([CanceledException::class])]
+    public function testIgnoredRoutesReleaseTheApplicationProfiler(?string $exceptionClass): void
+    {
+        $profiler = Double::for(ProfilerInterface::class)->strict();
+        $profiler->expects('start');
+        $stop = $profiler->expects('stop');
+        $failure = $exceptionClass === null ? null : new $exceptionClass('Profiler unavailable.');
+        if ($failure !== null) {
+            $stop->throws($failure);
+        }
+
+        $this->resetApplicationWithConfig([
+            'sentry.profiles_sample_rate' => 1.0,
+            'sentry.profiler_factory' => static fn (): ProfilerInterface => $profiler,
+        ]);
+        $middleware = new Middleware(false);
+        $request = Request::create('/missing');
+        $response = $middleware->handle($request, static fn (): Response => new Response('', 404));
+        $hub = SentrySdk::getCurrentHub();
+        $transaction = $hub->getTransaction();
+        $this->assertSame($profiler, $transaction->getProfiler());
+
+        $cancellation = null;
+        try {
+            $middleware->terminate($request, $response);
+        } catch (CanceledException $exception) {
+            $cancellation = $exception;
+        }
+        $this->assertSame($failure instanceof CanceledException ? $failure : null, $cancellation);
+        $middleware->finishTransaction();
+
+        $this->assertNull($transaction->getProfiler());
+        $this->assertNull($hub->getSpan());
+        $this->assertSentryTransactionCount(0);
     }
 
     public function testTerminateFinishesTransactionWhenAfterResponseTracingIsDisabled(): void

@@ -14,6 +14,7 @@ use Hypervel\Sentry\Http\SensitiveCookieFilter;
 use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\DataCollection\HttpMessageType;
 use Sentry\DataCollection\HttpSpanDataCollector;
+use Sentry\Profiling\Profiles;
 use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Sentry\Tracing\Span;
@@ -21,6 +22,7 @@ use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionSource;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 use function Sentry\continueTrace;
 
@@ -210,11 +212,28 @@ class Middleware
      */
     private function discardTransaction(): void
     {
+        $transaction = $this->transaction;
         $this->appSpan = null;
         $this->transaction = null;
         $this->didRouteMatch = false;
 
-        SentrySdk::getCurrentHub()->setSpan(null);
+        $hub = SentrySdk::getCurrentHub();
+        $hub->setSpan(null);
+
+        // A discarded transaction never reaches the SDK's finish() cleanup.
+        Profiles::getInstance()->continuousProfiler()->stopForRootSpan((string) $transaction->getSpanId());
+
+        try {
+            $transaction->getProfiler()?->stop();
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
+            $hub->getClient()?->getOptions()->getLoggerOrNullLogger()->error(sprintf('Failed to stop the profiler. Reason: "%s".', $exception->getMessage()), ['exception' => $exception]);
+        } finally {
+            $transaction->detachProfiler();
+        }
     }
 
     /**

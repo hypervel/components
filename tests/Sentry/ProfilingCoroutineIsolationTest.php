@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Sentry\State\RuntimeContextBoundary;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\Attributes\TestWith;
 use Sentry\Profiling\Profile;
 use Sentry\Tracing\TransactionContext;
+use WeakReference;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -22,10 +26,6 @@ class ProfilingCoroutineIsolationTest extends TestCase
 
     public function testTransactionProfileExcludesWorkFromAnotherRequest(): void
     {
-        // @TODO Unskip once upstream supports request-aware profiling and Hypervel uses it.
-        // https://github.com/getsentry/sentry-php/pull/2253
-        $this->markTestSkipped('Sentry profiling does not yet isolate samples by request context.');
-
         $requestAStarted = new Channel(1);
         $requestBFinished = new Channel(1);
 
@@ -40,6 +40,7 @@ class ProfilingCoroutineIsolationTest extends TestCase
 
                     // A remains profiled while it yields to B, just as when waiting for I/O.
                     $this->assertTrue($requestBFinished->pop(2.0));
+                    $this->requestAWork();
                 } finally {
                     $transaction->finish();
                 }
@@ -67,12 +68,60 @@ class ProfilingCoroutineIsolationTest extends TestCase
 
         $functions = array_column($payload['profile']['frames'], 'function');
 
+        $stacks = array_map(static fn (array $sample): array => $payload['profile']['stacks'][$sample['stack_id']], $payload['profile']['samples']);
+        $this->assertNotEmpty($stacks[0]);
+        $this->assertContains([], $stacks);
+        $this->assertNotEmpty(end($stacks));
         $this->assertContains(self::class . '::requestAWork', $functions);
         $this->assertNotContains(
             self::class . '::requestBWork',
             $functions,
             'Request A\'s profile must not contain work performed by request B while A was suspended.',
         );
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testOnlyChildrenSharingTheRequestAreProfiled(bool $hasContext): void
+    {
+        if ($hasContext) {
+            $this->app->make(RuntimeContextBoundary::class)->start();
+        }
+
+        $transaction = $this->getSentryHubFromContainer()->startTransaction(new TransactionContext('parent'));
+        try {
+            $this->requestAWork();
+            Coroutine::create(fn () => $this->attachedChildWork());
+            Coroutine::createOwned(fn () => $this->requestBWork(), static fn (Closure $run) => $run(), detached: true);
+        } finally {
+            $transaction->finish();
+        }
+
+        $event = $this->getLastSentryEvent();
+        $payload = $event->getSdkMetadata('profile')->getFormattedData($event);
+        $functions = array_column($payload['profile']['frames'], 'function');
+
+        $this->assertSame($hasContext, in_array(self::class . '::attachedChildWork', $functions, true));
+        $this->assertContains(self::class . '::requestAWork', $functions);
+        $this->assertNotContains(self::class . '::requestBWork', $functions);
+    }
+
+    public function testAnUnfinishedTransactionReleasesItsProfilerWhenCollected(): void
+    {
+        $transaction = $this->getSentryHubFromContainer()->startTransaction(new TransactionContext('unfinished'));
+        $profiler = WeakReference::create($transaction->getProfiler());
+        unset($transaction);
+        gc_collect_cycles();
+
+        $this->assertNull($profiler->get());
+    }
+
+    /**
+     * Run an identifiable stack in an attached child coroutine.
+     */
+    private function attachedChildWork(): void
+    {
+        $this->requestAWork();
     }
 
     /**

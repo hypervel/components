@@ -111,7 +111,6 @@ class HttpTransportPoolTest extends TestCase
         return PoolOptions::fromArray([
             'min_retained_objects' => 0,
             'max_objects' => $maxObjects,
-            'wait_timeout' => 0.1,
             'max_lifetime' => null,
             'pool_idle_timeout' => null,
         ]);

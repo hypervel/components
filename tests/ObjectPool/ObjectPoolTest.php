@@ -101,6 +101,23 @@ class ObjectPoolTest extends TestCase
         $this->assertSame(0, $pool->getIdleCount());
     }
 
+    public function testTryBorrowReturnsNullAtCapacityAndThrowsAfterClose(): void
+    {
+        $pool = $this->pool(['max_objects' => 1]);
+        $object = $pool->tryBorrow();
+
+        $this->assertInstanceOf(stdClass::class, $object);
+        $this->assertNull($pool->tryBorrow());
+        $pool->release($object);
+        $this->assertSame($object, $pool->tryBorrow());
+        $pool->release($object);
+        $pool->close();
+
+        $this->expectException(PoolClosedException::class);
+
+        $pool->tryBorrow();
+    }
+
     public function testBorrowFromClosedPoolThrows(): void
     {
         $pool = $this->pool();

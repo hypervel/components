@@ -23,6 +23,7 @@ $organizationId = env('SENTRY_ORG_ID');
 $sampleRate = env('SENTRY_SAMPLE_RATE');
 $tracesSampleRate = env('SENTRY_TRACES_SAMPLE_RATE');
 $profilesSampleRate = env('SENTRY_PROFILES_SAMPLE_RATE');
+$profileSessionSampleRate = env('SENTRY_PROFILE_SESSION_SAMPLE_RATE');
 $logFlushThreshold = env('SENTRY_LOG_FLUSH_THRESHOLD');
 
 return [
@@ -54,10 +55,12 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#traces_sample_rate
     'traces_sample_rate' => $tracesSampleRate === null ? null : (float) $tracesSampleRate,
 
-    // Profiles can include work from other requests running at the same time in the same worker,
-    // whether profiling is enabled here or by a `profiles_sampler` callback.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#profiles_sample_rate
     'profiles_sample_rate' => $profilesSampleRate === null ? null : (float) $profilesSampleRate,
+
+    // Continuous profiling samples the whole worker while running manually or during sampled transactions.
+    'profile_session_sample_rate' => $profileSessionSampleRate === null ? null : (float) $profileSessionSampleRate,
+    'profile_lifecycle' => env('SENTRY_PROFILE_LIFECYCLE', 'manual'),
 
     // Only continue incoming traces when the organization IDs are compatible with this SDK instance.
     'strict_trace_continuation' => (bool) env('SENTRY_STRICT_TRACE_CONTINUATION', false),
@@ -241,12 +244,9 @@ return [
     // HTTP timeout for the Sentry SDK transport (seconds)
     'http_timeout' => (float) env('SENTRY_HTTP_TIMEOUT', 2.0),
 
-    // HTTP transport pool configuration for async Sentry event sending via Swoole coroutines.
-    // wait_timeout is set low (10ms) so pool exhaustion fails fast (backpressure)
-    // rather than blocking request coroutines for seconds during exception storms.
+    // Events are skipped when every HTTP transport is busy. Increase max_objects to handle larger bursts.
     'pool' => [
         'max_objects' => 10,
-        'wait_timeout' => 0.01,
         'max_lifetime' => 60.0,
     ],
 ];

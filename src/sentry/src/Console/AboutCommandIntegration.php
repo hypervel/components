@@ -36,6 +36,8 @@ class AboutCommandIntegration
             'Hypervel SDK Version' => Version::getSdkVersion(),
             'PHP SDK Version' => Client::SDK_VERSION,
             'Release' => $options->getRelease() ?: '<fg=yellow;options=bold>NOT SET</>',
+            'Continuous Profile Lifecycle' => $options->getProfileLifecycle(),
+            'Sample Rate Continuous Profiling' => $this->formatSampleRate($options->getProfileSessionSampleRate()),
             'Sample Rate Errors' => $this->formatSampleRate($options->getSampleRate()),
             'Sample Rate Performance Monitoring' => $this->formatSampleRate($options->getTracesSampleRate(), $options->getTracesSampler() !== null),
             'Sample Rate Profiling' => $this->formatSampleRate($options->getProfilesSampleRate(), $options->getProfilesSampler() !== null),
