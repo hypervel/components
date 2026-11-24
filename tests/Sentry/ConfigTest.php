@@ -14,6 +14,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Sentry\ClientBuilder;
+use Sentry\Options;
 
 class ConfigTest extends TestCase
 {
@@ -83,6 +84,24 @@ class ConfigTest extends TestCase
             ['pool_idle_timeout', 300],
             ['unknown', true],
         ];
+    }
+
+    public function testContinuousProfilingOptionsUseTheSdkDefaultsAndAcceptEnvironmentSettings(): void
+    {
+        $defaults = $this->withEnvironmentValues([
+            'SENTRY_PROFILE_SESSION_SAMPLE_RATE' => null,
+            'SENTRY_PROFILE_LIFECYCLE' => null,
+        ], fn (): array => $this->sentryConfig());
+        $options = new Options;
+        $this->assertSame($options->getProfileSessionSampleRate(), $defaults['profile_session_sample_rate']);
+        $this->assertSame($options->getProfileLifecycle(), $defaults['profile_lifecycle']);
+
+        $configured = $this->withEnvironmentValues([
+            'SENTRY_PROFILE_SESSION_SAMPLE_RATE' => '0.25',
+            'SENTRY_PROFILE_LIFECYCLE' => 'trace',
+        ], fn (): array => $this->sentryConfig());
+        $this->assertSame(0.25, $configured['profile_session_sample_rate']);
+        $this->assertSame('trace', $configured['profile_lifecycle']);
     }
 
     public function testLogsChannelLevelUsesCurrentEnvironmentNames(): void
