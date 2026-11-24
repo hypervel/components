@@ -37,6 +37,7 @@ $server->init(new ServerConfig([
         'reactor_num' => 1,
         'enable_coroutine' => true,
         'open_http2_protocol' => true,
+        ...(($argv[3] ?? '') === 'cancel-on-reset' ? ['http2_cancel_on_stream_reset' => true] : []),
         'hook_flags' => SWOOLE_HOOK_ALL,
         'log_level' => SWOOLE_LOG_WARNING,
     ],

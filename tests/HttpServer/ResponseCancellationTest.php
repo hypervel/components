@@ -6,6 +6,8 @@ namespace Hypervel\Tests\HttpServer;
 
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use Swoole\Constant;
 use Symfony\Component\Process\Process;
 
 class ResponseCancellationTest extends TestCase
@@ -98,8 +100,17 @@ class ResponseCancellationTest extends TestCase
         ];
     }
 
-    public function testHttp2StreamResetLeavesSilentProductionUntilTheNextWriteAndPreservesSiblingStreams(): void
+    #[TestWith([false], 'default')]
+    #[TestWith([true], 'cancel on reset')]
+    public function testHttp2StreamResetHonorsTheServerSettingAndPreservesSiblingStreams(bool $cancelOnReset): void
     {
+        // @TODO: When the minimum Swoole release includes https://github.com/swoole/swoole-src/pull/6436,
+        // remove this skip, use the native option constant for both values in server.php,
+        // and remove the build requirement note from deployment.md.
+        if ($cancelOnReset && ! defined(Constant::class . '::OPTION_HTTP2_CANCEL_ON_STREAM_RESET')) {
+            $this->markTestSkipped('This Swoole build lacks HTTP/2 stream reset cancellation.');
+        }
+
         $provider = new Process([PHP_BINARY, dirname(__DIR__) . '/Http/Fixtures/streaming-server.php', 'delayed']);
         $provider->setTimeout(10);
         $server = null;
@@ -111,7 +122,10 @@ class ResponseCancellationTest extends TestCase
             $provider->start();
             $this->waitForOutput($provider, "\n");
             $providerAddress = trim($provider->getOutput());
-            $server = new Process([PHP_BINARY, __DIR__ . '/Fixtures/disconnect-server.php', $providerAddress, 'process']);
+            $server = new Process([
+                PHP_BINARY, __DIR__ . '/Fixtures/disconnect-server.php', $providerAddress, 'process',
+                ...($cancelOnReset ? ['cancel-on-reset'] : []),
+            ]);
             $server->setTimeout(10);
             $server->start();
             $serverProcessId = $server->getPid();
@@ -136,11 +150,14 @@ class ResponseCancellationTest extends TestCase
             fwrite($client, $this->http2Frame(3, 0, 1, pack('N', 8))
                 . $this->http2Frame(1, 5, 3, "\x82\x86\x04\x07/health\x01\x09localhost"));
             $this->assertSame('healthy', $this->http2Body($client, 3));
-            $this->assertStringNotContainsString('STOPPED', $server->getOutput());
-
-            fclose($control);
-            $control = null;
-            $this->waitForOutput($server, 'STOPPED');
+            if ($cancelOnReset) {
+                $this->waitForOutput($server, 'STOPPED');
+            } else {
+                $this->assertStringNotContainsString('STOPPED', $server->getOutput());
+                fclose($control);
+                $control = null;
+                $this->waitForOutput($server, 'STOPPED');
+            }
 
             fwrite($client, $this->http2Frame(1, 5, 5, "\x82\x86\x04\x07/health\x01\x09localhost"));
             $this->assertSame('healthy', $this->http2Body($client, 5));

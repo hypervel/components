@@ -497,7 +497,7 @@ The `stream` method returns an `IterableStreamedResponse` for generator callback
 
 Connection-close cancellation works with coroutines enabled in Swoole base mode and in process mode with connection-stable dispatch modes (`2`, `4`, or `8`). The default process-mode settings support it. Your application's close callback continues to run.
 
-Current Swoole releases do not notify PHP when a client cancels one HTTP/2 stream while keeping its connection open. During a quiet upstream wait, that cancellation is detected only when a write fails or the operation finishes or times out. Closing the entire HTTP/2 connection cancels its opted-in producers. Configure appropriate upstream timeouts for quiet streams.
+Closing an HTTP/2 connection cancels its opted-in producers. To also interrupt a quiet producer when the client resets just its stream, enable [HTTP/2 stream cancellation](/docs/{{version}}/deployment#http2-stream-cancellation). This server-wide setting applies even to handlers that do not call `cancelOnDisconnect()`. With the default settings, an individual reset can go unnoticed until the next write, completion, or timeout. Use appropriate upstream timeouts for quiet streams.
 
 <a name="consuming-streamed-responses"></a>
 ### Consuming Streamed Responses

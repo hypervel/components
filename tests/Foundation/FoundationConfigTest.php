@@ -467,6 +467,22 @@ class FoundationConfigTest extends TestCase
         $this->assertFalse($config['settings'][Constant::OPTION_DAEMONIZE]);
     }
 
+    public function testServerConfigOnlyPassesHttp2ResetCancellationWhenEnabled(): void
+    {
+        $settings = fn (): array => $this->serverConfig()['settings'];
+
+        $this->assertArrayNotHasKey('http2_cancel_on_stream_reset', $this->withEnvironmentValue(
+            'SERVER_HTTP2_CANCEL_ON_STREAM_RESET',
+            null,
+            $settings,
+        ));
+        $this->assertTrue($this->withEnvironmentValue(
+            'SERVER_HTTP2_CANCEL_ON_STREAM_RESET',
+            'true',
+            $settings,
+        )['http2_cancel_on_stream_reset']);
+    }
+
     public function testServerConfigReadsWorkerCountAsAnInteger(): void
     {
         $config = $this->withEnvironmentValue(

@@ -70,6 +70,8 @@ return [
         Constant::OPTION_OPEN_TCP_NODELAY => true,
         Constant::OPTION_MAX_COROUTINE => 100000,
         Constant::OPTION_OPEN_HTTP2_PROTOCOL => (bool) env('SERVER_HTTP2', true),
+        // Stock Swoole 6.3.0RC2 warns about this option even when it is false.
+        ...((bool) env('SERVER_HTTP2_CANCEL_ON_STREAM_RESET', false) ? ['http2_cancel_on_stream_reset' => true] : []),
         Constant::OPTION_MAX_REQUEST => (int) env('SERVER_MAX_REQUESTS', 100000),
         Constant::OPTION_MAX_WAIT_TIME => (int) env('SERVER_MAX_WAIT_TIME', 3),
         Constant::OPTION_SOCKET_BUFFER_SIZE => 2 * 1024 * 1024,
