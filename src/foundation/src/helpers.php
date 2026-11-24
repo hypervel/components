@@ -799,11 +799,11 @@ if (! function_exists('rescue')) {
      * @template TFallback
      *
      * @param callable(): TValue $callback
-     * @param (callable(Throwable): TFallback)|TFallback $rescue
+     * @param (Closure(Throwable): TFallback)|TFallback $rescue
      * @param bool|callable(Throwable): bool $report
      * @return TFallback|TValue
      */
-    function rescue(callable $callback, $rescue = null, $report = true)
+    function rescue(callable $callback, mixed $rescue = null, bool|callable $report = true): mixed
     {
         try {
             return $callback();
@@ -812,7 +812,7 @@ if (! function_exists('rescue')) {
                 throw $e;
             }
 
-            if (value($report, $e)) {
+            if (is_bool($report) ? $report : $report($e)) {
                 report($e);
             }
 

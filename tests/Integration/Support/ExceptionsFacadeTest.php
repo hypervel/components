@@ -512,6 +512,7 @@ class ExceptionsFacadeTest extends TestCase
         Exceptions::fake();
 
         rescue(fn (): never => throw new Exception('Test exception'), null, false);
+        rescue(fn (): never => throw new Exception('Test exception'), report: [new ReflectionClass(RuntimeException::class), 'isInstance']);
 
         Exceptions::assertNothingReported();
     }
