@@ -780,7 +780,6 @@ Redis::psubscribe(['users.*'], function (string $message, string $channel): void
 For more control over a long-running subscriber, you may use the `subscriber` method. This method returns a `Hypervel\Redis\Subscriber\Subscriber` instance backed by a dedicated socket connection:
 
 ```php
-use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Support\Facades\Redis;
 
 $subscriber = Redis::subscriber();
@@ -789,7 +788,6 @@ try {
     $subscriber->subscribe('orders');
 
     while ($message = $subscriber->channel()->pop()) {
-        /** @var Message $message */
         echo $message->channel.': '.$message->payload;
     }
 } finally {

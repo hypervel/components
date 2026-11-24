@@ -136,6 +136,8 @@ class Subscriber
 
     /**
      * Get the subscriber message channel.
+     *
+     * @return Channel<Message>
      */
     public function channel(): Channel
     {
@@ -159,7 +161,7 @@ class Subscriber
      * @throws SocketException
      * @throws Throwable
      */
-    public function ping(float $timeout = 1): string|bool
+    public function ping(float $timeout = 1): string
     {
         return $this->commandInvoker->ping($timeout);
     }

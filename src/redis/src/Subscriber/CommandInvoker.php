@@ -9,16 +9,20 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Redis\Subscriber\Exceptions\SocketException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class CommandInvoker
 {
     private const float MESSAGE_PUSH_TIMEOUT = 30.0;
 
+    /** @var Channel<array|string> */
     protected Channel $resultChannel;
 
+    /** @var Channel<Message> */
     protected Channel $messageChannel;
 
+    /** @var Channel<string> */
     private Channel $pingChannel;
 
     private Timer $timer;
@@ -81,32 +85,7 @@ class CommandInvoker
         $result = [];
 
         for ($i = 0; $i < $number; ++$i) {
-            $value = $this->resultChannel->pop($this->timeout > 0 ? $this->timeout : -1);
-
-            if ($value !== false) {
-                $result[] = $value;
-                continue;
-            }
-
-            if ($this->receiveFailure !== null) {
-                throw $this->receiveFailure;
-            }
-
-            if ($this->resultChannel->timedOut()) {
-                try {
-                    $this->interrupt();
-                } catch (Throwable) {
-                    // The acknowledgement timeout remains primary after cleanup.
-                }
-
-                throw new SocketException(
-                    'Timed out waiting for a Redis subscriber command acknowledgement.'
-                );
-            }
-
-            throw new SocketException(
-                'The Redis subscriber command acknowledgement channel was closed.'
-            );
+            $result[] = $this->awaitReply($this->resultChannel, $this->timeout, 'command acknowledgement');
         }
 
         return $result;
@@ -114,6 +93,8 @@ class CommandInvoker
 
     /**
      * Get the subscriber message channel.
+     *
+     * @return Channel<Message>
      */
     public function channel(): Channel
     {
@@ -150,7 +131,7 @@ class CommandInvoker
     /**
      * Ping the Redis subscriber connection.
      */
-    public function ping(float $timeout = 1): string|bool
+    public function ping(float $timeout = 1): string
     {
         if ($this->interrupted) {
             throw $this->receiveFailure
@@ -169,27 +150,40 @@ class CommandInvoker
             throw $exception;
         }
 
-        $result = $this->pingChannel->pop($timeout > 0 ? $timeout : -1);
+        return $this->awaitReply($this->pingChannel, $timeout, 'PONG response');
+    }
 
-        if ($result !== false) {
-            return $result;
-        }
+    /**
+     * Wait for a sent command's reply.
+     *
+     * @template TReply of array|string
+     * @param Channel<TReply> $channel
+     * @return TReply
+     */
+    private function awaitReply(Channel $channel, float $timeout, string $reply): array|string
+    {
+        try {
+            $value = $channel->pop($timeout > 0 ? $timeout : -1);
 
-        if ($this->receiveFailure !== null) {
-            throw $this->receiveFailure;
-        }
+            if ($value !== false) {
+                return $value;
+            }
 
-        if ($this->pingChannel->timedOut()) {
+            throw $this->receiveFailure ?? match (true) {
+                $channel->wasCanceled() => new CanceledException("Waiting for a Redis subscriber {$reply} was canceled."),
+                $channel->timedOut() => new SocketException("Timed out waiting for a Redis subscriber {$reply}."),
+                default => new SocketException("The Redis subscriber {$reply} channel was closed."),
+            };
+        } catch (Throwable $exception) {
+            // A late reply to this command must never reach the next caller.
             try {
                 $this->interrupt();
             } catch (Throwable) {
-                // The PING timeout remains primary after cleanup.
+                // Preserve the original reply failure.
             }
 
-            throw new SocketException('Timed out waiting for a Redis subscriber PONG response.');
+            throw $exception;
         }
-
-        throw new SocketException('The Redis subscriber PING channel was closed.');
     }
 
     /**
