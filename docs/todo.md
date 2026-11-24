@@ -159,7 +159,7 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
 ## Sentry
 
 - Once a released Excimer includes `ExcimerProfiler::setSampleFilter()` ([Excimer change 1354126](https://gerrit.wikimedia.org/r/c/mediawiki/php/excimer/+/1354126)), compare native filtering with the transaction collector under concurrent load. Preserve request context ownership, idle intervals and SDK drop reporting.
-- Raise the Sentry SDK minimum once a release fixes continuous profiling shutdown when a new recording starts during profile-chunk delivery. The SDK owns this fix.
+- Once a Sentry PHP SDK release includes [sentry-php #2420](https://github.com/getsentry/sentry-php/pull/2420), require that release and register `Coroutine::causedByCancellation(...)` with `SentrySdk::setCancellationDetector()` in `SentryServiceProvider`. Verify that cancellation during a Sentry callback reaches the calling coroutine.
 
 ## Notifications
 
