@@ -34,6 +34,7 @@ use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
 use Hypervel\Sentry\Integration\HypervelContextIntegration;
+use Hypervel\Sentry\Profiling\CoroutineProfiler;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
 use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
@@ -247,10 +248,15 @@ class SentryServiceProvider extends ServiceProvider
             $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
             $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
-            // Make the pooled transport the default transport option for async sending via Swoole coroutines,
-            // so a transport configured in the options or set on the builder takes precedence as in the SDK
             $sentryOptions = $clientBuilder->getOptions();
 
+            if (extension_loaded('excimer') && $sentryOptions->getProfilerFactory() === null) {
+                $storage = $this->app->make(CoroutineRuntimeContextStorage::class);
+                $sentryOptions->setProfilerFactory(static fn (Options $options): CoroutineProfiler => new CoroutineProfiler($options, $storage));
+            }
+
+            // Make the pooled transport the default transport option for async sending via Swoole coroutines,
+            // so a transport configured in the options or set on the builder takes precedence as in the SDK
             if ($sentryOptions->getTransport() === null) {
                 $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
 
