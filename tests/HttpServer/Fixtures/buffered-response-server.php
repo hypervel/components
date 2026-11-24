@@ -33,6 +33,7 @@ $server->on('Request', static function (Request $request, Response $response): v
     ResponseBridge::send(
         new HttpFoundationResponse(str_repeat('0123456789', 300000), headers: ['Content-Type' => 'text/plain']),
         $response,
+        $request->server['server_protocol'],
     );
 });
 $server->start();

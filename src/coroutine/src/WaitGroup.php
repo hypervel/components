@@ -84,7 +84,7 @@ class WaitGroup
             try {
                 $done = $this->chan->pop($timeout);
 
-                if ($done === false && $this->chan->isCanceled()) {
+                if ($done === false && $this->chan->wasCanceled()) {
                     throw new CanceledException('Waiting for the wait group was canceled.');
                 }
 

@@ -39,11 +39,11 @@ class Locker
         $channel->pop($timeout);
 
         // Nothing is ever pushed, so every wake is a failed pop whose state is current.
-        if ($channel->isCanceled()) {
+        if ($channel->wasCanceled()) {
             throw new CanceledException("Waiting for the [{$key}] lock was canceled.");
         }
 
-        if ($channel->isTimeout()) {
+        if ($channel->timedOut()) {
             throw new WaitTimeoutException("Waiting for the [{$key}] lock timed out after {$timeout} seconds.");
         }
 

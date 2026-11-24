@@ -115,14 +115,14 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                     throw $failure;
                 }
 
-                $this->sendResponse($request, $response, $swooleResponse, $throwable);
+                $this->sendResponse($request, $response, $swooleResponse, $swooleRequest->server['server_protocol'], $throwable);
 
                 /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return;
             }
         }
 
-        $this->sendResponse($request, $response, $swooleResponse);
+        $this->sendResponse($request, $response, $swooleResponse, $swooleRequest->server['server_protocol']);
     }
 
     /**
@@ -132,6 +132,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
         ?Request $request,
         Response $response,
         SwooleResponse $swooleResponse,
+        string $protocol,
         ?Throwable $exception = null,
     ): void {
         $terminalException = null;
@@ -158,7 +159,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
             }
 
             try {
-                ResponseBridge::send($response, $swooleResponse, request: $request);
+                ResponseBridge::send($response, $swooleResponse, $protocol, request: $request);
             } catch (Throwable $throwable) {
                 if (Coroutine::causedByCancellation($throwable)) {
                     throw $throwable;

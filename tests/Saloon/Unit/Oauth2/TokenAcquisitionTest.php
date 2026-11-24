@@ -65,7 +65,7 @@ class TokenAcquisitionTest extends TestCase
                     try {
                         $release->pop(1);
 
-                        if ($release->isCanceled()) {
+                        if ($release->wasCanceled()) {
                             throw new CanceledException('Owner canceled.');
                         }
                     } finally {

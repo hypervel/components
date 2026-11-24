@@ -805,7 +805,7 @@ class OAuthAccountTest extends TestCase
             if (++$calls === 1) {
                 $entered->push(true);
                 $release->pop(2);
-                if ($release->isCanceled()) {
+                if ($release->wasCanceled()) {
                     throw new CanceledException('Provider canceled.');
                 }
             }

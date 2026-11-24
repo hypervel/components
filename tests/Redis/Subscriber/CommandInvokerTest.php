@@ -8,6 +8,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Redis\Subscriber\CommandBuilder;
 use Hypervel\Redis\Subscriber\CommandInvoker;
 use Hypervel\Redis\Subscriber\Connection;
@@ -19,9 +20,11 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
@@ -331,6 +334,50 @@ class CommandInvokerTest extends TestCase
         $this->assertSame(1, $connection->sendCount);
     }
 
+    #[TestWith(['subscribe', false])]
+    #[TestWith(['subscribe', true])]
+    #[TestWith(['ping', false])]
+    public function testCancelingAReplyWaitInterruptsTheConnection(string $command, bool $throw): void
+    {
+        $connection = new class extends ControlledConnection {
+            /**
+             * Fail after closing the transport.
+             */
+            public function close(): void
+            {
+                parent::close();
+                throw new RuntimeException('Cleanup failed.');
+            }
+        };
+        $invoker = new CommandInvoker($connection);
+        $failure = null;
+
+        try {
+            $reader = go(static function () use ($invoker, $command, &$failure): void {
+                try {
+                    $command === 'ping' ? $invoker->ping() : $invoker->invoke(['subscribe', 'foo'], 1);
+                } catch (Throwable $exception) {
+                    $failure = $exception;
+                }
+            });
+
+            $this->assertTrue(EngineCoroutine::cancelById($reader, $throw));
+            $this->assertInstanceOf(CanceledException::class, $failure);
+            $this->assertTrue($connection->wasClosed());
+
+            try {
+                $invoker->ping();
+                $this->fail('The interrupted connection accepted another command.');
+            } catch (SocketException $exception) {
+                $this->assertSame('The Redis subscriber connection is closed.', $exception->getMessage());
+            }
+
+            $this->assertSame(1, $connection->sendCount);
+        } finally {
+            $invoker->interrupt();
+        }
+    }
+
     public function testAcknowledgementTimeoutInterruptsWhileIdleReceiveIsUnbounded(): void
     {
         $connection = new ControlledConnection;
@@ -389,7 +436,7 @@ class CommandInvokerTest extends TestCase
         $invoker = new CommandInvoker($connection, $logger);
         $messageChannel = Double::for(Channel::class)->strict();
         $messageChannel->expects('push')->with(Argument::type(Message::class), 30.0)->returns(false);
-        $messageChannel->expects('isTimeout')->returns(true);
+        $messageChannel->expects('timedOut')->returns(true);
         $messageChannel->expects('close')->returns(true);
         (new ReflectionProperty(CommandInvoker::class, 'messageChannel'))
             ->setValue($invoker, $messageChannel);
@@ -413,7 +460,7 @@ class CommandInvokerTest extends TestCase
         $invoker = new CommandInvoker($connection, $logger);
         $messageChannel = $invoker->channel();
 
-        for ($index = 0; $index < $messageChannel->getCapacity(); ++$index) {
+        for ($index = 0; $index < $messageChannel->capacity(); ++$index) {
             $messageChannel->push(new Message('buffer', (string) $index));
         }
 

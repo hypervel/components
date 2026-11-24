@@ -74,14 +74,12 @@ abstract class AbstractDriver implements DriverInterface
 
                 $signal = $stopSignal->pop($seconds);
 
-                if ($signal !== false || ! $stopSignal->isTimeout()) {
+                if ($signal !== false || ! $stopSignal->timedOut()) {
                     return;
                 }
             }
         } finally {
-            if (! $stopSignal->isClosing()) {
-                $stopSignal->close();
-            }
+            $stopSignal->close();
 
             $this->stopSignal = null;
         }

@@ -552,7 +552,7 @@ final class StreamState
                     continue;
                 }
 
-                if (! $waiter->pop($remainingSeconds ?? -1) && $waiter->isCanceled()) {
+                if (! $waiter->pop($remainingSeconds ?? -1) && $waiter->wasCanceled()) {
                     throw new CanceledException('Waiting for a gRPC response was canceled.');
                 }
             } finally {

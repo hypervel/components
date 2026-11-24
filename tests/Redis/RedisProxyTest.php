@@ -131,7 +131,7 @@ class RedisProxyTest extends TestCase
         $message = new Message('updates', 'payload');
         $channel = Double::for(Channel::class)->strict();
         $channel->expects('pop')->times(2)->returns($message, false);
-        $channel->expects('isCanceled')->returns(false);
+        $channel->expects('wasCanceled')->returns(false);
         $subscriber = $this->mockSubscriber($channel);
         $redis = $this->createRedisWithSubscriber($subscriber);
         $received = [];

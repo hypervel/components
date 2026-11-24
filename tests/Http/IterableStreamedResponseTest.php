@@ -11,7 +11,10 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class IterableStreamedResponseTest extends TestCase
 {
@@ -80,10 +83,12 @@ class IterableStreamedResponseTest extends TestCase
         $this->assertFalse($response->streamTo(static fn (string $chunk): bool => true));
     }
 
-    public function testStreamToPreservesWriterFailureWhenReleasingChunksAlsoFails(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamToPreservesCancellationWhenWritingAndReleasingChunksBothFail(bool $canceled): void
     {
         $writerFailure = new RuntimeException('writer failed');
-        $releaseFailure = new RuntimeException('release failed');
+        $releaseFailure = $canceled ? new CanceledException : new RuntimeException('release failed');
         $chunks = (function () use ($releaseFailure): iterable {
             try {
                 yield 'first';
@@ -95,7 +100,7 @@ class IterableStreamedResponseTest extends TestCase
         unset($chunks);
 
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with(Argument::same($releaseFailure));
+        $handler->expects('report')->with(Argument::same($canceled ? $writerFailure : $releaseFailure));
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         try {
@@ -103,9 +108,9 @@ class IterableStreamedResponseTest extends TestCase
                 throw $writerFailure;
             });
 
-            $this->fail('Expected the writer failure to be thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($writerFailure, $exception);
+            $this->fail('Expected the stream failure to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($canceled ? $releaseFailure : $writerFailure, $exception);
         }
 
         $this->assertFalse($response->streamTo(static fn (string $chunk): bool => true));

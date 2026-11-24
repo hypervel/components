@@ -282,7 +282,7 @@ If the client's deadline passes while the service is waiting, for example on a q
 The `previousAttempts` method returns the number of completed retry attempts reported by the client. This can be useful for logging or idempotency handling.
 
 > [!NOTE]
-> The context does not expose client cancellation because Swoole cannot reliably report a peer stream reset to the server request handler. Use a deadline when service work must finish within a bounded amount of time.
+> The context does not expose a client cancellation flag. With [HTTP/2 stream cancellation](/docs/{{version}}/deployment#http2-stream-cancellation) enabled, a client's stream reset interrupts the request coroutine with a `Swoole\Coroutine\CanceledException`. Use a deadline when service work must finish within a bounded amount of time.
 
 <a name="responses"></a>
 ## Responses
@@ -337,9 +337,6 @@ return GrpcResponse::stream($this->replies($request))
 ```
 
 Streamed responses are consumed lazily. Initial metadata is sent with the first response message. If a stream completes or fails before producing a message, its initial metadata is returned to the client as trailing metadata.
-
-> [!NOTE]
-> A streamed message is sent after the iterator advances or finishes. Therefore, if your stream pauses before producing its next message, the previous message waits too. Hypervel needs this one-message delay to emit the final trailers on current Swoole releases.
 
 If a stream fails after producing one or more messages, the client receives those messages before receiving the final error status.
 
@@ -454,7 +451,7 @@ The package includes the official health messages and a `HealthClient`, making t
 
 By default, the `Check` and `List` methods report the whole server, represented by an empty service name, as `SERVING`. Named services are unknown until your application provides their status, and checking an unknown service returns a `NotFound` status.
 
-The server's `Watch` method returns the standard `Unimplemented` fallback because Hypervel cannot reliably publish health changes across workers or detect an idle client disconnect. The `HealthClient` may still consume `Watch` responses from other gRPC servers that implement it.
+The server's `Watch` method returns the standard `Unimplemented` fallback because the built-in service does not publish health changes across workers. The `HealthClient` may still consume `Watch` responses from other gRPC servers that implement it.
 
 You may use the included `HealthClient` to call a standard gRPC health service:
 
@@ -950,6 +947,6 @@ Hypervel's gRPC client and server are tested against an independent grpc-go impl
 - Hypervel servers support unary and server-streaming methods. Server-side client streaming and bidirectional streaming are not available because Swoole gives the request handler the complete body instead of exposing each incoming HTTP/2 data frame. Hypervel clients may use all four call types against compatible servers.
 - Swoole cannot reset an individual client stream. Calling `cancel` abandons the stream locally, reports `CANCELLED`, and retires the connection instead of sending `RST_STREAM`. Deadlines are still enforced.
 - Swoole may reduce independently repeated metadata fields to one value and does not expose the inbound `:scheme` pseudo-header. Hypervel preserves repeated values whenever the transport exposes them, but inbound duplicate-field and metadata-size validation can only cover the values Swoole provides.
-- A peer stream reset fails only the affected call, but its HTTP/2 error code is not available from Swoole.
+- When a server resets a stream, only the affected client call fails. Swoole's HTTP/2 client does not expose the reset error code.
 - Swoole merges initial response metadata immediately followed by final metadata without a response message into one uncommitted response. Since this cannot be distinguished from a Trailers-Only response, an explicitly retry-enabled call may retry it.
-- The built-in health service returns `Unimplemented` from `Watch` because the server cannot reliably observe idle stream cancellation or distribute health changes across workers.
+- The built-in health service returns `Unimplemented` from `Watch` because it does not publish health changes across workers.

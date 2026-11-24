@@ -44,7 +44,7 @@ class CommandInvokerCreateFailureTest extends TestCase
                         ->getValue($invoker);
 
                     $this->assertInstanceOf(Channel::class, $channel);
-                    $this->assertTrue($channel->isClosing());
+                    $this->assertTrue($channel->isClosed());
                 }
             } finally {
                 InspectableCommandInvoker::$constructing = null;
@@ -74,7 +74,7 @@ class CommandInvokerCreateFailureTest extends TestCase
                     $channel = (new ReflectionProperty(CommandInvoker::class, $property))
                         ->getValue($invoker);
 
-                    $this->assertTrue($channel->isClosing());
+                    $this->assertTrue($channel->isClosed());
                 }
             } finally {
                 InspectableCommandInvoker::$constructing = null;

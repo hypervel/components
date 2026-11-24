@@ -36,29 +36,14 @@ interface ChannelInterface
     public function close(): bool;
 
     /**
-     * Get the channel capacity.
+     * Get the maximum number of buffered values.
      */
-    public function getCapacity(): int;
+    public function capacity(): int;
 
     /**
-     * Get the number of queued values.
+     * Get the number of buffered values.
      */
-    public function getLength(): int;
-
-    /**
-     * Determine whether the channel is available.
-     */
-    public function isAvailable(): bool;
-
-    /**
-     * Determine whether producers are waiting.
-     */
-    public function hasProducers(): bool;
-
-    /**
-     * Determine whether consumers are waiting.
-     */
-    public function hasConsumers(): bool;
+    public function length(): int;
 
     /**
      * Determine whether the channel is empty.
@@ -71,31 +56,31 @@ interface ChannelInterface
     public function isFull(): bool;
 
     /**
-     * Determine whether the channel is readable.
+     * Determine whether the channel is closed.
      */
-    public function isReadable(): bool;
+    public function isClosed(): bool;
 
     /**
-     * Determine whether the channel is writable.
+     * Determine whether any producers are waiting to push.
      */
-    public function isWritable(): bool;
+    public function hasWaitingProducers(): bool;
 
     /**
-     * Determine whether the channel is closing or closed.
+     * Determine whether any consumers are waiting to pop.
      */
-    public function isClosing(): bool;
+    public function hasWaitingConsumers(): bool;
 
     /**
      * Determine whether the last failed operation was canceled.
      *
      * This state must be inspected immediately after a failed operation.
      */
-    public function isCanceled(): bool;
+    public function wasCanceled(): bool;
 
     /**
      * Determine whether the last failed operation timed out.
      *
      * This state must be inspected immediately after a failed operation.
      */
-    public function isTimeout(): bool;
+    public function timedOut(): bool;
 }

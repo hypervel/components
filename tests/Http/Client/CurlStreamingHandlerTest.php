@@ -470,13 +470,12 @@ class CurlStreamingHandlerTest extends TestCase
         $this->assertTrue($server->bind('127.0.0.1', 0));
         $this->assertTrue($server->listen());
         $url = 'http://127.0.0.1:' . $server->getsockname()['port'];
-        $sendFirst = new Channel(1);
-        $firstSent = new Channel(1);
-        $sendLast = new Channel(1);
+        $sendChunk = new Channel(1);
+        $chunkSent = new Channel(1);
 
         try {
-            [$selected] = parallel([
-                function () use ($url, $sendFirst, $firstSent, $sendLast): int {
+            parallel([
+                function () use ($url, $sendChunk, $chunkSent): void {
                     $headersReceived = false;
                     $body = '';
                     $handle = curl_init($url);
@@ -507,36 +506,23 @@ class CurlStreamingHandlerTest extends TestCase
                         } while ($running && ! $headersReceived);
 
                         $this->assertTrue($headersReceived);
-                        // Match CurlStreamingBody's perform-then-select window: the
-                        // provider writes after perform, with its next event withheld.
-                        $this->assertTrue($sendFirst->push(true));
-                        $this->assertTrue($firstSent->pop(2));
-
-                        try {
-                            $selected = curl_multi_select($multi, 0.1);
-                            curl_multi_exec($multi, $running);
-                            $this->assertSame('A', $body);
-                        } finally {
-                            $sendLast->push(true);
+                        // The provider writes between perform and select and keeps the socket open.
+                        foreach (['A', 'AB'] as $expectedBody) {
+                            $this->assertTrue($sendChunk->push(true));
+                            $this->assertTrue($chunkSent->pop(2));
+                            $this->assertGreaterThan(0, curl_multi_select($multi, 0.1));
+                            $this->assertSame(CURLM_OK, curl_multi_exec($multi, $running));
+                            $this->assertSame($expectedBody, $body);
                         }
 
-                        do {
-                            curl_multi_exec($multi, $running);
-
-                            if ($running) {
-                                curl_multi_select($multi, 0.1);
-                            }
-                        } while ($running);
-
-                        $this->assertSame('AB', $body);
-
-                        return $selected;
+                        $this->assertSame(0, $running);
                     } finally {
+                        $sendChunk->close();
                         curl_multi_remove_handle($multi, $handle);
                         curl_multi_close($multi);
                     }
                 },
-                function () use ($server, $sendFirst, $firstSent, $sendLast): void {
+                function () use ($server, $sendChunk, $chunkSent): void {
                     $client = $server->accept(2);
                     $this->assertInstanceOf(Socket::class, $client);
 
@@ -550,24 +536,24 @@ class CurlStreamingHandlerTest extends TestCase
                             $request .= $chunk;
                         }
 
-                        $client->sendAll("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n");
-                        $this->assertTrue($sendFirst->pop(2));
-                        $this->assertSame(1, $client->sendAll('A'));
-                        $firstSent->push(true);
-                        $this->assertTrue($sendLast->pop(2));
-                        $this->assertSame(1, $client->sendAll('B'));
+                        $client->sendAll("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n");
+                        foreach (['A', 'B'] as $chunk) {
+                            if ($sendChunk->pop(2) !== true) {
+                                return;
+                            }
+
+                            $this->assertSame(1, $client->sendAll($chunk));
+                            $chunkSent->push(true);
+                        }
+
+                        $sendChunk->pop(2);
                     } finally {
                         $client->close();
                     }
                 },
             ]);
-
-            $this->assertGreaterThan(0, $selected, 'Already available provider data was consumed by the hook, then reported as a select timeout.');
         } finally {
             $server->close();
-            $sendFirst->close();
-            $firstSent->close();
-            $sendLast->close();
         }
     }
 

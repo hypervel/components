@@ -151,7 +151,7 @@ abstract class KeepaliveConnection implements ConnectionContract
         $channel = $this->channel;
         $connection = $channel->pop($this->pool->getOptions()->waitTimeout);
         if ($connection === false) {
-            if ($channel->isCanceled()) {
+            if ($channel->wasCanceled()) {
                 throw new CanceledException('The keepalive connection wait was canceled.');
             }
 
@@ -225,7 +225,7 @@ abstract class KeepaliveConnection implements ConnectionContract
 
         return $maxIdleTime !== null
             && $this->lastUseTime < hrtime(true) / 1e9 - $maxIdleTime
-            && $this->channel->getLength() > 0;
+            && ! $this->channel->isEmpty();
     }
 
     /**

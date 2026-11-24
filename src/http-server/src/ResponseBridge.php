@@ -8,6 +8,7 @@ use Hypervel\Contracts\Http\HasTrailers;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Server\ResponseCancellation;
+use Hypervel\Support\FailureReporter;
 use ReflectionProperty;
 use RuntimeException;
 use SplTempFileObject;
@@ -44,8 +45,8 @@ class ResponseBridge
     public static function send(
         Response $response,
         SwooleResponse $swooleResponse,
+        string $protocol,
         bool $withBody = true,
-        string $protocol = 'HTTP/1.1',
         ?Request $request = null,
     ): void {
         if ($response instanceof HasTrailers && $response instanceof BinaryFileResponse) {
@@ -67,31 +68,7 @@ class ResponseBridge
         }
 
         if ($response instanceof StreamedResponse) {
-            // Swoole's write() uses chunked transfer encoding. Content-Length
-            // and Transfer-Encoding headers conflict with this — Swoole raises
-            // an ErrorException if Content-Length is set before write().
-            // See: https://github.com/laravel/octane/issues/670
-            $response->headers->remove('Content-Length');
-            $response->headers->remove('Transfer-Encoding');
-
-            static::announceTrailers($response);
-            static::sendStatusAndHeaders($response, $swooleResponse);
-            $registration = null;
-
-            if ($response instanceof IterableStreamedResponse && $response->shouldCancelOnDisconnect()) {
-                // A disconnect during controller work may precede this registration.
-                if (! $swooleResponse->isWritable()) {
-                    throw new CanceledException('The client disconnected before response production.');
-                }
-
-                $registration = ResponseCancellation::register($swooleResponse->fd);
-            }
-
-            try {
-                static::sendStreamedContent($response, $swooleResponse);
-            } finally {
-                $registration?->release();
-            }
+            static::sendStreamedResponse($response, $swooleResponse, $protocol);
 
             return;
         }
@@ -217,10 +194,20 @@ class ResponseBridge
             $exception = $throwable;
         }
 
+        $abortOnFailure = $shouldStream && static::isHttp1($protocol);
+
         try {
-            static::end($swooleResponse);
+            if ($exception === null) {
+                static::end($swooleResponse);
+            } elseif (! $abortOnFailure) {
+                $swooleResponse->end();
+            }
         } catch (Throwable $throwable) {
-            $exception = Coroutine::preferCancellation($exception, $throwable);
+            $exception = FailureReporter::preferCancellation($exception, $throwable);
+        }
+
+        if ($abortOnFailure && $exception !== null) {
+            $swooleResponse->close();
         }
 
         if ($shouldDelete) {
@@ -231,7 +218,7 @@ class ResponseBridge
                     throw new RuntimeException('Unable to delete the binary response file.');
                 }
             } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
             }
         }
 
@@ -372,7 +359,7 @@ class ResponseBridge
                     throw new RuntimeException('Unable to close the binary response file.');
                 }
             } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
             }
         }
 
@@ -498,233 +485,146 @@ class ResponseBridge
     }
 
     /**
-     * Stream a Symfony StreamedResponse through Swoole's write() method.
+     * Send a streamed response and finish it according to its wire protocol.
+     */
+    protected static function sendStreamedResponse(StreamedResponse $response, SwooleResponse $swooleResponse, string $protocol): void
+    {
+        // Swoole's write() supplies its own framing and rejects a Content-Length header.
+        $response->headers->remove('Content-Length');
+        $response->headers->remove('Transfer-Encoding');
+
+        $registration = null;
+        $writesSucceeded = false;
+        $exception = null;
+
+        try {
+            static::announceTrailers($response);
+            static::sendStatusAndHeaders($response, $swooleResponse);
+
+            if ($response instanceof IterableStreamedResponse && $response->shouldCancelOnDisconnect()) {
+                // A disconnect during controller work may precede this registration.
+                if (! $swooleResponse->isWritable()) {
+                    throw new CanceledException('The client disconnected before response production.');
+                }
+
+                $registration = ResponseCancellation::register($swooleResponse->fd);
+            }
+
+            $writesSucceeded = static::sendStreamedContent($response, $swooleResponse);
+
+            if ($writesSucceeded) {
+                if ($response instanceof HasTrailers) {
+                    static::sendTrailers($response, $swooleResponse);
+                    static::end($swooleResponse);
+                } else {
+                    $swooleResponse->end();
+                }
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        } finally {
+            $registration?->release();
+        }
+
+        if (! $writesSucceeded || $exception !== null) {
+            if (static::isHttp1($protocol)) {
+                // A normal terminator would make a truncated HTTP/1 response look complete.
+                $swooleResponse->close();
+            } elseif (! $writesSucceeded && ! $response instanceof HasTrailers) {
+                try {
+                    $swooleResponse->end();
+                } catch (Throwable $throwable) {
+                    $exception = FailureReporter::preferCancellation($exception, $throwable);
+                }
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Determine whether closing the connection can abort this response alone.
+     */
+    protected static function isHttp1(string $protocol): bool
+    {
+        return $protocol === 'HTTP/1.1' || $protocol === 'HTTP/1.0';
+    }
+
+    /**
+     * Write the response content and return whether all writes succeeded.
      *
      * Retained iterables are consumed directly so a failed write stops their
      * producer. Ordinary callbacks use echo, so their output is routed through
      * a non-throwing output-buffer handler instead.
      *
-     * The chunk_size of 1 means the buffer flushes after every output
-     * operation that produces 1+ bytes (not per byte). A single
-     * `echo "data: ...\n\n"` triggers one write() call with the full string.
-     *
-     * Removable output buffers are cleaned without spinning on a non-removable
-     * user buffer before the earliest callback, write, or end failure is rethrown.
+     * A buffer size of 1 flushes each nonempty output operation as a single
+     * write, so an echo sends its entire string at once.
      */
-    protected static function sendStreamedContent(StreamedResponse $response, SwooleResponse $swooleResponse): void
+    protected static function sendStreamedContent(StreamedResponse $response, SwooleResponse $swooleResponse): bool
     {
-        if ($response instanceof IterableStreamedResponse
-            && static::sendIterableContent($response, $swooleResponse)) {
-            return;
-        }
-
-        if ($response instanceof HasTrailers) {
-            static::sendTrailerStreamedContent($response, $swooleResponse);
-
-            return;
-        }
-
-        $level = ob_get_level();
         $exception = null;
-        $writable = true;
-
-        ob_start(function (string $chunk) use ($swooleResponse, &$exception, &$writable): string {
-            if ($chunk === '' || ! $writable) {
-                return '';
-            }
-
-            try {
-                $writable = $swooleResponse->write($chunk);
-            } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
-                $writable = false;
-            }
-
-            return '';
-        }, 1);
-
-        try {
-            try {
-                $response->sendContent();
-            } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
-            }
-        } finally {
-            static::restoreOutputBufferLevel($level);
-
-            try {
-                $swooleResponse->end();
-            } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
-            }
-        }
-
-        if ($exception !== null) {
-            throw $exception;
-        }
-    }
-
-    /**
-     * Stream retained iterable chunks directly through Swoole.
-     */
-    protected static function sendIterableContent(IterableStreamedResponse $response, SwooleResponse $swooleResponse): bool
-    {
-        if ($response instanceof HasTrailers) {
-            return static::sendTrailerIterableContent($response, $swooleResponse);
-        }
-
-        $exception = null;
-
-        try {
-            $handled = $response->streamTo(
-                static fn (string $chunk): bool => $chunk === '' || $swooleResponse->write($chunk)
-            );
-        } catch (Throwable $throwable) {
-            $handled = true;
-            $exception = $throwable;
-        }
-
-        if (! $handled) {
-            return false;
-        }
-
-        try {
-            $swooleResponse->end();
-        } catch (Throwable $throwable) {
-            $exception = Coroutine::preferCancellation($exception, $throwable);
-        }
-
-        if ($exception !== null) {
-            throw $exception;
-        }
-
-        return true;
-    }
-
-    /**
-     * Stream retained iterable chunks with one-chunk trailer lookahead.
-     */
-    protected static function sendTrailerIterableContent(
-        IterableStreamedResponse&HasTrailers $response,
-        SwooleResponse $swooleResponse
-    ): bool {
-        // TODO: Remove this lookahead once the minimum Swoole release includes
-        // https://github.com/swoole/swoole-src/pull/6124. Current releases close
-        // HTTP/2 before trailers after write() + bare end(); then write every
-        // chunk immediately, emit trailers, and call bare end().
-        $pendingChunk = null;
         $writeFailed = false;
+        $handled = false;
 
-        $handled = $response->streamTo(function (string $chunk) use (&$pendingChunk, &$writeFailed, $swooleResponse): bool {
-            if ($chunk === '') {
-                return true;
-            }
+        if ($response instanceof IterableStreamedResponse) {
+            try {
+                $handled = $response->streamTo(static function (string $chunk) use ($swooleResponse, &$writeFailed): bool {
+                    if ($chunk === '' || $swooleResponse->write($chunk)) {
+                        return true;
+                    }
 
-            if ($pendingChunk !== null && $swooleResponse->write($pendingChunk) === false) {
-                $writeFailed = true;
-
-                return false;
-            }
-
-            $pendingChunk = $chunk;
-
-            return true;
-        });
-
-        if (! $handled) {
-            return false;
-        }
-
-        if ($writeFailed) {
-            throw new RuntimeException('Unable to write the streamed response.');
-        }
-
-        static::sendTrailers($response, $swooleResponse);
-        static::end($swooleResponse, $pendingChunk);
-
-        return true;
-    }
-
-    /**
-     * Stream a trailer-bearing callback response through an output buffer.
-     */
-    protected static function sendTrailerStreamedContent(
-        StreamedResponse&HasTrailers $response,
-        SwooleResponse $swooleResponse
-    ): void {
-        // TODO: Remove this lookahead once the minimum Swoole release includes
-        // https://github.com/swoole/swoole-src/pull/6124. Current releases close
-        // HTTP/2 before trailers after write() + bare end(); then write every
-        // chunk immediately, emit trailers, and call bare end().
-        $pendingChunk = null;
-        $writeFailed = false;
-        $writeFailure = null;
-        $producerFailure = null;
-        $level = ob_get_level();
-
-        // Output handlers cannot safely throw: PHP may bypass a failing handler
-        // and emit the original chunk to process output.
-        ob_start(function (string $chunk) use (
-            &$pendingChunk,
-            &$writeFailed,
-            &$writeFailure,
-            $swooleResponse
-        ): string {
-            if ($chunk === '' || $writeFailed) {
-                return '';
-            }
-
-            if ($pendingChunk !== null) {
-                try {
-                    $writeFailed = $swooleResponse->write($pendingChunk) === false;
-                } catch (Throwable $throwable) {
-                    $writeFailure = $throwable;
                     $writeFailed = true;
-                }
 
-                if ($writeFailed) {
-                    return '';
-                }
+                    return false;
+                });
+            } catch (Throwable $throwable) {
+                $handled = true;
+                $exception = $throwable;
             }
+        }
 
-            $pendingChunk = $chunk;
+        if (! $handled) {
+            $level = ob_get_level();
 
-            return '';
-        }, 1);
+            // Throwing inside the output handler can leak the original chunk to process output.
+            ob_start(static function (string $chunk) use ($swooleResponse, &$exception, &$writeFailed): string {
+                if ($chunk !== '' && ! $writeFailed && $exception === null) {
+                    try {
+                        $writeFailed = ! $swooleResponse->write($chunk);
+                    } catch (Throwable $throwable) {
+                        $exception = $throwable;
+                    }
+                }
 
-        try {
+                return '';
+            }, 1);
+
             try {
                 $response->sendContent();
             } catch (Throwable $throwable) {
-                $producerFailure = $throwable;
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
+            } finally {
+                $exception = static::restoreOutputBufferLevel($level, $exception);
             }
-        } finally {
-            static::restoreOutputBufferLevel($level);
         }
 
-        if ($writeFailure !== null) {
-            throw $writeFailure;
+        if ($writeFailed && $response instanceof HasTrailers && ($exception === null || ! Coroutine::causedByCancellation($exception))) {
+            throw new RuntimeException('Unable to write the streamed response.', previous: $exception);
         }
 
-        if ($writeFailed) {
-            throw new RuntimeException(
-                'Unable to write the streamed response.',
-                previous: $producerFailure,
-            );
+        if ($exception !== null) {
+            throw $exception;
         }
 
-        if ($producerFailure !== null) {
-            throw $producerFailure;
-        }
-
-        static::sendTrailers($response, $swooleResponse);
-        static::end($swooleResponse, $pendingChunk);
+        return ! $writeFailed;
     }
 
     /**
      * Restore removable output buffers after streamed response production.
      */
-    protected static function restoreOutputBufferLevel(int $level): void
+    protected static function restoreOutputBufferLevel(int $level, ?Throwable $exception): ?Throwable
     {
         while (ob_get_level() > $level) {
             $status = ob_get_status();
@@ -733,8 +633,14 @@ class ResponseBridge
                 break;
             }
 
-            ob_end_clean();
+            try {
+                ob_end_clean();
+            } catch (Throwable $throwable) { // @phpstan-ignore catch.neverThrown (ob_end_clean invokes the application's output handler)
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
+            }
         }
+
+        return $exception;
     }
 
     /**

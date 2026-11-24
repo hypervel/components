@@ -423,7 +423,7 @@ class FswatchDriver extends AbstractDriver
      */
     protected function shouldStopWatching(Channel $channel): bool
     {
-        return $this->isStopping() || $channel->isClosing();
+        return $this->isStopping() || $channel->isClosed();
     }
 
     /**

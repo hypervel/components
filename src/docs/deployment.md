@@ -7,6 +7,7 @@
     - [Nginx](#nginx)
     - [Nginx and WebSockets](#nginx-and-websockets)
     - [Running the Hypervel Server](#running-the-hypervel-server)
+    - [HTTP/2 Stream Cancellation](#http2-stream-cancellation)
     - [Graceful Shutdown](#graceful-shutdown)
     - [Directory Permissions](#directory-permissions)
 - [Optimization](#optimization)
@@ -127,6 +128,22 @@ By default, the HTTP server binds to `0.0.0.0:8000` with HTTP/2 enabled. You may
 Swoole's `event_object` setting is not supported because Hypervel dispatches its own lifecycle event objects from the native server callbacks. Leave this setting disabled and use Hypervel's lifecycle events when integrating with server activity.
 
 The `serve` command also accepts `--host` and `--port` options for overriding the HTTP server address for the current process. In production, prefer durable configuration in `config/server.php` and your environment.
+
+<a name="http2-stream-cancellation"></a>
+### HTTP/2 Stream Cancellation
+
+When a client cancels a request by resetting its HTTP/2 stream, Hypervel can stop handling that request. Other streams on the same connection continue. This behavior is off by default, and most web applications should leave it off. Cancellation can interrupt a handler waiting for a database query or an HTTP response. For example, your application might save an order and then stop before sending the confirmation email.
+
+For a gRPC or streaming service, you may want to stop producing a response as soon as the client resets its stream. If all your HTTP/2 handlers can safely stop this way, set the following environment variable and restart the server.
+
+```dotenv
+SERVER_HTTP2_CANCEL_ON_STREAM_RESET=true
+```
+
+The default `config/server.php` reads this variable in its global `settings`. Adding the option to an individual listener's settings, including the gRPC listener's, has no effect. Clients must reach Hypervel over HTTP/2, either directly or through a proxy that forwards stream resets, such as Envoy. An Nginx `proxy_pass` connection using HTTP/1.1 cannot forward them.
+
+> [!NOTE]
+> This option requires a Swoole build with [HTTP/2 stream reset cancellation](https://github.com/swoole/swoole-src/pull/6436), such as a recent nightly. The tagged 6.3.0RC2 release predates it.
 
 <a name="graceful-shutdown"></a>
 ### Graceful Shutdown

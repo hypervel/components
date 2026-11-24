@@ -54,9 +54,7 @@ class Watcher
                     $driverFailure = $throwable;
                 } finally {
                     try {
-                        if (! $channel->isClosing()) {
-                            $channel->close();
-                        }
+                        $channel->close();
                     } finally {
                         $driverFinished->done();
                     }
@@ -67,7 +65,7 @@ class Watcher
                 $file = $channel->pop($restartPending ? 0.001 : -1);
 
                 if ($file === false) {
-                    if ($channel->isTimeout()) {
+                    if ($channel->timedOut()) {
                         $restartPending = false;
                         $this->strategy?->restart();
 

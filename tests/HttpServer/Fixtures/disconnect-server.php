@@ -37,6 +37,7 @@ $server->init(new ServerConfig([
         'reactor_num' => 1,
         'enable_coroutine' => true,
         'open_http2_protocol' => true,
+        ...(($argv[3] ?? '') === 'cancel-on-reset' ? ['http2_cancel_on_stream_reset' => true] : []),
         'hook_flags' => SWOOLE_HOOK_ALL,
         'log_level' => SWOOLE_LOG_WARNING,
     ],
@@ -59,6 +60,19 @@ $server->init(new ServerConfig([
 
                     if ($request->server['request_uri'] === '/health') {
                         $native->end('healthy');
+
+                        return;
+                    }
+
+                    if (str_starts_with($request->server['request_uri'], '/failed-stream/')) {
+                        $response = (new IterableStreamedResponse((static function () use ($request): iterable {
+                            if ($request->server['request_uri'] === '/failed-stream/after-write') {
+                                yield 'partial';
+                            }
+
+                            throw new RuntimeException('Stream production failed.');
+                        })()))->cancelOnDisconnect();
+                        ResponseBridge::send($response, $native, $request->server['server_protocol']);
 
                         return;
                     }
@@ -89,7 +103,7 @@ $server->init(new ServerConfig([
                         }
                     })()))->cancelOnDisconnect();
 
-                    ResponseBridge::send($response, $native);
+                    ResponseBridge::send($response, $native, $request->server['server_protocol']);
                 },
                 Event::ON_CLOSE => static function (NativeServer $server, int $connection) use (&$proxyAuthorizations): void {
                     unset($proxyAuthorizations[$connection]);

@@ -1460,9 +1460,7 @@ class ConnectionTestClient implements ClientInterface
             $this->streams[$streamId] = false;
         }
 
-        if (! $this->events->isClosing()) {
-            $this->events->close();
-        }
+        $this->events->close();
     }
 
     public function isConnected(): bool

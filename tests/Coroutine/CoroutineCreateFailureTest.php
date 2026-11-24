@@ -180,7 +180,7 @@ class CoroutineCreateFailureTest extends TestCase
                 $this->assertFalse(
                     (new ReflectionProperty($socket, 'channel'))
                         ->getValue($socket)
-                        ->isClosing(),
+                        ->isClosed(),
                 );
             } finally {
                 $socket->close();

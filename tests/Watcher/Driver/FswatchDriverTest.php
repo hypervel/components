@@ -196,7 +196,7 @@ class FswatchDriverTest extends TestCase
 
         try {
             $driver->watch($channel);
-            $this->assertFalse($channel->isClosing());
+            $this->assertFalse($channel->isClosed());
             $this->assertTrue($driver->resourcesAreClosed());
         } finally {
             $driver->stop();
@@ -242,7 +242,7 @@ class FswatchDriverTest extends TestCase
 
         try {
             $driver->watch($channel);
-            $this->assertTrue($channel->isClosing());
+            $this->assertTrue($channel->isClosed());
             $this->assertTrue($driver->resourcesAreClosed());
         } finally {
             $driver->stop();
@@ -450,7 +450,7 @@ class FswatchDriverTest extends TestCase
             ], $targets['groups']);
             $this->assertSame(3, count($targets['entries']));
             $this->assertSame($file, $channel->pop());
-            $this->assertSame(0, $channel->getLength());
+            $this->assertSame(0, $channel->length());
         } finally {
             $driver->stop();
             $channel->close();
@@ -529,7 +529,7 @@ class FswatchDriverTest extends TestCase
             ], $targets['groups']);
             $this->assertSame(3, count($targets['entries']));
             $this->assertSame($file, $channel->pop());
-            $this->assertSame(0, $channel->getLength());
+            $this->assertSame(0, $channel->length());
         } finally {
             $driver->stop();
             $channel->close();
@@ -714,7 +714,7 @@ class FswatchDriverTest extends TestCase
                 $this->assertSame($file, $channel->pop());
             }
 
-            $this->assertSame(0, $channel->getLength());
+            $this->assertSame(0, $channel->length());
         } finally {
             $driver->stop();
             $channel->close();
@@ -783,7 +783,7 @@ class FswatchDriverTest extends TestCase
             $this->assertSame(2, count($driver->operandsForTest()));
             $this->assertSame(3, count($targets['entries']));
             $this->assertSame($file, $channel->pop());
-            $this->assertSame(0, $channel->getLength());
+            $this->assertSame(0, $channel->length());
         } finally {
             $driver->stop();
             $channel->close();
@@ -801,7 +801,7 @@ class FswatchDriverTest extends TestCase
         try {
             $driver->processChunks($channel, [base_path('outside.php') . "\0"]);
 
-            $this->assertSame(0, $channel->getLength());
+            $this->assertSame(0, $channel->length());
         } finally {
             $driver->stop();
             $channel->close();
@@ -895,7 +895,7 @@ class FswatchDriverTest extends TestCase
                 base_path($fileBase . '/Nested'),
             ]) . "\0"], $targets);
 
-            $this->assertSame(5, $channel->getLength());
+            $this->assertSame(5, $channel->length());
             $this->assertSame(base_path($recursiveBase), $channel->pop());
             $this->assertSame(base_path($recursiveBase . '/Nested'), $channel->pop());
             $this->assertSame(base_path($shallowBase), $channel->pop());
@@ -1019,7 +1019,7 @@ class FswatchDriverTest extends TestCase
 
         $this->assertSame(base_path($literalPath), $channel->pop());
         $this->assertSame(base_path('second.php'), $channel->pop());
-        $this->assertSame(0, $channel->getLength());
+        $this->assertSame(0, $channel->length());
         $this->assertSame(['shallow'], $driver->openedPipeGroups);
         $this->assertTrue($driver->resourcesAreClosed());
 
@@ -1100,7 +1100,7 @@ class FswatchDriverTest extends TestCase
             $this->assertSame(base_path('first.php'), $channel->pop());
             $this->assertSame(base_path('second.php'), $channel->pop());
             $this->assertSame(base_path($newlinePath), $channel->pop());
-            $this->assertSame(0, $channel->getLength());
+            $this->assertSame(0, $channel->length());
         } finally {
             $driver->stop();
             $channel->close();

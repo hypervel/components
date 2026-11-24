@@ -225,7 +225,7 @@ class CoroutineTest extends TestCase
         Event::defer(static fn () => EngineCoroutine::cancelById($parent));
         $channel = new Channel(1);
         $channel->pop(1);
-        $this->assertTrue($channel->isCanceled());
+        $this->assertTrue($channel->wasCanceled());
 
         $finished = Coroutine::create(static fn () => null);
         $this->assertTrue(Coroutine::joinUninterruptibly([$finished]));

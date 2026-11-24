@@ -481,7 +481,7 @@ class RedisProxy implements ConnectionContract
                 $message = $channel->pop();
 
                 if ($message === false) {
-                    if ($channel->isCanceled()) {
+                    if ($channel->wasCanceled()) {
                         throw new CanceledException('The Redis subscriber message wait was canceled.');
                     }
 

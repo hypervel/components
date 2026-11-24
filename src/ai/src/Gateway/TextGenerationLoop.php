@@ -958,7 +958,7 @@ class TextGenerationLoop
             for ($worker = 0; $worker < $max && $next < $count && $failure === null; ++$worker) {
                 $concurrent->fork(function () use ($resolved, $execute, $runner, $count, $events, &$next, &$completed, &$results, &$failure): void {
                     $work = function () use ($resolved, $execute, $count, $events, &$next, &$completed, &$results, &$failure): void {
-                        while ($next < $count && $failure === null && ! $events->isClosing()) {
+                        while ($next < $count && $failure === null && ! $events->isClosed()) {
                             // Reserve before invoking user code, which may suspend immediately.
                             $index = $next++;
                             $result = $execute(...$resolved[$index]);
@@ -966,7 +966,7 @@ class TextGenerationLoop
                             if ($result instanceof Generator) {
                                 foreach ($result as $event) {
                                     if (! $events->push($event)) {
-                                        if ($events->isCanceled()) {
+                                        if ($events->wasCanceled()) {
                                             throw new CanceledException('Forwarding tool output was canceled.');
                                         }
 
@@ -1000,7 +1000,7 @@ class TextGenerationLoop
                 $event = $events->pop();
 
                 if ($event === false) {
-                    if ($events->isCanceled()) {
+                    if ($events->wasCanceled()) {
                         throw new CanceledException('Waiting for tool output was canceled.');
                     }
 

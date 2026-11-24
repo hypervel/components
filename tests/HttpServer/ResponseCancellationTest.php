@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpServer;
 
+use Closure;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use Swoole\Constant;
 use Symfony\Component\Process\Process;
 
 class ResponseCancellationTest extends TestCase
@@ -98,8 +101,67 @@ class ResponseCancellationTest extends TestCase
         ];
     }
 
-    public function testHttp2StreamResetLeavesSilentProductionUntilTheNextWriteAndPreservesSiblingStreams(): void
+    public function testFailedHttpOneStreamClosesWithoutSignalingCompletion(): void
     {
+        $this->withFailedStreamServer(function (string $address): void {
+            foreach (['before-write', 'after-write'] as $phase) {
+                $client = stream_socket_client($address, $error, $message, 2);
+                $this->assertIsResource($client, $message);
+
+                try {
+                    stream_set_timeout($client, 2);
+                    fwrite($client, "GET /failed-stream/{$phase} HTTP/1.1\r\nHost: localhost\r\n\r\n");
+                    $response = stream_get_contents($client);
+                    $this->assertTrue(feof($client));
+                    if ($phase === 'before-write') {
+                        $this->assertSame('', $response);
+                    } else {
+                        $this->assertStringEndsWith("\r\n\r\n7\r\npartial\r\n", $response);
+                    }
+                } finally {
+                    fclose($client);
+                }
+            }
+        });
+    }
+
+    public function testFailedHttp2ProducerResetsOnlyItsOwnStream(): void
+    {
+        // @TODO: Remove this skip and abort the failed stream when Swoole exposes a server-side HTTP/2 stream reset.
+        $this->markTestSkipped('Swoole cannot reset an individual stream from the HTTP/2 response.');
+
+        $this->withFailedStreamServer(function (string $address): void {
+            $client = stream_socket_client($address, $error, $message, 2);
+            $this->assertIsResource($client, $message);
+
+            try {
+                stream_set_timeout($client, 2);
+
+                $path = '/failed-stream/after-write';
+                fwrite($client, "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+                    . $this->http2Frame(4, 0, 0, '')
+                    . $this->http2Frame(1, 5, 1, "\x82\x86\x04" . chr(strlen($path)) . $path . "\x01\x09localhost"));
+                $this->assertSame('partial', $this->http2Body($client, 1, expectReset: true));
+
+                fwrite($client, $this->http2Frame(1, 5, 3, "\x82\x86\x04\x07/health\x01\x09localhost"));
+                $this->assertSame('healthy', $this->http2Body($client, 3));
+            } finally {
+                fclose($client);
+            }
+        });
+    }
+
+    #[TestWith([false], 'default')]
+    #[TestWith([true], 'cancel on reset')]
+    public function testHttp2StreamResetHonorsTheServerSettingAndPreservesSiblingStreams(bool $cancelOnReset): void
+    {
+        // @TODO: When the minimum Swoole release includes https://github.com/swoole/swoole-src/pull/6436,
+        // remove this skip, use the native option constant for both values in server.php,
+        // and remove the build requirement note from deployment.md.
+        if ($cancelOnReset && ! defined(Constant::class . '::OPTION_HTTP2_CANCEL_ON_STREAM_RESET')) {
+            $this->markTestSkipped('This Swoole build lacks HTTP/2 stream reset cancellation.');
+        }
+
         $provider = new Process([PHP_BINARY, dirname(__DIR__) . '/Http/Fixtures/streaming-server.php', 'delayed']);
         $provider->setTimeout(10);
         $server = null;
@@ -111,7 +173,10 @@ class ResponseCancellationTest extends TestCase
             $provider->start();
             $this->waitForOutput($provider, "\n");
             $providerAddress = trim($provider->getOutput());
-            $server = new Process([PHP_BINARY, __DIR__ . '/Fixtures/disconnect-server.php', $providerAddress, 'process']);
+            $server = new Process([
+                PHP_BINARY, __DIR__ . '/Fixtures/disconnect-server.php', $providerAddress, 'process',
+                ...($cancelOnReset ? ['cancel-on-reset'] : []),
+            ]);
             $server->setTimeout(10);
             $server->start();
             $serverProcessId = $server->getPid();
@@ -136,11 +201,14 @@ class ResponseCancellationTest extends TestCase
             fwrite($client, $this->http2Frame(3, 0, 1, pack('N', 8))
                 . $this->http2Frame(1, 5, 3, "\x82\x86\x04\x07/health\x01\x09localhost"));
             $this->assertSame('healthy', $this->http2Body($client, 3));
-            $this->assertStringNotContainsString('STOPPED', $server->getOutput());
-
-            fclose($control);
-            $control = null;
-            $this->waitForOutput($server, 'STOPPED');
+            if ($cancelOnReset) {
+                $this->waitForOutput($server, 'STOPPED');
+            } else {
+                $this->assertStringNotContainsString('STOPPED', $server->getOutput());
+                fclose($control);
+                $control = null;
+                $this->waitForOutput($server, 'STOPPED');
+            }
 
             fwrite($client, $this->http2Frame(1, 5, 5, "\x82\x86\x04\x07/health\x01\x09localhost"));
             $this->assertSame('healthy', $this->http2Body($client, 5));
@@ -163,6 +231,28 @@ class ResponseCancellationTest extends TestCase
     }
 
     /**
+     * Run a client against a real server that can fail before or after its first write.
+     */
+    private function withFailedStreamServer(Closure $test): void
+    {
+        $server = new Process([PHP_BINARY, __DIR__ . '/Fixtures/disconnect-server.php', '', 'process']);
+        $server->setTimeout(10);
+        $server->start();
+        $serverProcessId = $server->getPid();
+
+        try {
+            $this->waitForOutput($server, 'READY ');
+            preg_match('/READY (\d+)/', $server->getOutput(), $matches);
+            $test('tcp://127.0.0.1:' . $matches[1]);
+        } finally {
+            if ($serverProcessId !== null) {
+                posix_kill(-$serverProcessId, SIGKILL);
+            }
+            $server->stop(0);
+        }
+    }
+
+    /**
      * Encode one frame for the reset behavior unavailable through Swoole's HTTP/2 client.
      */
     private function http2Frame(int $type, int $flags, int $stream, string $payload): string
@@ -175,7 +265,7 @@ class ResponseCancellationTest extends TestCase
      *
      * @param resource $client
      */
-    private function http2Body(mixed $client, int $stream): string
+    private function http2Body(mixed $client, int $stream, bool $expectReset = false): string
     {
         $body = '';
 
@@ -196,7 +286,12 @@ class ResponseCancellationTest extends TestCase
             if ($identity === $stream && $type === 0) {
                 $body .= $payload;
             }
-        } while ($identity !== $stream || ($flags & 1) === 0 || ! in_array($type, [0, 1], true));
+            $endStream = ($flags & 1) !== 0 && in_array($type, [0, 1], true);
+        } while ($identity !== $stream || (! $endStream && $type !== 3));
+
+        $this->assertSame($expectReset, $type === 3, $expectReset
+            ? 'Expected RST_STREAM, but the server sent END_STREAM.'
+            : 'The server unexpectedly reset the stream.');
 
         return $body;
     }

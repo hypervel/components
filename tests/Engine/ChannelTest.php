@@ -21,10 +21,12 @@ class ChannelTest extends TestCase
         ];
         /** @var ChannelInterface $channel */
         $channel = new Channel(3);
+        $this->assertSame(3, $channel->capacity());
         foreach ($result as $value) {
             $channel->push($value);
         }
 
+        $this->assertSame(3, $channel->length());
         $actual[] = $channel->pop();
         $actual[] = $channel->pop();
         $actual[] = $channel->pop();
@@ -50,30 +52,29 @@ class ChannelTest extends TestCase
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel;
-        $this->assertFalse($channel->isClosing());
+        $this->assertFalse($channel->isClosed());
         Coroutine::create(function () use ($channel) {
             usleep(1000);
             $channel->close();
         });
         $this->assertFalse($channel->pop());
-        $this->assertTrue($channel->isClosing());
+        $this->assertTrue($channel->isClosed());
 
         $channel = new Channel(1);
         Coroutine::create(function () use ($channel) {
             $channel->close();
         });
-        $this->assertTrue($channel->isClosing());
+        $this->assertTrue($channel->isClosed());
     }
 
     public function testChannelCloseAgain(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
-        $channel->close();
-        $channel->close();
+        $this->assertTrue($channel->close());
+        $this->assertFalse($channel->close());
 
-        $this->assertTrue($channel->isClosing());
-        $this->assertFalse($channel->isAvailable());
+        $this->assertTrue($channel->isClosed());
     }
 
     public function testPushClosedChannel(): void
@@ -83,20 +84,50 @@ class ChannelTest extends TestCase
         $channel->push(111);
         $channel->close();
         $this->assertFalse($channel->isEmpty());
-        $channel->push(123);
-        $this->assertTrue($channel->isClosing());
+        $this->assertFalse($channel->push(123));
+        $this->assertTrue($channel->isClosed());
         $this->assertSame(111, $channel->pop());
         $this->assertSame(false, $channel->pop());
     }
 
-    public function testChannelIsAvailable(): void
+    public function testWaitingProducerResumesWhenSpaceIsAvailable(): void
     {
-        /** @var ChannelInterface $channel */
         $channel = new Channel(1);
-        $this->assertTrue($channel->isAvailable());
-        $channel->close();
-        $channel->pop();
-        $this->assertFalse($channel->isAvailable());
+        $channel->push('first');
+
+        try {
+            Coroutine::create(static fn () => $channel->push('second', 1));
+
+            $this->assertTrue($channel->hasWaitingProducers());
+            $this->assertFalse($channel->hasWaitingConsumers());
+            $this->assertSame('first', $channel->pop(1));
+            $this->assertFalse($channel->hasWaitingProducers());
+            $this->assertSame('second', $channel->pop(1));
+        } finally {
+            $channel->close();
+        }
+    }
+
+    public function testClosingWakesWaitingConsumersInOrder(): void
+    {
+        $channel = new Channel;
+        $snapshots = [];
+
+        try {
+            for ($index = 0; $index < 2; ++$index) {
+                Coroutine::create(static function () use ($channel, &$snapshots): void {
+                    $channel->pop(1);
+                    $snapshots[] = [$channel->isClosed(), $channel->hasWaitingConsumers()];
+                });
+            }
+
+            $this->assertTrue($channel->hasWaitingConsumers());
+            $this->assertFalse($channel->hasWaitingProducers());
+        } finally {
+            $channel->close();
+        }
+
+        $this->assertSame([[true, true], [true, false]], $snapshots);
     }
 
     public function testChannelTimeout(): void
@@ -104,7 +135,7 @@ class ChannelTest extends TestCase
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
         $channel->pop(0.001);
-        $this->assertTrue($channel->isTimeout());
+        $this->assertTrue($channel->timedOut());
     }
 
     public function testChannelCancellationIsReportedImmediately(): void
@@ -114,7 +145,7 @@ class ChannelTest extends TestCase
 
         $coroutine = Coroutine::create(function () use ($channel, &$isCanceled): void {
             $this->assertFalse($channel->pop());
-            $isCanceled = $channel->isCanceled();
+            $isCanceled = $channel->wasCanceled();
         });
 
         $this->assertTrue(Coroutine::cancelById($coroutine->getId()));
@@ -127,42 +158,13 @@ class ChannelTest extends TestCase
         $channel = new Channel(1);
         $this->assertSame(true, $channel->push(1, 0.05));
         $this->assertSame(false, $channel->push(1, 0.05));
-        $this->assertTrue($channel->isTimeout());
+        $this->assertTrue($channel->timedOut());
 
-        $channel = new Channel(1);
-        $this->assertSame(true, $channel->push(1, 0.05));
-        $this->assertSame(false, $channel->push(1, 0.05));
-        $this->assertTrue($channel->isTimeout());
-    }
-
-    public function testChannelIsClosing(): void
-    {
-        /** @var ChannelInterface $channel */
-        $channel = new Channel(1);
-        $channel->push(true);
-        $this->assertFalse($channel->isClosing());
-        $this->assertFalse($channel->isTimeout());
-        $this->assertTrue($channel->isAvailable());
-        $channel->pop();
-        $this->assertFalse($channel->isClosing());
-        $this->assertFalse($channel->isTimeout());
-        $this->assertTrue($channel->isAvailable());
-        $channel->pop(0.001);
-        $this->assertFalse($channel->isClosing());
-        $this->assertTrue($channel->isTimeout());
-        $this->assertTrue($channel->isAvailable());
-        $this->assertTrue($channel->close());
-        $this->assertTrue($channel->isClosing());
-        $this->assertFalse($channel->isTimeout());
-        $this->assertFalse($channel->isAvailable());
-        $channel->pop();
-        $this->assertTrue($channel->isClosing());
-        $this->assertFalse($channel->isTimeout());
-        $this->assertFalse($channel->isAvailable());
-        $channel->pop(0.001);
-        $this->assertTrue($channel->isClosing());
-        $this->assertFalse($channel->isTimeout());
-        $this->assertFalse($channel->isAvailable());
+        $this->assertFalse($channel->isClosed());
+        $channel->close();
+        $this->assertFalse($channel->push(1));
+        $this->assertTrue($channel->isClosed());
+        $this->assertFalse($channel->timedOut());
     }
 
     public function testSplId(): void

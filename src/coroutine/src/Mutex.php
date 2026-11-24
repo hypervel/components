@@ -44,12 +44,12 @@ class Mutex
 
         $channel = static::$channels[$key];
 
-        if ($channel->getLength() === 0 || $channel->pop($timeout) === false) {
+        if ($channel->isEmpty() || $channel->pop($timeout) === false) {
             return false;
         }
 
         // A fast waiter may have released this channel and published a replacement.
-        if ((static::$channels[$key] ?? null) === $channel && $channel->getLength() === 0) {
+        if ((static::$channels[$key] ?? null) === $channel && $channel->isEmpty()) {
             unset(static::$channels[$key]);
             $channel->close();
         }

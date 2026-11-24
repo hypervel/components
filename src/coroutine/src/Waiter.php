@@ -98,13 +98,13 @@ class Waiter
             throw $exception;
         }
 
-        if ($result === false && $channel->isCanceled()) {
+        if ($result === false && $channel->wasCanceled()) {
             $exception = new CanceledException('Waiting for a child coroutine was canceled.');
             $this->cancelChild($childCoroutineId, $childCancellationRequested, $waitForChildTermination);
             throw $exception;
         }
 
-        if ($result === false && $channel->isTimeout()) {
+        if ($result === false && $channel->timedOut()) {
             try {
                 // Throw into the operation so an interrupted wait cannot be ignored accidentally,
                 // then give the child a bounded interval to unwind and run deferred cleanup.

@@ -8,6 +8,7 @@ use Generator;
 use Google\Protobuf\Any;
 use Google\Rpc\ErrorInfo;
 use Google\Rpc\Status as RichStatus;
+use Hypervel\Engine\Channel;
 use Hypervel\Grpc\Exceptions\RpcException;
 use Hypervel\Grpc\Server\GrpcResponse;
 use Hypervel\Grpc\Server\ServerCallContext;
@@ -18,6 +19,9 @@ use Hypervel\Tests\Grpc\Fixtures\TestRequest;
 class TestService
 {
     private const int MAX_TEST_RESPONSE_SIZE = 5 * 1024 * 1024;
+
+    /** @var array<string, Channel<true>> */
+    private array $acknowledgements = [];
 
     /**
      * Handle the integration fixture's unary call.
@@ -59,6 +63,9 @@ class TestService
             }
 
             $value = str_repeat('x', (int) $responseSize);
+        } elseif (str_starts_with($value, 'ack-stream:')) {
+            $this->acknowledgements[$value]->push(true);
+            $value = 'acknowledged';
         } elseif (str_starts_with($value, 'delay:')) {
             $seconds = filter_var(
                 substr($value, strlen('delay:')),
@@ -107,6 +114,24 @@ class TestService
     private function responses(TestRequest $request, ServerCallContext $call): Generator
     {
         $value = $request->getValue();
+
+        if (str_starts_with($value, 'ack-stream:')) {
+            $acknowledgement = $this->acknowledgements[$value] = new Channel(1);
+
+            try {
+                yield (new TestReply)->setValue('first');
+
+                if ($acknowledgement->pop(5) !== true) {
+                    throw new RpcException(StatusCode::DeadlineExceeded, 'No acknowledgement arrived for the first message.');
+                }
+
+                yield (new TestReply)->setValue('second');
+            } finally {
+                unset($this->acknowledgements[$value]);
+            }
+
+            return;
+        }
 
         if ($value === 'empty') {
             return;
