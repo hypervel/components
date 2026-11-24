@@ -92,7 +92,7 @@ class CommandInvoker
                 throw $this->receiveFailure;
             }
 
-            if ($this->resultChannel->isTimeout()) {
+            if ($this->resultChannel->timedOut()) {
                 try {
                     $this->interrupt();
                 } catch (Throwable) {
@@ -179,7 +179,7 @@ class CommandInvoker
             throw $this->receiveFailure;
         }
 
-        if ($this->pingChannel->isTimeout()) {
+        if ($this->pingChannel->timedOut()) {
             try {
                 $this->interrupt();
             } catch (Throwable) {
@@ -324,7 +324,7 @@ class CommandInvoker
             return;
         }
 
-        if (! $this->messageChannel->isTimeout()) {
+        if (! $this->messageChannel->timedOut()) {
             throw new SocketException('The Redis subscriber message channel was closed.');
         }
 

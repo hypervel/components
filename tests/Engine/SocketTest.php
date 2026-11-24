@@ -399,7 +399,7 @@ class SocketTest extends TestCase
             }
 
             $this->assertFalse($loop->getValue($socket));
-            $this->assertTrue($channel->isClosing());
+            $this->assertTrue($channel->isClosed());
 
             // Closing an already closed native socket fails.
             $this->assertFalse($nativeSocket->close());
@@ -533,7 +533,7 @@ class SocketTest extends TestCase
         $deadline = hrtime(true) + 500_000_000;
         $payload = str_repeat('x', 65_536);
 
-        while (! $channel->isClosing() && hrtime(true) < $deadline) {
+        while (! $channel->isClosed() && hrtime(true) < $deadline) {
             try {
                 $socket->sendAll($payload, 0.05);
             } catch (SocketClosedException) {
@@ -543,7 +543,7 @@ class SocketTest extends TestCase
             usleep(100);
         }
 
-        $this->assertTrue($channel->isClosing());
+        $this->assertTrue($channel->isClosed());
 
         while ($loop->getValue($socket) === true && hrtime(true) < $deadline) {
             usleep(100);

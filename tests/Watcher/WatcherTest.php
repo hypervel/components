@@ -207,7 +207,7 @@ class WatcherTest extends TestCase
             $this->assertSame($cancellation, $result->pop(0.01));
             $this->assertSame(1, $driver->stopCount);
             $this->assertSame(1, $strategy->stopCount);
-            $this->assertTrue($driver->changeChannel?->isClosing());
+            $this->assertTrue($driver->changeChannel?->isClosed());
         } finally {
             $releaseTrailingCleanup->push(true, 0.001);
 

@@ -52,7 +52,7 @@ class Concurrent
      */
     public function getRunningCoroutineCount(): int
     {
-        return $this->channel->getLength();
+        return $this->channel->length();
     }
 
     /**
@@ -64,11 +64,11 @@ class Concurrent
     public function waitForAvailableSlot(float $timeout = -1): bool
     {
         if (! $this->channel->push(true, $timeout)) {
-            if ($this->channel->isCanceled()) {
+            if ($this->channel->wasCanceled()) {
                 throw new CanceledException('Waiting for a concurrency slot was canceled.');
             }
 
-            if ($this->channel->isClosing()) {
+            if ($this->channel->isClosed()) {
                 throw new ChannelClosedException('The concurrency channel is closed.');
             }
 
@@ -152,7 +152,7 @@ class Concurrent
             return;
         }
 
-        if ($this->channel->isCanceled()) {
+        if ($this->channel->wasCanceled()) {
             throw new CanceledException('Waiting for a concurrency slot was canceled.');
         }
 

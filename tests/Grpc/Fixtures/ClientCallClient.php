@@ -151,9 +151,7 @@ class ClientCallClient implements ClientInterface
         $this->connected = false;
         $this->streams = [];
 
-        if (! $this->events->isClosing()) {
-            $this->events->close();
-        }
+        $this->events->close();
     }
 
     /**

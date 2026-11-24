@@ -384,7 +384,7 @@ class KeepaliveConnectionTest extends TestCase
             $this->assertTrue($oldCompleted->pop(1.0));
 
             $this->assertSame($lastUseTime, $state->lastUseTime);
-            $this->assertSame(0, $state->channel->getLength());
+            $this->assertSame(0, $state->channel->length());
         } finally {
             $oldRelease->close();
             $newRelease->close();
@@ -598,8 +598,8 @@ class KeepaliveConnectionTest extends TestCase
             $connection->call(static fn () => null);
 
             $this->assertInstanceOf(SocketPopException::class, $waiterFailure);
-            $this->assertTrue($oldChannel->isClosing());
-            $this->assertFalse($oldChannel->isCanceled());
+            $this->assertTrue($oldChannel->isClosed());
+            $this->assertFalse($oldChannel->wasCanceled());
             $this->assertTrue($connection->isConnected());
         } finally {
             $oldChannel->close();
@@ -752,7 +752,7 @@ class KeepaliveConnectionTest extends TestCase
             $ready->push(true);
 
             $this->assertSame($created[0], $completed->pop(1.0));
-            $this->assertTrue($previousChannel->isClosing());
+            $this->assertTrue($previousChannel->isClosed());
             $this->assertTrue($connection->isConnected());
             $this->assertCount(1, (new ClassInvoker($connection->timer))->coroutines);
         } finally {

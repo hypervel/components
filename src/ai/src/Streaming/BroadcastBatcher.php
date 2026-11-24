@@ -81,7 +81,7 @@ class BroadcastBatcher
         }
 
         if (! $this->channel->push([$event, $arrived])) {
-            if ($this->channel->isCanceled()) {
+            if ($this->channel->wasCanceled()) {
                 throw new CanceledException('Waiting to broadcast an agent event was canceled.');
             }
 
@@ -183,7 +183,7 @@ class BroadcastBatcher
     {
         $timeout = -1.0;
 
-        if ($this->channel->isEmpty() && ! $this->channel->isClosing()) {
+        if ($this->channel->isEmpty() && ! $this->channel->isClosed()) {
             if ($deadline !== null && $deadline <= hrtime(true)) {
                 return false;
             }
@@ -203,7 +203,7 @@ class BroadcastBatcher
 
         $event = $this->channel->pop($timeout);
 
-        if ($event === false && $this->channel->isCanceled()) {
+        if ($event === false && $this->channel->wasCanceled()) {
             throw new CanceledException('Waiting for an agent broadcast event was canceled.');
         }
 

@@ -139,7 +139,7 @@ class ListenMethodTest extends TestCase
 
         try {
             $process->callListen($quit);
-            $this->waitUntil(fn (): bool => $quit->isClosing());
+            $this->waitUntil(fn (): bool => $quit->isClosed());
         } finally {
             $this->stopListener($quit);
             $socket->close();
@@ -164,7 +164,7 @@ class ListenMethodTest extends TestCase
 
         try {
             $process->callListen($quit);
-            $this->waitUntil(fn (): bool => $quit->isClosing());
+            $this->waitUntil(fn (): bool => $quit->isClosed());
         } finally {
             $this->stopListener($quit);
             $socket->close();
@@ -189,7 +189,7 @@ class ListenMethodTest extends TestCase
 
         try {
             $process->callListen($quit);
-            $this->waitUntil(fn (): bool => $quit->isClosing());
+            $this->waitUntil(fn (): bool => $quit->isClosed());
         } finally {
             $this->stopListener($quit);
             $socket->close();
@@ -211,7 +211,7 @@ class ListenMethodTest extends TestCase
 
         try {
             $process->callListen($quit);
-            $this->waitUntil(fn (): bool => $quit->isClosing());
+            $this->waitUntil(fn (): bool => $quit->isClosed());
         } finally {
             $this->stopListener($quit);
         }
@@ -235,13 +235,13 @@ class ListenMethodTest extends TestCase
 
         try {
             $process->callListen($quit);
-            $this->waitUntil(fn (): bool => $quit->isClosing());
+            $this->waitUntil(fn (): bool => $quit->isClosed());
         } finally {
             $this->stopListener($quit);
             $socket->close();
         }
 
-        $this->assertTrue($quit->isClosing());
+        $this->assertTrue($quit->isClosed());
     }
 
     public function testListenerDispatchesEverySerializableFalsyPayload(): void
@@ -300,11 +300,11 @@ class ListenMethodTest extends TestCase
      */
     private function stopListener(Channel $quit): void
     {
-        if (! $quit->isClosing()) {
+        if (! $quit->isClosed()) {
             $quit->push(true);
         }
 
-        $this->waitUntil(fn (): bool => $quit->isClosing());
+        $this->waitUntil(fn (): bool => $quit->isClosed());
     }
 
     /**

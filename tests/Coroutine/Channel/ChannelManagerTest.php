@@ -26,7 +26,7 @@ class ChannelManagerTest extends TestCase
 
         $this->assertSame('Hello World.', $chan->pop());
         $manager->close(1);
-        $this->assertTrue($chan->isClosing());
+        $this->assertTrue($chan->isClosed());
         $this->assertNull($manager->get(1));
     }
 

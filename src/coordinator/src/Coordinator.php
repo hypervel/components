@@ -23,7 +23,7 @@ class Coordinator
     public function yield(float|int $timeout = -1): bool
     {
         $this->channel->pop((float) $timeout);
-        return $this->channel->isClosing();
+        return $this->channel->isClosed();
     }
 
     /**
@@ -31,7 +31,7 @@ class Coordinator
      */
     public function isClosing(): bool
     {
-        return $this->channel->isClosing();
+        return $this->channel->isClosed();
     }
 
     /**

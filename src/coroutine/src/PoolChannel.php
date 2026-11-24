@@ -96,11 +96,11 @@ class PoolChannel
         try {
             $result = $this->signal->pop($timeout);
 
-            if ($result === false && $this->signal->isCanceled()) {
+            if ($result === false && $this->signal->wasCanceled()) {
                 throw new CanceledException('The pool wait was canceled.');
             }
 
-            return $result !== false || ! $this->signal->isTimeout();
+            return $result !== false || ! $this->signal->timedOut();
         } finally {
             --$this->waiters;
         }

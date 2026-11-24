@@ -485,42 +485,27 @@ $channel->push('value', timeout: 1.0);
 $value = $channel->pop(timeout: 1.0);
 ```
 
-After a failed operation, you may inspect the channel state:
+When a push or pop fails, check the reason immediately, before yielding to another coroutine. If you need to send `false` as a value, wrap it in an array so you can distinguish it from a failed pop.
 
 ```php
-if ($channel->isTimeout()) {
-    // The last failed operation timed out...
-}
+use Swoole\Coroutine\CanceledException;
 
-if ($channel->isClosing()) {
-    // The channel is closing or closed...
-}
+if ($channel->pop(timeout: 1.0) === false) {
+    if ($channel->wasCanceled()) {
+        throw new CanceledException('Waiting for a value was canceled.');
+    }
 
-if ($channel->isCanceled()) {
-    // The last failed operation was canceled...
+    if ($channel->timedOut()) {
+        // No value arrived before the timeout...
+    } elseif ($channel->isClosed()) {
+        // The channel has closed and its buffer is empty...
+    }
 }
 ```
 
-Inspect these methods immediately after a failed operation. Since `pop` also returns `false` when it fails, wrap `false` values, for example as `[$value]`, when a channel needs to carry them.
+Use `length()` to get the number of buffered values and `capacity()` to get the maximum. You may also check `isEmpty()` or `isFull()`. To find out whether any coroutines are currently blocked trying to push or pop, use `hasWaitingProducers()` or `hasWaitingConsumers()`. These values can change when your coroutine yields.
 
-You may also inspect the channel's capacity, current length, and availability:
-
-```php
-$capacity = $channel->getCapacity();
-
-$length = $channel->getLength();
-
-$available = $channel->isAvailable();
-```
-
-You may close a channel using the `close` method:
-
-```php
-$channel->close();
-```
-
-> [!NOTE]
-> Swoole does not provide producer or consumer inspection or general readable or writable checks. Therefore, Hypervel's `hasProducers`, `hasConsumers`, `isReadable`, and `isWritable` channel methods throw an exception.
+Calling `close()` wakes waiting coroutines and prevents further pushes. You may still pop values that were buffered before the channel closed.
 
 <a name="waiting-for-results"></a>
 ## Waiting for Results

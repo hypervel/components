@@ -144,7 +144,7 @@ class MutexTest extends TestCase
 
         $replacement = $this->channels()['replaced'];
         $this->assertNotSame($channel, $replacement);
-        $this->assertSame(1, $replacement->getLength());
+        $this->assertSame(1, $replacement->length());
         $this->assertTrue(Mutex::unlock('replaced'));
         $this->assertArrayNotHasKey('replaced', $this->channels());
     }

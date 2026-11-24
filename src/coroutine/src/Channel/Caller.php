@@ -30,11 +30,11 @@ class Caller
         $entry = $channel->pop($this->waitTimeout);
 
         if ($entry === false) {
-            if ($channel->isCanceled()) {
+            if ($channel->wasCanceled()) {
                 throw new CanceledException('Waiting for the pooled instance was canceled.');
             }
 
-            if ($channel->isClosing()) {
+            if ($channel->isClosed()) {
                 throw new ChannelClosedException('The channel was closed.');
             }
 

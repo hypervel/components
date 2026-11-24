@@ -29,7 +29,7 @@ class ListenCreationFailureTest extends TestCase
                 $process->callListen($quit);
                 $this->fail('Expected listener coroutine creation to fail.');
             } catch (CoroutineCreateException) {
-                $this->assertTrue($quit->isClosing());
+                $this->assertTrue($quit->isClosed());
                 $this->assertSame(0, $process->socketExports);
             }
         });

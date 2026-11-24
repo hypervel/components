@@ -102,7 +102,7 @@ class Parallel
                 try {
                     if ($this->concurrentChannel) {
                         if (! $this->concurrentChannel->push(true)) {
-                            if ($this->concurrentChannel->isCanceled()) {
+                            if ($this->concurrentChannel->wasCanceled()) {
                                 throw new CanceledException('Waiting to start parallel work was canceled.');
                             }
 

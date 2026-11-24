@@ -389,7 +389,7 @@ class CommandInvokerTest extends TestCase
         $invoker = new CommandInvoker($connection, $logger);
         $messageChannel = Double::for(Channel::class)->strict();
         $messageChannel->expects('push')->with(Argument::type(Message::class), 30.0)->returns(false);
-        $messageChannel->expects('isTimeout')->returns(true);
+        $messageChannel->expects('timedOut')->returns(true);
         $messageChannel->expects('close')->returns(true);
         (new ReflectionProperty(CommandInvoker::class, 'messageChannel'))
             ->setValue($invoker, $messageChannel);
@@ -413,7 +413,7 @@ class CommandInvokerTest extends TestCase
         $invoker = new CommandInvoker($connection, $logger);
         $messageChannel = $invoker->channel();
 
-        for ($index = 0; $index < $messageChannel->getCapacity(); ++$index) {
+        for ($index = 0; $index < $messageChannel->capacity(); ++$index) {
             $messageChannel->push(new Message('buffer', (string) $index));
         }
 

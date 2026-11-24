@@ -844,7 +844,7 @@ final class Connection
                 return true;
             }
 
-            if ($this->sendSemaphore->isCanceled()) {
+            if ($this->sendSemaphore->wasCanceled()) {
                 throw new CanceledException('Waiting for exclusive gRPC connection access was canceled.');
             }
 

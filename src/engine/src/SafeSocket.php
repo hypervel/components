@@ -61,10 +61,10 @@ class SafeSocket implements SocketInterface
 
         $res = $this->channel->push([$data, $timeout], $timeout);
         if ($res === false) {
-            if ($this->channel->isClosing()) {
+            if ($this->channel->isClosed()) {
                 $this->throw && throw new SocketClosedException('The channel is closed.');
             }
-            if ($this->channel->isTimeout()) {
+            if ($this->channel->timedOut()) {
                 $this->throw && throw new SocketTimeoutException('The channel is full.');
             }
 
@@ -149,7 +149,7 @@ class SafeSocket implements SocketInterface
      */
     protected function loop(): void
     {
-        if ($this->loop || $this->channel->isClosing()) {
+        if ($this->loop || $this->channel->isClosed()) {
             return;
         }
 
@@ -165,7 +165,7 @@ class SafeSocket implements SocketInterface
                     while (true) {
                         $data = $this->channel->pop(-1);
 
-                        if ($this->channel->isClosing()) {
+                        if ($this->channel->isClosed()) {
                             return;
                         }
 

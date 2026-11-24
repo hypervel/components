@@ -289,7 +289,7 @@ abstract class Call
         $completionSemaphore = $this->completionSemaphore ??= new Channel(1);
 
         if (! $completionSemaphore->push(true)) {
-            if ($completionSemaphore->isCanceled()) {
+            if ($completionSemaphore->wasCanceled()) {
                 throw new CanceledException('Waiting to resolve the unary gRPC response was canceled.');
             }
 
@@ -396,7 +396,7 @@ abstract class Call
         );
 
         if (! $writeSemaphore->push(true)) {
-            if ($writeSemaphore->isCanceled()) {
+            if ($writeSemaphore->wasCanceled()) {
                 throw new CanceledException('Waiting to write a gRPC request was canceled.');
             }
 
@@ -460,7 +460,7 @@ abstract class Call
         );
 
         if (! $writeSemaphore->push(true)) {
-            if ($writeSemaphore->isCanceled()) {
+            if ($writeSemaphore->wasCanceled()) {
                 throw new CanceledException('Waiting to finish gRPC request writes was canceled.');
             }
 
@@ -611,7 +611,7 @@ abstract class Call
         }
 
         if (! $attemptSemaphore->push(true)) {
-            if ($attemptSemaphore->isCanceled()) {
+            if ($attemptSemaphore->wasCanceled()) {
                 throw new CanceledException('Waiting to retry the gRPC call was canceled.');
             }
 
@@ -653,7 +653,7 @@ abstract class Call
 
                 ConnectionResolver::releaseIdleConnections();
 
-                if (! $retryDelayChannel->pop($delay) && $retryDelayChannel->isCanceled()) {
+                if (! $retryDelayChannel->pop($delay) && $retryDelayChannel->wasCanceled()) {
                     throw new CanceledException('Waiting to retry the gRPC call was canceled.');
                 }
             }
@@ -898,7 +898,7 @@ abstract class Call
         }
 
         $this->finished = true;
-        $this->closeRetryDelayChannel();
+        $this->retryDelayChannel?->close();
         $this->closeAttemptSemaphore();
         $this->closeWriteSemaphore();
         $this->operationHandle?->finish(new GrpcOperationResult(
@@ -906,18 +906,6 @@ abstract class Call
             $exception,
             $this->attempts,
         ));
-    }
-
-    /**
-     * Wake and close the retry delay channel.
-     */
-    private function closeRetryDelayChannel(): void
-    {
-        if ($this->retryDelayChannel === null || $this->retryDelayChannel->isClosing()) {
-            return;
-        }
-
-        $this->retryDelayChannel->close();
     }
 
     /**
