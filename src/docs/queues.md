@@ -2478,6 +2478,8 @@ class ImportCsv implements ShouldQueue
 }
 ```
 
+If a batchable job customizes how it is serialized or restored, such as by defining a `__serialize` or `__unserialize` method, it should keep the `batchId` and `batchPositionId` properties from the `Batchable` trait, along with any chain and routing properties the job uses, such as `chained`, `connection`, and `queue`. Hypervel relies on this state to count each job in a [chain](#chains-and-batches) once, even when the queue delivers the job more than once.
+
 <a name="dispatching-batches"></a>
 ### Dispatching Batches
 
