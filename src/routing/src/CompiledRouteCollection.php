@@ -359,7 +359,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
 
         $routePort = $route?->getPort();
 
-        if ($routePort !== null && $routePort !== (int) $request->getPort()) {
+        if ($routePort !== null && $routePort !== $request->server->getInt('SERVER_PORT')) {
             $route = null;
 
             if ($this->hasDynamicRoutes) {

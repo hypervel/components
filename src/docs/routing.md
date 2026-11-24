@@ -16,6 +16,7 @@
     - [Middleware](#route-group-middleware)
     - [Controllers](#route-group-controllers)
     - [Subdomain Routing](#route-group-subdomain-routing)
+    - [Port Routing](#route-group-port-routing)
     - [Route Prefixes](#route-group-prefixes)
     - [Route Name Prefixes](#route-group-name-prefixes)
 - [Route Model Binding](#route-model-binding)
@@ -601,6 +602,30 @@ Route::domain('{account}.example.com')->group(function () {
         // ...
     });
 });
+```
+
+<a name="route-group-port-routing"></a>
+### Port Routing
+
+If your server listens on multiple ports, use the `port` method to limit a route or group to requests received on a particular port.
+
+```php
+Route::port(8000)->group(function () {
+    Route::get('/orders', [OrderController::class, 'index'])->name('orders');
+});
+```
+
+These routes match when Hypervel receives the request on port 8000, even when a reverse proxy serves the public URL on port 443. Requests received on other ports skip this group. Routes with the same HTTP method, domain and URI must use the same port.
+
+Generated links use your application's public URL. If you serve a port at a different public URL, register a host formatter in your service provider's `boot` method. The formatter also applies to signed links and links generated in queued jobs.
+
+```php
+use Hypervel\Routing\Route;
+use Hypervel\Support\Facades\URL;
+
+URL::formatHostUsing(fn (string $root, ?Route $route) => $route?->getPort() === 8001
+    ? 'https://admin.example.com'
+    : $root);
 ```
 
 <a name="route-group-prefixes"></a>
