@@ -585,7 +585,7 @@ The builder uses Hypervel's pooled transport by default. Setting your own transp
 
 Buffered logs and metrics are flushed when their execution finishes. Sentry envelopes are then sent from detached coroutines using a bounded pool of reusable HTTP transports. Requests, queued jobs, scheduled tasks, and WebSocket callbacks do not wait for event delivery, and commands use the same non-blocking delivery by default. Sends started outside a coroutine complete before returning so short-lived CLI processes cannot exit while an accepted send is still running.
 
-If no transport becomes available within `sentry.pool.wait_timeout`, or the pool has closed, the event is skipped. Unexpected transport creation errors reach the Sentry SDK's error handling instead of being treated as pool exhaustion.
+If every transport is busy or the pool has closed, the event is skipped immediately. Increase `sentry.pool.max_objects` to allow more concurrent sends during bursts. Unexpected transport creation errors reach the Sentry SDK's error handling instead of being treated as pool exhaustion.
 
 Graceful worker shutdown performs a bounded drain after the worker-exit coordinator is released, then closes the transport pool. Delivery during a worker exit is best effort because Swoole may terminate outstanding reactor work after its shutdown deadline.
 
