@@ -413,11 +413,10 @@ class RedisBatchRepository extends DatabaseBatchRepository
     {
         $views = $this->readSnapshots(array_keys($rows));
         $counts = $waiting = $conflicts = [];
-        $inTransaction = null;
         foreach ($views as $id => $view) {
             [$successes, $outstanding, $failed, $total, $finished, $finishedTotal] = $view;
             $row = $rows[$id];
-            if ($total < 0 && $successes === 0 && $failed === 0 && $finished < 0 && ! ($inTransaction ??= $this->hasOwnerTransaction())) {
+            if ($total < 0 && $successes === 0 && $failed === 0 && $finished < 0 && ! $this->hasOwnerTransaction()) {
                 $waiting[] = $id;
             } elseif ($total < 0 || $successes + $outstanding > $total
                 || ($row->finished_at !== null && ((int) $row->total_jobs !== $total
