@@ -10,6 +10,7 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -498,6 +499,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
             // Send EVAL in pipelines so a cold script cache needs no mid-pipeline NOSCRIPT retry.
             $client = $redis->client();
             assert($client instanceof Redis);
+            $client->clearLastError();
             $pipeline = $client->pipeline();
             foreach ($calls as [$keys, $arguments]) {
                 $pipeline->eval($script, [...$keys, ...$arguments], count($keys));
@@ -514,7 +516,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
             }
 
             if ($results === false || in_array(false, $results, true)) {
-                throw new RuntimeException('Unable to run the Redis batch script: ' . $client->getLastError());
+                throw new LuaScriptException('Unable to run the Redis batch script: ' . $client->getLastError());
             }
 
             return array_combine(array_keys($calls), $results);

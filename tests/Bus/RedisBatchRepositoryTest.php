@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisProxy;
@@ -17,6 +18,7 @@ use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Redis;
 use RedisException;
@@ -28,14 +30,48 @@ class RedisBatchRepositoryTest extends TestCase
     public function testAFailoverErrorWhileRunningPipelinedScriptsInvalidatesTheConnection(): void
     {
         $failure = new RedisException("READONLY You can't write against a read only replica.");
+        $client = $this->pipelineClient();
+        $client->expects('exec')->throws($failure);
+
+        [$caught, $invalid] = $this->deleteTwoBatchResultsThrough($client);
+
+        $this->assertSame($failure, $caught);
+        $this->assertTrue($invalid);
+    }
+
+    public function testAScriptErrorInAPipelineIsReportedAsALuaScriptError(): void
+    {
+        $client = $this->pipelineClient();
+        $client->expects('exec')->returns([1, false]);
+        $client->expects('getLastError')->returns('WRONGTYPE Operation against a key holding the wrong kind of value');
+
+        [$caught, $invalid] = $this->deleteTwoBatchResultsThrough($client);
+
+        $this->assertInstanceOf(LuaScriptException::class, $caught);
+        $this->assertSame(
+            'Unable to run the Redis batch script: WRONGTYPE Operation against a key holding the wrong kind of value',
+            $caught->getMessage(),
+        );
+        $this->assertFalse($invalid);
+    }
+
+    private function pipelineClient(): Redis&DoubleInterface
+    {
         $client = Double::for(Redis::class)->strict();
         $client->allows('getOption')->with(Redis::OPT_SERIALIZER)->returns(Redis::SERIALIZER_NONE);
         $client->allows('getOption')->with(Redis::OPT_COMPRESSION)->returns(Redis::COMPRESSION_NONE);
-        $client->allows('getLastError')->returns($failure->getMessage());
+        $client->expects('clearLastError')->returns(true);
         $client->expects('pipeline')->returns($client);
         $client->expects('eval')->times(2)->returns($client);
-        $client->expects('exec')->throws($failure);
 
+        return $client;
+    }
+
+    /**
+     * @return array{null|LuaScriptException|RedisException, bool} the failure and whether the connection was invalidated
+     */
+    private function deleteTwoBatchResultsThrough(Redis&DoubleInterface $client): array
+    {
         $connection = new class extends PhpRedisConnectionStub {
             public function release(): void
             {
@@ -67,10 +103,9 @@ class RedisBatchRepositoryTest extends TestCase
 
         try {
             $repository->deleteResultsOf(['first', 'second']);
-        } catch (RedisException $caught) {
+        } catch (LuaScriptException|RedisException $caught) {
         }
 
-        $this->assertSame($failure, $caught);
-        $this->assertTrue($connection->isInvalidForTest());
+        return [$caught, $connection->isInvalidForTest()];
     }
 }
