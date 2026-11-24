@@ -46,10 +46,8 @@ if (! function_exists('blank')) {
      * @phpstan-assert-if-false !=null|'' $value
      *
      * @phpstan-assert-if-true !=numeric|bool $value
-     *
-     * @param mixed $value
      */
-    function blank($value): bool
+    function blank(mixed $value): bool
     {
         if (is_null($value)) {
             return true;
@@ -82,10 +80,8 @@ if (! function_exists('blank')) {
 if (! function_exists('class_basename')) {
     /**
      * Get the class "basename" of the given object / class.
-     *
-     * @param int|object|string $class
      */
-    function class_basename($class): string
+    function class_basename(object|string|int $class): string
     {
         $class = is_object($class) ? get_class($class) : $class;
 
@@ -97,10 +93,9 @@ if (! function_exists('class_uses_recursive')) {
     /**
      * Returns all traits used by a class, its parent classes and trait of their traits.
      *
-     * @param object|string $class
      * @return array<string, string>
      */
-    function class_uses_recursive($class): array
+    function class_uses_recursive(object|string $class): array
     {
         if (is_object($class)) {
             $class = get_class($class);
@@ -188,10 +183,8 @@ if (! function_exists('filled')) {
      * @phpstan-assert-if-true !=null|'' $value
      *
      * @phpstan-assert-if-false !=numeric|bool $value
-     *
-     * @param mixed $value
      */
-    function filled($value): bool
+    function filled(mixed $value): bool
     {
         return ! blank($value);
     }
@@ -200,10 +193,8 @@ if (! function_exists('filled')) {
 if (! function_exists('fluent')) {
     /**
      * Create a Fluent object from the given value.
-     *
-     * @param null|iterable|object $value
      */
-    function fluent($value = null): Fluent
+    function fluent(array|object|null $value = null): Fluent
     {
         return new Fluent($value ?? []);
     }
@@ -212,10 +203,8 @@ if (! function_exists('fluent')) {
 if (! function_exists('literal')) {
     /**
      * Return a new literal or anonymous object using named arguments.
-     *
-     * @return mixed
      */
-    function literal(...$arguments)
+    function literal(mixed ...$arguments): mixed
     {
         if (count($arguments) === 1 && array_is_list($arguments)) {
             return $arguments[0];
@@ -232,11 +221,9 @@ if (! function_exists('object_get')) {
      * @template TValue of object
      *
      * @param TValue $object
-     * @param null|bool|int|string $key
-     * @param mixed $default
      * @return ($key is null|''|false ? TValue : mixed)
      */
-    function object_get($object, $key, $default = null)
+    function object_get(object $object, bool|int|string|null $key, mixed $default = null): mixed
     {
         $key = (string) $key;
 
@@ -265,7 +252,7 @@ if (! function_exists('once')) {
      * @param callable(): TReturnType $callback
      * @return TReturnType
      */
-    function once(callable $callback)
+    function once(callable $callback): mixed
     {
         $onceable = Onceable::tryFromTrace(
             debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2),
@@ -287,7 +274,7 @@ if (! function_exists('optional')) {
      * @param null|(callable((TValue is null ? never : TValue)): TReturn) $callback
      * @return ($callback is null ? Optional<TValue> : ($value is null ? null : TReturn))
      */
-    function optional($value = null, ?callable $callback = null)
+    function optional(mixed $value = null, ?callable $callback = null): mixed
     {
         if (is_null($callback)) {
             return new Optional($value);
@@ -327,7 +314,7 @@ if (! function_exists('retry')) {
      *
      * @throws Throwable
      */
-    function retry($times, callable $callback, $sleepMilliseconds = 0, $when = null)
+    function retry(array|int $times, callable $callback, CarbonInterval|Closure|float|int $sleepMilliseconds = 0, ?callable $when = null): mixed
     {
         $attempts = 0;
 
@@ -377,10 +364,9 @@ if (! function_exists('str')) {
     /**
      * Get a new stringable object from the given string.
      *
-     * @param null|string $string
-     * @return ($string is null ? object : SupportStringable)
+     * @return ($string is null ? Stringable : SupportStringable)
      */
-    function str($string = null)
+    function str(mixed $string = null): Stringable
     {
         if (func_num_args() === 0) {
             return new class {
@@ -416,7 +402,7 @@ if (! function_exists('tap')) {
      * @param null|(callable(TValue): mixed) $callback
      * @return ($callback is null ? HigherOrderTapProxy<TValue> : TValue)
      */
-    function tap($value, $callback = null)
+    function tap(mixed $value, ?callable $callback = null): mixed
     {
         if (is_null($callback)) {
             return new HigherOrderTapProxy($value);
@@ -446,7 +432,7 @@ if (! function_exists('throw_if')) {
      *
      * @throws TException
      */
-    function throw_if($condition, $exception = 'RuntimeException', ...$parameters)
+    function throw_if(mixed $condition, Closure|Throwable|string $exception = 'RuntimeException', mixed ...$parameters): mixed
     {
         if ($condition) {
             if ($exception instanceof Closure) {
@@ -482,7 +468,7 @@ if (! function_exists('throw_unless')) {
      *
      * @throws TException
      */
-    function throw_unless($condition, $exception = 'RuntimeException', ...$parameters)
+    function throw_unless(mixed $condition, Closure|Throwable|string $exception = 'RuntimeException', mixed ...$parameters): mixed
     {
         throw_if(! $condition, $exception, ...$parameters);
 
@@ -494,10 +480,9 @@ if (! function_exists('trait_uses_recursive')) {
     /**
      * Returns all traits used by a trait and its traits.
      *
-     * @param object|string $trait
      * @return array<string, string>
      */
-    function trait_uses_recursive($trait): array
+    function trait_uses_recursive(object|string $trait): array
     {
         $traits = class_uses($trait) ?: [];
 
@@ -557,7 +542,7 @@ if (! function_exists('with')) {
      * @param null|(callable(TValue): (TReturn)) $callback
      * @return ($callback is null ? TValue : TReturn)
      */
-    function with($value, ?callable $callback = null)
+    function with(mixed $value, ?callable $callback = null): mixed
     {
         return is_null($callback) ? $value : $callback($value);
     }

@@ -26,13 +26,8 @@ if (! function_exists('collect')) {
 if (! function_exists('data_fill')) {
     /**
      * Fill in data where it's missing.
-     *
-     * @param mixed $target
-     * @param array|int|string $key
-     * @param mixed $value
-     * @return mixed
      */
-    function data_fill(&$target, $key, $value)
+    function data_fill(mixed &$target, array|int|string $key, mixed $value): mixed
     {
         return data_set($target, $key, $value, false);
     }
@@ -41,11 +36,8 @@ if (! function_exists('data_fill')) {
 if (! function_exists('data_has')) {
     /**
      * Determine if a key / property exists on an array or object using "dot" notation.
-     *
-     * @param mixed $target
-     * @param null|array|int|string $key
      */
-    function data_has($target, $key): bool
+    function data_has(mixed $target, array|int|string|null $key): bool
     {
         if (is_null($key) || $key === []) {
             return false;
@@ -70,13 +62,8 @@ if (! function_exists('data_has')) {
 if (! function_exists('data_get')) {
     /**
      * Get an item from an array or object using "dot" notation.
-     *
-     * @param mixed $target
-     * @param null|array|int|string $key
-     * @param mixed $default
-     * @return mixed
      */
-    function data_get($target, $key, $default = null)
+    function data_get(mixed $target, array|int|string|null $key, mixed $default = null): mixed
     {
         if (is_null($key)) {
             return $target;
@@ -133,14 +120,8 @@ if (! function_exists('data_get')) {
 if (! function_exists('data_set')) {
     /**
      * Set an item on an array or object using dot notation.
-     *
-     * @param mixed $target
-     * @param array|int|string $key
-     * @param mixed $value
-     * @param bool $overwrite
-     * @return mixed
      */
-    function data_set(&$target, $key, $value, $overwrite = true)
+    function data_set(mixed &$target, array|int|string $key, mixed $value, bool $overwrite = true): mixed
     {
         $segments = is_array($key) ? $key : explode('.', (string) $key);
 
@@ -219,12 +200,8 @@ if (! function_exists('data_set')) {
 if (! function_exists('data_forget')) {
     /**
      * Remove / unset an item from an array or object using "dot" notation.
-     *
-     * @param mixed $target
-     * @param null|array|int|string $key
-     * @return mixed
      */
-    function data_forget(&$target, $key)
+    function data_forget(mixed &$target, array|int|string|null $key): mixed
     {
         $segments = is_array($key) ? $key : explode('.', (string) $key);
 
@@ -278,10 +255,12 @@ if (! function_exists('head')) {
     /**
      * Get the first element of an array. Useful for method chaining.
      *
-     * @param array $array
-     * @return mixed
+     * @template TValue
+     *
+     * @param array<array-key, TValue> $array
+     * @return ($array is array{} ? false : TValue)
      */
-    function head($array)
+    function head(array $array): mixed
     {
         return empty($array) ? false : array_first($array);
     }
@@ -291,10 +270,12 @@ if (! function_exists('last')) {
     /**
      * Get the last element from an array.
      *
-     * @param array $array
-     * @return mixed
+     * @template TValue
+     *
+     * @param array<array-key, TValue> $array
+     * @return ($array is array{} ? false : TValue)
      */
-    function last($array)
+    function last(array $array): mixed
     {
         return empty($array) ? false : array_last($array);
     }
@@ -311,7 +292,7 @@ if (! function_exists('value')) {
      * @param TArgs ...$args
      * @return TValue
      */
-    function value($value, ...$args)
+    function value(mixed $value, mixed ...$args): mixed
     {
         return $value instanceof Closure ? $value(...$args) : $value;
     }
@@ -326,12 +307,11 @@ if (! function_exists('when')) {
      * @template TDefault
      * @template TDefaultArgs
      *
-     * @param mixed $condition
      * @param (Closure(TArgs): TValue)|TValue $value
      * @param (Closure(TDefaultArgs): TDefault)|TDefault $default
      * @return ($condition is Closure ? TDefault|TValue : ($condition is empty ? TDefault : TValue))
      */
-    function when($condition, $value, $default = null)
+    function when(mixed $condition, mixed $value, mixed $default = null): mixed
     {
         $condition = $condition instanceof Closure ? $condition() : $condition;
 

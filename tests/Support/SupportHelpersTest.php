@@ -888,12 +888,14 @@ class SupportHelpersTest extends TestCase
     {
         $array = ['a', 'b', 'c'];
         $this->assertSame('a', head($array));
+        $this->assertFalse(head([]));
     }
 
     public function testLast(): void
     {
         $array = ['a', 'b', 'c'];
         $this->assertSame('c', last($array));
+        $this->assertFalse(last([]));
     }
 
     public function testClassUsesRecursiveShouldReturnTraitsOnParentClasses(): void
