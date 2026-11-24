@@ -10,10 +10,6 @@
 
 - Create hypervel/react-starter-kit. Include the standard skeleton pieces that currently only exist as follow-ups: a `composer dev` script for running the Hypervel development server and frontend asset watcher together, plus explicit Hypervel Vite refresh paths instead of the Laravel plugin's `refresh: true` shortcut.
 
-## Artisan
-
-- Track the Swoole fix for signal behavior after a coroutine signal wait ends. In Swoole 6.2.2, the generic signal backend used by default on macOS keeps intercepting a signal after `Coroutine\System::waitSignal()` returns and drops later deliveries, so `schedule:run`'s second termination signal releases running tasks' overlap mutexes but no longer stops the process. Linux's default signalfd backend is unaffected. Once a fixed release is available, raise the `ext-swoole` constraint and verify scheduler force-stop and Testbench signal cleanup on macOS.
-
 ## Wayfinder
 
 - Fix `@laravel/vite-plugin-wayfinder` generation scheduling upstream. Each plugin instance should capture its own hook context, normalize Windows path separators, parse a documented multiword command into an argument vector without shell expansion, serialize its own runs, collapse a burst into one follow-up run, recover after failure, and remain isolated from other plugin instances. Components should not carry a scheduler or shell workaround for plugin-owned behavior.
