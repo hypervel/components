@@ -10,6 +10,7 @@ use Hypervel\Engine\Exceptions\SocketClosedException;
 use Hypervel\Engine\Exceptions\SocketTimeoutException;
 use Hypervel\Support\FailureReporter;
 use Psr\Log\LoggerInterface;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Socket;
 use Throwable;
 
@@ -52,77 +53,87 @@ class SafeSocket implements SocketInterface
     /**
      * Send all data to the socket.
      *
-     * @throws SocketTimeoutException when send data timeout
+     * @throws CanceledException when the caller is canceled while waiting
+     * @throws SocketTimeoutException when the operation times out
      * @throws SocketClosedException when the client is closed
      */
     public function sendAll(string $data, float $timeout = 0): false|int
     {
         $this->loop();
 
-        $res = $this->channel->push([$data, $timeout], $timeout);
-        if ($res === false) {
-            if ($this->channel->isClosed()) {
-                $this->throw && throw new SocketClosedException('The channel is closed.');
+        if (! $this->channel->push([$data, $timeout], $timeout)) {
+            if ($this->channel->wasCanceled()) {
+                throw new CanceledException('Sending to the socket was canceled.');
             }
-            if ($this->channel->timedOut()) {
-                $this->throw && throw new SocketTimeoutException('The channel is full.');
+
+            if ($this->throw && $this->channel->timedOut()) {
+                throw new SocketTimeoutException('The channel is full.');
+            }
+
+            if ($this->throw && $this->channel->isClosed()) {
+                throw new SocketClosedException('The channel is closed.');
             }
 
             return false;
         }
+
         return strlen($data);
     }
 
     /**
      * Receive all data from the socket.
      *
-     * @throws SocketTimeoutException when send data timeout
+     * @throws CanceledException when the caller is canceled while waiting
+     * @throws SocketTimeoutException when the operation times out
      * @throws SocketClosedException when the client is closed
      */
     public function recvAll(int $length = 65536, float $timeout = 0): false|string
     {
-        $res = $this->socket->recvAll($length, $timeout);
-        if ($res === false || $res === '') {
-            if ($this->socket->errCode === SOCKET_ETIMEDOUT) {
-                $this->throw && throw new SocketTimeoutException(
-                    $this->socket->errMsg ?: 'Recv timeout',
-                    $this->socket->errCode,
-                );
-            }
+        $result = $this->socket->recvAll($length, $timeout);
 
-            $this->throw && throw new SocketClosedException(
-                $this->socket->errMsg ?: 'The socket is closed.',
-                $this->socket->errCode,
-            );
-        }
-
-        return $res;
+        return $this->receiveResult($result, $result === '' ? 0 : $this->socket->errCode);
     }
 
     /**
      * Receive a packet from the socket.
      *
-     * @throws SocketTimeoutException when send data timeout
+     * @throws CanceledException when the caller is canceled while waiting
+     * @throws SocketTimeoutException when the operation times out
      * @throws SocketClosedException when the client is closed
      */
     public function recvPacket(float $timeout = 0): false|string
     {
-        $res = $this->socket->recvPacket($timeout);
-        if ($res === false || $res === '') {
-            if ($this->socket->errCode === SOCKET_ETIMEDOUT) {
-                $this->throw && throw new SocketTimeoutException(
-                    $this->socket->errMsg ?: 'Recv timeout',
-                    $this->socket->errCode,
-                );
-            }
+        $result = $this->socket->recvPacket($timeout);
 
-            $this->throw && throw new SocketClosedException(
-                $this->socket->errMsg ?: 'The socket is closed.',
-                $this->socket->errCode,
-            );
+        return $this->receiveResult($result, $this->socket->errCode);
+    }
+
+    /**
+     * Classify a native read, including a read canceled after some bytes arrived.
+     */
+    private function receiveResult(false|string $result, int $errorCode): false|string
+    {
+        if ($errorCode === SOCKET_ECANCELED && Coroutine::isCanceled()) {
+            throw new CanceledException('Receiving from the socket was canceled.');
         }
 
-        return $res;
+        if (! $this->throw || ($result !== false && $result !== '')) {
+            return $result;
+        }
+
+        if ($result === false && $errorCode === SOCKET_ETIMEDOUT) {
+            throw new SocketTimeoutException($this->socket->errMsg ?: 'Recv timeout', $errorCode);
+        }
+
+        // An empty packet at EOF can retain a previous timeout.
+        if ($errorCode === 0 || ($result === '' && $errorCode === SOCKET_ETIMEDOUT)) {
+            throw new SocketClosedException('The socket is closed.');
+        }
+
+        throw new SocketClosedException(
+            $this->socket->errMsg ?: 'The socket is closed.',
+            $errorCode,
+        );
     }
 
     /**

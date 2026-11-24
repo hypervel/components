@@ -10,6 +10,7 @@ use Hypervel\Contracts\Engine\SocketInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Exceptions\SocketClosedException;
 use Hypervel\Engine\Exceptions\SocketConnectException;
+use Hypervel\Engine\Exceptions\SocketTimeoutException;
 use Hypervel\Engine\SafeSocket;
 use Hypervel\Engine\Socket;
 use Hypervel\Tests\TestCase;
@@ -17,10 +18,12 @@ use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Server;
 use Swoole\Coroutine\Socket as SwooleSocket;
 use Swoole\Coroutine\WaitGroup;
@@ -405,6 +408,110 @@ class SocketTest extends TestCase
             $this->assertFalse($nativeSocket->close());
         } finally {
             $nativeSocket->close();
+        }
+    }
+
+    public function testCancelingAQueuedSendLeavesOtherWritesIntact(): void
+    {
+        [$writer, $reader] = swoole_coroutine_socketpair(AF_UNIX, SOCK_STREAM, 0);
+        $writer->setOption(SOL_SOCKET, SO_SNDBUF, 4096);
+        $socket = new SafeSocket($writer, capacity: 1, throw: false);
+        $payload = str_repeat('a', 131072);
+        $failure = null;
+
+        try {
+            $socket->sendAll($payload, 2);
+            $socket->sendAll('b', 2);
+            $sender = go(static function () use ($socket, &$failure): void {
+                try {
+                    $socket->sendAll('c', 2);
+                } catch (CanceledException $exception) {
+                    $failure = $exception;
+                }
+            });
+
+            $this->assertTrue(SwooleCoroutine::cancel($sender));
+            $this->assertInstanceOf(CanceledException::class, $failure);
+            $this->assertSame($payload . 'b', $reader->recvAll(strlen($payload) + 1, 2));
+            $this->assertSame(1, $socket->sendAll('d', 2));
+            $this->assertSame('d', $reader->recvAll(1, 2));
+        } finally {
+            $socket->close();
+            $reader->close();
+        }
+    }
+
+    #[TestWith(['recvAll', ''])]
+    #[TestWith(['recvAll', 'x'])]
+    #[TestWith(['recvPacket', ''])]
+    public function testCancelingTheReaderPropagatesCancellation(string $method, string $prefix): void
+    {
+        [$reader, $writer] = swoole_coroutine_socketpair(AF_UNIX, SOCK_STREAM, 0);
+        $socket = new SafeSocket($reader, throw: false);
+        $failure = null;
+
+        try {
+            if ($prefix !== '') {
+                $writer->sendAll($prefix);
+            }
+
+            $waiter = go(static function () use ($socket, $method, &$failure): void {
+                try {
+                    $method === 'recvAll' ? $socket->recvAll(2, 1) : $socket->recvPacket(1);
+                } catch (CanceledException $exception) {
+                    $failure = $exception;
+                }
+            });
+
+            $this->assertTrue(SwooleCoroutine::cancel($waiter));
+            $this->assertInstanceOf(CanceledException::class, $failure);
+        } finally {
+            $socket->close();
+            $writer->close();
+        }
+    }
+
+    public function testInterruptingTheSocketDoesNotCancelTheReader(): void
+    {
+        [$reader, $writer] = swoole_coroutine_socketpair(AF_UNIX, SOCK_STREAM, 0);
+        $socket = new SafeSocket($reader);
+        $failure = null;
+
+        try {
+            go(static function () use ($socket, &$failure): void {
+                try {
+                    $socket->recvAll(1, 1);
+                } catch (Throwable $exception) {
+                    $failure = $exception;
+                }
+            });
+
+            $reader->cancel();
+            $this->assertInstanceOf(SocketClosedException::class, $failure);
+        } finally {
+            $socket->close();
+            $writer->close();
+        }
+    }
+
+    public function testEofAfterAReadTimeoutReportsClosure(): void
+    {
+        [$reader, $writer] = swoole_coroutine_socketpair(AF_UNIX, SOCK_STREAM, 0);
+        $socket = new SafeSocket($reader);
+
+        try {
+            try {
+                $socket->recvAll(1, 0.01);
+                $this->fail('Expected the read to time out.');
+            } catch (SocketTimeoutException) {
+                $writer->shutdown();
+            }
+
+            $this->expectException(SocketClosedException::class);
+            $socket->recvAll(1, 1);
+        } finally {
+            $socket->close();
+            $writer->close();
         }
     }
 
