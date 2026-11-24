@@ -339,6 +339,18 @@ class RouteCollectionTest extends RoutingTestCase
         $this->routeCollection->match($request);
     }
 
+    public function testUncachedRouteAdvertisesAnExplicitlyRegisteredCustomMethod(): void
+    {
+        $this->routeCollection->add(new Route('PROPFIND', 'documents', ['uses' => 'DocumentsController@index']));
+
+        try {
+            $this->routeCollection->match(Request::create('/documents', 'POST'));
+            $this->fail('Expected the route to reject POST.');
+        } catch (MethodNotAllowedHttpException $exception) {
+            $this->assertSame('PROPFIND', $exception->getHeaders()['Allow']);
+        }
+    }
+
     public function testRouteCollectionRequestMethodNotAllowed(): void
     {
         $this->expectExceptionObject(new MethodNotAllowedHttpException(['GET', 'HEAD'], 'The POST method is not supported for route users. Supported methods: GET, HEAD.'));

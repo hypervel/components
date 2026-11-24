@@ -52,15 +52,19 @@ abstract class AbstractRouteCollection implements Countable, IteratorAggregate, 
      */
     protected function checkForAlternateVerbs(Request $request): array
     {
-        $methods = array_diff(Router::$verbs, [$request->getMethod()]);
+        $routes = $this->getRoutesByMethod();
+
+        // Explicitly registered custom methods also belong in the Allow header.
+        $methods = array_diff(array_unique([...Router::$verbs, ...array_keys($routes)]), [$request->getMethod()]);
 
         // Here we will spin through all verbs except for the current request verb and
         // check to see if any routes respond to them. If they do, we will return a
         // proper error response with the correct headers on the response string.
         return array_values(array_filter(
             $methods,
-            function (string $method) use ($request): bool {
-                return ! is_null($this->matchAgainstRoutes($this->get($method), $request, false));
+            function (string $method) use ($request, $routes): bool {
+                return isset($routes[$method])
+                    && ! is_null($this->matchAgainstRoutes($routes[$method], $request, false));
             }
         ));
     }
