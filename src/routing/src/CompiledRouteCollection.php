@@ -402,20 +402,15 @@ class CompiledRouteCollection extends AbstractRouteCollection
             }
         }
 
-        $compiledRoute = $route;
-
         if ($route && $route->isFallback && $this->hasDynamicRoutes) {
-            try {
-                $dynamicRoute = $this->routes->match($request);
+            $dynamicRoute = $this->matchAgainstRoutes($this->routes->get($method), $request);
 
-                if (! $dynamicRoute->isFallback) {
-                    $route = $dynamicRoute;
-                }
-            } catch (NotFoundHttpException|MethodNotAllowedHttpException) {
+            if ($dynamicRoute !== null && ! $dynamicRoute->isFallback) {
+                return $dynamicRoute->bind($request);
             }
         }
 
-        if ($route !== null && $route === $compiledRoute && $result !== null) {
+        if ($route !== null && $result !== null) {
             return $route->bindFromCompiledMatch($result, $request);
         }
 

@@ -696,6 +696,21 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('fallback', $routes->match(Request::create('/baz/1', 'GET'))->getName());
     }
 
+    public function testExplicitCachedOptionsFallbackWinsOverAutomaticOptions(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('OPTIONS', '{page}', ['uses' => 'FooController@index', 'as' => 'options'])
+                ->where('page', '.*')->fallback()
+        );
+        $routes = $this->collection();
+        $routes->add($this->newRoute('POST', 'orders', ['uses' => 'FooController@store']));
+
+        $route = $routes->match(Request::create('/orders', 'OPTIONS'));
+
+        $this->assertSame('options', $route->getName());
+        $this->assertSame('orders', $route->parameter('page'));
+    }
+
     public function testMatchingCachedFallbackTakesPrecedenceOverDynamicRouteWithWrongMethod(): void
     {
         $this->routeCollection->add($this->fallbackRoute(['uses' => 'FooController@index', 'as' => 'fallback']));
