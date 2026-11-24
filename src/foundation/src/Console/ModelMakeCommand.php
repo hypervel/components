@@ -154,6 +154,7 @@ class ModelMakeCommand extends GeneratorCommand
             '--requests' => $this->option('requests') || $this->option('all'),
             '--test' => $this->option('test'),
             '--pest' => $this->option('pest'),
+            '--phpunit' => $this->option('phpunit'),
         ]));
     }
 

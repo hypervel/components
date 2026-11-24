@@ -25,6 +25,7 @@ class ModelMakeCommandTest extends TestCase
         'database/migrations/*_create_xxxes_table.php',
         'database/seeders/FooSeeder.php',
         'tests/Feature/Models/FooTest.php',
+        'tests/Feature/Http/Controllers/FooControllerTest.php',
     ];
 
     public function testItCanGenerateModelFile(): void
@@ -314,6 +315,15 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/factories/FooFactory.php');
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
         $this->assertFilenameExists('tests/Feature/Models/FooTest.php');
+    }
+
+    public function testItGeneratesPhpUnitTestsForTheModelAndController(): void
+    {
+        $this->artisan('make:model', ['name' => 'Foo', '--controller' => true, '--phpunit' => true])
+            ->assertExitCode(0);
+
+        $this->assertFilenameExists('tests/Feature/Models/FooTest.php');
+        $this->assertFilenameExists('tests/Feature/Http/Controllers/FooControllerTest.php');
     }
 
     public function testItAsksForAdditionalComponentsForExistingModel(): void
