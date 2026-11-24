@@ -14,6 +14,11 @@ interface ObjectPool
     public function borrow(): object;
 
     /**
+     * Borrow an object without waiting for capacity, or return null if the pool is full.
+     */
+    public function tryBorrow(): ?object;
+
+    /**
      * Release an object back to the object pool.
      */
     public function release(object $object): void;

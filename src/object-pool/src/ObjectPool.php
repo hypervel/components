@@ -62,23 +62,18 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     public function borrow(): object
     {
-        if ($this->closed) {
-            throw new PoolClosedException('Cannot borrow from a closed pool.');
-        }
+        return $this->acquire($this->deadline($this->options->waitTimeout))
+            ?? throw new PoolExhaustedException('Object pool exhausted. Cannot create new object before wait_timeout.');
+    }
 
-        $this->lastUsedAt = hrtime(true);
-        $deadline = $this->deadline($this->options->waitTimeout);
-        ++$this->acquiringCount;
-
-        try {
-            $object = $this->getObject($deadline);
-
-            $this->borrowed[spl_object_id($object)] = true;
-
-            return $object;
-        } finally {
-            --$this->acquiringCount;
-        }
+    /**
+     * Borrow an object without waiting for capacity.
+     *
+     * @return null|T
+     */
+    public function tryBorrow(): ?object
+    {
+        return $this->acquire(null);
     }
 
     /**
@@ -360,11 +355,38 @@ abstract class ObjectPool implements ObjectPoolContract
     }
 
     /**
-     * Get or create an object before the checkout deadline.
+     * Track the checkout until the object is borrowed or acquisition ends.
      *
-     * @return T
+     * @return null|T
      */
-    private function getObject(int $deadline): object
+    private function acquire(?int $deadline): ?object
+    {
+        if ($this->closed) {
+            throw new PoolClosedException('Cannot borrow from a closed pool.');
+        }
+
+        $this->lastUsedAt = hrtime(true);
+        ++$this->acquiringCount;
+
+        try {
+            $object = $this->getObject($deadline);
+
+            if ($object !== null) {
+                $this->borrowed[spl_object_id($object)] = true;
+            }
+
+            return $object;
+        } finally {
+            --$this->acquiringCount;
+        }
+    }
+
+    /**
+     * Get or create an object, waiting for capacity only when a deadline is given.
+     *
+     * @return null|T
+     */
+    private function getObject(?int $deadline): ?object
     {
         $timedOut = false;
 
@@ -419,8 +441,8 @@ abstract class ObjectPool implements ObjectPoolContract
                 return $object;
             }
 
-            if ($timedOut) {
-                throw new PoolExhaustedException('Object pool exhausted. Cannot create new object before wait_timeout.');
+            if ($deadline === null || $timedOut) {
+                return null;
             }
 
             $timedOut = ! $this->waitForStateChange($deadline);
