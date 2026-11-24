@@ -128,10 +128,6 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
 
 - `Hypervel\Engine\Channel::hasProducers()`, `hasConsumers()`, `isReadable()` and `isWritable()` are inherited Hyperf stubs that always throw. Implement them with Swoole's `Channel::stats()` (`producer_num`, `consumer_num`, `queue_num`), or remove them from `ChannelInterface`, after checking their close, read and write semantics.
 
-## Routing
-
-- Handle pathless absolute-form request targets in `RequestBridge`. Symfony leaves `http://example.com` as the request URI and derives `/http://example.com` as its path; with a query it can also append the query twice. The absolute-form grammar permits an empty path and servers must accept absolute-form requests ([RFC 9112 section 3.2.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2)), while an empty HTTP(S) path is normally equivalent to `/` except for OPTIONS ([RFC 9110 section 4.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.3)). Normalize pathless HTTP(S) targets before Symfony derives the path, preserve the query exactly once, and add explicit GET and OPTIONS coverage alongside host, port, and query variants.
-
 ## Documentation
 
 - Publish reproducible Hypervel 0.4 benchmarks on a dedicated documentation page before linking them from the introduction. Record the framework, PHP, Swoole, and dependency versions; use the same hardware and load-generation conditions for every runtime; publish the benchmark applications and configuration; and include the raw results, collection date, and limitations. Do not reuse the Hypervel 0.3 results as current data. Once the page is published, add it to `src/docs/documentation.md` and link to it from the introduction.
