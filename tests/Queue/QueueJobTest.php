@@ -396,7 +396,9 @@ class QueueJobPayloadStub extends Job
     {
         ++$this->rawBodyReads;
 
-        throw_if($this->rawBodyException !== null, $this->rawBodyException);
+        if ($this->rawBodyException !== null) {
+            throw $this->rawBodyException;
+        }
 
         return $this->rawBody;
     }
