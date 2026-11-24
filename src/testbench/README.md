@@ -25,8 +25,6 @@ Hypervel's `serve` command creates and removes the Workbench `sync` links itself
 
 Orchestra Testbench resets framework static state from its test case. Hypervel resets it after each test from the `Hypervel\Testing\PHPUnit\AfterEachTestExtension` PHPUnit extension, so a package's `phpunit.xml` file needs to register it. See [Test State Cleanup](https://hypervel.org/docs/testing#test-state-cleanup).
 
-Pest integration is not supported in Hypervel 0.4. Use PHPUnit test classes; `WithFixtures` does not resolve Pest test files. See the [testing documentation](https://hypervel.org/docs/testing#using-pest).
-
 Ported from:
 
 - https://github.com/orchestral/testbench-core

@@ -50,15 +50,13 @@ class GeneratorCommandTest extends TestCase
 
     public function testItOnlyChopsPhpExtensionFromFilename(): void
     {
-        // Unlike Laravel, this generates a Pest test, since a class test would declare the invalid namespace Tests\Feature\fixtures.php.
-        $this->artisan('make:test', ['name' => 'fixtures.php/SomeTest', '--pest' => true])
-            ->assertExitCode(0);
+        // Laravel writes the class, but Hypervel rejects the invalid namespace Tests\Feature\fixtures.php.
+        // The path in the error confirms that the generator preserved the directory's .php suffix.
+        $this->artisan('make:test', ['name' => 'fixtures.php/SomeTest'])
+            ->expectsOutputToContain('fixtures.php/SomeTest.php] is not valid PHP')
+            ->assertExitCode(1);
 
-        $this->assertFilenameExists('tests/Feature/fixtures.php/SomeTest.php');
-
-        $this->assertFileContains([
-            "test('example'",
-        ], 'tests/Feature/fixtures.php/SomeTest.php');
+        $this->assertFilenameDoesNotExists('tests/Feature/fixtures.php/SomeTest.php');
     }
 
     #[DataProvider('reservedNamesDataProvider')]

@@ -1092,20 +1092,10 @@ Feature::define('purchase-button', fn () => Arr::random([
 
 To modify the feature's returned value in your tests, you may re-define the feature at the beginning of the test. The following test will always pass, even though the `Arr::random()` implementation is still present in the service provider:
 
-```php tab=Pest
+```php
 use Hypervel\Pennant\Feature;
 
-test('it can control feature values', function () {
-    Feature::define('purchase-button', 'seafoam-green');
-
-    expect(Feature::value('purchase-button'))->toBe('seafoam-green');
-});
-```
-
-```php tab=PHPUnit
-use Hypervel\Pennant\Feature;
-
-public function test_it_can_control_feature_values()
+public function test_it_can_control_feature_values(): void
 {
     Feature::define('purchase-button', 'seafoam-green');
 
@@ -1115,22 +1105,11 @@ public function test_it_can_control_feature_values()
 
 The same approach may be used for class-based features:
 
-```php tab=Pest
+```php
 use App\Features\NewApi;
 use Hypervel\Pennant\Feature;
 
-test('it can control feature values', function () {
-    Feature::define(NewApi::class, true);
-
-    expect(Feature::value(NewApi::class))->toBeTrue();
-});
-```
-
-```php tab=PHPUnit
-use App\Features\NewApi;
-use Hypervel\Pennant\Feature;
-
-public function test_it_can_control_feature_values()
+public function test_it_can_control_feature_values(): void
 {
     Feature::define(NewApi::class, true);
 

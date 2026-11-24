@@ -1121,42 +1121,7 @@ Storage::deleteDirectory($directory);
 
 The `Storage` facade's `fake` method allows you to easily generate a fake disk that, combined with the file generation utilities of the `Hypervel\Http\UploadedFile` class, greatly simplifies the testing of file uploads. For example:
 
-```php tab=Pest
-<?php
-
-use Hypervel\Http\UploadedFile;
-use Hypervel\Support\Facades\Storage;
-
-test('albums can be uploaded', function () {
-    Storage::fake('photos');
-
-    // Assert that the disk contains no files...
-    Storage::disk('photos')->assertEmpty();
-
-    $response = $this->json('POST', '/photos', [
-        UploadedFile::fake()->image('photo1.jpg'),
-        UploadedFile::fake()->image('photo2.jpg')
-    ]);
-
-    // Assert one or more files were stored...
-    Storage::disk('photos')->assertExists('photo1.jpg');
-    Storage::disk('photos')->assertExists(['photo1.jpg', 'photo2.jpg']);
-
-    // Assert one or more files were not stored...
-    Storage::disk('photos')->assertMissing('missing.jpg');
-    Storage::disk('photos')->assertMissing(['missing.jpg', 'non-existing.jpg']);
-
-    // Assert that the number of files in a given directory matches the expected count...
-    Storage::disk('photos')->assertCount('/wallpapers', 2);
-
-    Storage::disk('photos')->makeDirectory('/empty');
-
-    // Assert that a given directory is empty...
-    Storage::disk('photos')->assertDirectoryEmpty('/empty');
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;

@@ -793,15 +793,7 @@ Hypervel's Vite integration will attempt to resolve your assets while running yo
 
 If you would prefer to mock Vite during testing, you may call the `withoutVite` method, which is available for any tests that extend Hypervel's `TestCase` class:
 
-```php tab=Pest
-test('without vite example', function () {
-    $this->withoutVite();
-
-    // ...
-});
-```
-
-```php tab=PHPUnit
+```php
 use Tests\TestCase;
 
 class ExampleTest extends TestCase

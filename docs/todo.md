@@ -93,8 +93,6 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
 
 - Once PHPStan ships the [abstract property hook reflection fix](https://github.com/Roave/BetterReflection/issues/1599), add migration connection tests for a plain property that satisfies an abstract get hook. Check the literal on the declaring migration and on a migration that inherits it. [PHPStan report](https://github.com/phpstan/phpstan/issues/15792).
 
-- Remove Pest integration from Artisan’s test runners and generators, Testbench, and the user documentation. Update the affected tests to cover PHPUnit behavior.
-
 - Investigate a method attribute such as `#[ResetAfterTest]` to replace the manual static-reset list in `AfterEachTestSubscriber`. Discover methods once per test process and reuse the list after each test, covering classes loaded later without eagerly loading optional packages. Preserve required cleanup ordering, avoid duplicate inherited calls, and keep special lifecycle cleanup explicit. Reuse existing test-state registration where appropriate; avoid per-test scanning or a complex discovery system.
 
 - Add the required title docblocks to the untitled non-test methods in `tests/`: about 7,600 methods in 1,500 files, mostly helpers, fixtures, and methods of anonymous classes in older tests. `AGENTS.md` requires a title on every method except test methods, but most existing tests omit them, and agents follow the surrounding code over the written rule, so new tests keep reproducing the gap until review catches it. Make the change as one approved sweep (short imperative titles only), then add an automated check, such as a PHPStan rule, so the code and the rule cannot drift apart again. Decide whether the check also covers `src/`.

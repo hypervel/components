@@ -465,15 +465,6 @@ final class TestCommandHarness extends TestCommand
     }
 
     /**
-     * Determine if Pest is being used.
-     */
-    #[Override]
-    protected function usingPest(): bool
-    {
-        return false;
-    }
-
-    /**
      * Expose the resolved PHPUnit configuration file.
      */
     public function phpUnitConfigurationFilePublic(): string

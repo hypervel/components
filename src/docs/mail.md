@@ -1358,41 +1358,7 @@ Mail::to($request->user())->send(new OrderShipped($order));
 
 Hypervel provides a variety of methods for inspecting your mailable's structure. In addition, Hypervel provides several convenient methods for testing that your mailable contains the content that you expect:
 
-```php tab=Pest
-use App\Mail\InvoicePaid;
-use App\Models\User;
-
-test('mailable content', function () {
-    $user = User::factory()->create();
-
-    $mailable = new InvoicePaid($user);
-
-    $mailable->assertFrom('jeffrey@example.com');
-    $mailable->assertTo('taylor@example.com');
-    $mailable->assertHasCc('abigail@example.com');
-    $mailable->assertHasBcc('victoria@example.com');
-    $mailable->assertHasReplyTo('tyler@example.com');
-    $mailable->assertHasSubject('Invoice Paid');
-    $mailable->assertHasTag('example-tag');
-    $mailable->assertHasMetadata('key', 'value');
-
-    $mailable->assertSeeInHtml($user->email);
-    $mailable->assertDontSeeInHtml('Invoice Not Paid');
-    $mailable->assertSeeInOrderInHtml(['Invoice Paid', 'Thanks']);
-
-    $mailable->assertSeeInText($user->email);
-    $mailable->assertDontSeeInText('Invoice Not Paid');
-    $mailable->assertSeeInOrderInText(['Invoice Paid', 'Thanks']);
-
-    $mailable->assertHasAttachment('/path/to/file');
-    $mailable->assertHasAttachment(Attachment::fromPath('/path/to/file'));
-    $mailable->assertHasAttachedData($pdfData, 'name.pdf', ['mime' => 'application/pdf']);
-    $mailable->assertHasAttachmentFromStorage('/path/to/file', 'name.pdf', ['mime' => 'application/pdf']);
-    $mailable->assertHasAttachmentFromStorageDisk('s3', '/path/to/file', 'name.pdf', ['mime' => 'application/pdf']);
-});
-```
-
-```php tab=PHPUnit
+```php
 use App\Mail\InvoicePaid;
 use App\Models\User;
 
@@ -1438,44 +1404,7 @@ We suggest testing the content of your mailables separately from your tests that
 
 You may use the `Mail` facade's `fake` method to prevent mail from being sent. After calling the `Mail` facade's `fake` method, you may then assert that mailables were instructed to be sent to users and even inspect the data the mailables received:
 
-```php tab=Pest
-<?php
-
-use App\Mail\OrderShipped;
-use Hypervel\Support\Facades\Mail;
-
-test('orders can be shipped', function () {
-    Mail::fake();
-
-    // Perform order shipping...
-
-    // Assert that no mailables were sent...
-    Mail::assertNothingSent();
-
-    // Assert that a mailable was sent...
-    Mail::assertSent(OrderShipped::class);
-
-    // Assert a mailable was sent twice...
-    Mail::assertSent(OrderShipped::class, 2);
-
-    // Assert a mailable was sent to an email address...
-    Mail::assertSent(OrderShipped::class, 'example@hypervel.org');
-
-    // Assert a mailable was sent to multiple email addresses...
-    Mail::assertSent(OrderShipped::class, ['example@hypervel.org', '...']);
-
-    // Assert a mailable was not sent...
-    Mail::assertNotSent(AnotherMailable::class);
-
-    // Assert a mailable was sent twice...
-    Mail::assertSentTimes(OrderShipped::class, 2);
-
-    // Assert 3 total mailables were sent...
-    Mail::assertSentCount(3);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;

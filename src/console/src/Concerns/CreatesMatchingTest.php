@@ -14,12 +14,12 @@ trait CreatesMatchingTest
      */
     protected function addTestOptions(): void
     {
-        foreach (['test' => 'Test', 'pest' => 'Pest', 'phpunit' => 'PHPUnit'] as $option => $name) {
+        foreach (['test', 'phpunit'] as $option) {
             $this->getDefinition()->addOption(new InputOption(
                 $option,
                 null,
                 InputOption::VALUE_NONE,
-                "Generate an accompanying {$name} test for the {$this->type}"
+                "Generate an accompanying PHPUnit test for the {$this->type}"
             ));
         }
     }
@@ -29,14 +29,12 @@ trait CreatesMatchingTest
      */
     protected function handleTestCreation(string $path): bool
     {
-        if (! $this->option('test') && ! $this->option('pest') && ! $this->option('phpunit')) {
+        if (! $this->option('test') && ! $this->option('phpunit')) {
             return false;
         }
 
         return $this->call('make:test', [
             'name' => (new Stringable($path))->after($this->hypervel->make('path'))->beforeLast('.php')->append('Test')->replace('\\', '/')->value(),
-            '--pest' => $this->option('pest'),
-            '--phpunit' => $this->option('phpunit'),
             '--force' => $this->hasOption('force') && $this->option('force'),
         ]) === 0;
     }

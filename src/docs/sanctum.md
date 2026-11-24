@@ -765,23 +765,7 @@ Event::listen(function (TokenAuthenticated $event): void {
 
 While testing, the `Sanctum::actingAs` method may be used to authenticate a user and specify which abilities should be granted to their token:
 
-```php tab=Pest
-use App\Models\User;
-use Hypervel\Sanctum\Sanctum;
-
-test('task list can be retrieved', function () {
-    Sanctum::actingAs(
-        User::factory()->create(),
-        ['view-tasks']
-    );
-
-    $response = $this->get('/api/task');
-
-    $response->assertOk();
-});
-```
-
-```php tab=PHPUnit
+```php
 use App\Models\User;
 use Hypervel\Sanctum\Sanctum;
 

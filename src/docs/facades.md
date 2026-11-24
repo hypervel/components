@@ -74,21 +74,7 @@ Route::get('/cache', function () {
 
 Using Hypervel's facade testing methods, we can write the following test to verify that the `Cache::get` method was called with the argument we expected:
 
-```php tab=Pest
-use Hypervel\Support\Facades\Cache;
-
-test('basic example', function () {
-    Cache::shouldReceive('get')
-        ->with('key')
-        ->andReturn('value');
-
-    $response = $this->get('/cache');
-
-    $response->assertSee('value');
-});
-```
-
-```php tab=PHPUnit
+```php
 use Hypervel\Support\Facades\Cache;
 
 /**

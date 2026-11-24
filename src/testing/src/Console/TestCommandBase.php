@@ -124,7 +124,7 @@ abstract class TestCommandBase extends Command
             }
 
             if ($exitCode === self::SUCCESS && $this->option('coverage')) {
-                if (! $this->usingPest() && $parallel) {
+                if ($parallel) {
                     $this->newLine();
                 }
 
@@ -179,25 +179,15 @@ abstract class TestCommandBase extends Command
      */
     protected function binary(): array
     {
-        if ($this->usingPest()) {
-            $command = $this->option('parallel')
-                ? [$this->basePath('vendor', 'pestphp', 'pest', 'bin', 'pest'), '--parallel']
-                : [$this->basePath('vendor', 'pestphp', 'pest', 'bin', 'pest')];
-        } else {
-            $command = $this->option('parallel')
-                ? [$this->basePath('vendor', 'brianium', 'paratest', 'bin', 'paratest')]
-                : [$this->basePath('vendor', 'phpunit', 'phpunit', 'phpunit')];
-        }
+        $runner = $this->option('parallel')
+            ? $this->basePath('vendor', 'brianium', 'paratest', 'bin', 'paratest')
+            : $this->basePath('vendor', 'phpunit', 'phpunit', 'phpunit');
 
-        if (PHP_SAPI === 'phpdbg') {
-            return array_merge([PHP_BINARY, '-qrr'], $command);
-        }
-
-        return array_merge([PHP_BINARY], $command);
+        return PHP_SAPI === 'phpdbg' ? [PHP_BINARY, '-qrr', $runner] : [PHP_BINARY, $runner];
     }
 
     /**
-     * Get the common arguments of PHPUnit and Pest.
+     * Get the common arguments for PHPUnit and ParaTest.
      *
      * @return array<int, string>
      */
@@ -219,14 +209,6 @@ abstract class TestCommandBase extends Command
         }
 
         return $arguments;
-    }
-
-    /**
-     * Determine if Pest is being used.
-     */
-    protected function usingPest(): bool
-    {
-        return function_exists('\Pest\version');
     }
 
     /**

@@ -111,7 +111,7 @@ class ViewMakeCommand extends GeneratorCommand
      */
     protected function handleTestCreation(string $path): bool
     {
-        if (! $this->option('test') && ! $this->option('pest') && ! $this->option('phpunit')) {
+        if (! $this->option('test') && ! $this->option('phpunit')) {
             return false;
         }
 
@@ -178,11 +178,7 @@ class ViewMakeCommand extends GeneratorCommand
      */
     protected function getTestStub(): string
     {
-        $stubName = 'view.' . ($this->usingPest() ? 'pest' : 'test') . '.stub';
-
-        return file_exists($customPath = $this->hypervel->basePath("stubs/{$stubName}"))
-            ? $customPath
-            : __DIR__ . '/stubs/' . $stubName;
+        return $this->resolveStubPath('/stubs/view.test.stub');
     }
 
     /**
@@ -194,19 +190,5 @@ class ViewMakeCommand extends GeneratorCommand
             ->replace('/', '.')
             ->lower()
             ->value();
-    }
-
-    /**
-     * Determine if Pest is being used by the application.
-     */
-    protected function usingPest(): bool
-    {
-        if ($this->option('phpunit')) {
-            return false;
-        }
-
-        return $this->option('pest')
-            || (function_exists('\Pest\version')
-                && file_exists(base_path('tests') . '/Pest.php'));
     }
 }

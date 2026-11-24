@@ -523,13 +523,14 @@ To test that your application correctly redirects users to an OAuth provider, yo
 ```php
 use Hypervel\Socialite\Socialite;
 
-test('user is redirected to github', function () {
+public function test_user_is_redirected_to_github(): void
+{
     Socialite::fake('github');
 
     $response = $this->get('/auth/github/redirect');
 
     $response->assertRedirect();
-});
+}
 ```
 
 <a name="faking-the-callback"></a>
@@ -541,7 +542,8 @@ To test your application's callback route, you may invoke the `fake` method and 
 use Hypervel\Socialite\Socialite;
 use Hypervel\Socialite\Two\User;
 
-test('user can login with github', function () {
+public function test_user_can_log_in_with_github(): void
+{
     Socialite::fake('github', User::fake([
         'id' => 'github-123',
         'name' => 'Jason Beggs',
@@ -557,7 +559,7 @@ test('user can login with github', function () {
         'email' => 'jason@example.com',
         'github_id' => 'github-123',
     ]);
-});
+}
 ```
 
 By default, the `User` instance includes fake OAuth token values. If needed, you may override these values by passing additional attributes to the `fake` method:

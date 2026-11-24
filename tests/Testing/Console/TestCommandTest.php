@@ -196,10 +196,8 @@ class TestCommandTest extends TestCase
     {
         $phpunitCommand = new TestCommandHarness;
         $paratestCommand = new TestCommandHarness(['parallel' => true]);
-        $pestCommand = new TestCommandHarness(usesPest: true);
-        $parallelPestCommand = new TestCommandHarness(['parallel' => true], usesPest: true);
 
-        foreach ([$phpunitCommand, $paratestCommand, $pestCommand, $parallelPestCommand] as $command) {
+        foreach ([$phpunitCommand, $paratestCommand] as $command) {
             $command->setHypervel($this->app);
         }
 
@@ -210,14 +208,6 @@ class TestCommandTest extends TestCase
         $this->assertSame(
             [PHP_BINARY, $this->app->basePath('vendor/brianium/paratest/bin/paratest')],
             $paratestCommand->binaryPublic(),
-        );
-        $this->assertSame(
-            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest')],
-            $pestCommand->binaryPublic(),
-        );
-        $this->assertSame(
-            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest'), '--parallel'],
-            $parallelPestCommand->binaryPublic(),
         );
     }
 
@@ -878,7 +868,6 @@ class TestCommandHarness extends TestCommand
         private readonly array $options = [],
         private readonly ?string $basePath = null,
         private readonly ?array $commonArguments = null,
-        private readonly bool $usesPest = false,
     ) {
         parent::__construct();
     }
@@ -897,16 +886,7 @@ class TestCommandHarness extends TestCommand
     }
 
     /**
-     * Determine if Pest is being used.
-     */
-    #[Override]
-    protected function usingPest(): bool
-    {
-        return $this->usesPest;
-    }
-
-    /**
-     * Get the common arguments of PHPUnit and Pest.
+     * Get the common arguments for PHPUnit and ParaTest.
      *
      * @return array<int, string>
      */

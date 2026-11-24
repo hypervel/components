@@ -2437,20 +2437,7 @@ You may write unit tests for your MCP servers, tools, resources, and prompts.
 
 To get started, create a new test case and invoke the desired primitive on the server that registers it. For example, to test a tool on the `WeatherServer`:
 
-```php tab=Pest
-test('tool', function (): void {
-    $response = WeatherServer::tool(CurrentWeatherTool::class, [
-        'location' => 'New York City',
-        'units' => 'fahrenheit',
-    ]);
-
-    $response
-        ->assertOk()
-        ->assertSee('The current weather in New York City is 72°F and sunny.');
-});
-```
-
-```php tab=PHPUnit
+```php
 public function testTool(): void
 {
     $response = WeatherServer::tool(CurrentWeatherTool::class, [

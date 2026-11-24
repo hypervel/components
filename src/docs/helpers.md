@@ -3563,15 +3563,7 @@ defer()->forget('reportMetrics');
 
 When writing tests, it may be useful to disable deferred functions. You may call `withoutDefer` in your test to instruct Hypervel to invoke all deferred functions immediately:
 
-```php tab=Pest
-test('without defer', function () {
-    $this->withoutDefer();
-
-    // ...
-});
-```
-
-```php tab=PHPUnit
+```php
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -3802,16 +3794,8 @@ while ($waiting) {
 
 Typically, testing this code would take _at least_ one second. Luckily, the `Sleep` class allows us to "fake" sleeping so that our test suite stays fast:
 
-```php tab=Pest
-it('waits until ready', function () {
-    Sleep::fake();
-
-    // ...
-});
-```
-
-```php tab=PHPUnit
-public function test_it_waits_until_ready()
+```php
+public function test_it_waits_until_ready(): void
 {
     Sleep::fake();
 
@@ -3823,22 +3807,8 @@ When faking the `Sleep` class, the actual execution pause is bypassed, leading t
 
 Once the `Sleep` class has been faked, it is possible to make assertions against the expected "sleeps" that should have occurred. To illustrate this, let's imagine we are testing code that pauses execution three times, with each pause increasing by a single second. Using the `assertSequence` method, we can assert that our code "slept" for the proper amount of time while keeping our test fast:
 
-```php tab=Pest
-it('checks if ready three times', function () {
-    Sleep::fake();
-
-    // ...
-
-    Sleep::assertSequence([
-        Sleep::for(1)->second(),
-        Sleep::for(2)->seconds(),
-        Sleep::for(3)->seconds(),
-    ]);
-});
-```
-
-```php tab=PHPUnit
-public function test_it_checks_if_ready_three_times()
+```php
+public function test_it_checks_if_ready_three_times(): void
 {
     Sleep::fake();
 

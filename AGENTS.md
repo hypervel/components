@@ -828,6 +828,7 @@ Read `docs/ai/porting-hyperf.md` only when porting a Hyperf package or update.
 Owner-approved exclusions that apply across packages. Package-specific differences belong in the package README.
 
 - Laravel Boost and package-provided Boost resources, including skills and guidelines.
+- Pest integration, including generator options and stubs, test-runner selection and Testbench helpers.
 
 ### Source workflow
 
