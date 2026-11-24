@@ -12,6 +12,10 @@ use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Doctor\Support\Configured;
 use Hypervel\Doctor\Support\Details;
 use Monolog\Handler\SyslogUdpHandler;
+use Psr\Log\LoggerInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class RequiredConfigurationValuesAreSet extends Diagnostic
 {
@@ -29,8 +33,8 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
         return [
             'set' => 'Every configuration value required by the active drivers is set.',
             'missing' => Message::make(
-                summary: 'Some configuration values required by the active drivers are not set.',
-                remediation: 'Set the missing values, typically by defining their environment variables in .env or the deployment environment.',
+                summary: 'Some configuration values required by the active drivers are missing or invalid.',
+                remediation: 'Check the listed settings and their environment variables in .env or the deployment environment.',
             )->link(Link::docs('configuration', 'environment-configuration')),
         ];
     }
@@ -57,13 +61,15 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      */
     private function missingValues(): array
     {
-        $required = $this->requiredValues();
+        $mailer = Configured::string('mail.default');
 
         return [
             ...$this->missingDefaultValues(),
-            ...array_intersect_key($required, array_flip(Configured::missing(array_keys($required)))),
-            ...$this->missingMercureValues(),
-            ...$this->missingMailValues(),
+            ...$this->missingBroadcastingValues(),
+            ...$this->missingFilesystemValues(),
+            ...$this->missingLoggingValues(),
+            ...$this->missingQueueValues(),
+            ...($mailer === null ? [] : $this->missingMailerValues($mailer)),
         ];
     }
 
@@ -79,10 +85,17 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
     {
         $defaults = [
             'broadcasting.default' => 'default broadcaster',
+            'cache.default' => 'default cache store',
+            'database.default' => 'default database connection',
             'filesystems.default' => 'default filesystem disk',
             'mail.default' => 'default mailer',
             'queue.default' => 'default queue connection',
         ];
+
+        // @phpstan-ignore hypervel.untypedConfigRead (Null disables the session middleware; other malformed selectors must be reported.)
+        if (config('session.driver') !== null) {
+            $defaults['session.driver'] = 'session driver';
+        }
 
         return array_filter(
             $defaults,
@@ -92,34 +105,32 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
     }
 
     /**
-     * Get configuration keys required by the active drivers, mapped to the feature that needs them.
+     * Get missing settings for the default broadcasting connection.
      *
      * @return array<string, string>
      */
-    private function requiredValues(): array
-    {
-        return [
-            ...$this->broadcastingValues(),
-            ...$this->filesystemValues(),
-            ...$this->loggingValues(),
-            ...$this->queueValues(),
-        ];
-    }
-
-    /**
-     * Get configuration keys required by the default broadcasting connection.
-     *
-     * @return array<string, string>
-     */
-    private function broadcastingValues(): array
+    private function missingBroadcastingValues(): array
     {
         $connection = Configured::string('broadcasting.default');
 
-        if ($connection === null) {
+        if ($connection === null || $connection === 'null') {
             return [];
         }
 
-        $driver = Configured::string("broadcasting.connections.{$connection}.driver", $connection);
+        $prefix = "broadcasting.connections.{$connection}";
+        if (Configured::array($prefix) === null) {
+            return [$prefix => 'default broadcaster'];
+        }
+
+        // The manager selects the driver from the connection record, even when the names match.
+        $driver = Configured::string("{$prefix}.driver");
+        if (blank($driver)) {
+            return ["{$prefix}.driver" => 'default broadcaster'];
+        }
+
+        if ($driver === 'mercure') {
+            return $this->missingMercureValues($prefix);
+        }
 
         $keys = match ($driver) {
             'ably' => ['key'],
@@ -127,7 +138,7 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
             default => [],
         };
 
-        return $this->values("broadcasting.connections.{$connection}", $keys, "{$driver} broadcaster");
+        return $this->missingKeys($prefix, $keys, "{$driver} broadcaster");
     }
 
     /**
@@ -135,20 +146,8 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      *
      * @return array<string, string>
      */
-    private function missingMercureValues(): array
+    private function missingMercureValues(string $prefix): array
     {
-        $connection = Configured::string('broadcasting.default');
-
-        if ($connection === null) {
-            return [];
-        }
-
-        $prefix = "broadcasting.connections.{$connection}";
-
-        if (Configured::string("{$prefix}.driver", $connection) !== 'mercure') {
-            return [];
-        }
-
         $keys = ["{$prefix}.url"];
 
         foreach (['publish', 'subscribe'] as $side) {
@@ -175,15 +174,15 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      *
      * @return array<string, string>
      */
-    private function filesystemValues(): array
+    private function missingFilesystemValues(): array
     {
         $disk = Configured::string('filesystems.default');
 
-        if ($disk === null || Configured::string("filesystems.disks.{$disk}.driver", $disk) !== 's3') {
+        if ($disk === null || Configured::string("filesystems.disks.{$disk}.driver") !== 's3') {
             return [];
         }
 
-        return $this->values("filesystems.disks.{$disk}", ['bucket', 'region'], 's3 filesystem disk');
+        return $this->missingKeys("filesystems.disks.{$disk}", ['bucket', 'region'], 's3 filesystem disk');
     }
 
     /**
@@ -191,39 +190,51 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      *
      * @return array<string, string>
      */
-    private function loggingValues(): array
+    private function missingLoggingValues(): array
     {
-        $default = Configured::string('logging.default');
+        // @phpstan-ignore hypervel.untypedConfigRead (Report malformed selectors and honor LogManager's explicit null channel in tests.)
+        $default = config('logging.default');
 
-        // The default log channel is optional; without one, LogManager writes to its emergency logger.
-        if ($default === null) {
-            return [];
+        if ($default === null && app()->runningUnitTests()) {
+            $default = 'null';
         }
 
-        $values = [];
-
-        foreach (ActiveDrivers::logChannels($default) as $channel) {
-            $values = [...$values, ...$this->logChannelValues($channel)];
+        if (! is_string($default) || trim($default) === '') {
+            return ['logging.default' => 'default log channel'];
         }
 
-        return $values;
+        return $this->missingLogChannelValues(trim($default));
     }
 
     /**
      * Get configuration keys required by a log channel.
      *
+     * @param list<string> $ancestors
      * @return array<string, string>
      */
-    private function logChannelValues(string $channel): array
+    private function missingLogChannelValues(string $channel, array $ancestors = []): array
     {
-        $driver = Configured::string("logging.channels.{$channel}.driver", $channel);
-
-        if ($driver === 'slack') {
-            return $this->values("logging.channels.{$channel}", ['url'], 'slack log channel');
+        $prefix = "logging.channels.{$channel}";
+        $configuration = Configured::array($prefix);
+        if ($configuration === null) {
+            return [$prefix => 'log channel'];
         }
 
-        if ($driver === 'monolog' && Configured::string("logging.channels.{$channel}.handler") === SyslogUdpHandler::class) {
-            $prefix = "logging.channels.{$channel}";
+        $driver = $configuration['driver'] ?? null;
+        if (! is_string($driver) || trim($driver) === '') {
+            return ["{$prefix}.driver" => 'log channel'];
+        }
+
+        if ($driver === 'stack') {
+            $ancestors[] = $channel;
+            return $this->missingLogStackValues($prefix, $configuration['channels'] ?? null, $ancestors);
+        }
+
+        if ($driver === 'slack') {
+            return $this->missingKeys($prefix, ['url'], 'slack log channel');
+        }
+
+        if ($driver === 'monolog' && Configured::string("{$prefix}.handler") === SyslogUdpHandler::class) {
             $with = Configured::array("{$prefix}.with") ?? [];
             $handlerWith = Configured::array("{$prefix}.handler_with") ?? [];
             $values = [];
@@ -232,47 +243,84 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
                 $source = array_key_exists($key, $handlerWith) || ! array_key_exists($key, $with)
                     ? 'handler_with'
                     : 'with';
-                $values["{$prefix}.{$source}.{$key}"] = "{$channel} log channel";
+                $values[] = "{$source}.{$key}";
             }
 
-            return $values;
+            return $this->missingKeys($prefix, $values, "{$channel} log channel");
         }
 
         return [];
     }
 
     /**
-     * Get missing values from the active mailers' effective configuration.
+     * Check the channels selected by a logging stack.
      *
+     * @param list<string> $ancestors
      * @return array<string, string>
      */
-    private function missingMailValues(): array
+    private function missingLogStackValues(string $prefix, mixed $channels, array $ancestors): array
     {
-        $default = Configured::string('mail.default');
-
-        if ($default === null) {
-            return [];
+        if ($channels === null) {
+            return ["{$prefix}.channels" => 'log stack'];
         }
 
-        $values = [];
+        $missing = [];
+        foreach (is_string($channels) ? explode(',', $channels) : collect($channels) as $child) {
+            if ($child instanceof LoggerInterface) {
+                continue;
+            }
 
-        foreach (ActiveDrivers::mailers($default) as $mailer) {
-            $values = [...$values, ...$this->missingMailerValues($mailer)];
+            $child = $child instanceof UnitEnum ? (string) enum_value($child) : $child;
+            $name = is_string($child) ? trim($child) : '';
+
+            // A null member also recurses into the default channel at the root of this stack.
+            if ($name === '' || in_array($name, $ancestors, true)) {
+                $missing["{$prefix}.channels"] = 'log stack';
+                continue;
+            }
+
+            $missing += $this->missingLogChannelValues($name, $ancestors);
         }
 
-        return $values;
+        return $missing;
     }
 
     /**
-     * Get missing values using the mail transport factory's credential choices.
+     * Check the selected mailer and the configuration of its child transports.
      *
+     * @param list<string> $ancestors
      * @return array<string, string>
      */
-    private function missingMailerValues(string $mailer): array
+    private function missingMailerValues(string $mailer, array $ancestors = []): array
     {
         $configuration = ActiveDrivers::mailerConfiguration($mailer);
-        $transport = $configuration['transport'] ?? $mailer;
         $prefix = "mail.mailers.{$mailer}";
+        $transport = $configuration['transport'] ?? null;
+        if (! is_string($transport) || trim($transport) === '') {
+            $key = Configured::array($prefix) === null ? $prefix : "{$prefix}.transport";
+            return [$key => 'mailer'];
+        }
+
+        if (in_array($transport, ['failover', 'roundrobin'], true)) {
+            $children = $configuration['mailers'] ?? null;
+            if (! is_array($children) || $children === []) {
+                return ["{$prefix}.mailers" => "{$transport} mailer"];
+            }
+
+            $missing = [];
+            $ancestors[] = $mailer;
+            foreach ($children as $child) {
+                if (! is_string($child) || trim($child) === '' || in_array($child, $ancestors, true)) {
+                    $missing["{$prefix}.mailers"] = "{$transport} mailer";
+                    continue;
+                }
+
+                $missing += $this->missingMailerValues($child, $ancestors);
+            }
+
+            return $missing;
+        }
+
         $keys = match ($transport) {
             'smtp' => ['host'],
             'sendmail' => ['path'],
@@ -312,7 +360,7 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      *
      * @return array<string, string>
      */
-    private function queueValues(): array
+    private function missingQueueValues(): array
     {
         $connection = Configured::string('queue.default');
 
@@ -323,7 +371,7 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
         $values = [];
 
         foreach (ActiveDrivers::queueConnections($connection) as $name) {
-            if (Configured::string("queue.connections.{$name}.driver", $name) !== 'sqs'
+            if ($name === 'null' || Configured::string("queue.connections.{$name}.driver") !== 'sqs'
                 // @phpstan-ignore hypervel.untypedConfigRead (Inspect the configured overflow options even when their types are invalid.)
                 || config("queue.connections.{$name}.overflow.enabled") !== true
                 // @phpstan-ignore hypervel.untypedConfigRead (Inspect the configured overflow options even when their types are invalid.)
@@ -331,27 +379,23 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
                 continue;
             }
 
-            $values = [...$values, ...$this->values("queue.connections.{$name}.overflow", ['store'], 'sqs queue overflow')];
+            $values = [...$values, ...$this->missingKeys("queue.connections.{$name}.overflow", ['store'], 'sqs queue overflow')];
         }
 
         return $values;
     }
 
     /**
-     * Map configuration keys under a prefix to the feature that requires them.
+     * Map missing configuration keys under a prefix to the feature that requires them.
      *
      * @param list<string> $keys
      * @return array<string, string>
      */
-    private function values(string $prefix, array $keys, string $feature): array
+    private function missingKeys(string $prefix, array $keys, string $feature): array
     {
-        $values = [];
+        $keys = array_map(static fn (string $key): string => "{$prefix}.{$key}", $keys);
 
-        foreach ($keys as $key) {
-            $values["{$prefix}.{$key}"] = $feature;
-        }
-
-        return $values;
+        return array_fill_keys(Configured::missing($keys), $feature);
     }
 
     /**

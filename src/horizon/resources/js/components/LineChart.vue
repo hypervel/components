@@ -1,68 +1,46 @@
 <script>
-    import Chart from 'chart.js';
+    import { CategoryScale, Chart, LinearScale, LineController, LineElement, PointElement, Tooltip } from 'chart.js';
     import { markRaw } from 'vue';
+
+    Chart.register(LineController, LineElement, PointElement, CategoryScale, LinearScale, Tooltip);
 
     export default {
         props: ['data'],
 
         data() {
             return {
-                context: null,
                 chart: null,
             };
         },
 
         mounted() {
-            this.context = this.$refs.canvas.getContext('2d');
-
             // Chart cancels animations by instance identity, which a reactive proxy would change.
             this.chart = markRaw(
-                new Chart(this.context, {
+                new Chart(this.$refs.canvas, {
                     type: 'line',
                     options: {
-                        tooltips: {
-                            intersect: false,
-                        },
-                        legend: {
-                            display: false,
+                        plugins: {
+                            tooltip: { intersect: false },
                         },
                         scales: {
-                            yAxes: [
-                                {
-                                    ticks: {
-                                        beginAtZero: true,
-                                        callback: (value, index, values) => {
-                                            return this.data.datasets[0].label === 'Seconds' ? `${value} secs` : value;
-                                        },
-                                    },
-                                    gridLines: {
-                                        display: true,
-                                    },
-                                    beforeBuildTicks: function (scale) {
-                                        var max = scale.chart.data.datasets[0].data.reduce((max, value) =>
-                                            value > max ? value : max,
-                                        );
-
-                                        scale.max = parseFloat(max) + parseFloat(max * 0.25);
+                            y: {
+                                beginAtZero: true,
+                                // Chart.js applies percentage grace to half the range, giving 25% headroom above zero-based metrics.
+                                grace: '50%',
+                                ticks: {
+                                    callback: (value) =>
+                                        this.data.datasets[0].label === 'Seconds' ? `${value} secs` : value,
+                                },
+                            },
+                            x: {
+                                ticks: {
+                                    callback(value) {
+                                        return value % 6 === 0 || value === this.getLabels().length - 1
+                                            ? this.getLabelForValue(value)
+                                            : '';
                                     },
                                 },
-                            ],
-                            xAxes: [
-                                {
-                                    gridLines: {
-                                        display: true,
-                                    },
-                                    afterTickToLabelConversion: function (data) {
-                                        var xLabels = data.ticks;
-
-                                        xLabels.forEach(function (labels, i) {
-                                            if (i % 6 != 0 && i + 1 != xLabels.length) {
-                                                xLabels[i] = '';
-                                            }
-                                        });
-                                    },
-                                },
-                            ],
+                            },
                         },
                     },
                     data: this.data,

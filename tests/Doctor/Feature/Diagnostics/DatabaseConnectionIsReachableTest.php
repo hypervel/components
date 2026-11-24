@@ -50,6 +50,17 @@ class DatabaseConnectionIsReachableTest extends TestCase
         ];
     }
 
+    public function testReportsAnUndefinedDefaultConnection(): void
+    {
+        config(['database.default' => 'typo']);
+        $result = (new DatabaseConnectionIsReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('The default database connection [typo] is not configured.', $result->summary);
+        $this->assertStringContainsString('DB_CONNECTION', $result->remediation);
+        $this->assertEquals([Link::docs('database', 'configuration')], $result->links);
+    }
+
     #[DataProvider('pdoTimeouts')]
     public function testAddsABoundedPdoTimeoutToTransientProbes(?int $timeout): void
     {

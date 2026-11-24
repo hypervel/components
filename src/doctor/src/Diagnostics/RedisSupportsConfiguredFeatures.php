@@ -13,8 +13,8 @@ use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Doctor\Support\Configured;
 use Hypervel\Doctor\Support\Details;
+use Hypervel\Doctor\Support\RedisConnections;
 use Hypervel\Redis\RedisRequirements;
-use Hypervel\Session\SessionManager;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -46,7 +46,7 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
      */
     public function check(): DiagnosticResult
     {
-        if (ActiveDrivers::redisConnections() === []) {
+        if (RedisConnections::selectors() === []) {
             return $this->skip('not-configured');
         }
 
@@ -60,9 +60,9 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
             ));
         }
 
-        $connections = $this->featureConnections();
+        $selectors = $this->featureSelectors();
 
-        if ($connections === []) {
+        if ($selectors === []) {
             return $this->pass('supported');
         }
 
@@ -70,7 +70,7 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
             return $this->fail('unsupported')->withDetails($error);
         }
 
-        $failures = [];
+        [$connections, $failures] = RedisConnections::resolve($selectors);
 
         foreach ($connections as $connection) {
             try {
@@ -97,19 +97,19 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
     }
 
     /**
-     * Get data connections that need hash field expiration.
+     * Get the configuration keys selecting connections that need hash field expiration.
      *
      * @return list<string>
      */
-    private function featureConnections(): array
+    private function featureSelectors(): array
     {
-        $connections = [];
+        $keys = [];
         $default = Configured::string('cache.default');
 
         foreach ($default === null ? [] : ActiveDrivers::cacheStores($default) as $store) {
             $configuration = Configured::array("cache.stores.{$store}");
 
-            if ($configuration === null || ($configuration['driver'] ?? null) !== 'redis') {
+            if ($store === 'null' || ($configuration['driver'] ?? null) !== 'redis') {
                 continue;
             }
 
@@ -117,14 +117,14 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
             $mode = $mode instanceof TagMode ? $mode : TagMode::fromConfig($mode);
 
             if ($mode === TagMode::Any) {
-                $connections[] = $configuration['connection'] ?? 'default';
+                $keys[] = "cache.stores.{$store}.connection";
             }
         }
 
         if (Configured::string('session.driver') === 'redis' && config()->boolean('session.track_user_sessions')) {
-            $connections[] = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
+            $keys[] = 'session.connection';
         }
 
-        return array_values(array_unique($connections));
+        return $keys;
     }
 }

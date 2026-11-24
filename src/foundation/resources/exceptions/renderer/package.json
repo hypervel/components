@@ -8,10 +8,10 @@
         "watch": "vp build --watch"
     },
     "dependencies": {
-        "@shikijs/langs": "^3.23.0",
-        "@shikijs/themes": "^4.5.0",
+        "@shikijs/langs": "^4.6.0",
+        "@shikijs/themes": "^4.6.0",
         "alpinejs": "catalog:",
-        "shiki": "^3.23.0",
+        "shiki": "^4.6.0",
         "tailwindcss": "catalog:",
         "tippy.js": "^6.3.7",
         "tw-animate-css": "^1.3.7"

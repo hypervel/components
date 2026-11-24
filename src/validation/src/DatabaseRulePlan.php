@@ -11,11 +11,14 @@ final readonly class DatabaseRulePlan
 {
     /**
      * Capture an unresolved declaration without retaining its rule builder.
+     *
+     * @param null|array $extra The extra parameters as written in a legacy rule, or null to render them from the conditions
      */
     public function __construct(
         public string $name,
         public array $parameters,
         public DatabaseConditions $conditions,
+        private ?array $extra = null,
     ) {
     }
 
@@ -43,11 +46,33 @@ final readonly class DatabaseRulePlan
             'Unique' => 4,
         };
 
+        $extra = array_slice($parameters, $count);
+
         return new self(
             $name,
             array_slice($parameters, 0, $count),
-            DatabaseConditions::fromParameters(array_slice($parameters, $count)),
+            DatabaseConditions::fromParameters($extra),
+            $extra,
         );
+    }
+
+    /**
+     * Get the complete legacy parameter list reported with a failure.
+     *
+     * @param array $header The header as validated, after its field references were resolved
+     */
+    public function failureParameters(array $header): array
+    {
+        if ($this->extra !== null) {
+            return [...$header, ...$this->extra];
+        }
+
+        // A fluent unique rule keeps a missing exclusion native; its legacy form spells it NULL.
+        if ($this->name === 'Unique') {
+            $header[2] ??= 'NULL';
+        }
+
+        return [...$header, ...$this->conditions->toParameters(omitOpaqueOperands: true)];
     }
 
     /**
@@ -73,6 +98,7 @@ final readonly class DatabaseRulePlan
             $this->name,
             array_map(static fn (mixed $parameter): mixed => $parameter, $this->parameters),
             $this->conditions,
+            $this->extra,
         );
     }
 }

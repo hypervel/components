@@ -295,6 +295,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
             return null;
         }, 5);
 
+        $store->put('foo', 'expired', -1);
         $this->assertNull($store->get('foo'));
         $this->assertNotFalse($this->userRow($state, $store, 'foo'));
 

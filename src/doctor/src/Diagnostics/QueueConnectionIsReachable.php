@@ -12,8 +12,8 @@ use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Doctor\Support\Configured;
+use Hypervel\Doctor\Support\RedisConnections;
 use Hypervel\Support\Facades\Queue;
-use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
@@ -106,7 +106,7 @@ class QueueConnectionIsReachable extends Diagnostic
         match ($configuration['driver'] ?? null) {
             'sync' => null,
             'database' => $this->probeDatabaseQueue($configuration),
-            'redis' => $this->probeRedisQueue($configuration),
+            'redis' => RedisConnections::ensureReachable(RedisConnections::name("queue.connections.{$connection}.connection")),
             'sqs', 'beanstalkd' => Queue::connection($connection)->size(),
             default => Queue::connection($connection),
         };
@@ -131,21 +131,6 @@ class QueueConnectionIsReachable extends Diagnostic
     }
 
     /**
-     * Probe a Redis-backed queue.
-     *
-     * @param array<string, mixed> $configuration
-     */
-    private function probeRedisQueue(array $configuration): void
-    {
-        $connection = $configuration['connection'] ?? 'default';
-
-        // phpredis returns false instead of throwing for ERR replies such as "max number of clients reached".
-        if (Redis::connection($connection)->ping() === false) {
-            throw new RuntimeException("Redis connection [{$connection}] returned an error for PING.");
-        }
-    }
-
-    /**
      * Get the queue connection configuration.
      *
      * @return array<string, mixed>
@@ -160,6 +145,11 @@ class QueueConnectionIsReachable extends Diagnostic
 
         if ($configuration === null) {
             throw new RuntimeException(sprintf('The [%s] queue connection is not configured.', $connection));
+        }
+
+        $driver = $configuration['driver'] ?? null;
+        if (! is_string($driver) || trim($driver) === '') {
+            throw new RuntimeException("The [{$connection}] queue connection does not have a driver.");
         }
 
         return $configuration;

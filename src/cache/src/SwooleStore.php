@@ -87,11 +87,11 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
                 return $value;
             }
 
-            // A resolver may have stored a live null value; the locked stale-row recheck below decides whether to delete.
+            // A resolver may have replaced the expired row with a live null.
         }
 
         if ($record !== false) {
-            $this->forgetExpiredRecord($tableKey);
+            $this->forgetIfUnchanged($tableKey, ['expiration' => $record['expiration']]);
         }
 
         return null;
@@ -149,14 +149,16 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         $serialized = serialize($value);
         $expiration = $this->expiration($seconds);
 
-        $result = $this->state->withRowLock($tableKey, function () use ($tableKey, $serialized, $expiration): bool {
-            $record = $this->rawGet($tableKey);
+        $result = $this->state->withRowLock($tableKey, function () use ($key, $tableKey, $serialized, $expiration): bool {
+            $existingExpiration = $this->table->get($tableKey, 'expiration');
 
-            if (! $this->recordIsFalseOrExpired($record)) {
+            if ($existingExpiration !== false && $existingExpiration > $this->getCurrentTimestamp()) {
                 return false;
             }
 
-            return $this->rawPutSerialized($tableKey, $serialized, $expiration);
+            $this->putSerializedOrFail($key, $tableKey, $serialized, $expiration);
+
+            return true;
         });
 
         if ($result) {
@@ -174,20 +176,20 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         $tableKey = $this->userKey($key);
         $wroteNewRecord = false;
 
-        $result = $this->state->withRowLock($tableKey, function () use ($tableKey, $value, &$wroteNewRecord): int {
+        $result = $this->state->withRowLock($tableKey, function () use ($key, $tableKey, $value, &$wroteNewRecord): int {
             $record = $this->rawGet($tableKey);
 
             if ($this->recordIsFalseOrExpired($record)) {
                 $wroteNewRecord = true;
-                $this->rawPutSerialized($tableKey, serialize($value), PHP_FLOAT_MAX);
-
-                return $value;
+                $incremented = $value;
+                $expiration = PHP_FLOAT_MAX;
+            } else {
+                // Counters never deserialize classes, regardless of the user-value policy.
+                $incremented = (int) (unserialize($record['value'], ['allowed_classes' => false]) + $value);
+                $expiration = $record['expiration'];
             }
 
-            // Counters never deserialize classes, regardless of the user-value policy.
-            $incremented = (int) (unserialize($record['value'], ['allowed_classes' => false]) + $value);
-
-            $this->rawPutSerialized($tableKey, serialize($incremented), $record['expiration']);
+            $this->putSerializedOrFail($key, $tableKey, serialize($incremented), $expiration);
 
             return $incremented;
         });
@@ -238,17 +240,19 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         $tableKey = $this->userKey($key);
 
         return $this->state->withRowLock($tableKey, function () use ($tableKey, $seconds): bool {
-            $record = $this->rawGet($tableKey);
+            $expiration = $this->table->get($tableKey, 'expiration');
 
-            if ($this->recordIsFalseOrExpired($record)) {
-                if ($record !== false) {
-                    $this->rawForget($tableKey);
-                }
+            if ($expiration === false) {
+                return false;
+            }
+
+            if ($expiration <= $this->getCurrentTimestamp()) {
+                $this->rawForget($tableKey);
 
                 return false;
             }
 
-            return $this->table->set($tableKey, [
+            return $this->table->update($tableKey, [
                 'expiration' => $this->expiration($seconds),
             ]);
         });
@@ -339,17 +343,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     public function flush(): bool
     {
-        return $this->state->withAllRowLocks(function (): bool {
-            foreach ($this->table as $tableKey => $record) {
-                if ($this->isControlKey($tableKey)) {
-                    continue;
-                }
-
-                $this->rawForget($tableKey);
-            }
-
-            return true;
-        });
+        return $this->flushMatchingKeys(fn (string $key): bool => ! $this->isControlKey($key));
     }
 
     /**
@@ -371,11 +365,26 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             throw new RuntimeException('Flushing locks is only supported when the lock store is separate from the cache store.');
         }
 
-        return $this->state->withAllRowLocks(function (): bool {
+        return $this->flushMatchingKeys($this->isLockKey(...));
+    }
+
+    /**
+     * Flush matching keys while holding back concurrent writers.
+     */
+    protected function flushMatchingKeys(Closure $matches): bool
+    {
+        return $this->state->withAllRowLocks(function () use ($matches): bool {
+            $keys = [];
+
             foreach ($this->table as $key => $record) {
-                if ($this->isLockKey($key)) {
-                    $this->rawForget($key);
+                if ($matches($key)) {
+                    $keys[] = $key;
                 }
+            }
+
+            // Removing the current row during iteration can skip the next row in its collision chain.
+            foreach ($keys as $key) {
+                $this->rawForget($key);
             }
 
             return true;
@@ -414,17 +423,19 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         $key = $this->lockKey($name);
         $expiresAt = $seconds > 0 ? $this->expiration($seconds) : null;
 
-        return $this->state->withRowLock($key, function () use ($key, $owner, $expiresAt): bool {
+        return $this->state->withRowLock($key, function () use ($name, $key, $owner, $expiresAt): bool {
             $lock = $this->rawLockRecord($key);
 
             if ($lock !== null && ! $this->lockIsExpired($lock)) {
                 return false;
             }
 
-            return $this->rawPutSerialized($key, serialize([
+            $this->putSerializedOrFail($name, $key, serialize([
                 'owner' => $owner,
                 'expiresAt' => $expiresAt,
             ]), PHP_FLOAT_MAX);
+
+            return true;
         });
     }
 
@@ -691,13 +702,13 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
     protected function flushStaleRecords(): void
     {
         $now = $this->getCurrentTimestamp();
-        $tableKeys = [];
-        $lockKeys = [];
+        $expirations = [];
+        $expiredLocks = [];
 
         foreach ($this->table as $key => $row) {
             if ($this->isLockKey($key)) {
                 if ($this->rawLockPayloadIsExpired($row)) {
-                    $lockKeys[] = $key;
+                    $expiredLocks[$key] = $row['value'];
                 }
 
                 continue;
@@ -708,16 +719,16 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             }
 
             if ($row['expiration'] <= $now) {
-                $tableKeys[] = $key;
+                $expirations[$key] = $row['expiration'];
             }
         }
 
-        foreach ($tableKeys as $key) {
-            $this->forgetExpiredRecord($key);
+        foreach ($expirations as $key => $expiration) {
+            $this->forgetIfUnchanged((string) $key, ['expiration' => $expiration]);
         }
 
-        foreach ($lockKeys as $key) {
-            $this->forgetExpiredLockRecord($key);
+        foreach ($expiredLocks as $key => $payload) {
+            $this->forgetIfUnchanged($key, ['value' => $payload]);
         }
     }
 
@@ -726,31 +737,24 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function recordHit(string $key): void
     {
-        // Hit metadata stays lock-free for the read hot path. If a concurrent delete wins,
-        // Swoole can create an expired shell row that stale cleanup later prunes.
         if ($this->evictionPolicy === static::EVICTION_POLICY_LRU) {
-            $this->table->set($key, ['last_used_at' => $this->getCurrentTimestamp()]);
+            $this->table->update($key, ['last_used_at' => $this->getCurrentTimestamp()]);
 
             return;
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_LFU) {
-            $this->table->incr($key, 'used_count', 1);
+            // A concurrent delete can make incr allocate. A full table must not discard the hit.
+            @$this->table->incr($key, 'used_count', 1);
         }
     }
 
     /**
-     * Forget an expired record by table key.
+     * Delete a stale row if the observed columns still match.
      */
-    protected function forgetExpiredRecord(string $key): void
+    protected function forgetIfUnchanged(string $key, array $expected): void
     {
-        $this->state->withRowLock($key, function () use ($key): void {
-            $record = $this->rawGet($key);
-
-            if ($this->recordIsFalseOrExpired($record)) {
-                $this->rawForget($key);
-            }
-        });
+        $this->state->withRowLock($key, fn (): bool => $this->table->cmpdel($key, $expected));
     }
 
     /**
@@ -765,21 +769,8 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
                 return false;
             }
 
-            return $this->rawForget($key);
-        });
-    }
-
-    /**
-     * Forget an expired lock record.
-     */
-    protected function forgetExpiredLockRecord(string $key): void
-    {
-        $this->state->withRowLock($key, function () use ($key): void {
-            $record = $this->rawGet($key);
-
-            if ($record !== false && $this->rawLockPayloadIsExpired($record)) {
-                $this->rawForget($key);
-            }
+            // Hit accounting can update the row without taking the stripe.
+            return $this->table->cmpdel($key, $record);
         });
     }
 
@@ -800,6 +791,17 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             'value' => $serialized,
             'expiration' => $expiration,
         ]);
+    }
+
+    /**
+     * Store a value whose caller has already established eligibility to write.
+     */
+    protected function putSerializedOrFail(string $key, string $tableKey, string $serialized, float $expiration): void
+    {
+        // Report the logical key even when Swoole emits an allocation warning.
+        if (! @$this->rawPutSerialized($tableKey, $serialized, $expiration)) {
+            throw new RuntimeException("The Swoole cache table is full while writing [{$key}]. Check rows and conflict_proportion in cache.swoole_tables.");
+        }
     }
 
     /**

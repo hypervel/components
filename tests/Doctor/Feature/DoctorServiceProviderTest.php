@@ -42,6 +42,7 @@ use Hypervel\Doctor\Facades\Doctor;
 use Hypervel\Doctor\Renderers\CliRenderer;
 use Hypervel\Doctor\Results\DiagnosticFixOutcome;
 use Hypervel\Doctor\Results\DiagnosticOutcome;
+use Hypervel\Doctor\Results\DiagnosticReport;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Status;
@@ -350,6 +351,19 @@ class DoctorServiceProviderTest extends TestCase
             ),
             Element::link('https://example.com/links', 'example.com/links'),
         ], $renderer->notices([$outcome]));
+    }
+
+    public function testVerboseCliDetailsRenderAsIndentedLiteralText(): void
+    {
+        $output = new BufferedOutput(OutputInterface::VERBOSITY_VERBOSE, true);
+        $renderer = new CliRenderer(new OutputStyle(new ArrayInput([]), $output));
+        $details = "<info>certificate</info>\r\n\e[31mexpired\e[0m\x07";
+
+        $renderer->render(new DiagnosticReport([
+            new DiagnosticOutcome(new PassingDiagnostic, DiagnosticResult::pass()->withDetails($details)),
+        ]));
+
+        $this->assertStringContainsString("    <info>certificate</info>\n    expired\n", $output->fetch());
     }
 
     public function testRendersIssueCalloutSourcesWithPackageFooter(): void

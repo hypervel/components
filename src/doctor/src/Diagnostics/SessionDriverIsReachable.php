@@ -11,8 +11,8 @@ use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Configured;
+use Hypervel\Doctor\Support\RedisConnections;
 use Hypervel\Session\SessionManager;
-use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
@@ -74,7 +74,7 @@ class SessionDriverIsReachable extends Diagnostic
             'array', 'cookie' => null,
             'file', 'native' => $this->probeFileSessions(),
             'database' => $this->probeDatabaseSessions(),
-            'redis' => $this->probeRedisSessions(),
+            'redis' => RedisConnections::ensureReachable(RedisConnections::name('session.connection')),
             default => $this->probeSessionManager(),
         };
     }
@@ -112,24 +112,11 @@ class SessionDriverIsReachable extends Diagnostic
     }
 
     /**
-     * Probe Redis-backed sessions.
-     */
-    private function probeRedisSessions(): void
-    {
-        $connection = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
-
-        // phpredis returns false instead of throwing for ERR replies such as "max number of clients reached".
-        if (Redis::connection($connection)->ping() === false) {
-            throw new RuntimeException("Redis connection [{$connection}] returned an error for PING.");
-        }
-    }
-
-    /**
      * Get the schema builder for the session connection.
      */
     private function schema(): Builder
     {
-        return Schema::connection(Configured::string('session.connection'));
+        return Schema::connection(config()->nullableString('session.connection'));
     }
 
     /**

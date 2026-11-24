@@ -1,0 +1,14 @@
+<?php
+
+namespace Swoole;
+
+/**
+ * PHPStan's bundled Table stub predates these native methods, so declare them with @method.
+ *
+ * @method bool add(string $key, array<array-key, mixed> $values)
+ * @method bool update(string $key, array<array-key, mixed> $values)
+ * @method bool cmpset(string $key, array<string, mixed> $expected, array<array-key, mixed> $values)
+ * @method bool cmpdel(string $key, array<string, mixed> $expected)
+ * @method array<array-key, float|int|string>|false|float|int|string getdel(string $key, ?string $field = null)
+ */
+class Table {}

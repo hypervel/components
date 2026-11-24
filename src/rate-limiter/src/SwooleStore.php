@@ -92,8 +92,12 @@ class SwooleStore implements Store
 
                 foreach ($policies as $entry) {
                     $key = $entry['key'];
-                    $states[$key] ??= $this->storedState($key);
-                    $existing[$key] ??= $this->state->table()->exist($key);
+
+                    if (! isset($states[$key])) {
+                        $row = $this->state->table()->get($key);
+                        $existing[$key] = $row !== false;
+                        $states[$key] = $this->parseStoredState($row);
+                    }
                 }
 
                 $originalStates = $states;
@@ -261,7 +265,7 @@ class SwooleStore implements Store
     public function pruneExpiredRows(): int
     {
         $now = $this->currentTimeInMicroseconds();
-        $expiredKeys = [];
+        $expirations = [];
         $pruned = 0;
 
         foreach ($this->state->table() as $key => $row) {
@@ -271,21 +275,16 @@ class SwooleStore implements Store
                 continue;
             }
 
-            $expiredKeys[] = (string) $key;
+            $expirations[$key] = $expiresAt;
         }
 
         // Deleting during Swoole's positional collision-chain iteration skips rows.
-        foreach ($expiredKeys as $key) {
-            $pruned += $this->state->withLock($key, function () use ($key, $now): int {
-                $row = $this->state->table()->get($key);
-                $expiresAt = $row === false ? null : ($row['expires_at'] ?? null);
-
-                if (! is_int($expiresAt) || $expiresAt <= 0 || $expiresAt > $now) {
-                    return 0;
-                }
-
-                return $this->state->table()->del($key) ? 1 : 0;
-            });
+        foreach ($expirations as $key => $expiresAt) {
+            $key = (string) $key;
+            $pruned += (int) $this->state->withLock(
+                $key,
+                fn (): bool => $this->state->table()->cmpdel($key, ['expires_at' => $expiresAt]),
+            );
         }
 
         return $pruned;
@@ -309,8 +308,16 @@ class SwooleStore implements Store
      */
     protected function storedState(string $key): array
     {
-        $row = $this->state->table()->get($key);
+        return $this->parseStoredState($this->state->table()->get($key));
+    }
 
+    /**
+     * Read the validated policy values from a table row.
+     *
+     * @return array{int, int, int}
+     */
+    protected function parseStoredState(array|false $row): array
+    {
         if ($row === false) {
             return [0, 0, 0];
         }
@@ -335,7 +342,8 @@ class SwooleStore implements Store
      */
     protected function writeState(string $key, int $value, int $secondaryValue, int $expiresAt): bool
     {
-        return $this->state->table()->set($key, [
+        // Let callers roll back and prune on allocation failure before reporting a full table.
+        return @$this->state->table()->set($key, [
             'value' => $value,
             'secondary_value' => $secondaryValue,
             'expires_at' => $expiresAt,

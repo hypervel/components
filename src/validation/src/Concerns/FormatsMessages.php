@@ -544,18 +544,15 @@ trait FormatsMessages
     /**
      * Call a custom validator message replacer.
      */
-    protected function callReplacer(string $message, string $attribute, string $rule, array $parameters, Validator $validator): ?string
+    protected function callReplacer(string $message, string $attribute, string $rule, array $parameters, Validator $validator): string
     {
         $callback = $this->replacers[$rule];
 
         if ($callback instanceof Closure) {
             return $callback(...func_get_args());
         }
-        if (is_string($callback)) {
-            return $this->callClassBasedReplacer($callback, $message, $attribute, $rule, $parameters, $validator);
-        }
 
-        return null;
+        return $this->callClassBasedReplacer($callback, $message, $attribute, $rule, $parameters, $validator);
     }
 
     /**
