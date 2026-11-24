@@ -520,9 +520,9 @@ if (! function_exists('transform')) {
      * @param null|TValue $value
      * @param callable(TValue): TReturn $callback
      * @param callable(null|TValue): TDefault|TDefault $default
-     * @return ($value is empty ? TDefault : TReturn)
+     * @return ($value is null|''|array{} ? TDefault : ($value is bool|Model|non-empty-array|numeric ? TReturn : ($value is Countable|string|Stringable ? TDefault|TReturn : TReturn)))
      */
-    function transform($value, callable $callback, $default = null)
+    function transform(mixed $value, callable $callback, mixed $default = null): mixed
     {
         if (filled($value)) {
             return $callback($value);

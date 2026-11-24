@@ -176,15 +176,14 @@ function test(?int $value = 0, int|\Closure $intOrClosure = 0, int|\Closure $int
     assertType('array<string, mixed>', transform(User::sole(), fn (User $user) => $user->getAttributes()));
 
     // falls back to default if provided
-    // Hypervel: optional() is an Optional object, which is never blank, so a value that may be null shows the default.
-    assertType('1', transform(optional(), fn () => 1, 'default'));
+    assertType("1|'default'", transform(optional(), fn () => 1, 'default'));
     assertType("1|'default'", transform(User::first(), fn () => 1, 'default'));
     // default as callable
-    assertType('1', transform(optional(), fn () => 1, fn () => 'string'));
+    assertType("1|'string'", transform(optional(), fn () => 1, fn () => 'string'));
     assertType("1|'string'", transform(User::first(), fn () => 1, fn () => 'string'));
 
     // non empty values
-    assertType('1', transform('filled', fn () => 1));
+    assertType('1|null', transform('filled', fn () => 1));
     assertType('1', transform(['filled'], fn () => 1));
     assertType('1', transform(new User(), fn () => 1));
 

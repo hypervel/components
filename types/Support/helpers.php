@@ -98,7 +98,8 @@ function testThrowUnless(float|int $foo, ?DateTimeImmutable $bar = null): void
     assertType("'foo'", throw_unless('foo', Exception::class));
 }
 
-assertType('1', transform('filled', fn () => 1, true));
+assertType('1|true', transform('filled', fn () => 1, true));
+assertType('1', transform(0, fn () => 1));
 assertType('1', transform(['filled'], fn () => 1));
 assertType('null', transform('', fn () => 1));
 assertType('true', transform('', fn () => 1, true));
