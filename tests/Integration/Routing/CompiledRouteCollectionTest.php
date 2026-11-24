@@ -357,17 +357,42 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['OPTIONS'], $route->methods());
     }
 
-    public function testMatchingThrowsExceptionWhenMethodIsNotAllowedWhileSameRouteIsAddedDynamically(): void
+    #[TestWith([['GET'], ['POST'], ['GET', 'HEAD', 'POST']])]
+    #[TestWith([['POST'], ['GET'], ['GET', 'HEAD', 'POST']])]
+    #[TestWith([['GET', 'PROPFIND'], ['GET', 'PATCH'], ['GET', 'HEAD', 'PATCH', 'PROPFIND']])]
+    public function testAllowIncludesCachedAndRuntimeMethods(array $cached, array $runtime, array $expected): void
     {
-        $this->routeCollection->add($this->newRoute('GET', '/', ['uses' => 'FooController@index']));
+        $this->routeCollection->add($this->newRoute($cached, 'orders', ['uses' => 'FooController@index']));
+        $this->router->setCompiledRoutes($this->routeCollection->compile());
+        $routes = $this->router->getRoutes();
+        $routes->add($this->newRoute($runtime, 'orders', ['uses' => 'FooController@store']));
 
-        $routes = $this->collection();
+        try {
+            $routes->match(Request::create('/orders', 'DELETE'));
+            $this->fail('Expected the route to reject DELETE.');
+        } catch (MethodNotAllowedHttpException $exception) {
+            $this->assertEqualsCanonicalizing($expected, explode(', ', $exception->getHeaders()['Allow']));
+        }
 
-        $routes->add($this->newRoute('POST', '/', ['uses' => 'FooController@index']));
+        $response = $this->router->dispatch(Request::create('/orders', 'OPTIONS'));
+        $this->assertEqualsCanonicalizing($expected, explode(',', $response->headers->get('Allow')));
+    }
 
-        $this->expectException(MethodNotAllowedHttpException::class);
+    public function testOptionsIncludesOnlyMethodsOnTheReceivingListener(): void
+    {
+        $this->routeCollection->add($this->newRoute('OPTIONS', 'orders', ['uses' => 'FooController@index', 'as' => 'options'])->port(8001));
+        $this->routeCollection->add($this->newRoute('GET', 'orders/{id}', ['uses' => 'FooController@show'])->where('id', '[0-9]+'));
+        $this->router->setCompiledRoutes($this->routeCollection->compile());
+        $routes = $this->router->getRoutes();
+        $routes->add($this->newRoute('POST', 'orders/{id?}', ['uses' => 'FooController@store']));
+        $routes->add($this->newRoute('GET', 'orders/{id}', ['uses' => 'FooController@show'])->where('id', '[a-z]+'));
 
-        $routes->match(Request::create('/', 'PUT'));
+        $this->assertSame('options', $routes->match(Request::create('http://localhost:8001/orders', 'OPTIONS'))->getName());
+        $this->assertSame('POST', $this->router->dispatch(Request::create('http://localhost:8000/orders', 'OPTIONS'))->headers->get('Allow'));
+        $this->assertEqualsCanonicalizing(
+            ['GET', 'HEAD', 'POST'],
+            explode(',', $this->router->dispatch(Request::create('http://localhost:8000/orders/7', 'OPTIONS'))->headers->get('Allow'))
+        );
     }
 
     public function testMatchingRouteWithSameDynamicallyAddedRouteAlwaysMatchesCachedOneFirst(): void

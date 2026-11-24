@@ -316,7 +316,6 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $path = rtrim($request->getPathInfo(), '/') ?: '/';
         $skipStaticRoutes = false;
         $result = null;
-        $route = null;
 
         $compiled = $this->compiled;
         $withoutStaticRoutes = $this->compiledWithoutStaticRoutes;
@@ -335,8 +334,6 @@ class CompiledRouteCollection extends AbstractRouteCollection
                 $result = $this->matchDirectStaticRoute($method, $path, $staticRoutes);
 
                 if ($result !== null) {
-                    $route = $this->getByName($result['_route']);
-
                     // Preserve the host validation performed by Symfony's request context path.
                     $request->getHost();
                 }
@@ -378,18 +375,22 @@ class CompiledRouteCollection extends AbstractRouteCollection
             );
 
             try {
-                if ($result = $matcher->match($path)) {
-                    $route = $this->getByName($result['_route']);
-                }
+                $result = $matcher->match($path);
             } catch (MethodNotAllowedException $exception) {
-                if (! $this->hasDynamicRoutes) {
-                    return $this->getRouteForMethods($request, $exception->getAllowedMethods());
+                $methods = $exception->getAllowedMethods();
+
+                if ($this->hasDynamicRoutes) {
+                    $dynamicRoute = $this->matchDynamicRoute($request);
+
+                    if ($dynamicRoute !== null) {
+                        return $dynamicRoute->bind($request);
+                    }
+
+                    // Runtime matching alone would advertise only the runtime routes in Allow.
+                    $methods = array_values(array_unique([...$methods, ...$this->routes->checkForAlternateVerbs($request)]));
                 }
 
-                try {
-                    return $this->routes->match($request);
-                } catch (NotFoundHttpException) {
-                }
+                return $this->getRouteForMethods($request, $methods);
             } catch (ResourceNotFoundException) {
                 if (! $this->hasDynamicRoutes) {
                     throw new NotFoundHttpException(sprintf(
@@ -402,19 +403,25 @@ class CompiledRouteCollection extends AbstractRouteCollection
             }
         }
 
-        if ($route && $route->isFallback && $this->hasDynamicRoutes) {
-            $dynamicRoute = $this->matchAgainstRoutes($this->routes->get($method), $request);
+        $route = $this->getByName($result['_route']);
+
+        if ($route->isFallback && $this->hasDynamicRoutes) {
+            $dynamicRoute = $this->matchDynamicRoute($request);
 
             if ($dynamicRoute !== null && ! $dynamicRoute->isFallback) {
                 return $dynamicRoute->bind($request);
             }
         }
 
-        if ($route !== null && $result !== null) {
-            return $route->bindFromCompiledMatch($result, $request);
-        }
+        return $route->bindFromCompiledMatch($result, $request);
+    }
 
-        return $this->handleMatchedRoute($request, $route);
+    /**
+     * Find a registered runtime route for the requested method.
+     */
+    protected function matchDynamicRoute(Request $request): ?Route
+    {
+        return $this->matchAgainstRoutes($this->routes->get($request->getMethod()), $request);
     }
 
     /**
