@@ -12,6 +12,7 @@ use Hypervel\Horizon\Jobs\RetryFailedJob;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\DB;
+use ReflectionMethod;
 
 class BatchesController extends Controller
 {
@@ -68,7 +69,9 @@ class BatchesController extends Controller
             ->when($beforeId !== null && $beforeId !== '', fn ($q) => $q->where('id', '<', $beforeId))
             ->pluck('id');
 
-        if ($this->batches instanceof DatabaseBatchRepository) {
+        // A repository that customizes find() keeps deciding which batches a search may return.
+        if ($this->batches instanceof DatabaseBatchRepository
+            && (new ReflectionMethod($this->batches, 'find'))->getDeclaringClass()->getName() === DatabaseBatchRepository::class) {
             return $this->batches->findMany($ids->all());
         }
 
