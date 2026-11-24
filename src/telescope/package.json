@@ -16,7 +16,7 @@
         "@vue/test-utils": "catalog:",
         "axios": "catalog:",
         "bootstrap": "catalog:",
-        "copy-to-clipboard": "^3.3.3",
+        "copy-to-clipboard": "^4.0.2",
         "highlight.js": "^11.3.1",
         "jsdom": "catalog:",
         "lodash": "^4.18.1",
