@@ -70,6 +70,20 @@ class Number
     }
 
     /**
+     * Convert a float to an integer only if its value is exactly representable.
+     *
+     * PHP's integer filter rounds native floats to display precision before checking them.
+     *
+     * @internal
+     */
+    public static function tryConvertFloatToInteger(float $value): ?int
+    {
+        return $value === floor($value) && $value >= PHP_INT_MIN && $value < -(float) PHP_INT_MIN
+            ? (int) $value
+            : null;
+    }
+
+    /**
      * Convert a number to a non-localized string without rounding to PHP's display precision.
      *
      * @internal

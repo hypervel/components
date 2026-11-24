@@ -168,6 +168,7 @@ class DataObjectTest extends TestCase
         yield 'negative' => [-42, -42];
         yield 'trimmed string' => [' 42 ', 42];
         yield 'whole float' => [42.0, 42];
+        yield 'minimum integer as float' => [(float) PHP_INT_MIN, PHP_INT_MIN];
     }
 
     #[DataProvider('invalidIntegerProvider')]
@@ -179,6 +180,8 @@ class DataObjectTest extends TestCase
     public static function invalidIntegerProvider(): iterable
     {
         yield 'fractional float' => [1.5];
+        yield 'fraction rounded by display precision' => [434.99999999999994];
+        yield 'first float above maximum integer' => [-(float) PHP_INT_MIN];
         yield 'decimal string' => ['1.5'];
         yield 'text' => ['one'];
         yield 'true' => [true];

@@ -185,6 +185,24 @@ class SupportInteractsWithDataTest extends TestCase
         $this->assertSame(12.5, $data->float('float', null, true));
     }
 
+    public function testStrictNumbersPreserveNativeFloatPrecision(): void
+    {
+        $data = static::arrayToDataFactory([
+            'fraction' => 434.99999999999994,
+            'minimum' => (float) PHP_INT_MIN,
+            'overflow' => -(float) PHP_INT_MIN,
+            'infinity' => INF,
+            'rate' => 1.2345678901234567,
+        ]);
+
+        $this->assertNull($data->integer('fraction', null, true));
+        $this->assertSame(PHP_INT_MIN, $data->integer('minimum', null, true));
+        $this->assertNull($data->integer('overflow', null, true));
+        $this->assertNull($data->integer('infinity', null, true));
+        $this->assertNull($data->float('infinity', null, true));
+        $this->assertSame(1.2345678901234567, $data->float('rate', null, true));
+    }
+
     public function testStrictDefaultsAreResolvedOnce(): void
     {
         $data = static::arrayToDataFactory([]);

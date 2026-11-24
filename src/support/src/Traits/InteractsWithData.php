@@ -306,7 +306,15 @@ trait InteractsWithData
         if ($strict) {
             $value = $this->data($key);
 
-            // FILTER_VALIDATE_INT returns 1 for true, but false for false, so we need to check for a bool first
+            if (is_int($value)) {
+                return $value;
+            }
+
+            if (is_float($value)) {
+                return Number::tryConvertFloatToInteger($value) ?? value($default);
+            }
+
+            // FILTER_VALIDATE_INT accepts true as 1.
             if (is_bool($value)) {
                 return value($default);
             }
@@ -332,6 +340,15 @@ trait InteractsWithData
     {
         if ($strict) {
             $value = $this->data($key);
+
+            if (is_float($value)) {
+                // Filtering an already-decoded float would round it to PHP's display precision.
+                return is_finite($value) ? $value : value($default);
+            }
+
+            if (is_int($value)) {
+                return (float) $value;
+            }
 
             if (is_bool($value)) {
                 return value($default);
