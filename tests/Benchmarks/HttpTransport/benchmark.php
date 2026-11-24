@@ -42,7 +42,7 @@ foreach ($settings as $name => $default) {
 }
 
 /**
- * Return latency percentiles in milliseconds.
+ * Return latency percentiles and the slowest observation in milliseconds.
  */
 function percentiles(array $values): array
 {
@@ -51,6 +51,7 @@ function percentiles(array $values): array
     return [
         'p50' => $values[(int) ceil(count($values) * 0.5) - 1],
         'p95' => $values[(int) ceil(count($values) * 0.95) - 1],
+        'max' => $values[array_key_last($values)],
     ];
 }
 
