@@ -599,6 +599,9 @@ class CompiledRouteCollectionTest extends RoutingTestCase
             $collection->match(Request::create('/conditional/?token=1'))->getName()
         );
 
+        // A runtime route used to trigger a second scan that ignored the compiled condition.
+        $collection->add($this->newRoute('POST', '/other', ['uses' => 'FooController@store']));
+
         $this->expectException(NotFoundHttpException::class);
 
         $collection->match(Request::create('/conditional?token=2'));

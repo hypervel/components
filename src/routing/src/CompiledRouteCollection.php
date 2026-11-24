@@ -398,10 +398,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
                     ));
                 }
 
-                try {
-                    return $this->routes->match($request);
-                } catch (NotFoundHttpException) {
-                }
+                return $this->routes->match($request);
             }
         }
 
