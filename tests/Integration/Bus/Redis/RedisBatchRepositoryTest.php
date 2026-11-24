@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Bus\Redis;
 
 use ArrayObject;
+use Hypervel\Bus\Batch;
 use Hypervel\Bus\BatchFactory;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Bus\Events\BatchFinished;
 use Hypervel\Bus\RedisBatchRepository;
+use Hypervel\Bus\RoutingBatchRepository;
 use Hypervel\Bus\UpdatedBatchJobCounts;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
@@ -157,6 +159,26 @@ class RedisBatchRepositoryTest extends TestCase
             $this->assertSame($batch->id, $snapshot['id']);
             $this->assertSame(100, $snapshot['progress']);
         }
+    }
+
+    public function testHorizonSearchLoadsProgressThroughACustomFindMethod(): void
+    {
+        $repository = new class($this->app->make(BatchFactory::class), $this->app->make('db'), 'job_batches', config('database.default'), 'job_batch_results', $this->app, $this->app->make('config')) extends RoutingBatchRepository {
+            public function find(string $batchId): ?Batch
+            {
+                return parent::find($batchId);
+            }
+        };
+        $batch = $repository->store(Bus::batch([])->name('Import users'));
+        $repository->incrementTotalJobs($batch->id, 1);
+        $batch->recordSuccessfulJob('first');
+
+        $search = (new BatchesController($repository))->index(Request::create('/?query=Import'));
+        $batch->delete();
+
+        $snapshot = json_decode(json_encode($search['batches'][0], JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($batch->id, $snapshot['id']);
+        $this->assertSame(100, $snapshot['progress']);
     }
 
     public function testRedisPaginationKeepsWaitingAndActiveBatchesInCursorOrder(): void

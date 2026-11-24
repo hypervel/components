@@ -75,7 +75,8 @@ class BatchesController extends Controller
             return $this->batches->findMany($ids->all());
         }
 
-        return $ids->map(fn ($id) => $this->batches->find($id))
+        // Load progress here so a batch deleted before the response is serialized is left out.
+        return $ids->map(fn ($id) => $this->batches->find($id)?->loadMissingJobCounts())
             ->filter()
             ->values()
             ->all();
