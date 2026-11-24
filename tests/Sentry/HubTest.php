@@ -13,6 +13,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\Attachment\Attachment;
@@ -20,6 +21,7 @@ use Sentry\Breadcrumb;
 use Sentry\ClientInterface;
 use Sentry\Event;
 use Sentry\Options;
+use Sentry\Profiling\ProfilerInterface;
 use Sentry\State\Scope;
 use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
@@ -194,9 +196,39 @@ class HubTest extends TestCase
 
         $transaction = (new Hub($client))->startTransaction(new TransactionContext('test'));
 
+        $profiler = $transaction->getProfiler();
+        try {
+            $this->assertTrue($transaction->getSampled());
+            $this->assertSame(1.0, $transaction->getMetadata()->getSamplingRate());
+            $this->assertNotNull($profiler);
+        } finally {
+            $profiler?->stop();
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testProfilerStartupFailureLeavesTheTransactionSampled(bool $failInFactory): void
+    {
+        $failure = new RuntimeException('Profiler unavailable.');
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->allows('info');
+        $logger->expects('error')->with('Failed to start the profiler. Reason: "Profiler unavailable.".', ['exception' => $failure]);
+        $profiler = Double::for(ProfilerInterface::class)->strict();
+        if (! $failInFactory) {
+            $profiler->expects('start')->throws($failure);
+        }
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->allows('getOptions')->returns(new Options([
+            'logger' => $logger,
+            'traces_sample_rate' => 1.0,
+            'profiles_sample_rate' => 1.0,
+            'profiler_factory' => static fn (): ProfilerInterface => $failInFactory ? throw $failure : $profiler,
+        ]));
+
+        $transaction = (new Hub($client))->startTransaction(new TransactionContext('profile'));
         $this->assertTrue($transaction->getSampled());
-        $this->assertSame(1.0, $transaction->getMetadata()->getSamplingRate());
-        $this->assertNotNull($transaction->getProfiler());
+        $this->assertNull($transaction->getProfiler());
     }
 
     #[DataProvider('cancellableCallbacks')]
@@ -211,6 +243,7 @@ class HubTest extends TestCase
         $client = Double::for(ClientInterface::class)->strict();
         $client->allows('getOptions')->returns(new Options([
             'traces_sample_rate' => 1.0,
+            'profiles_sample_rate' => 1.0,
             $option => static fn (): never => throw $cancellation,
         ]));
         $caught = null;
@@ -237,6 +270,7 @@ class HubTest extends TestCase
             ), false],
             'traces_sampler' => ['traces_sampler', $startTransaction, false],
             'profiles_sampler' => ['profiles_sampler', $startTransaction, false],
+            'profiler_factory' => ['profiler_factory', $startTransaction, false],
         ];
 
         foreach ($callbacks as $name => [$option, $action]) {
