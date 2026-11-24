@@ -6,7 +6,7 @@ use function Hypervel\Support\enum_value;
 use function PHPStan\Testing\assertType;
 
 assertType('Hypervel\Support\Collection<0, 123>', collect(123));
-assertType('Hypervel\Support\Collection<(int|string), mixed>', collect(\Random\IntervalBoundary::ClosedOpen));
+assertType('Hypervel\Support\Collection<0, Random\IntervalBoundary::ClosedOpen>', collect(\Random\IntervalBoundary::ClosedOpen));
 
 /** @var list<string> $strings */
 $strings = [];
