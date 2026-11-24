@@ -106,6 +106,9 @@ RUN set -eux; \
 
 RUN set -eux; \
     pie_packages=(); \
+    if ! php -r 'exit(extension_loaded("excimer") ? 0 : 1);'; then \
+        pie_packages+=(wikimedia/excimer); \
+    fi; \
     if ! php -r 'exit(extension_loaded("redis") && version_compare((string) phpversion("redis"), "6.3.0", ">=") ? 0 : 1);'; then \
         pie_packages+=(phpredis/phpredis); \
     fi; \
@@ -145,7 +148,7 @@ RUN set -eux; \
     else \
         test "$(php -r 'echo phpversion("swoole");')" = "${SWOOLE_VERSION}"; \
     fi; \
-    php -r '$extensions = ["bcmath", "ctype", "curl", "dom", "fileinfo", "filter", "gd", "gmp", "imagick", "intl", "mbstring", "openssl", "pcntl", "pdo", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "posix", "protobuf", "redis", "session", "sockets", "sqlite3", "swoole", "tokenizer", "zlib"]; foreach ($extensions as $extension) { if (! extension_loaded($extension)) { fwrite(STDERR, "Missing required extension: {$extension}\n"); exit(1); } } foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing required GD function: {$function}()\n"); exit(1); } } if (version_compare((string) phpversion("redis"), "6.3.0", "<")) { fwrite(STDERR, "Redis extension 6.3.0 or newer is required for full integration coverage.\n"); exit(1); } if ((bool) ini_get("swoole.use_shortname")) { fwrite(STDERR, "Swoole short names must be disabled.\n"); exit(1); }'; \
+    php -r '$extensions = ["bcmath", "ctype", "curl", "dom", "excimer", "fileinfo", "filter", "gd", "gmp", "imagick", "intl", "mbstring", "openssl", "pcntl", "pdo", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "posix", "protobuf", "redis", "session", "sockets", "sqlite3", "swoole", "tokenizer", "zlib"]; foreach ($extensions as $extension) { if (! extension_loaded($extension)) { fwrite(STDERR, "Missing required extension: {$extension}\n"); exit(1); } } foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing required GD function: {$function}()\n"); exit(1); } } if (version_compare((string) phpversion("redis"), "6.3.0", "<")) { fwrite(STDERR, "Redis extension 6.3.0 or newer is required for full integration coverage.\n"); exit(1); } if ((bool) ini_get("swoole.use_shortname")) { fwrite(STDERR, "Swoole short names must be disabled.\n"); exit(1); }'; \
     php -r "if (version_compare((string) phpversion('protobuf'), '${PROTOBUF_VERSION}', '<')) { fwrite(STDERR, 'protobuf extension ${PROTOBUF_VERSION} or newer is required for native OTLP coverage.' . PHP_EOL); exit(1); }"; \
     php -r 'foreach (["avif", "heic"] as $format) { $image = new Imagick; try { $image->newImage(1, 1, "white"); $image->setImageFormat($format); if ($image->getImageBlob() === "") { fwrite(STDERR, "Imagick produced an empty {$format} image.\n"); exit(1); } } finally { $image->clear(); $image->destroy(); } }'; \
     composer --version --no-ansi; \
