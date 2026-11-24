@@ -115,7 +115,7 @@ class FormRequestCastingTest extends TestCase
         $nan = NAN;
         $request = $this->validateRequest(PrimitiveRequest::class, [
             'int_value' => '12',
-            'integer_value' => '13',
+            'integer_value' => 1e20,
             'real_value' => '1.25',
             'float_value' => 'Infinity',
             'double_value' => '-Infinity',
@@ -128,7 +128,7 @@ class FormRequestCastingTest extends TestCase
         $validated = $request->validated();
 
         $this->assertSame(12, $validated['int_value']);
-        $this->assertSame(13, $validated['integer_value']);
+        $this->assertSame(PHP_INT_MAX, $validated['integer_value']);
         $this->assertSame(1.25, $validated['real_value']);
         $this->assertSame(INF, $validated['float_value']);
         $this->assertSame(-INF, $validated['double_value']);

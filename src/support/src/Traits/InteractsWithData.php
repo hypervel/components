@@ -323,7 +323,9 @@ trait InteractsWithData
             return filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? value($default);
         }
 
-        return (int) $this->data($key, $default);
+        $value = $this->data($key, $default);
+
+        return is_float($value) ? Number::castFloatToInteger($value) : (int) $value;
     }
 
     /**

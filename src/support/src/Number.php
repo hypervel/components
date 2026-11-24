@@ -84,6 +84,23 @@ class Number
     }
 
     /**
+     * Cast a float to an integer, saturating finite overflow at the platform limits.
+     *
+     * PHP 8.5 warns when casting nonfinite or out-of-range floats directly.
+     *
+     * @internal
+     */
+    public static function castFloatToInteger(float $value): int
+    {
+        return match (true) {
+            ! is_finite($value) => 0,
+            $value >= PHP_INT_MAX => PHP_INT_MAX,
+            $value <= PHP_INT_MIN => PHP_INT_MIN,
+            default => (int) $value,
+        };
+    }
+
+    /**
      * Convert a number to a non-localized string without rounding to PHP's display precision.
      *
      * @internal

@@ -374,7 +374,7 @@ trait HasCasts
     protected function castPrimitiveInput(string $castType, ?string $argumentString, mixed $value): mixed
     {
         return match ($castType) {
-            'int', 'integer' => (int) $value,
+            'int', 'integer' => is_float($value) ? Number::castFloatToInteger($value) : (int) $value,
             'real', 'float', 'double' => $this->fromFloat($value),
             'decimal' => $this->asDecimal($value, (int) $argumentString),
             'string' => (string) $value,

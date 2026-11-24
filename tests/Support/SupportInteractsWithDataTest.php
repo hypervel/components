@@ -174,6 +174,15 @@ class SupportInteractsWithDataTest extends TestCase
         $this->assertDataFloatStrictContract();
     }
 
+    public function testIntegerHandlesFloatsOutsideTheIntegerRange(): void
+    {
+        $data = static::arrayToDataFactory(['positive' => 1e20, 'negative' => -1e20, 'infinity' => -INF]);
+
+        $this->assertSame(PHP_INT_MAX, $data->integer('positive'));
+        $this->assertSame(PHP_INT_MIN, $data->integer('negative'));
+        $this->assertSame(0, $data->integer('infinity'));
+    }
+
     public function testStrictNumbersAcceptNumericStringables(): void
     {
         $data = static::arrayToDataFactory([
