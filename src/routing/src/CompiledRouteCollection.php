@@ -71,14 +71,16 @@ class CompiledRouteCollection extends AbstractRouteCollection
     protected bool $requiresFullRequestContext;
 
     /**
-     * Whether any compiled route has a port constraint.
+     * Matcher tables for configured listeners and a shared default for other ports.
+     *
+     * @var array<int|string, array{array, array}>
      */
-    protected bool $hasPortConstraints;
+    protected array $compiledByPort = [];
 
     /**
      * Whether exact static routes need only path, method, and slash checks.
      *
-     * Host, scheme, condition, and port constraints retain Symfony matching.
+     * Host, scheme, and condition constraints retain Symfony matching.
      */
     protected bool $supportsDirectStaticMatching;
 
@@ -128,17 +130,17 @@ class CompiledRouteCollection extends AbstractRouteCollection
         // conditions at 4, and required schemes at index 3 of each route tuple.
         $this->requiresScheme = $this->compiledRoutesRequireScheme($compiled);
         $this->requiresFullRequestContext = ($compiled[4] ?? null) !== null;
-        $this->hasPortConstraints = $this->compiledRoutesHavePortConstraints($attributes);
         $this->supportsDirectStaticMatching = ! empty($compiled[1])
             && ! ($compiled[0] ?? false)
             && ! $this->requiresScheme
-            && ! $this->requiresFullRequestContext
-            && ! $this->hasPortConstraints;
+            && ! $this->requiresFullRequestContext;
 
         if ($this->supportsDirectStaticMatching) {
             $this->compiledWithoutStaticRoutes = $compiled;
             $this->compiledWithoutStaticRoutes[1] = [];
         }
+
+        $this->compiledByPort = $this->compileListenerTables($compiled, $attributes);
     }
 
     /**
@@ -160,17 +162,57 @@ class CompiledRouteCollection extends AbstractRouteCollection
     }
 
     /**
-     * Determine whether any compiled route requires a specific server port.
+     * Exclude routes on other listeners before Symfony matches or collects allowed methods.
+     *
+     * @return array<int|string, array{array, array}>
      */
-    protected function compiledRoutesHavePortConstraints(array $attributes): bool
+    protected function compileListenerTables(array $compiled, array $attributes): array
     {
-        foreach ($attributes as $route) {
-            if (($route['action']['port'] ?? null) !== null) {
-                return true;
+        $routePorts = [];
+
+        foreach ($attributes as $name => $route) {
+            if (isset($route['action']['port'])) {
+                $routePorts[$name] = (int) $route['action']['port'];
             }
         }
 
-        return false;
+        if ($routePorts === []) {
+            return [];
+        }
+
+        $ports = [...array_unique($routePorts), ''];
+        $tables = array_fill_keys($ports, $compiled);
+
+        // Symfony's dynamic regexes reference groups by MARK. Preserve those keys
+        // and their sentinel rows even when a listener has no routes in a group.
+        foreach ([1, 3] as $index) {
+            foreach ($compiled[$index] as $key => $routes) {
+                foreach ($routes as $offset => $route) {
+                    if ($route[0] === null) {
+                        continue;
+                    }
+
+                    $port = $routePorts[$route[0]['_route']] ?? null;
+
+                    if ($port === null) {
+                        continue;
+                    }
+
+                    foreach ($ports as $listener) {
+                        if ($port !== $listener) {
+                            unset($tables[$listener][$index][$key][$offset]);
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($ports as $listener) {
+            $table = $tables[$listener];
+            $tables[$listener] = [$table, [1 => []] + $table];
+        }
+
+        return $tables;
     }
 
     /**
@@ -207,7 +249,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
             ) {
                 throw new LogicException(
                     "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
-                    . 'Same-path cross-port routes are not supported by the compiled matcher.'
+                    . 'Routes with the same method, domain and URI must use the same port.'
                 );
             }
         }
@@ -274,19 +316,24 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $path = rtrim($request->getPathInfo(), '/') ?: '/';
         $skipStaticRoutes = false;
         $result = null;
-        $route = null;
+
+        $compiled = $this->compiled;
+        $withoutStaticRoutes = $this->compiledWithoutStaticRoutes;
+
+        if ($this->compiledByPort !== []) {
+            [$compiled, $withoutStaticRoutes] = $this->compiledByPort[$request->server->getInt('SERVER_PORT')]
+                ?? $this->compiledByPort[''];
+        }
 
         if ($this->supportsDirectStaticMatching) {
             $staticRoutes = str_contains($path, '%')
                 ? null
-                : ($this->compiled[1][$path] ?? false);
+                : ($compiled[1][$path] ?? false);
 
             if (is_array($staticRoutes)) {
                 $result = $this->matchDirectStaticRoute($method, $path, $staticRoutes);
 
                 if ($result !== null) {
-                    $route = $this->getByName($result['_route']);
-
                     // Preserve the host validation performed by Symfony's request context path.
                     $request->getHost();
                 }
@@ -323,23 +370,27 @@ class CompiledRouteCollection extends AbstractRouteCollection
             }
 
             $matcher = new CompiledUrlMatcher(
-                $skipStaticRoutes ? $this->compiledWithoutStaticRoutes : $this->compiled,
+                $skipStaticRoutes ? $withoutStaticRoutes : $compiled,
                 $context
             );
 
             try {
-                if ($result = $matcher->match($path)) {
-                    $route = $this->getByName($result['_route']);
-                }
+                $result = $matcher->match($path);
             } catch (MethodNotAllowedException $exception) {
-                if (! $this->hasDynamicRoutes && ! $this->hasPortConstraints) {
-                    return $this->getRouteForMethods($request, $exception->getAllowedMethods());
+                $methods = $exception->getAllowedMethods();
+
+                if ($this->hasDynamicRoutes) {
+                    $dynamicRoute = $this->matchDynamicRoute($request);
+
+                    if ($dynamicRoute !== null) {
+                        return $dynamicRoute->bind($request);
+                    }
+
+                    // Runtime matching alone would advertise only the runtime routes in Allow.
+                    $methods = array_values(array_unique([...$methods, ...$this->routes->checkForAlternateVerbs($request)]));
                 }
 
-                try {
-                    return $this->routes->match($request);
-                } catch (NotFoundHttpException) {
-                }
+                return $this->getRouteForMethods($request, $methods);
             } catch (ResourceNotFoundException) {
                 if (! $this->hasDynamicRoutes) {
                     throw new NotFoundHttpException(sprintf(
@@ -348,44 +399,29 @@ class CompiledRouteCollection extends AbstractRouteCollection
                     ));
                 }
 
-                try {
-                    return $this->routes->match($request);
-                } catch (NotFoundHttpException) {
-                }
+                return $this->routes->match($request);
             }
         }
 
-        $compiledRoute = $route;
+        $route = $this->getByName($result['_route']);
 
-        $routePort = $route?->getPort();
+        if ($route->isFallback && $this->hasDynamicRoutes) {
+            $dynamicRoute = $this->matchDynamicRoute($request);
 
-        if ($routePort !== null && $routePort !== (int) $request->getPort()) {
-            $route = null;
-
-            if ($this->hasDynamicRoutes) {
-                try {
-                    return $this->routes->match($request);
-                } catch (NotFoundHttpException|MethodNotAllowedHttpException) {
-                }
+            if ($dynamicRoute !== null && ! $dynamicRoute->isFallback) {
+                return $dynamicRoute->bind($request);
             }
         }
 
-        if ($route && $route->isFallback && $this->hasDynamicRoutes) {
-            try {
-                $dynamicRoute = $this->routes->match($request);
+        return $route->bindFromCompiledMatch($result, $request);
+    }
 
-                if (! $dynamicRoute->isFallback) {
-                    $route = $dynamicRoute;
-                }
-            } catch (NotFoundHttpException|MethodNotAllowedHttpException) {
-            }
-        }
-
-        if ($route !== null && $route === $compiledRoute && $result !== null) {
-            return $route->bindFromCompiledMatch($result, $request);
-        }
-
-        return $this->handleMatchedRoute($request, $route);
+    /**
+     * Find a registered runtime route for the requested method.
+     */
+    protected function matchDynamicRoute(Request $request): ?Route
+    {
+        return $this->matchAgainstRoutes($this->routes->get($request->getMethod()), $request);
     }
 
     /**

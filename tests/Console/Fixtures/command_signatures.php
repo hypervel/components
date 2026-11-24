@@ -3254,17 +3254,6 @@ return [
                 'description' => 'Create a unit test',
             ],
             [
-                'name' => 'pest',
-                'shortcut' => null,
-                'negatable' => false,
-                'valueRequired' => false,
-                'valueOptional' => false,
-                'isArray' => false,
-                'acceptValue' => false,
-                'default' => false,
-                'description' => 'Create a Pest test',
-            ],
-            [
                 'name' => 'phpunit',
                 'shortcut' => null,
                 'negatable' => false,

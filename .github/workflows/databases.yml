@@ -398,7 +398,7 @@ jobs:
           DB_PASSWORD: password
         run: bin/run-database-tests.sh pgsql
 
-  # Keep TCP coverage for coroutine transport and password authentication.
+  # Keep TCP coverage for coroutine transport and password authentication. The service trusts local socket connections.
   pgsql_18:
     runs-on: ubuntu-latest
     timeout-minutes: 10

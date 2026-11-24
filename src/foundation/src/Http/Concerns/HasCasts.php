@@ -24,6 +24,7 @@ use InvalidArgumentException;
 use stdClass;
 
 use function Hypervel\Support\enum_from;
+use function Hypervel\Support\parse_boolean;
 
 trait HasCasts
 {
@@ -374,11 +375,11 @@ trait HasCasts
     protected function castPrimitiveInput(string $castType, ?string $argumentString, mixed $value): mixed
     {
         return match ($castType) {
-            'int', 'integer' => (int) $value,
+            'int', 'integer' => is_float($value) ? Number::castFloatToInteger($value) : (int) $value,
             'real', 'float', 'double' => $this->fromFloat($value),
             'decimal' => $this->asDecimal($value, (int) $argumentString),
             'string' => (string) $value,
-            'bool', 'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+            'bool', 'boolean' => parse_boolean($value) ?? false,
             'array', 'json' => is_array($value) ? $value : Json::decode($value),
             'collection' => $value instanceof Collection
                 ? $value

@@ -142,7 +142,7 @@ if (! function_exists('app')) {
      *
      * @return ($abstract is class-string<TClass> ? TClass : ($abstract is null ? Application : mixed))
      */
-    function app(?string $abstract = null, array $parameters = [])
+    function app(?string $abstract = null, array $parameters = []): mixed
     {
         if (is_null($abstract)) {
             return Container::getInstance();
@@ -382,11 +382,9 @@ if (! function_exists('context')) {
     /**
      * Get / set the specified context value.
      *
-     * @param null|array|string $key
-     * @param mixed $default
      * @return ($key is string ? mixed : ContextRepository)
      */
-    function context($key = null, $default = null)
+    function context(array|string|null $key = null, mixed $default = null): mixed
     {
         $context = app(ContextRepository::class);
 
@@ -477,10 +475,9 @@ if (! function_exists('dispatch')) {
     /**
      * Dispatch a job to its appropriate handler.
      *
-     * @param mixed $job
      * @return ($job is Closure ? PendingClosureDispatch : PendingDispatch)
      */
-    function dispatch($job): PendingClosureDispatch|PendingDispatch
+    function dispatch(mixed $job): PendingClosureDispatch|PendingDispatch
     {
         return $job instanceof Closure
             ? new PendingClosureDispatch(CallQueuedClosure::create($job))
@@ -645,11 +642,8 @@ if (! function_exists('old')) {
 if (! function_exists('policy')) {
     /**
      * Get a policy instance for a given class.
-     *
-     * @return mixed|void
-     * @throws InvalidArgumentException
      */
-    function policy(object|string $class)
+    function policy(object|string $class): mixed
     {
         return app(Gate::class)->getPolicyFor($class);
     }
@@ -799,11 +793,11 @@ if (! function_exists('rescue')) {
      * @template TFallback
      *
      * @param callable(): TValue $callback
-     * @param (callable(Throwable): TFallback)|TFallback $rescue
+     * @param (Closure(Throwable): TFallback)|TFallback $rescue
      * @param bool|callable(Throwable): bool $report
      * @return TFallback|TValue
      */
-    function rescue(callable $callback, $rescue = null, $report = true)
+    function rescue(callable $callback, mixed $rescue = null, bool|callable $report = true): mixed
     {
         try {
             return $callback();
@@ -812,7 +806,7 @@ if (! function_exists('rescue')) {
                 throw $e;
             }
 
-            if (value($report, $e)) {
+            if (is_bool($report) ? $report : $report($e)) {
                 report($e);
             }
 
@@ -831,7 +825,7 @@ if (! function_exists('resolve')) {
      *
      * @return ($name is class-string<TClass> ? TClass : mixed)
      */
-    function resolve(string $name, array $parameters = [])
+    function resolve(string $name, array $parameters = []): mixed
     {
         return app($name, $parameters);
     }

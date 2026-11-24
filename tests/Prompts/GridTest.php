@@ -41,7 +41,7 @@ class GridTest extends TestCase
 
         (new Grid($items, maxWidth: 80))->display();
 
-        Prompt::assertStrippedOutputContains('pest');
+        Prompt::assertStrippedOutputContains('lint');
         Prompt::assertStrippedOutputContains('phpstan');
         Prompt::assertStrippedOutputContains('pint');
         Prompt::assertStrippedOutputContains('rector');
@@ -50,8 +50,8 @@ class GridTest extends TestCase
     public static function multipleItemsProvider(): array
     {
         return [
-            'arrays' => [['pest', 'phpstan', 'pint', 'rector']],
-            'collections' => [collect(['pest', 'phpstan', 'pint', 'rector'])],
+            'arrays' => [['lint', 'phpstan', 'pint', 'rector']],
+            'collections' => [collect(['lint', 'phpstan', 'pint', 'rector'])],
         ];
     }
 
@@ -271,14 +271,14 @@ class GridTest extends TestCase
         (new Grid([
             'building-livewire-components',
             'building-mcp-servers',
-            'testing-with-pest',
+            'testing-with-data',
             'using-fluxui',
             'using-folio-routing',
             'using-tailwindcss',
         ], maxWidth: 120))->display();
 
         Prompt::assertStrippedOutputContains('┌──────────────────────────────┬──────────────────────┬───────────────────┐');
-        Prompt::assertStrippedOutputContains('│ building-livewire-components │ building-mcp-servers │ testing-with-pest │');
+        Prompt::assertStrippedOutputContains('│ building-livewire-components │ building-mcp-servers │ testing-with-data │');
         Prompt::assertStrippedOutputContains('├──────────────────────────────┼──────────────────────┼───────────────────┤');
         Prompt::assertStrippedOutputContains('│ using-fluxui                 │ using-folio-routing  │ using-tailwindcss │');
         Prompt::assertStrippedOutputContains('└──────────────────────────────┴──────────────────────┴───────────────────┘');

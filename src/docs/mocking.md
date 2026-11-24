@@ -18,22 +18,7 @@ Hypervel provides helpful methods for mocking events, jobs, and other facades ou
 
 When mocking an object that is going to be injected into your application via Hypervel's [service container](/docs/{{version}}/container), you will need to bind your mocked instance into the container as an `instance` binding. This will instruct the container to use your mocked instance of the object instead of constructing the object itself:
 
-```php tab=Pest
-use App\Service;
-use Mockery;
-use Mockery\MockInterface;
-
-test('something can be mocked', function () {
-    $this->instance(
-        Service::class,
-        Mockery::mock(Service::class, function (MockInterface $mock) {
-            $mock->expects('process');
-        })
-    );
-});
-```
-
-```php tab=PHPUnit
+```php
 use App\Service;
 use Mockery;
 use Mockery\MockInterface;
@@ -113,23 +98,7 @@ class UserController extends Controller
 
 We can mock the call to the `Cache` facade by using the `expects` method, which will return an instance of a [Mockery](https://github.com/padraic/mockery) mock. Since facades are actually resolved and managed by the Hypervel [service container](/docs/{{version}}/container), they have much more testability than a typical static class. For example, let's mock our call to the `Cache` facade's `get` method:
 
-```php tab=Pest
-<?php
-
-use Hypervel\Support\Facades\Cache;
-
-test('get index', function () {
-    Cache::expects('get')
-        ->with('key')
-        ->andReturn('value');
-
-    $response = $this->get('/users');
-
-    // ...
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -160,23 +129,7 @@ class UserControllerTest extends TestCase
 
 If you would like to [spy](http://docs.mockery.io/en/latest/reference/spies.html) on a facade, you may call the `spy` method on the corresponding facade. Spies are similar to mocks; however, spies record any interaction between the spy and the code being tested, allowing you to make assertions after the code is executed:
 
-```php tab=Pest
-<?php
-
-use Hypervel\Support\Facades\Cache;
-
-test('values are stored in cache', function () {
-    Cache::spy();
-
-    $response = $this->get('/');
-
-    $response->assertStatus(200);
-
-    Cache::shouldHaveReceived('put')->with('name', 'Taylor', 10);
-});
-```
-
-```php tab=PHPUnit
+```php
 use Hypervel\Support\Facades\Cache;
 
 public function test_values_are_stored_in_cache(): void
@@ -196,29 +149,7 @@ public function test_values_are_stored_in_cache(): void
 
 When testing, you may occasionally need to modify the time returned by helpers such as `now` or `Hypervel\Support\CarbonImmutable::now()`. Thankfully, Hypervel's base feature test class includes helpers that allow you to manipulate the current time:
 
-```php tab=Pest
-test('time can be manipulated', function () {
-    // Travel into the future...
-    $this->travel(5)->milliseconds();
-    $this->travel(5)->seconds();
-    $this->travel(5)->minutes();
-    $this->travel(5)->hours();
-    $this->travel(5)->days();
-    $this->travel(5)->weeks();
-    $this->travel(5)->years();
-
-    // Travel into the past...
-    $this->travel(-5)->hours();
-
-    // Travel to an explicit time...
-    $this->travelTo(now()->minus(hours: 6));
-
-    // Return back to the present time...
-    $this->travelBack();
-});
-```
-
-```php tab=PHPUnit
+```php
 public function test_time_can_be_manipulated(): void
 {
     // Travel into the future...
@@ -271,22 +202,10 @@ $this->freezeSecond(function (CarbonInterface $time) {
 
 As you would expect, all of the methods discussed above are primarily useful for testing time sensitive application behavior, such as locking inactive posts on a discussion forum:
 
-```php tab=Pest
+```php
 use App\Models\Thread;
 
-test('forum threads lock after one week of inactivity', function () {
-    $thread = Thread::factory()->create();
-
-    $this->travel(1)->week();
-
-    expect($thread->isLockedByInactivity())->toBeTrue();
-});
-```
-
-```php tab=PHPUnit
-use App\Models\Thread;
-
-public function test_forum_threads_lock_after_one_week_of_inactivity()
+public function test_forum_threads_lock_after_one_week_of_inactivity(): void
 {
     $thread = Thread::factory()->create();
 

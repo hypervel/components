@@ -25,6 +25,7 @@ use PHPStan\Reflection\MissingMethodFromReflectionException;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\ShouldNotHappenException;
 use PHPStan\Type\BenevolentUnionType;
+use PHPStan\Type\Constant\ConstantIntegerType;
 use PHPStan\Type\Generic\GenericObjectType;
 use PHPStan\Type\IntegerType;
 use PHPStan\Type\IntersectionType;
@@ -108,19 +109,23 @@ class CollectionHelper
     }
 
     /**
-     * Get the collection type that collect() makes from a scalar, null or an empty array.
+     * Get the collection type that collect() makes from a scalar, enum, null or an empty array.
      *
-     * collect()'s declared signature already describes objects and other arrays. Upstream
+     * collect()'s declared signature already describes other objects and arrays. Upstream
      * also typed objects here, casting Arrayable objects with (array) instead of reading
      * toArray(), and forcing integer keys onto Eloquent collections.
      */
     public function determineGenericCollectionTypeFromType(Type $type): ?GenericObjectType
     {
+        // Matches Arr::wrap(), which collect() uses for scalars, enums and null.
+        if ($type->isEnum()->yes()) {
+            return new GenericObjectType(Collection::class, [new ConstantIntegerType(0), $type]);
+        }
+
         if (! $type->isObject()->no()) {
             return null;
         }
 
-        // Matches Arr::wrap(), which collect() uses for scalars and null.
         $arrayType = $type->toArray();
 
         if ($arrayType->isIterableAtLeastOnce()->no()) {

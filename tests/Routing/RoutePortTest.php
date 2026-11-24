@@ -19,6 +19,8 @@ use Hypervel\Routing\RouteGroup;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\UrlGenerator;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class RoutePortTest extends RoutingTestCase
@@ -260,42 +262,70 @@ class RoutePortTest extends RoutingTestCase
         $compiledCollection->match(Request::create('http://localhost:8000/foo', 'GET'));
     }
 
-    public function testRouteUrlGenerationUsesRoutePort(): void
+    #[TestWith(['health', 'health'])]
+    #[TestWith(['health/{id}', 'health/7'])]
+    public function testCompiledMatchingContinuesPastRoutesOnAnotherListener(string $pattern, string $path): void
     {
-        $routes = new RouteCollection;
-        $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
-        $routes->add($route);
+        [$router, $container] = $this->getRouter();
+        $router->port(8001)->get($pattern, ['uses' => 'HealthController@index', 'as' => 'health']);
+        $router->port(8001)->post($pattern, ['uses' => 'HealthController@store', 'as' => 'store']);
+        $router->port(8002)->put($pattern, ['uses' => 'HealthController@update', 'as' => 'update']);
+        $router->get('{page}', ['uses' => 'PageController@show', 'as' => 'page'])->where('page', '.*');
+        $routes = $router->getRoutes()->toCompiledRouteCollection($router, $container);
 
-        // Current request is on port 8000
-        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
+        $route = $routes->match(Request::create("http://localhost:8000/{$path}"));
+        $this->assertSame('page', $route->getName());
+        $this->assertSame($path, $route->parameter('page'));
+        $this->assertSame('health', $routes->match(Request::create("http://localhost:8001/{$path}"))->getName());
+        $this->assertSame('update', $routes->match(Request::create("http://localhost:8002/{$path}", 'PUT'))->getName());
 
-        // Absolute URL should use route's port (8080), not request's port (8000)
-        $this->assertSame('http://localhost:8080/foo', $url->route('portRoute'));
+        try {
+            $routes->match(Request::create("http://localhost:8000/{$path}", 'DELETE'));
+            $this->fail('Expected the route to reject DELETE.');
+        } catch (MethodNotAllowedHttpException $exception) {
+            $this->assertSame('GET, HEAD', $exception->getHeaders()['Allow']);
+        }
     }
 
-    public function testRouteUrlGenerationOmitsDefaultPort(): void
+    public function testRoutePortUsesTheListenerBehindAProxy(): void
     {
-        $routes = new RouteCollection;
-        $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(80);
-        $routes->add($route);
+        [$router, $container] = $this->getRouter();
+        $router->port(8000)->get('/orders', ['uses' => 'OrdersController@index', 'as' => 'orders']);
+        $request = Request::create('https://example.com/orders');
+        $request->server->set('SERVER_PORT', 8000);
 
-        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
+        $plain = $router->getRoutes();
 
-        // Port 80 on HTTP should be omitted
-        $this->assertSame('http://localhost/foo', $url->route('portRoute'));
+        foreach ([$plain, $plain->toCompiledRouteCollection($router, $container)] as $routes) {
+            $this->assertSame('orders', $routes->match($request)->getName());
+
+            $otherListener = Request::create('http://example.com:8000/orders');
+            $otherListener->server->set('SERVER_PORT', 8080);
+
+            try {
+                $routes->match($otherListener);
+                $this->fail('The route matched a different listener.');
+            } catch (NotFoundHttpException $exception) {
+                $this->assertSame(404, $exception->getStatusCode());
+            }
+        }
     }
 
-    public function testRouteUrlGenerationWithHttpsAndPort443(): void
+    public function testListenerScopedLinksUseThePublicOrigin(): void
     {
         $routes = new RouteCollection;
-        $route = new Route(['GET'], 'foo', ['as' => 'secureRoute', 'https']);
-        $route->port(443);
-        $routes->add($route);
+        $routes->add((new Route('GET', 'orders', ['as' => 'orders']))->port(8000));
+        $routes->add((new Route('GET', 'orders', ['domain' => 'api.example.com', 'as' => 'api.orders']))->port(8000));
+        $request = Request::create('https://example.com');
+        $request->server->set('SERVER_PORT', 8000);
 
-        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
+        $url = new UrlGenerator($routes, $request);
+        $url->setKeyResolver(fn () => 'test-signing-key');
+        $this->assertSame('https://example.com/orders', $url->route('orders'));
+        $this->assertSame('https://api.example.com/orders', $url->route('api.orders'));
 
-        // Port 443 on HTTPS should be omitted
-        $this->assertSame('https://localhost/foo', $url->route('secureRoute'));
+        $signed = $url->signedRoute('orders');
+        $this->assertTrue($url->hasValidSignature(Request::create($signed)));
     }
 
     public function testRouteUrlGenerationWithoutPortUsesRequestPort(): void
@@ -311,18 +341,6 @@ class RoutePortTest extends RoutingTestCase
         $this->assertSame('http://localhost:8000/foo', $url->route('noPort'));
     }
 
-    public function testRelativeUrlIgnoresPort(): void
-    {
-        $routes = new RouteCollection;
-        $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
-        $routes->add($route);
-
-        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
-
-        // Relative URL has no host/port
-        $this->assertSame('/foo', $url->route('portRoute', [], false));
-    }
-
     public function testRouteUrlGenerationPreservesForcedRootPath(): void
     {
         $routes = new RouteCollection;
@@ -333,28 +351,21 @@ class RoutePortTest extends RoutingTestCase
         $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
         $url->useOrigin('http://www.foo.com/subfolder');
 
-        $this->assertSame('http://www.foo.com:8080/subfolder/foo', $url->route('portRoute'));
+        $this->assertSame('http://www.foo.com/subfolder/foo', $url->route('portRoute'));
     }
 
-    public function testSignedRouteUsesRoutePort(): void
+    public function testSignedLinksCanUseAnotherListenersPublicOrigin(): void
     {
         $routes = new RouteCollection;
-        $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
-        $routes->add($route);
-
-        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
+        $routes->add((new Route('GET', 'orders', ['as' => 'orders']))->port(8080));
+        $url = new UrlGenerator($routes, Request::create('https://example.com'));
         $url->setKeyResolver(fn () => 'test-signing-key');
+        $url->formatHostUsing(fn (string $root, ?Route $route) => $route?->getPort() === 8080 ? 'https://admin.example.com' : $root);
 
-        $signed = $url->signedRoute('portRoute');
+        $signed = $url->signedRoute('orders');
 
-        // Signed URL should use route port, not request port
-        $this->assertStringContainsString('localhost:8080', $signed);
-        $this->assertStringNotContainsString('8000', $signed);
-
-        // Signature should be valid when verified against the correct URL
-        $this->assertTrue($url->hasValidSignature(
-            Request::create($signed)
-        ));
+        $this->assertStringStartsWith('https://admin.example.com/orders?', $signed);
+        $this->assertTrue($url->hasValidSignature(Request::create($signed)));
     }
 
     public function testCompiledRouteDynamicAddWithDifferentPortThrows(): void

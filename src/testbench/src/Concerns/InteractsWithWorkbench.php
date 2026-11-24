@@ -17,7 +17,6 @@ use Hypervel\Workbench\AuthServiceProvider;
  */
 trait InteractsWithWorkbench
 {
-    use InteractsWithPest;
     use InteractsWithPHPUnit;
     use InteractsWithTestCase;
 

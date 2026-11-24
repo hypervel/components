@@ -3783,48 +3783,7 @@ When testing code that dispatches jobs, you may wish to instruct Hypervel to not
 
 You may use the `Queue` facade's `fake` method to prevent queued jobs from actually being pushed to the queue. After calling the `Queue` facade's `fake` method, you may then assert that the application attempted to push jobs to the queue:
 
-```php tab=Pest
-<?php
-
-use App\Jobs\AnotherJob;
-use App\Jobs\ShipOrder;
-use Hypervel\Support\Facades\Queue;
-
-test('orders can be shipped', function () {
-    Queue::fake();
-
-    // Perform order shipping...
-
-    // Assert that no jobs were pushed...
-    Queue::assertNothingPushed();
-
-    // Assert a job was pushed to a given queue...
-    Queue::assertPushedOn('queue-name', ShipOrder::class);
-
-    // Assert a job was pushed
-    Queue::assertPushed(ShipOrder::class);
-
-    // Assert a job was pushed exactly once...
-    Queue::assertPushedOnce(ShipOrder::class);
-
-    // Assert a job was pushed twice...
-    Queue::assertPushedTimes(ShipOrder::class, 2);
-
-    // Assert a job was not pushed...
-    Queue::assertNotPushed(AnotherJob::class);
-
-    // Assert that a closure was pushed to the queue...
-    Queue::assertClosurePushed();
-
-    // Assert that a closure was not pushed...
-    Queue::assertClosureNotPushed();
-
-    // Assert the total number of jobs that were pushed...
-    Queue::assertCount(3);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -3918,20 +3877,7 @@ When faking only selected jobs with `Bus::fake([...])`, you may call `Bus::witho
 
 If you only need to fake specific jobs while allowing your other jobs to execute normally, you may pass the class names of the jobs that should be faked to the `fake` method:
 
-```php tab=Pest
-test('orders can be shipped', function () {
-    Queue::fake([
-        ShipOrder::class,
-    ]);
-
-    // Perform order shipping...
-
-    // Assert a job was pushed twice...
-    Queue::assertPushedTimes(ShipOrder::class, 2);
-});
-```
-
-```php tab=PHPUnit
+```php
 public function test_orders_can_be_shipped(): void
 {
     Queue::fake([

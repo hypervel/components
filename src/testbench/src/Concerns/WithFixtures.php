@@ -18,7 +18,6 @@ trait WithFixtures
      */
     protected static function setupWithFixturesForTestingEnvironment(): void
     {
-        // Pest-specific fixture discovery is intentionally unsupported.
         $classFileName = filename_from_classname(static::class);
 
         if ($classFileName === false) {

@@ -1736,27 +1736,7 @@ Custom prompt classes may override the `validateIntrinsic` method to enforce rul
 
 Hypervel provides a variety of methods for testing that your command displays the expected Prompt messages:
 
-```php tab=Pest
-test('report generation', function () {
-    $this->artisan('report:generate')
-        ->expectsPromptsInfo('Welcome to the application!')
-        ->expectsPromptsWarning('This action cannot be undone')
-        ->expectsPromptsError('Something went wrong')
-        ->expectsPromptsAlert('Important notice!')
-        ->expectsPromptsIntro('Starting process...')
-        ->expectsPromptsOutro('Process completed!')
-        ->expectsPromptsTable(
-            headers: ['Name', 'Email'],
-            rows: [
-                ['Taylor Otwell', 'taylor@example.com'],
-                ['Jason Beggs', 'jason@example.com'],
-            ]
-        )
-        ->assertExitCode(0);
-});
-```
-
-```php tab=PHPUnit
+```php
 public function test_report_generation(): void
 {
     $this->artisan('report:generate')

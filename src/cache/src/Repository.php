@@ -45,6 +45,7 @@ use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use Throwable;
@@ -238,8 +239,12 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
             return $value;
         }
 
-        // Return the filtered value: a numeric Stringable passes the filter, but casting it to int fails.
-        if (($integer = filter_var($value, FILTER_VALIDATE_INT)) !== false) {
+        // Use the filtered value for numeric Stringables; casting the object directly fails.
+        $integer = is_float($value)
+            ? Number::tryConvertFloatToInteger($value)
+            : filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
+
+        if ($integer !== null) {
             return $integer;
         }
 

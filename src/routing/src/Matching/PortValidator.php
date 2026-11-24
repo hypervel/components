@@ -20,6 +20,6 @@ class PortValidator implements ValidatorInterface
             return true;
         }
 
-        return $port === (int) $request->getPort();
+        return $port === $request->server->getInt('SERVER_PORT');
     }
 }

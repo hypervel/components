@@ -17,6 +17,8 @@ use League\OAuth2\Server\Entities\ScopeEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
 
+use function Hypervel\Support\parse_boolean;
+
 class AuthorizationFinalizer
 {
     /**
@@ -65,7 +67,7 @@ class AuthorizationFinalizer
         if ($approval === AuthorizationApproval::Prompt && array_key_exists('remember', $request->all())) {
             $remember = $request->input('remember') ?? false;
 
-            if (! is_scalar($remember) || ($remember = filter_var($remember, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)) === null) {
+            if (! is_scalar($remember) || ($remember = parse_boolean($remember)) === null) {
                 throw OAuthServerException::invalidRequest('remember');
             }
 

@@ -38,27 +38,4 @@ class TestMakeCommandTest extends TestCase
             '#[UnitTest]',
         ], 'tests/Unit/FooTest.php');
     }
-
-    public function testItCanGenerateFeatureTestUsingPest(): void
-    {
-        $this->artisan('make:test', ['name' => 'FooTest', '--pest' => true])
-            ->assertExitCode(0);
-
-        $this->assertFileContains([
-            'test(\'example\', function () {',
-            '$response = $this->get(\'/\');',
-            '$response->assertStatus(200);',
-        ], 'tests/Feature/FooTest.php');
-    }
-
-    public function testItCanGenerateUnitTestUsingPest(): void
-    {
-        $this->artisan('make:test', ['name' => 'FooTest', '--unit' => true, '--pest' => true])
-            ->assertExitCode(0);
-
-        $this->assertFileContains([
-            'test(\'example\', function () {',
-            'expect(true)->toBeTrue();',
-        ], 'tests/Unit/FooTest.php');
-    }
 }

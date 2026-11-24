@@ -1223,36 +1223,7 @@ When testing code that dispatches events, you may wish to instruct Hypervel to n
 
 Using the `Event` facade's `fake` method, you may prevent listeners from executing, execute the code under test, and then assert which events were dispatched by your application using the `assertDispatched`, `assertNotDispatched`, and `assertNothingDispatched` methods:
 
-```php tab=Pest
-<?php
-
-use App\Events\OrderFailedToShip;
-use App\Events\OrderShipped;
-use Hypervel\Support\Facades\Event;
-
-test('orders can be shipped', function () {
-    Event::fake();
-
-    // Perform order shipping...
-
-    // Assert that an event was dispatched...
-    Event::assertDispatched(OrderShipped::class);
-
-    // Assert an event was dispatched twice...
-    Event::assertDispatched(OrderShipped::class, 2);
-
-    // Assert an event was dispatched once...
-    Event::assertDispatchedOnce(OrderShipped::class);
-
-    // Assert an event was not dispatched...
-    Event::assertNotDispatched(OrderFailedToShip::class);
-
-    // Assert that no events were dispatched...
-    Event::assertNothingDispatched();
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -1324,24 +1295,7 @@ Event::assertListening(
 
 If you only want to fake event listeners for a specific set of events, you may pass them to the `fake` or `fakeFor` method:
 
-```php tab=Pest
-test('orders can be processed', function () {
-    Event::fake([
-        OrderCreated::class,
-    ]);
-
-    $order = Order::factory()->create();
-
-    Event::assertDispatched(OrderCreated::class);
-
-    // Other events are dispatched as normal...
-    $order->update([
-        // ...
-    ]);
-});
-```
-
-```php tab=PHPUnit
+```php
 /**
  * Test order process.
  */
@@ -1375,30 +1329,7 @@ Event::fake()->except([
 
 If you only want to fake event listeners for a portion of your test, you may use the `fakeFor` method:
 
-```php tab=Pest
-<?php
-
-use App\Events\OrderCreated;
-use App\Models\Order;
-use Hypervel\Support\Facades\Event;
-
-test('orders can be processed', function () {
-    $order = Event::fakeFor(function () {
-        $order = Order::factory()->create();
-
-        Event::assertDispatched(OrderCreated::class);
-
-        return $order;
-    });
-
-    // Events are dispatched as normal and observers will run...
-    $order->update([
-        // ...
-    ]);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;

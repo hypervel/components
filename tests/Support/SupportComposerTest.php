@@ -207,11 +207,11 @@ class SupportComposerTest extends TestCase
     public function testRequirePackagesRunsTheCorrectCommand(): void
     {
         $composer = $this->mockComposer(
-            ['composer', 'require', 'pestphp/pest:^2.0', 'pestphp/pest-plugin-laravel:^2.0', '--dev'],
+            ['composer', 'require', 'phpunit/phpunit:^13.0', 'brianium/paratest:^7.0', '--dev'],
             expectedEnvironment: ['COMPOSER_MEMORY_LIMIT' => '-1'],
         );
 
-        $composer->requirePackages(['pestphp/pest:^2.0', 'pestphp/pest-plugin-laravel:^2.0'], true);
+        $composer->requirePackages(['phpunit/phpunit:^13.0', 'brianium/paratest:^7.0'], true);
     }
 
     public function testRemovePackagesRunsTheCorrectCommand(): void

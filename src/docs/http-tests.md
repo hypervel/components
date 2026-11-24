@@ -24,17 +24,7 @@
 
 Hypervel provides a very fluent API for making HTTP requests to your application and examining the responses. For example, take a look at the feature test defined below:
 
-```php tab=Pest
-<?php
-
-test('the application returns a successful response', function () {
-    $response = $this->get('/');
-
-    $response->assertStatus(200);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -72,17 +62,7 @@ $response = $this->queryJson('/search', ['filter' => 'active']);
 
 Instead of returning a `Hypervel\Http\Response` instance, test request methods return an instance of `Hypervel\Testing\TestResponse`, which provides a [variety of helpful assertions](#available-assertions) that allow you to inspect your application's responses:
 
-```php tab=Pest
-<?php
-
-test('basic request', function () {
-    $response = $this->get('/');
-
-    $response->assertStatus(200);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -113,19 +93,7 @@ In general, each of your tests should only make one request to your application.
 
 You may use the `withHeaders` method to customize the request's headers before it is sent to the application. This method allows you to add any custom headers you would like to the request:
 
-```php tab=Pest
-<?php
-
-test('interacting with headers', function () {
-    $response = $this->withHeaders([
-        'X-Header' => 'Value',
-    ])->post('/user', ['name' => 'Sally']);
-
-    $response->assertStatus(201);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -181,22 +149,7 @@ $response = $this->withServerVariables([
 
 You may use the `withCookie` or `withCookies` methods to set cookie values before making a request. The `withCookie` method accepts a cookie name and value as its two arguments, while the `withCookies` method accepts an array of name / value pairs:
 
-```php tab=Pest
-<?php
-
-test('interacting with cookies', function () {
-    $response = $this->withCookie('color', 'blue')->get('/');
-
-    $response = $this->withCookies([
-        'color' => 'blue',
-        'name' => 'Taylor',
-    ])->get('/');
-
-    //
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -261,17 +214,7 @@ $response = $this->withMiddleware()->get('/');
 
 Hypervel provides several helpers for interacting with the session during HTTP testing. First, you may set the session data to a given array using the `withSession` method. This is useful for loading the session with data before issuing a request to your application:
 
-```php tab=Pest
-<?php
-
-test('interacting with the session', function () {
-    $response = $this->withSession(['banned' => false])->get('/');
-
-    //
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -291,23 +234,7 @@ class ExampleTest extends TestCase
 
 Hypervel's session is typically used to maintain state for the currently authenticated user. Therefore, the `actingAs` helper method provides a simple way to authenticate a given user as the current user. For example, we may use a [model factory](/docs/{{version}}/eloquent-factories) to generate and authenticate a user:
 
-```php tab=Pest
-<?php
-
-use App\Models\User;
-
-test('an action that requires authentication', function () {
-    $user = User::factory()->create();
-
-    $response = $this->actingAs($user)
-        ->withSession(['banned' => false])
-        ->get('/');
-
-    //
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -347,19 +274,7 @@ $this->actingAsGuest();
 
 After making a test request to your application, the `dump`, `dumpHeaders`, and `dumpSession` methods may be used to examine and debug the response contents:
 
-```php tab=Pest
-<?php
-
-test('basic test', function () {
-    $response = $this->get('/');
-
-    $response->dump();
-    $response->dumpHeaders();
-    $response->dumpSession();
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -384,21 +299,7 @@ class ExampleTest extends TestCase
 
 Alternatively, you may use the `dd`, `ddHeaders`, `ddBody`, `ddJson`, and `ddSession` methods to dump information about the response and then stop execution:
 
-```php tab=Pest
-<?php
-
-test('basic test', function () {
-    $response = $this->get('/');
-
-    $response->dd();
-    $response->ddHeaders();
-    $response->ddBody();
-    $response->ddJson();
-    $response->ddSession();
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -428,28 +329,7 @@ class ExampleTest extends TestCase
 
 Sometimes you may need to test that your application is throwing a specific exception. To accomplish this, you may "fake" the exception handler via the `Exceptions` facade. Once the exception handler has been faked, you may utilize the `assertReported` and `assertNotReported` methods to make assertions against exceptions that were thrown during the request:
 
-```php tab=Pest
-<?php
-
-use App\Exceptions\InvalidOrderException;
-use Hypervel\Support\Facades\Exceptions;
-
-test('exception is thrown', function () {
-    Exceptions::fake();
-
-    $response = $this->get('/order/1');
-
-    // Assert an exception was thrown...
-    Exceptions::assertReported(InvalidOrderException::class);
-
-    // Assert against the exception...
-    Exceptions::assertReported(function (InvalidOrderException $e) {
-        return $e->getMessage() === 'The order was invalid.';
-    });
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -467,7 +347,7 @@ class ExampleTest extends TestCase
     {
         Exceptions::fake();
 
-        $response = $this->get('/');
+        $this->get('/order/1');
 
         // Assert an exception was thrown...
         Exceptions::assertReported(InvalidOrderException::class);
@@ -531,21 +411,7 @@ $this->assertDoesntThrow(fn () => (new ProcessOrder)->execute());
 
 Hypervel also provides several helpers for testing JSON APIs and their responses. For example, the `json`, `getJson`, `postJson`, `putJson`, `patchJson`, `deleteJson`, `optionsJson`, and `queryJson` methods may be used to issue JSON requests with various HTTP verbs. You may also easily pass data and headers to these methods. To get started, let's write a test to make a `POST` request to `/api/user` and assert that the expected JSON data was returned:
 
-```php tab=Pest
-<?php
-
-test('making an api request', function () {
-    $response = $this->postJson('/api/user', ['name' => 'Sally']);
-
-    $response
-        ->assertStatus(201)
-        ->assertJson([
-            'created' => true,
-        ]);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -572,11 +438,7 @@ class ExampleTest extends TestCase
 
 In addition, JSON response data may be accessed as array variables on the response, making it convenient for you to inspect the individual values returned within a JSON response:
 
-```php tab=Pest
-expect($response['created'])->toBeTrue();
-```
-
-```php tab=PHPUnit
+```php
 $this->assertTrue($response['created']);
 ```
 
@@ -596,21 +458,7 @@ $response = $this->withCredentials()->postJson('/api/user', [
 
 As previously mentioned, the `assertJson` method may be used to assert that a fragment of JSON exists within the JSON response. If you would like to verify that a given array **exactly matches** the JSON returned by your application, you should use the `assertExactJson` method:
 
-```php tab=Pest
-<?php
-
-test('asserting an exact json match', function () {
-    $response = $this->postJson('/user', ['name' => 'Sally']);
-
-    $response
-        ->assertStatus(201)
-        ->assertExactJson([
-            'created' => true,
-        ]);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -640,19 +488,7 @@ class ExampleTest extends TestCase
 
 If you would like to verify that the JSON response contains the given data at a specified path, you should use the `assertJsonPath` method:
 
-```php tab=Pest
-<?php
-
-test('asserting a json path value', function () {
-    $response = $this->postJson('/user', ['name' => 'Sally']);
-
-    $response
-        ->assertStatus(201)
-        ->assertJsonPath('team.owner.name', 'Darian');
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -705,25 +541,7 @@ $response->assertJsonMissingPaths([
 
 Hypervel also offers a beautiful way to fluently test your application's JSON responses. To get started, pass a closure to the `assertJson` method. This closure will be invoked with an instance of `Hypervel\Testing\Fluent\AssertableJson` which can be used to make assertions against the JSON that was returned by your application. The `where` method may be used to make assertions against a particular attribute of the JSON, while the `missing` method may be used to assert that a particular attribute is missing from the JSON:
 
-```php tab=Pest
-use Hypervel\Testing\Fluent\AssertableJson;
-
-test('fluent json', function () {
-    $response = $this->getJson('/users/1');
-
-    $response
-        ->assertJson(fn (AssertableJson $json) =>
-            $json->where('id', 1)
-                ->where('name', 'Victoria Faith')
-                ->where('email', fn (string $email) => str($email)->is('victoria@gmail.com'))
-                ->whereNot('status', 'pending')
-                ->missing('password')
-                ->etc()
-        );
-});
-```
-
-```php tab=PHPUnit
+```php
 use Hypervel\Testing\Fluent\AssertableJson;
 
 /**
@@ -904,26 +722,7 @@ The `whereType` and `whereAllType` methods recognize the following types: `strin
 
 The `Hypervel\Http\UploadedFile` class provides a `fake` method which may be used to generate dummy files or images for testing. This, combined with the `Storage` facade's `fake` method, greatly simplifies the testing of file uploads. For example, you may combine these two features to easily test an avatar upload form:
 
-```php tab=Pest
-<?php
-
-use Hypervel\Http\UploadedFile;
-use Hypervel\Support\Facades\Storage;
-
-test('avatars can be uploaded', function () {
-    Storage::fake('avatars');
-
-    $file = UploadedFile::fake()->image('avatar.jpg');
-
-    $response = $this->post('/avatar', [
-        'avatar' => $file,
-    ]);
-
-    Storage::disk('avatars')->assertExists($file->hashName());
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -987,17 +786,7 @@ UploadedFile::fake()->create(
 
 Hypervel also allows you to render a view without making a simulated HTTP request to the application. To accomplish this, you may call the `view` method within your test. The `view` method accepts the view name and an optional array of data. The method returns an instance of `Hypervel\Testing\TestView`, which offers several methods to conveniently make assertions about the view's contents:
 
-```php tab=Pest
-<?php
-
-test('a welcome view can be rendered', function () {
-    $view = $this->view('welcome', ['name' => 'Taylor']);
-
-    $view->assertSee('Taylor');
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -1067,22 +856,7 @@ The `TestComponent` class provides the following assertion methods: `assertSee`,
 
 Before a test runs, Hypervel boots a fresh instance of the application, including collecting all defined routes. If your applications have many route files, you may wish to add the `Hypervel\Foundation\Testing\WithCachedRoutes` trait to your test cases. On tests which use this trait, routes are built once and stored in memory, meaning the route collection process is only run once for all tests in your suite:
 
-```php tab=Pest
-<?php
-
-use App\Http\Controllers\UserController;
-use Hypervel\Foundation\Testing\WithCachedRoutes;
-
-pest()->use(WithCachedRoutes::class);
-
-test('basic example', function () {
-    $this->get(action([UserController::class, 'index']));
-
-    // ...
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -2310,11 +2084,7 @@ $response->assertViewHas('user', function (User $user) {
 
 In addition, view data may be accessed as array variables on the response, allowing you to conveniently inspect it:
 
-```php tab=Pest
-expect($response['name'])->toBe('Taylor');
-```
-
-```php tab=PHPUnit
+```php
 $this->assertSame('Taylor', $response['name']);
 ```
 

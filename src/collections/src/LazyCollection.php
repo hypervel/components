@@ -54,7 +54,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Create a new lazy collection instance.
      *
-     * @param null|array<TKey, TValue>|Arrayable<array<TKey, TValue>>|(Closure(): iterable<TKey, TValue>)|iterable<TKey, TValue>|self<TKey, TValue> $source
+     * @template TObject of object = object
+     *
+     * @param null|Arrayable<array<TKey, TValue>>|(Closure(): iterable<TKey, TValue>)|iterable<TKey, TValue>|scalar|self<TKey, TValue>|TObject $source
      *
      * @throws InvalidArgumentException
      */
@@ -90,11 +92,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Create a new collection instance if the value isn't one already.
      *
-     * @template TMakeKey of array-key = int
+     * @template TMakeKey of array-key = array-key
      * @template TMakeValue = mixed
+     * @template TObject of object = object
      *
-     * @param null|array<TMakeKey, TMakeValue>|Arrayable<array<array-key, mixed>>|(Closure(): iterable<TMakeKey, TMakeValue>)|iterable<TMakeKey, TMakeValue>|self<TMakeKey, TMakeValue> $items
-     * @return ($items is Arrayable<array<TMakeKey, TMakeValue>> ? static<TMakeKey, TMakeValue> : static<TMakeKey, TMakeValue>)
+     * @param null|Arrayable<array<TMakeKey, TMakeValue>>|(Closure(): iterable<TMakeKey, TMakeValue>)|iterable<TMakeKey, TMakeValue>|scalar|self<TMakeKey, TMakeValue>|TObject $items
+     * @return static<TMakeKey, TMakeValue>
      */
     public static function make(mixed $items = [], mixed ...$args): static
     {

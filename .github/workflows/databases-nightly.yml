@@ -9,7 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  # @TODO: Use Unix sockets once Swoole fixes cold caching_sha2_password authentication; see docs/todo.md.
   mysql_innovation:
     if: github.repository == 'hypervel/components'
 
@@ -19,6 +18,8 @@ jobs:
     services:
       mysql:
         image: mysql:innovation
+        volumes:
+          - database-socket:/var/run/mysqld
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -31,6 +32,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php8.4-swoole-nightly
+      volumes:
+        - database-socket:/var/run/mysqld
 
     name: MySQL Innovation
 
@@ -49,11 +52,22 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mysql
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
         run: bin/run-database-tests.sh mysql
+
+      - name: Verify native schema dump over TCP
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: mysql
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: password
+        run: vendor/bin/phpunit --no-progress tests/Integration/SchemaParser/Database/MySql/SchemaParserTest.php
 
   mariadb:
     if: github.repository == 'hypervel/components'

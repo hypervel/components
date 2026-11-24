@@ -32,7 +32,7 @@
 
 Packages are the primary way of adding functionality to Hypervel. Packages might be anything from a great way to work with dates like [Carbon](https://github.com/briannesbitt/Carbon) or a package that allows you to associate files with Eloquent models.
 
-There are different types of packages. Some packages are stand-alone, meaning they work with any PHP framework. Carbon and Pest are examples of stand-alone packages. Any of these packages may be used with Hypervel by requiring them in your `composer.json` file.
+There are different types of packages. Some packages are stand-alone, meaning they work with any PHP framework. Carbon is one example. Any of these packages may be used with Hypervel by requiring them in your `composer.json` file.
 
 On the other hand, other packages are specifically intended for use with Hypervel. These packages may have routes, controllers, views, and configuration specifically intended to enhance a Hypervel application. This guide primarily covers the development of those packages that are Hypervel specific.
 

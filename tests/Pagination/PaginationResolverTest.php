@@ -68,6 +68,20 @@ class PaginationResolverTest extends TestCase
         $this->assertSame(1, Paginator::resolveCurrentPage());
     }
 
+    public function testCurrentPageResolverReturnsOneForFractionalJsonPage(): void
+    {
+        RequestContext::set(Request::create(
+            '/',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: '{"page":434.99999999999994}',
+        ));
+
+        PaginationState::resolveUsing($this->app);
+
+        $this->assertSame(1, Paginator::resolveCurrentPage());
+    }
+
     public function testCurrentPageResolverAcceptsMergedNumericStringable(): void
     {
         $request = Request::create('https://example.com');

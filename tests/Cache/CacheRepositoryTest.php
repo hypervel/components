@@ -1445,6 +1445,14 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(123, $repo->integer('foo'));
     }
 
+    public function testItGetsAsIntegerFromExactFloat(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('get')->with('foo')->returns((float) PHP_INT_MIN);
+
+        $this->assertSame(PHP_INT_MIN, $repo->integer('foo'));
+    }
+
     public function testItGetsAsIntegerFromNumericString(): void
     {
         $repo = $this->getRepository();
@@ -1461,13 +1469,15 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(123, $repo->integer('foo'));
     }
 
-    public function testIntegerTypedGetterThrowsExceptionForNonInteger(): void
+    #[TestWith([['bar'], 'array'])]
+    #[TestWith([434.99999999999994, 'double'])]
+    public function testIntegerTypedGetterThrowsExceptionForNonInteger(array|float $value, string $type): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('Cache value for key [foo] must be an integer, array given.');
+        $this->expectExceptionMessageIsOrContains("Cache value for key [foo] must be an integer, {$type} given.");
 
         $repo = $this->getRepository();
-        $repo->getStore()->expects('get')->with('foo')->returns(['bar']);
+        $repo->getStore()->expects('get')->with('foo')->returns($value);
 
         $repo->integer('foo');
     }

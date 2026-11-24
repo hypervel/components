@@ -70,6 +70,37 @@ class Number
     }
 
     /**
+     * Convert a float to an integer only if its value is exactly representable.
+     *
+     * PHP's integer filter rounds native floats to display precision before checking them.
+     *
+     * @internal
+     */
+    public static function tryConvertFloatToInteger(float $value): ?int
+    {
+        return $value === floor($value) && $value >= PHP_INT_MIN && $value < -(float) PHP_INT_MIN
+            ? (int) $value
+            : null;
+    }
+
+    /**
+     * Cast a float to an integer, saturating finite overflow at the platform limits.
+     *
+     * PHP 8.5 warns when casting nonfinite or out-of-range floats directly.
+     *
+     * @internal
+     */
+    public static function castFloatToInteger(float $value): int
+    {
+        return match (true) {
+            ! is_finite($value) => 0,
+            $value >= PHP_INT_MAX => PHP_INT_MAX,
+            $value <= PHP_INT_MIN => PHP_INT_MIN,
+            default => (int) $value,
+        };
+    }
+
+    /**
      * Convert a number to a non-localized string without rounding to PHP's display precision.
      *
      * @internal

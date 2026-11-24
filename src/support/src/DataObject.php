@@ -278,7 +278,7 @@ abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, Requ
     {
         return is_bool($value)
             ? $value
-            : filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            : parse_boolean($value);
     }
 
     /**
@@ -308,7 +308,11 @@ abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, Requ
             return $value;
         }
 
-        return is_string($value) || is_float($value)
+        if (is_float($value)) {
+            return Number::tryConvertFloatToInteger($value);
+        }
+
+        return is_string($value)
             ? filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE)
             : null;
     }

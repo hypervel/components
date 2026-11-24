@@ -162,6 +162,16 @@ class SupportInteractsWithDataTest extends TestCase
         $this->assertDataBooleanStrictNativeValuesContract();
     }
 
+    public function testBooleanChecksNativeFloatsByValue(): void
+    {
+        $data = static::arrayToDataFactory(['fraction' => 1.000000000000001, 'zero' => -0.0, 'nan' => NAN]);
+
+        $this->assertFalse($data->boolean('fraction'));
+        $this->assertNull($data->boolean('fraction', null, true));
+        $this->assertFalse($data->boolean('zero', true, true));
+        $this->assertNull($data->boolean('nan', null, true));
+    }
+
     public function testIntegerMethod(): void
     {
         $this->assertDataIntegerContract();
@@ -174,6 +184,15 @@ class SupportInteractsWithDataTest extends TestCase
         $this->assertDataFloatStrictContract();
     }
 
+    public function testIntegerHandlesFloatsOutsideTheIntegerRange(): void
+    {
+        $data = static::arrayToDataFactory(['positive' => 1e20, 'negative' => -1e20, 'infinity' => -INF]);
+
+        $this->assertSame(PHP_INT_MAX, $data->integer('positive'));
+        $this->assertSame(PHP_INT_MIN, $data->integer('negative'));
+        $this->assertSame(0, $data->integer('infinity'));
+    }
+
     public function testStrictNumbersAcceptNumericStringables(): void
     {
         $data = static::arrayToDataFactory([
@@ -183,6 +202,24 @@ class SupportInteractsWithDataTest extends TestCase
 
         $this->assertSame(12, $data->integer('integer', null, true));
         $this->assertSame(12.5, $data->float('float', null, true));
+    }
+
+    public function testStrictNumbersPreserveNativeFloatPrecision(): void
+    {
+        $data = static::arrayToDataFactory([
+            'fraction' => 434.99999999999994,
+            'minimum' => (float) PHP_INT_MIN,
+            'overflow' => -(float) PHP_INT_MIN,
+            'infinity' => INF,
+            'rate' => 1.2345678901234567,
+        ]);
+
+        $this->assertNull($data->integer('fraction', null, true));
+        $this->assertSame(PHP_INT_MIN, $data->integer('minimum', null, true));
+        $this->assertNull($data->integer('overflow', null, true));
+        $this->assertNull($data->integer('infinity', null, true));
+        $this->assertNull($data->float('infinity', null, true));
+        $this->assertSame(1.2345678901234567, $data->float('rate', null, true));
     }
 
     public function testStrictDefaultsAreResolvedOnce(): void

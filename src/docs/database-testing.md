@@ -19,21 +19,7 @@ Hypervel provides a variety of helpful tools and assertions to make it easier to
 
 Before proceeding much further, let's discuss how to reset your database after each of your tests so that data from a previous test does not interfere with subsequent tests. Hypervel's included `Hypervel\Foundation\Testing\RefreshDatabase` trait will take care of this for you. Simply use the trait on your test class:
 
-```php tab=Pest
-<?php
-
-use Hypervel\Foundation\Testing\RefreshDatabase;
-
-pest()->use(RefreshDatabase::class);
-
-test('basic example', function () {
-    $response = $this->get('/');
-
-    // ...
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -182,17 +168,7 @@ When testing, you may need to insert a few records into your database before exe
 
 To learn more about creating and utilizing model factories to create models, please consult the complete [model factory documentation](/docs/{{version}}/eloquent-factories). Once you have defined a model factory, you may utilize the factory within your test to create models:
 
-```php tab=Pest
-use App\Models\User;
-
-test('models can be instantiated', function () {
-    $user = User::factory()->create();
-
-    // ...
-});
-```
-
-```php tab=PHPUnit
+```php
 use App\Models\User;
 
 public function test_models_can_be_instantiated(): void
@@ -208,34 +184,7 @@ public function test_models_can_be_instantiated(): void
 
 If you would like to use [database seeders](/docs/{{version}}/seeding) to populate your database during a feature test, you may invoke the `seed` method. By default, the `seed` method will execute the `DatabaseSeeder`, which should execute all of your other seeders. Alternatively, you may pass a specific seeder class name to the `seed` method:
 
-```php tab=Pest
-<?php
-
-use Database\Seeders\OrderStatusSeeder;
-use Database\Seeders\TransactionStatusSeeder;
-use Hypervel\Foundation\Testing\RefreshDatabase;
-
-pest()->use(RefreshDatabase::class);
-
-test('orders can be created', function () {
-    // Run the DatabaseSeeder...
-    $this->seed();
-
-    // Run a specific seeder...
-    $this->seed(OrderStatusSeeder::class);
-
-    // ...
-
-    // Run an array of specific seeders...
-    $this->seed([
-        OrderStatusSeeder::class,
-        TransactionStatusSeeder::class,
-        // ...
-    ]);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;
@@ -312,7 +261,7 @@ class OrderTest extends TestCase
 <a name="available-assertions"></a>
 ## Available Assertions
 
-Hypervel provides several database assertions for your [Pest](https://pestphp.com) or [PHPUnit](https://phpunit.de) feature tests. We'll discuss each of these assertions below.
+Hypervel provides several database assertions for your [PHPUnit](https://phpunit.de) feature tests. We'll discuss each of these assertions below.
 
 <a name="assert-database-count"></a>
 #### assertDatabaseCount

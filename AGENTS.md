@@ -410,7 +410,7 @@ See [Coroutine Cancellation](src/docs/coroutines.md#coroutine-cancellation) for 
 Resolve the technical issues below through evidence-based second-opinion loops with your peer agent, then proceed on consensus. Ask the owner only for unapproved public API departures or capability removals; database schema changes; meaningful performance regressions or weakened guarantees; consequential tradeoffs the requirements do not settle; unresolved peer disagreements; or actions requiring owner authorization.
 
 - **Investigate anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Investigate and reach consensus on the findings and recommended action through a second-opinion loop with your peer agent before implementing. Do not dismiss concerns as theoretical without investigation. If no supported, realistic path or meaningful harm is found, do not present it as a defect or add machinery to address it.
-- **Do not defer work without owner authorization** — do not remove functionality or substitute stubs or TODOs for implementation unless the owner authorizes it. Preserve existing TODO comments unless their underlying work is verified complete or the owner directs otherwise. If blocked, reach consensus on a complete solution through a second-opinion loop with your peer agent.
+- **Do not defer work without owner authorization** — do not remove functionality or substitute stubs or TODOs for implementation unless the owner authorizes it. Adding an item to `docs/todo.md` should be rare and requires explicit owner approval for that item. Preserve existing TODO comments unless their underlying work is verified complete or the owner directs otherwise. If blocked, reach consensus on a complete solution through a second-opinion loop with your peer agent.
 - **Investigate source code bugs** — for bugs found in Hypervel or upstream code being ported, including through PHPStan or tests, reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing. Upstream bugs must be fixed, not ported as-is.
 - **Trace upstream differences before calling them bugs** — a difference from Laravel or an upstream package is not proof that Hypervel is wrong, and matching upstream is not proof that Hypervel is correct. A verified Hypervel defect remains a defect when upstream has the same problem.
 - **Do not work around incorrect existing code to avoid churn** — if work exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over keeping the change small. For any non-trivial fix, reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing.
@@ -828,6 +828,7 @@ Read `docs/ai/porting-hyperf.md` only when porting a Hyperf package or update.
 Owner-approved exclusions that apply across packages. Package-specific differences belong in the package README.
 
 - Laravel Boost and package-provided Boost resources, including skills and guidelines.
+- Pest integration, including generator options and stubs, test-runner selection and Testbench helpers.
 
 ### Source workflow
 

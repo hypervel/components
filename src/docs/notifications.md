@@ -1766,39 +1766,7 @@ You may use the `Notification` facade's `fake` method to prevent notifications f
 
 After calling the `Notification` facade's `fake` method, you may then assert that notifications were instructed to be sent to users and even inspect the data the notifications received:
 
-```php tab=Pest
-<?php
-
-use App\Notifications\OrderShipped;
-use Hypervel\Support\Facades\Notification;
-
-test('orders can be shipped', function () {
-    Notification::fake();
-
-    // Perform order shipping...
-
-    // Assert that no notifications were sent...
-    Notification::assertNothingSent();
-
-    // Assert a notification was sent to the given users...
-    Notification::assertSentTo(
-        [$user], OrderShipped::class
-    );
-
-    // Assert a notification was not sent...
-    Notification::assertNotSentTo(
-        [$user], AnotherNotification::class
-    );
-
-    // Assert a notification was sent twice...
-    Notification::assertSentTimes(WeeklyReminder::class, 2);
-
-    // Assert that a given number of notifications were sent...
-    Notification::assertCount(3);
-});
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;

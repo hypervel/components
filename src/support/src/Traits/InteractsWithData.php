@@ -24,6 +24,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
+use function Hypervel\Support\parse_boolean;
 
 trait InteractsWithData
 {
@@ -285,10 +286,10 @@ trait InteractsWithData
             // A null key reads all of the data, which is never a valid boolean.
             return $key === null || $this->isNotFilled($key)
                 ? value($default)
-                : filter_var($this->data($key), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? value($default);
+                : parse_boolean($this->data($key)) ?? value($default);
         }
 
-        return filter_var($this->data($key, $default), FILTER_VALIDATE_BOOLEAN);
+        return parse_boolean($this->data($key, $default)) ?? false;
     }
 
     /**
@@ -306,7 +307,15 @@ trait InteractsWithData
         if ($strict) {
             $value = $this->data($key);
 
-            // FILTER_VALIDATE_INT returns 1 for true, but false for false, so we need to check for a bool first
+            if (is_int($value)) {
+                return $value;
+            }
+
+            if (is_float($value)) {
+                return Number::tryConvertFloatToInteger($value) ?? value($default);
+            }
+
+            // FILTER_VALIDATE_INT accepts true as 1.
             if (is_bool($value)) {
                 return value($default);
             }
@@ -315,7 +324,9 @@ trait InteractsWithData
             return filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? value($default);
         }
 
-        return (int) $this->data($key, $default);
+        $value = $this->data($key, $default);
+
+        return is_float($value) ? Number::castFloatToInteger($value) : (int) $value;
     }
 
     /**
@@ -332,6 +343,15 @@ trait InteractsWithData
     {
         if ($strict) {
             $value = $this->data($key);
+
+            if (is_float($value)) {
+                // Filtering an already-decoded float would round it to PHP's display precision.
+                return is_finite($value) ? $value : value($default);
+            }
+
+            if (is_int($value)) {
+                return (float) $value;
+            }
 
             if (is_bool($value)) {
                 return value($default);

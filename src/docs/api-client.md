@@ -666,7 +666,7 @@ Http::fake([
 
 $user = app(GitHubClient::class)->get('/users/hypervel');
 
-expect($user->login)->toBe('hypervel');
+$this->assertSame('hypervel', $user->login);
 
 Http::assertSent(function (Request $request) {
     return $request->url() === 'https://api.github.com/users/hypervel'

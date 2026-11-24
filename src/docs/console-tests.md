@@ -15,13 +15,7 @@ In addition to simplifying HTTP testing, Hypervel provides a simple API for test
 
 To get started, let's explore how to make assertions regarding an Artisan command's exit code. To accomplish this, we will use the `artisan` method to invoke an Artisan command from our test. Then, we will use the `assertExitCode` method to assert that the command completed with a given exit code:
 
-```php tab=Pest
-test('console command', function () {
-    $this->artisan('about')->assertExitCode(0);
-});
-```
-
-```php tab=PHPUnit
+```php
 /**
  * Test a console command.
  */
@@ -85,22 +79,7 @@ Artisan::command('question', function () {
 
 You may test this command with the following test:
 
-```php tab=Pest
-test('console command', function () {
-    $this->artisan('question')
-        ->expectsQuestion('What is your name?', 'Taylor Otwell')
-        ->expectsChoice('Which language do you prefer?', 'PHP', [
-            'PHP',
-            'Ruby',
-            'Python',
-        ])
-        ->expectsOutput('Your name is Taylor Otwell and you prefer PHP.')
-        ->doesntExpectOutput('Your name is Taylor Otwell and you prefer Ruby.')
-        ->assertExitCode(0);
-});
-```
-
-```php tab=PHPUnit
+```php
 /**
  * Test a console command.
  */
@@ -123,19 +102,7 @@ If the order of the available choices is important, you may pass `true` as the f
 
 If you are utilizing the `search` or `multisearch` functions provided by [Hypervel Prompts](/docs/{{version}}/prompts), you may use the `expectsSearch` assertion to mock the user's input, search results, and selection:
 
-```php tab=Pest
-test('console command', function () {
-    $this->artisan('example')
-        ->expectsSearch('What is your name?', search: 'Tay', answers: [
-            'Taylor Otwell',
-            'Taylor Swift',
-            'Darian Taylor'
-        ], answer: 'Taylor Otwell')
-        ->assertExitCode(0);
-});
-```
-
-```php tab=PHPUnit
+```php
 /**
  * Test a console command.
  */
@@ -153,15 +120,7 @@ public function test_console_command(): void
 
 You may also assert that a console command does not generate any output using the `doesntExpectOutput` method:
 
-```php tab=Pest
-test('console command', function () {
-    $this->artisan('example')
-        ->doesntExpectOutput()
-        ->assertExitCode(0);
-});
-```
-
-```php tab=PHPUnit
+```php
 /**
  * Test a console command.
  */
@@ -175,15 +134,7 @@ public function test_console_command(): void
 
 The `expectsOutputToContain` and `doesntExpectOutputToContain` methods may be used to make assertions against a portion of the output:
 
-```php tab=Pest
-test('console command', function () {
-    $this->artisan('example')
-        ->expectsOutputToContain('Taylor')
-        ->assertExitCode(0);
-});
-```
-
-```php tab=PHPUnit
+```php
 /**
  * Test a console command.
  */
@@ -250,17 +201,7 @@ $this->artisan('report:generate')
 
 By default, the `Hypervel\Console\Events\CommandStarting` and `Hypervel\Console\Events\CommandFinished` events are not dispatched while running your application's tests. However, you can enable these events for a given test class by adding the `Hypervel\Foundation\Testing\WithConsoleEvents` trait to the class:
 
-```php tab=Pest
-<?php
-
-use Hypervel\Foundation\Testing\WithConsoleEvents;
-
-pest()->use(WithConsoleEvents::class);
-
-// ...
-```
-
-```php tab=PHPUnit
+```php
 <?php
 
 namespace Tests\Feature;

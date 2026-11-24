@@ -22,7 +22,6 @@ class TestMakeCommand extends GeneratorCommand
                     {name : The name of the test}
                     {--f|force : Create the test even if the test already exists}
                     {--u|unit : Create a unit test}
-                    {--pest : Create a Pest test}
                     {--phpunit : Create a PHPUnit test}';
 
     /**
@@ -40,11 +39,7 @@ class TestMakeCommand extends GeneratorCommand
      */
     protected function getStub(): string
     {
-        $suffix = $this->option('unit') ? '.unit.stub' : '.stub';
-
-        return $this->usingPest()
-            ? $this->resolveStubPath('/stubs/pest' . $suffix)
-            : $this->resolveStubPath('/stubs/test' . $suffix);
+        return $this->resolveStubPath($this->option('unit') ? '/stubs/test.unit.stub' : '/stubs/test.stub');
     }
 
     /**
@@ -104,19 +99,5 @@ class TestMakeCommand extends GeneratorCommand
         if ($type === 'unit') {
             $input->setOption('unit', true);
         }
-    }
-
-    /**
-     * Determine if Pest is being used by the application.
-     */
-    protected function usingPest(): bool
-    {
-        if ($this->option('phpunit')) {
-            return false;
-        }
-
-        return $this->option('pest')
-            || (function_exists('\Pest\version')
-                && file_exists(base_path('tests') . '/Pest.php'));
     }
 }
