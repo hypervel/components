@@ -221,7 +221,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
         $row->failed_jobs = $failed;
         $row->previous_first_pass_total = max((int) $row->previous_first_pass_total, $firstPass);
         $row->previous_success_total = max((int) $row->previous_success_total, $successful);
-        if ($finishTotal === (int) $row->total_jobs - $count && $row->previous_finished_total != $finishTotal) {
+        if ($finishTotal === (int) $row->total_jobs - $count && (int) $row->previous_finished_total !== $finishTotal) {
             // A Redis finish may have committed before its SQL projection.
             $row->previous_finished_total = $finishTotal;
             $row->previous_finished_at = $finishTime;
@@ -235,21 +235,20 @@ class RedisBatchRepository extends DatabaseBatchRepository
      */
     protected function recordJobResult(string $batchId, string $jobId, ?string $retryId): ?UpdatedBatchJobCounts
     {
-        $connection = $this->getConnection();
         if ($this->hasOwnerTransaction()) {
             throw new LogicException("Redis results for batch [{$batchId}] cannot be recorded inside its database transaction.");
         }
 
         $keys = $this->keys($batchId);
-        $args = [hash('xxh128', $jobId), $retryId === null ? 'success' : 'failure', $retryId ?? ''];
+        $arguments = [hash('xxh128', $jobId), $retryId === null ? 'success' : 'failure', $retryId ?? ''];
         $result = $this->withRedis(static fn (RedisConnection $redis) => $redis->evalWithShaCache(
             self::RECORD,
             $keys,
-            [...$args, '', '', '', '']
+            [...$arguments, '', '', '', '']
         ));
 
         if ($result === [-1]) {
-            $result = $connection->transaction(function () use ($keys, $args, $batchId) {
+            $result = $this->getConnection()->transaction(function () use ($keys, $arguments, $batchId) {
                 $parent = $this->lockParents([$batchId]);
                 $row = (clone $parent)->first(['total_jobs', 'finished_at', 'options']);
                 if ($row === null) {
@@ -259,7 +258,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
                 $result = $this->withRedis(static fn (RedisConnection $redis) => $redis->evalWithShaCache(
                     self::RECORD,
                     $keys,
-                    [...$args, $row->total_jobs, (int) $allowsFailures, $row->finished_at ?? '', time()]
+                    [...$arguments, $row->total_jobs, (int) $allowsFailures, $row->finished_at ?? '', time()]
                 ));
                 if ($result !== [] && $result[5] !== -1 && $row->finished_at === null) {
                     $parent->update(['finished_at' => $result[5]]);
@@ -344,8 +343,8 @@ class RedisBatchRepository extends DatabaseBatchRepository
 
         $connection = $this->getConnection();
         return $connection->transaction(function () use ($connection, $query, $ids) {
-            $markers = [];
             $parents = $this->lockParents($ids)->get(['id', 'total_jobs', 'finished_at']);
+            $markers = [];
             foreach ($parents as $row) {
                 if ($row->finished_at === null) {
                     $markers[$row->id] = [[$this->keys($row->id)[2]], [(int) $row->total_jobs]];
@@ -360,12 +359,12 @@ class RedisBatchRepository extends DatabaseBatchRepository
             $eligible = (clone $query)->whereIn('id', $parents->pluck('id'))->lockForUpdate()->pluck('id')->all();
             if ($eligible === []) {
                 return 0;
-            $totals = [];
             }
+            $totals = [];
             foreach ($eligible as $id) {
                 $totals[$id] = [[$this->keys($id)[2]], []];
-            $this->evalEach(self::INVALIDATE_TOTAL, $totals);
             }
+            $this->evalEach(self::INVALIDATE_TOTAL, $totals);
             $deleted = $connection->table($this->table)->whereIn('id', $eligible)->delete();
             $this->recordResultDeletions($eligible);
 
@@ -412,10 +411,11 @@ class RedisBatchRepository extends DatabaseBatchRepository
     {
         $views = $this->readSnapshots(array_keys($rows));
         $counts = $waiting = $conflicts = [];
+        $inTransaction = null;
         foreach ($views as $id => $view) {
             [$successes, $outstanding, $failed, $total, $finished, $finishedTotal] = $view;
             $row = $rows[$id];
-            if ($total < 0 && $successes === 0 && $failed === 0 && $finished < 0 && ! $this->hasOwnerTransaction()) {
+            if ($total < 0 && $successes === 0 && $failed === 0 && $finished < 0 && ! ($inTransaction ??= $this->hasOwnerTransaction())) {
                 $waiting[] = $id;
             } elseif ($total < 0 || $successes + $outstanding > $total
                 || ($row->finished_at !== null && ((int) $row->total_jobs !== $total
@@ -430,7 +430,9 @@ class RedisBatchRepository extends DatabaseBatchRepository
             $live = $this->getConnection()->table($this->table)->useWritePdo()->whereIn('id', $waiting)->get(['id', 'total_jobs', 'finished_at']);
             foreach ($live as $row) {
                 $id = $row->id;
-                if ((int) $row->total_jobs === (int) $rows[$id]->total_jobs && $row->finished_at == $rows[$id]->finished_at) {
+                $finishedAt = $row->finished_at === null ? null : (int) $row->finished_at;
+                $finishedAtLookup = $rows[$id]->finished_at === null ? null : (int) $rows[$id]->finished_at;
+                if ((int) $row->total_jobs === (int) $rows[$id]->total_jobs && $finishedAt === $finishedAtLookup) {
                     $counts[$id] = $this->snapshotCounts($views[$id], (int) $row->total_jobs, $row->finished_at);
                 } else {
                     $conflicts[] = $id;
