@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\HttpServer;
 
 use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\HasTrailers;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\IterableStreamedResponse;
@@ -64,7 +66,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('header')->times(minimum: 1)->returns(true);
         $swooleResponse->expects('end')->with('Hello World')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testSendStatusCode(): void
@@ -76,7 +78,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('end')->with('Not Found')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testSendHeaders(): void
@@ -97,7 +99,7 @@ class ResponseBridgeTest extends TestCase
         });
         $swooleResponse->expects('end')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertSame('application/json', $sentHeaders['Content-Type'] ?? $sentHeaders['content-type'] ?? null);
         $this->assertSame('abc-123', $sentHeaders['X-Request-Id'] ?? null);
@@ -113,7 +115,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->allows('header')->with(Argument::not($name), Argument::any())->returns(true);
         $swooleResponse->expects('header')->with($name, 'value')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public static function numericOnlyFieldNames(): array
@@ -139,7 +141,7 @@ class ResponseBridgeTest extends TestCase
         });
         $swooleResponse->expects('end')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertCount(1, $sentCookies);
         $this->assertSame('session', $sentCookies[0][0]);
@@ -168,7 +170,7 @@ class ResponseBridgeTest extends TestCase
             true,
         )->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testSendWithoutBodyForHeadRequest(): void
@@ -180,7 +182,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('end')->with()->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse, withBody: false);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1', withBody: false);
     }
 
     public function testSendNonStreamedHypervelResponse(): void
@@ -192,7 +194,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('end')->with('Normal content')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testSendBinaryFileResponse(): void
@@ -205,7 +207,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('sendfile')->with($path, 0, 0)->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testPreparedBinaryRangeUsesBoundedNativeSendfileArgumentsForHttpOne(): void
@@ -220,7 +222,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('write')->never();
         $swooleResponse->expects('end')->never();
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testHttpTwoBinaryResponseStreamsBoundedChunksWithoutConflictingFramingHeaders(): void
@@ -302,7 +304,7 @@ class ResponseBridgeTest extends TestCase
         );
         $swooleResponse->expects('end')->with()->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertSame('temporary contents', implode('', $chunks));
     }
@@ -335,7 +337,7 @@ class ResponseBridgeTest extends TestCase
         );
         $swooleResponse->expects('end')->with()->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertSame('file contents', implode('', $chunks));
         $this->assertArrayNotHasKey('content-length', $headers);
@@ -343,7 +345,9 @@ class ResponseBridgeTest extends TestCase
         $this->assertFileDoesNotExist($path);
     }
 
-    public function testDeleteAfterSendPreservesWriteFailureAndStillEndsAndDeletes(): void
+    #[TestWith(['HTTP/1.1'])]
+    #[TestWith(['HTTP/2'])]
+    public function testDeleteAfterSendPropagatesTheWriteFailureWithoutReportingASecondFailure(string $protocol): void
     {
         $path = $this->temporaryFile();
         $response = new BinaryFileResponse($path);
@@ -352,15 +356,19 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
         $swooleResponse->expects('write')->returns(false);
-        $swooleResponse->expects('end')->with()->returns(false);
+        $swooleResponse->expects($protocol === 'HTTP/1.1' ? 'close' : 'end')->returns(false);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->allows('report');
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, $protocol);
             $this->fail('Expected the write failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Unable to write the binary response.', $exception->getMessage());
         }
 
+        $handler->unused();
         $this->assertFileDoesNotExist($path);
     }
 
@@ -400,9 +408,10 @@ class ResponseBridgeTest extends TestCase
 
         $swooleResponse->allows('write')->returns(true);
         $swooleResponse->expects('end')->with()->returns(false);
+        $swooleResponse->expects('close')->returns(true);
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the end failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Unable to complete the response.', $exception->getMessage());
@@ -411,7 +420,7 @@ class ResponseBridgeTest extends TestCase
         $this->assertFileDoesNotExist($path);
     }
 
-    public function testDeleteAfterSendPreservesStatusFailureAndStillEndsAndDeletes(): void
+    public function testDeleteAfterSendClosesHttpOneAndDeletesOnStatusFailure(): void
     {
         $path = $this->temporaryFile();
         $response = new BinaryFileResponse($path);
@@ -422,10 +431,10 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('status')->returns(false);
         $swooleResponse->expects('header')->never();
         $swooleResponse->expects('write')->never();
-        $swooleResponse->expects('end')->with()->returns(false);
+        $swooleResponse->expects('close')->returns(true);
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the status failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Unable to set the response status.', $exception->getMessage());
@@ -445,7 +454,7 @@ class ResponseBridgeTest extends TestCase
         $exception = null;
 
         try {
-            ResponseBridgeWithFailingDeletion::send($response, $swooleResponse);
+            ResponseBridgeWithFailingDeletion::send($response, $swooleResponse, protocol: 'HTTP/1.1');
         } catch (RuntimeException $throwable) {
             $exception = $throwable;
         }
@@ -473,7 +482,7 @@ class ResponseBridgeTest extends TestCase
             $swooleResponse->expects('write')->never();
             $swooleResponse->expects('end')->with()->returns(true);
 
-            ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1', withBody: false, request: $request);
 
             $this->assertFileDoesNotExist($path);
         } finally {
@@ -494,7 +503,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('write')->never();
         $swooleResponse->expects('end')->with()->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertFileDoesNotExist($path);
     }
@@ -528,7 +537,7 @@ class ResponseBridgeTest extends TestCase
             $swooleResponse->expects('header')->with('X-Sendfile', $path)->returns(true);
             $swooleResponse->expects('end')->with()->returns(true);
 
-            ResponseBridge::send($response, $swooleResponse, request: $request);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1', request: $request);
 
             $this->assertFileExists($path);
         } finally {
@@ -558,7 +567,7 @@ class ResponseBridgeTest extends TestCase
             $swooleResponse->expects('header')->with('X-LIGHTTPD-send-file', $path)->returns(true);
             $swooleResponse->expects('end')->with()->returns(true);
 
-            ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1', withBody: false, request: $request);
 
             $this->assertFileExists($path);
         } finally {
@@ -584,7 +593,7 @@ class ResponseBridgeTest extends TestCase
         });
         $swooleResponse->expects('end')->with()->returns(false);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertNotEmpty($chunks);
         $this->assertSame('chunk1chunk2', implode('', $chunks));
@@ -610,15 +619,15 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('status')->returns(true);
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('write')->with('first')->returns(false);
-        $swooleResponse->expects('end')->with()->returns(false);
+        $swooleResponse->expects('close')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertSame(1, $produced);
         $this->assertTrue($closed);
     }
 
-    public function testIterableStreamedResponsePreservesWriteFailureAndStillEnds(): void
+    public function testIterableStreamedResponseClosesHttpOneAndPreservesWriteFailure(): void
     {
         $closed = false;
         $chunks = (function () use (&$closed): iterable {
@@ -634,10 +643,10 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('status')->returns(true);
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('write')->throws(new RuntimeException('write failed'));
-        $swooleResponse->expects('end')->throws(new RuntimeException('end failed'));
+        $swooleResponse->expects('close')->returns(true);
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the write failure to propagate');
         } catch (RuntimeException $exception) {
             $this->assertSame('write failed', $exception->getMessage());
@@ -658,14 +667,14 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('status')->returns(true);
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('write')->with('first')->returns(false);
-        $swooleResponse->expects('end')->with()->returns(false);
+        $swooleResponse->expects('close')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertTrue($callbackCompleted);
     }
 
-    public function testOrdinaryStreamedResponsePreservesWriteFailureAndStillEnds(): void
+    public function testOrdinaryStreamedResponsePreservesWriteFailureWhenEndingHttpTwoAlsoFails(): void
     {
         $response = new StreamedResponse(static function (): void {
             echo 'first';
@@ -674,10 +683,12 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('status')->returns(true);
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('write')->throws(new RuntimeException('write failed'));
-        $swooleResponse->expects('end')->throws(new RuntimeException('end failed'));
+        $endFailure = new RuntimeException('end failed');
+        $swooleResponse->expects('end')->throws($endFailure);
+        $this->expectReportedFailure($endFailure);
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2');
             $this->fail('Expected the write failure to propagate');
         } catch (RuntimeException $exception) {
             $this->assertSame('write failed', $exception->getMessage());
@@ -703,7 +714,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->allows('write')->returns(true);
         $swooleResponse->expects('end')->returns(false);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertArrayNotHasKey('Content-Length', $sentHeaders);
         $this->assertArrayNotHasKey('Transfer-Encoding', $sentHeaders);
@@ -720,18 +731,42 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('status')->returns(true);
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->allows('write')->returns(true);
-        $swooleResponse->expects('end')->returns(false);
+        $swooleResponse->expects('close')->returns(true);
 
         $levelBefore = ob_get_level();
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected RuntimeException to propagate');
         } catch (RuntimeException $exception) {
             $this->assertSame('Stream error', $exception->getMessage());
         }
 
         $this->assertSame($levelBefore, ob_get_level());
+    }
+
+    public function testThrowingOutputHandlerIsRemovedWithoutReplacingCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $cleanupFailure = new RuntimeException('Output cleanup failed.');
+        $this->expectReportedFailure($cleanupFailure);
+        $response = new StreamedResponse(static function () use ($cleanupFailure): void {
+            echo 'first';
+            ob_start(static fn (): never => throw $cleanupFailure);
+        });
+        $native = $this->mockSwooleResponse('status', 'header');
+        $native->expects('write')->with('first')->throws($cancellation);
+        $native->expects('close')->returns(true);
+        $level = ob_get_level();
+
+        try {
+            ResponseBridge::send($response, $native, protocol: 'HTTP/1.1');
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $failure) {
+            $this->assertSame($cancellation, $failure);
+        }
+
+        $this->assertSame($level, ob_get_level());
     }
 
     public function testSendMultipleCookies(): void
@@ -751,7 +786,7 @@ class ResponseBridgeTest extends TestCase
         });
         $swooleResponse->expects('end')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertContains('first', $cookieNames);
         $this->assertContains('second', $cookieNames);
@@ -766,7 +801,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->allows('header')->returns(true);
         $swooleResponse->expects('end')->with('')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testHeadResponseAnnouncesTrailersWithoutProducingContentOrFinalTrailers(): void
@@ -799,7 +834,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('trailer')->never();
         $swooleResponse->expects('end')->with()->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse, withBody: false);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1', withBody: false);
 
         $this->assertSame(0, $producerCalls);
         $this->assertSame(0, $trailerCalls);
@@ -819,7 +854,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Binary file responses cannot emit trailers.');
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testNormalTrailerResponseAnnouncesSendsAndFinalizesInOrder(): void
@@ -859,7 +894,7 @@ class ResponseBridgeTest extends TestCase
             return true;
         });
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertSame(['status', 'announce', 'evaluate-trailers', 'trailer', 'end'], $operations);
     }
@@ -879,7 +914,7 @@ class ResponseBridgeTest extends TestCase
             return true;
         });
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertSame('x-existing, x-known, x-new', $announcement);
     }
@@ -896,7 +931,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs($message);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     #[DataProvider('invalidTrailerNames')]
@@ -907,7 +942,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs($message);
 
-        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'), protocol: 'HTTP/1.1');
     }
 
     public static function invalidTrailerNames(): array
@@ -932,7 +967,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Response trailer names must be unique after normalization.');
 
-        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'), protocol: 'HTTP/1.1');
     }
 
     #[DataProvider('numericOnlyFieldNames')]
@@ -945,7 +980,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->expects('header')->with('Trailer', $name)->returns(true);
         $swooleResponse->expects('trailer')->with($name, 'value')->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testFinalTrailerValuesMustBeStrings(): void
@@ -955,7 +990,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Response trailer values must be strings.');
 
-        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'), protocol: 'HTTP/1.1');
     }
 
     public function testFinalTrailerValuesCannotContainLineBreaks(): void
@@ -965,7 +1000,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Response trailer values cannot contain line breaks.');
 
-        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'), protocol: 'HTTP/1.1');
     }
 
     #[DataProvider('trailerChunkCases')]
@@ -1067,7 +1102,7 @@ class ResponseBridgeTest extends TestCase
             return true;
         });
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         $this->assertSame([
             'produce-one',
@@ -1102,13 +1137,14 @@ class ResponseBridgeTest extends TestCase
             ['x-status' => 'ok'],
         );
         $swooleResponse = $this->mockSwooleResponse('status', 'header');
+        $swooleResponse->expects('close')->returns(true);
 
         $swooleResponse->expects('write')->with('one')->returns(false);
         $swooleResponse->expects('trailer')->never();
         $swooleResponse->expects('end')->never();
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the write failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Unable to write the streamed response.', $exception->getMessage());
@@ -1135,13 +1171,14 @@ class ResponseBridgeTest extends TestCase
             ['x-status' => 'ok'],
         );
         $swooleResponse = $this->mockSwooleResponse('status', 'header');
+        $swooleResponse->expects('close')->returns(true);
 
         $swooleResponse->expects('write')->with('one')->throws($writeFailure);
         $swooleResponse->expects('trailer')->never();
         $swooleResponse->expects('end')->never();
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the write failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame($writeFailure, $exception);
@@ -1161,6 +1198,7 @@ class ResponseBridgeTest extends TestCase
             ['x-status' => 'ok'],
         );
         $swooleResponse = $this->mockSwooleResponse('status', 'header');
+        $swooleResponse->expects('close')->returns(true);
 
         $swooleResponse->expects('write')->with('rejected')->returns(false);
         $swooleResponse->expects('trailer')->never();
@@ -1169,7 +1207,7 @@ class ResponseBridgeTest extends TestCase
         ob_start();
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the write failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Unable to write the streamed response.', $exception->getMessage());
@@ -1194,11 +1232,12 @@ class ResponseBridgeTest extends TestCase
             ['x-status' => 'ok'],
         );
         $swooleResponse = $this->mockSwooleResponse('status', 'header');
+        $swooleResponse->expects('close')->returns(true);
 
         $swooleResponse->expects('write')->returns(false);
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the write failure to propagate.');
         } catch (CanceledException $exception) {
             $this->assertSame($producerFailure, $exception);
@@ -1212,20 +1251,23 @@ class ResponseBridgeTest extends TestCase
     public function testSymfonyTrailerStreamWriteExceptionTakesPrecedenceOverProducerFailure(): void
     {
         $writeFailure = new RuntimeException('Write failed.');
+        $producerFailure = new RuntimeException('Producer failed.');
+        $this->expectReportedFailure($producerFailure);
         $response = new ResponseBridgeTrailerStreamedResponse(
-            static function (): void {
+            static function () use ($producerFailure): void {
                 echo 'rejected';
-                throw new RuntimeException('Producer failed.');
+                throw $producerFailure;
             },
             ['x-status'],
             ['x-status' => 'ok'],
         );
         $swooleResponse = $this->mockSwooleResponse('status', 'header');
+        $swooleResponse->expects('close')->returns(true);
 
         $swooleResponse->expects('write')->throws($writeFailure);
 
         try {
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
             $this->fail('Expected the write failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame($writeFailure, $exception);
@@ -1242,7 +1284,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set the response status.');
 
-        ResponseBridge::send(new Response('body'), $swooleResponse);
+        ResponseBridge::send(new Response('body'), $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     #[DataProvider('disconnectCancellationOptions')]
@@ -1270,7 +1312,7 @@ class ResponseBridgeTest extends TestCase
             }
 
             try {
-                ResponseBridge::send($response, $native);
+                ResponseBridge::send($response, $native, protocol: 'HTTP/2');
 
                 return false;
             } catch (CanceledException) {
@@ -1330,7 +1372,7 @@ class ResponseBridgeTest extends TestCase
                     $native = $this->mockSwooleResponse('status', 'header', 'end', 'write');
                     $native->fd = 10;
                     $native->expects('isWritable')->returns(true);
-                    ResponseBridge::send($response, $native);
+                    ResponseBridge::send($response, $native, protocol: 'HTTP/1.1');
                     $sent->push(true);
 
                     return $continue->pop(2);
@@ -1360,9 +1402,10 @@ class ResponseBridgeTest extends TestCase
         $native = $this->mockSwooleResponse('status', 'header', 'end');
         $native->expects('isWritable')->returns(false);
         $native->expects('write')->never();
+        $native->expects('close')->returns(false);
 
         try {
-            ResponseBridge::send($response, $native);
+            ResponseBridge::send($response, $native, protocol: 'HTTP/1.1');
             $this->fail('Expected cancellation before producing the response.');
         } catch (CanceledException) {
             $this->assertFalse($started);
@@ -1380,7 +1423,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set a response header.');
 
-        ResponseBridge::send(new Response('body', headers: ['X-Fail' => 'value']), $swooleResponse);
+        ResponseBridge::send(new Response('body', headers: ['X-Fail' => 'value']), $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testCookieFailureThrowsBeforeBody(): void
@@ -1395,7 +1438,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set a response cookie.');
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testTrailerFailureThrowsBeforeEnd(): void
@@ -1409,7 +1452,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set a response trailer.');
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testFixedResponseEndFailureThrows(): void
@@ -1421,7 +1464,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to complete the response.');
 
-        ResponseBridge::send(new Response('body'), $swooleResponse);
+        ResponseBridge::send(new Response('body'), $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testHeadResponseEndFailureThrows(): void
@@ -1433,7 +1476,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to complete the response.');
 
-        ResponseBridge::send(new Response('body'), $swooleResponse, withBody: false);
+        ResponseBridge::send(new Response('body'), $swooleResponse, protocol: 'HTTP/1.1', withBody: false);
     }
 
     public function testTrailerResponseEndFailureThrows(): void
@@ -1446,7 +1489,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to complete the response.');
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
     }
 
     public function testSendFileFailureThrows(): void
@@ -1459,7 +1502,17 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to send the response file.');
 
-        ResponseBridge::send(new BinaryFileResponse($path), $swooleResponse);
+        ResponseBridge::send(new BinaryFileResponse($path), $swooleResponse, protocol: 'HTTP/1.1');
+    }
+
+    /**
+     * Expect a secondary failure to reach the application's exception handler.
+     */
+    private function expectReportedFailure(RuntimeException $failure): void
+    {
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($failure));
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
     }
 
     /**
@@ -1515,7 +1568,7 @@ class ResponseBridgeTest extends TestCase
         });
         $swooleResponse->expects('end')->with()->returns(true);
 
-        ResponseBridge::send($response, $swooleResponse);
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/1.1');
 
         return [$writes, $announcement, $trailers];
     }

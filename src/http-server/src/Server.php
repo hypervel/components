@@ -144,13 +144,11 @@ class Server implements OnRequestInterface, BootstrapsForServer
             // Send HttpFoundation response back through Swoole
             if ($response !== null && $cancellation === null) {
                 try {
-                    $protocol = $swooleRequest->server['server_protocol'] ?? 'HTTP/1.1';
-
                     ResponseBridge::send(
                         $response,
                         $swooleResponse,
+                        protocol: $swooleRequest->server['server_protocol'],
                         withBody: ! isset($rawMethod) || $rawMethod !== 'HEAD',
-                        protocol: is_string($protocol) ? $protocol : 'HTTP/1.1',
                         request: $request ?? null,
                     );
                 } catch (Throwable $throwable) {

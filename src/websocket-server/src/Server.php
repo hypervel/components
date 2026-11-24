@@ -208,7 +208,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             }
 
             try {
-                ResponseBridge::send($httpResponse, $response, request: $httpRequest);
+                ResponseBridge::send($httpResponse, $response, protocol: 'HTTP/1.1', request: $httpRequest);
             } catch (Throwable $throwable) {
                 if (Coroutine::causedByCancellation($throwable)) {
                     throw $throwable;

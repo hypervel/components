@@ -456,6 +456,7 @@ class HttpServerTest extends ReverbTestCase
         $swooleRequest->server = [
             'request_method' => $method,
             'request_uri' => $uri,
+            'server_protocol' => 'HTTP/1.1',
         ];
         $swooleRequest->header = array_replace(['host' => 'example.com'], $headers);
         $swooleRequest->get = [];

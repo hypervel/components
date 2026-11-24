@@ -8,6 +8,7 @@ use Hypervel\Contracts\Http\HasTrailers;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Server\ResponseCancellation;
+use Hypervel\Support\FailureReporter;
 use ReflectionProperty;
 use RuntimeException;
 use SplTempFileObject;
@@ -44,8 +45,8 @@ class ResponseBridge
     public static function send(
         Response $response,
         SwooleResponse $swooleResponse,
+        string $protocol,
         bool $withBody = true,
-        string $protocol = 'HTTP/1.1',
         ?Request $request = null,
     ): void {
         if ($response instanceof HasTrailers && $response instanceof BinaryFileResponse) {
@@ -67,31 +68,7 @@ class ResponseBridge
         }
 
         if ($response instanceof StreamedResponse) {
-            // Swoole's write() uses chunked transfer encoding. Content-Length
-            // and Transfer-Encoding headers conflict with this — Swoole raises
-            // an ErrorException if Content-Length is set before write().
-            // See: https://github.com/laravel/octane/issues/670
-            $response->headers->remove('Content-Length');
-            $response->headers->remove('Transfer-Encoding');
-
-            static::announceTrailers($response);
-            static::sendStatusAndHeaders($response, $swooleResponse);
-            $registration = null;
-
-            if ($response instanceof IterableStreamedResponse && $response->shouldCancelOnDisconnect()) {
-                // A disconnect during controller work may precede this registration.
-                if (! $swooleResponse->isWritable()) {
-                    throw new CanceledException('The client disconnected before response production.');
-                }
-
-                $registration = ResponseCancellation::register($swooleResponse->fd);
-            }
-
-            try {
-                static::sendStreamedContent($response, $swooleResponse);
-            } finally {
-                $registration?->release();
-            }
+            static::sendStreamedResponse($response, $swooleResponse, $protocol);
 
             return;
         }
@@ -217,10 +194,20 @@ class ResponseBridge
             $exception = $throwable;
         }
 
+        $abortOnFailure = $shouldStream && static::isHttp1($protocol);
+
         try {
-            static::end($swooleResponse);
+            if ($exception === null) {
+                static::end($swooleResponse);
+            } elseif (! $abortOnFailure) {
+                $swooleResponse->end();
+            }
         } catch (Throwable $throwable) {
-            $exception = Coroutine::preferCancellation($exception, $throwable);
+            $exception = FailureReporter::preferCancellation($exception, $throwable);
+        }
+
+        if ($abortOnFailure && $exception !== null) {
+            $swooleResponse->close();
         }
 
         if ($shouldDelete) {
@@ -231,7 +218,7 @@ class ResponseBridge
                     throw new RuntimeException('Unable to delete the binary response file.');
                 }
             } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
             }
         }
 
@@ -372,7 +359,7 @@ class ResponseBridge
                     throw new RuntimeException('Unable to close the binary response file.');
                 }
             } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
             }
         }
 
@@ -498,7 +485,75 @@ class ResponseBridge
     }
 
     /**
-     * Stream a Symfony StreamedResponse through Swoole's write() method.
+     * Send a streamed response and finish it according to its wire protocol.
+     */
+    protected static function sendStreamedResponse(StreamedResponse $response, SwooleResponse $swooleResponse, string $protocol): void
+    {
+        // Swoole's write() supplies its own framing and rejects a Content-Length header.
+        $response->headers->remove('Content-Length');
+        $response->headers->remove('Transfer-Encoding');
+
+        $registration = null;
+        $writesSucceeded = false;
+        $exception = null;
+
+        try {
+            static::announceTrailers($response);
+            static::sendStatusAndHeaders($response, $swooleResponse);
+
+            if ($response instanceof IterableStreamedResponse && $response->shouldCancelOnDisconnect()) {
+                // A disconnect during controller work may precede this registration.
+                if (! $swooleResponse->isWritable()) {
+                    throw new CanceledException('The client disconnected before response production.');
+                }
+
+                $registration = ResponseCancellation::register($swooleResponse->fd);
+            }
+
+            $writesSucceeded = static::sendStreamedContent($response, $swooleResponse);
+
+            if ($writesSucceeded) {
+                if ($response instanceof HasTrailers) {
+                    static::sendTrailers($response, $swooleResponse);
+                    static::end($swooleResponse);
+                } else {
+                    $swooleResponse->end();
+                }
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        } finally {
+            $registration?->release();
+        }
+
+        if (! $writesSucceeded || $exception !== null) {
+            if (static::isHttp1($protocol)) {
+                // A normal terminator would make a truncated HTTP/1 response look complete.
+                $swooleResponse->close();
+            } elseif (! $writesSucceeded && ! $response instanceof HasTrailers) {
+                try {
+                    $swooleResponse->end();
+                } catch (Throwable $throwable) {
+                    $exception = FailureReporter::preferCancellation($exception, $throwable);
+                }
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Determine whether closing the connection can abort this response alone.
+     */
+    protected static function isHttp1(string $protocol): bool
+    {
+        return $protocol === 'HTTP/1.1' || $protocol === 'HTTP/1.0';
+    }
+
+    /**
+     * Write the response content and return whether all writes succeeded.
      *
      * Retained iterables are consumed directly so a failed write stops their
      * producer. Ordinary callbacks use echo, so their output is routed through
@@ -506,10 +561,8 @@ class ResponseBridge
      *
      * A buffer size of 1 flushes each nonempty output operation as a single
      * write, so an echo sends its entire string at once.
-     *
-     * Trailer responses send their trailers after every chunk has been written.
      */
-    protected static function sendStreamedContent(StreamedResponse $response, SwooleResponse $swooleResponse): void
+    protected static function sendStreamedContent(StreamedResponse $response, SwooleResponse $swooleResponse): bool
     {
         $exception = null;
         $writeFailed = false;
@@ -551,42 +604,27 @@ class ResponseBridge
             try {
                 $response->sendContent();
             } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
             } finally {
-                static::restoreOutputBufferLevel($level);
+                $exception = static::restoreOutputBufferLevel($level, $exception);
             }
         }
 
-        if ($response instanceof HasTrailers) {
-            if ($writeFailed && ($exception === null || ! Coroutine::causedByCancellation($exception))) {
-                throw new RuntimeException('Unable to write the streamed response.', previous: $exception);
-            }
-
-            if ($exception !== null) {
-                throw $exception;
-            }
-
-            static::sendTrailers($response, $swooleResponse);
-            static::end($swooleResponse);
-
-            return;
-        }
-
-        try {
-            $swooleResponse->end();
-        } catch (Throwable $throwable) {
-            $exception = Coroutine::preferCancellation($exception, $throwable);
+        if ($writeFailed && $response instanceof HasTrailers && ($exception === null || ! Coroutine::causedByCancellation($exception))) {
+            throw new RuntimeException('Unable to write the streamed response.', previous: $exception);
         }
 
         if ($exception !== null) {
             throw $exception;
         }
+
+        return ! $writeFailed;
     }
 
     /**
      * Restore removable output buffers after streamed response production.
      */
-    protected static function restoreOutputBufferLevel(int $level): void
+    protected static function restoreOutputBufferLevel(int $level, ?Throwable $exception): ?Throwable
     {
         while (ob_get_level() > $level) {
             $status = ob_get_status();
@@ -595,8 +633,14 @@ class ResponseBridge
                 break;
             }
 
-            ob_end_clean();
+            try {
+                ob_end_clean();
+            } catch (Throwable $throwable) { // @phpstan-ignore catch.neverThrown (ob_end_clean invokes the application's output handler)
+                $exception = FailureReporter::preferCancellation($exception, $throwable);
+            }
         }
+
+        return $exception;
     }
 
     /**

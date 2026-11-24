@@ -64,6 +64,19 @@ $server->init(new ServerConfig([
                         return;
                     }
 
+                    if (str_starts_with($request->server['request_uri'], '/failed-stream/')) {
+                        $response = (new IterableStreamedResponse((static function () use ($request): iterable {
+                            if ($request->server['request_uri'] === '/failed-stream/after-write') {
+                                yield 'partial';
+                            }
+
+                            throw new RuntimeException('Stream production failed.');
+                        })()))->cancelOnDisconnect();
+                        ResponseBridge::send($response, $native, $request->server['server_protocol']);
+
+                        return;
+                    }
+
                     if (parse_url($request->server['request_uri'], PHP_URL_PATH) === '/identity') {
                         $native->cookie('session', 'previous-request');
                         $native->end(json_encode([
@@ -90,7 +103,7 @@ $server->init(new ServerConfig([
                         }
                     })()))->cancelOnDisconnect();
 
-                    ResponseBridge::send($response, $native);
+                    ResponseBridge::send($response, $native, $request->server['server_protocol']);
                 },
                 Event::ON_CLOSE => static function (NativeServer $server, int $connection) use (&$proxyAuthorizations): void {
                     unset($proxyAuthorizations[$connection]);
