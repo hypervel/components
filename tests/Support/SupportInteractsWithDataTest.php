@@ -162,6 +162,16 @@ class SupportInteractsWithDataTest extends TestCase
         $this->assertDataBooleanStrictNativeValuesContract();
     }
 
+    public function testBooleanChecksNativeFloatsByValue(): void
+    {
+        $data = static::arrayToDataFactory(['fraction' => 1.000000000000001, 'zero' => -0.0, 'nan' => NAN]);
+
+        $this->assertFalse($data->boolean('fraction'));
+        $this->assertNull($data->boolean('fraction', null, true));
+        $this->assertFalse($data->boolean('zero', true, true));
+        $this->assertNull($data->boolean('nan', null, true));
+    }
+
     public function testIntegerMethod(): void
     {
         $this->assertDataIntegerContract();

@@ -278,7 +278,7 @@ abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, Requ
     {
         return is_bool($value)
             ? $value
-            : filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            : parse_boolean($value);
     }
 
     /**

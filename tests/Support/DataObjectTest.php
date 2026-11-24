@@ -256,6 +256,7 @@ class DataObjectTest extends TestCase
     public static function invalidBooleanProvider(): iterable
     {
         yield 'integer two' => [2];
+        yield 'not a number' => [NAN];
         yield 'text' => ['sometimes'];
         yield 'array' => [[]];
         yield 'object' => [new stdClass];

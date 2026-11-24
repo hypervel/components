@@ -24,6 +24,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
+use function Hypervel\Support\parse_boolean;
 
 trait InteractsWithData
 {
@@ -285,10 +286,10 @@ trait InteractsWithData
             // A null key reads all of the data, which is never a valid boolean.
             return $key === null || $this->isNotFilled($key)
                 ? value($default)
-                : filter_var($this->data($key), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? value($default);
+                : parse_boolean($this->data($key)) ?? value($default);
         }
 
-        return filter_var($this->data($key, $default), FILTER_VALIDATE_BOOLEAN);
+        return parse_boolean($this->data($key, $default)) ?? false;
     }
 
     /**

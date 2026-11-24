@@ -24,6 +24,7 @@ use InvalidArgumentException;
 use stdClass;
 
 use function Hypervel\Support\enum_from;
+use function Hypervel\Support\parse_boolean;
 
 trait HasCasts
 {
@@ -378,7 +379,7 @@ trait HasCasts
             'real', 'float', 'double' => $this->fromFloat($value),
             'decimal' => $this->asDecimal($value, (int) $argumentString),
             'string' => (string) $value,
-            'bool', 'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+            'bool', 'boolean' => parse_boolean($value) ?? false,
             'array', 'json' => is_array($value) ? $value : Json::decode($value),
             'collection' => $value instanceof Collection
                 ? $value

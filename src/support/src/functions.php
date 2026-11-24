@@ -57,6 +57,25 @@ function swoole_hook_flags(): int
     return defined('SWOOLE_HOOK_FLAGS') ? SWOOLE_HOOK_FLAGS : SWOOLE_HOOK_ALL;
 }
 
+/**
+ * Parse a boolean input token, returning null for an unrecognized value.
+ *
+ * @internal
+ */
+function parse_boolean(mixed $value): ?bool
+{
+    // The filter formats floats at display precision, and converting NaN to text warns on PHP 8.5.
+    if (is_float($value)) {
+        return match ($value) {
+            0.0 => false,
+            1.0 => true,
+            default => null,
+        };
+    }
+
+    return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+}
+
 // Time functions...
 
 /**
