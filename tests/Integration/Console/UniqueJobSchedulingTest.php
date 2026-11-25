@@ -14,9 +14,11 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
@@ -52,6 +54,20 @@ class UniqueJobSchedulingTest extends TestCase
         );
 
         Queue::assertPushed(UniqueTestJob::class, 1);
+    }
+
+    public function testUniqueJobSkippedEventIsDispatchedWhenUniqueJobIsSkipped(): void
+    {
+        Queue::fake();
+        Event::fake([UniqueJobSkipped::class]);
+
+        $this->dispatchJobs(
+            UniqueTestJob::class,
+            UniqueTestJob::class
+        );
+
+        Queue::assertPushed(UniqueTestJob::class, 1);
+        Event::assertDispatchedTimes(UniqueJobSkipped::class, 1);
     }
 
     public function testUniqueLockIsReleasedWhenPushingToTheQueueFails(): void
