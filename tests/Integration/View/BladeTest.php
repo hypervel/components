@@ -16,6 +16,8 @@ use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
 use Hypervel\View\DynamicComponent;
 use Hypervel\View\RawTemplate;
+use Hypervel\View\ViewException;
+use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
@@ -331,6 +333,28 @@ class BladeTest extends TestCase
             '<div title="&quot;Quotes&quot; &amp; &lt;tags&gt;">Hello Taylor &amp; Co</div>',
             trim(Blade::render('<x-dynamic-component component="attributes-hello" :name="$name" :title="$title" />', $data))
         );
+    }
+
+    public function testDynamicComponentNamesAreNotCompiledAsBlade(): void
+    {
+        $cases = [
+            ['<x-dynamic-component :component="$payload" />', 'mail::a{{ 7191 * 2 }}'],
+            ['<x-dynamic-component component="link" href="#"><x-slot :name="$payload">inner</x-slot></x-dynamic-component>', 'h"><?php echo 7191 * 2; ?>'],
+            ['<x-dynamic-component component="link" :attributes="new \Hypervel\View\ComponentAttributeBag([\'href\' => \'#\', $payload => 1])" />', "y'])?><?=7191*2?><?php if(0):?>"],
+        ];
+
+        foreach ($cases as [$template, $payload]) {
+            ob_start();
+
+            try {
+                Blade::render($template, ['payload' => $payload]);
+                $this->fail('Expected the invalid name to be rejected.');
+            } catch (ViewException $e) {
+                $this->assertInstanceOf(InvalidArgumentException::class, $e->getPrevious());
+            } finally {
+                $this->assertStringNotContainsString('14382', ob_get_clean());
+            }
+        }
     }
 
     public function testNoNamePassedToSlotUsesDefaultName(): void
