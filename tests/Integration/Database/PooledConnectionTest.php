@@ -331,6 +331,40 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertSame(1, $count, 'ConnectionEstablished should fire on reconnect');
     }
 
+    public function testConnectionLifecycleEventsAreNotDeferred(): void
+    {
+        config(['database.connections.pool_test.pool.events' => [ConnectionReleasing::class]]);
+        $pool = new DatabasePool($this->app, 'pool_test');
+        $calls = [];
+        Event::listen(ConnectionEstablished::class, static fn (ConnectionEstablished $event) => $event->connection->enableQueryLog());
+        Event::listen(ConnectionReleasing::class, static function () use ($pool, &$calls): void {
+            $calls[] = 'releasing with ' . $pool->getIdleCount() . ' idle';
+        });
+        Event::listen('ordinary', static function () use (&$calls): void {
+            $calls[] = 'ordinary';
+        });
+
+        try {
+            Event::defer(function () use ($pool, &$calls): void {
+                /** @var PooledConnection $pooledConnection */
+                $pooledConnection = $pool->borrow();
+                $connection = $pooledConnection->getConnection();
+                $pooledConnection->dispatchConnectionEstablishedEvent();
+                Event::dispatch('ordinary');
+
+                $this->assertTrue($connection->logging());
+
+                $pooledConnection->release();
+
+                $this->assertSame(['releasing with 0 idle'], $calls);
+            });
+
+            $this->assertSame(['releasing with 0 idle', 'ordinary'], $calls);
+        } finally {
+            $pool->close();
+        }
+    }
+
     public function testReconnectCreatesNewConnection(): void
     {
         $pool = new DatabasePool($this->app, 'pool_test');

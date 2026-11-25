@@ -868,6 +868,8 @@ Database connections are persistent, pooled worker resources. Define every conne
 
 To use a custom query grammar on every connection, register a connection subclass with `Connection::resolverFor()` that overrides `getDefaultQueryGrammar()`. On connections that support early release, `setQueryGrammar()` changes only the current coroutine's connection, and `ConnectionEstablished` runs only when a new database session opens, so neither applies a grammar to every caller. See [extending database connections](/docs/{{version}}/database#extending-database-connections).
 
+`Event::defer()` dispatches `ConnectionEstablished` immediately instead of after its closure, so listeners that configure the connection run before the deferred code uses it, even if the closure throws. Review listeners that relied on running after the closure. See [deferring events](/docs/{{version}}/events#deferring-events).
+
 Framework operations release idle database sessions at the boundaries listed in [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections). Wrap code that depends on the same session across those boundaries, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically.
 
 Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
