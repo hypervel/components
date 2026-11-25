@@ -341,6 +341,9 @@ class BladeTest extends TestCase
             ['<x-dynamic-component :component="$payload" />', 'mail::a{{ 7191 * 2 }}'],
             ['<x-dynamic-component component="link" href="#"><x-slot :name="$payload">inner</x-slot></x-dynamic-component>', 'h"><?php echo 7191 * 2; ?>'],
             ['<x-dynamic-component component="link" :attributes="new \Hypervel\View\ComponentAttributeBag([\'href\' => \'#\', $payload => 1])" />', "y'])?><?=7191*2?><?php if(0):?>"],
+            ['<x-dynamic-component :component="$payload" />', "link\n"],
+            ['<x-dynamic-component component="link" href="#"><x-slot :name="$payload">inner</x-slot></x-dynamic-component>', "title\n"],
+            ['<x-dynamic-component component="link" :attributes="new \Hypervel\View\ComponentAttributeBag([\'href\' => \'#\', $payload => 1])" />', "data\n"],
         ];
 
         foreach ($cases as [$template, $payload]) {

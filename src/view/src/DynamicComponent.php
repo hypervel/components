@@ -49,7 +49,8 @@ class DynamicComponent extends Component
     {
         $this->component = (string) enum_value($component);
 
-        if (! preg_match('/^[\w\-:.]+$/', $this->component)) {
+        // Unlike upstream, the name checks end with "\z", since "$" also matches before a final newline.
+        if (! preg_match('/^[\w\-:.]+\z/', $this->component)) {
             throw new InvalidArgumentException("Invalid component name [{$this->component}].");
         }
     }
@@ -72,7 +73,7 @@ EOF;
             $bindings = $this->bindings($class = $this->classForComponent());
 
             foreach ($bindings as $key) {
-                if (! preg_match('/^[\w\-:.]+$/', $key)) {
+                if (! preg_match('/^[\w\-:.]+\z/', $key)) {
                     throw new InvalidArgumentException("Invalid attribute name [{$key}] for component [{$this->component}].");
                 }
             }
@@ -163,7 +164,7 @@ EOF;
         return (new Collection($slots))
             ->reject(fn ($slot, $name) => $name === '__default')
             ->each(function ($slot, $name) {
-                if (! preg_match('/^[a-zA-Z_]\w*$/', $name)) {
+                if (! preg_match('/^[a-zA-Z_]\w*\z/', $name)) {
                     throw new InvalidArgumentException("Invalid slot name [{$name}] for component [{$this->component}].");
                 }
             })
