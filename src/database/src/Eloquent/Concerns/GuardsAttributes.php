@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Attributes\Guarded;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Unguarded;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Str;
 use ReflectionClass;
 
@@ -314,26 +315,47 @@ trait GuardsAttributes
             return true;
         }
 
-        // Normalize the key to match against guarded list by using the same
-        // normalization applied in attribute resolution paths (studly/camel).
-        // This prevents bypass via alternate spellings like 'is-admin' vs 'is_admin'.
-        // Build both patterns once rather than for every guarded key.
-        $keyPattern = '/^' . preg_quote($key, '/') . '$/i';
-        $normalizedKeyPattern = '/^' . preg_quote(Str::studly($key), '/') . '$/i';
-
-        foreach ($this->getGuarded() as $guardedKey) {
-            // Compare both the raw key (for backward compatibility with exact matches)
-            // and the normalized key (to prevent bypass via delimiter/case variations).
-            // Only a setter resolves alternate spellings to the guarded attribute; without one,
-            // the key is stored as given, so a distinct column such as "username" stays fillable.
-            if (preg_match($keyPattern, $guardedKey)
-                || (preg_match($normalizedKeyPattern, Str::studly($guardedKey))
-                    && ($this->hasSetMutator($key) || $this->hasAttributeSetMutator($key)))) {
-                return true;
-            }
+        // A key that is not valid UTF-8 names no attribute and cannot be normalized.
+        if (! mb_check_encoding($key, 'UTF-8')) {
+            return true;
         }
 
-        return ! $this->isGuardableColumn($key);
+        // A key the class has not cached may be request input that this check rejects,
+        // so lookups made while checking it are not cached.
+        $guarding = ! isset(static::$attributeMethodNames[static::class][$key]);
+        $previousGuard = null;
+
+        if ($guarding) {
+            $previousGuard = CoroutineContext::get(self::GUARDING_ATTRIBUTE_CONTEXT_KEY);
+            CoroutineContext::set(self::GUARDING_ATTRIBUTE_CONTEXT_KEY, Coroutine::id());
+        }
+
+        try {
+            // Normalize the key to match against guarded list by using the same
+            // normalization applied in attribute resolution paths (studly/camel).
+            // This prevents bypass via alternate spellings like 'is-admin' vs 'is_admin'.
+            // Build both patterns once rather than for every guarded key.
+            $keyPattern = '/^' . preg_quote($key, '/') . '$/i';
+            $normalizedKeyPattern = '/^' . preg_quote(Str::studly($key), '/') . '$/i';
+
+            foreach ($this->getGuarded() as $guardedKey) {
+                // Compare both the raw key (for backward compatibility with exact matches)
+                // and the normalized key (to prevent bypass via delimiter/case variations).
+                // Only a setter resolves alternate spellings to the guarded attribute; without one,
+                // the key is stored as given, so a distinct column such as "username" stays fillable.
+                if (preg_match($keyPattern, $guardedKey)
+                    || (preg_match($normalizedKeyPattern, Str::studly($guardedKey))
+                        && ($this->hasSetMutator($key) || $this->hasAttributeSetMutator($key)))) {
+                    return true;
+                }
+            }
+
+            return ! $this->isGuardableColumn($key);
+        } finally {
+            if ($guarding) {
+                CoroutineContext::set(self::GUARDING_ATTRIBUTE_CONTEXT_KEY, $previousGuard);
+            }
+        }
     }
 
     /**

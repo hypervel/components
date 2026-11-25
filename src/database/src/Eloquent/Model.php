@@ -116,6 +116,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public const string UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
 
     /**
+     * Context key for the coroutine running a mass assignment guard check, whose attribute lookups are not cached.
+     */
+    protected const string GUARDING_ATTRIBUTE_CONTEXT_KEY = '__database.model.guarding_attribute';
+
+    /**
      * The connection name for the model.
      */
     protected UnitEnum|string|null $connection = null;
@@ -3159,6 +3164,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$attributeMutatorCache = [];
         static::$getAttributeMutatorCache = [];
         static::$setAttributeMutatorCache = [];
+        static::$attributeMethodNames = [];
         static::$casterCache = [];
         static::$castTypeCache = [];
         static::$encrypter = null;
