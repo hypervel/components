@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Http\UploadedFile;
 use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
+use Hypervel\JsonSchema\Rules\DistinctArrayItems;
 use Hypervel\JsonSchema\Rules\MatchesAnyOf;
 use Hypervel\JsonSchema\Types\ObjectType;
 use Hypervel\JsonSchema\ValidationRules;
@@ -326,6 +327,22 @@ class ValidationRulesTest extends TestCase
         $this->assertFalse($this->passes($schema, ['rows' => [['a' => 1, 'b' => 2], ['b' => 2, 'a' => 1]]]));
     }
 
+    public function testIntegerKeysMatchInAnyOrder(): void
+    {
+        $ascending = range(0, 10);
+        $descending = array_reverse($ascending, true);
+
+        $this->assertSame($ascending, DistinctArrayItems::normalize($ascending));
+
+        $schema = ['type' => 'object', 'properties' => ['rows' => ['type' => 'array', 'uniqueItems' => true]]];
+
+        $this->assertFalse($this->passes($schema, ['rows' => [$ascending, $descending]]));
+
+        $schema = ['type' => 'object', 'properties' => ['value' => ['enum' => [(object) $ascending, 'none']]]];
+
+        $this->assertTrue($this->passes($schema, ['value' => $descending]));
+    }
+
     public function testAnEnumOfArraysComparesValuesStrictly(): void
     {
         $schema = ['type' => 'object', 'properties' => [
@@ -639,6 +656,31 @@ class ValidationRulesTest extends TestCase
         $validator = Validator::make(['api*key' => 1, 'tag*s' => ['a', 'a']], JsonSchema::rules($schema));
 
         $this->assertSame(['tag*s.0', 'tag*s.1'], $validator->errors()->keys());
+    }
+
+    public function testPropertyNamesEndingInABackslashRefuseNestedRules(): void
+    {
+        $schema = $this->schema(fn ($s) => [
+            'count\\' => $s->integer()->required(),
+            'tags\\' => $s->array()->min(1),
+        ]);
+
+        $this->assertTrue($this->passes($schema, ['count\\' => 1, 'tags\\' => ['x']]));
+        $this->assertFalse($this->passes($schema, ['count\\' => 'x', 'tags\\' => ['x']]));
+        $this->assertFalse($this->passes($schema, ['count\\' => 1, 'tags\\' => []]));
+
+        foreach ([
+            'tags\\' => fn ($s) => $s->array()->items($s->integer()),
+            'meta\\' => fn ($s) => $s->object(['size' => $s->integer()]),
+        ] as $name => $property) {
+            try {
+                JsonSchema::rules($this->schema(fn ($s) => [$name => $property($s)]));
+
+                $this->fail("Expected nested rules under [{$name}] to be refused.");
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame("The JSON Schema property [{$name}] ends with a backslash, so validation rules cannot be nested under it.", $exception->getMessage());
+            }
+        }
     }
 
     public function testANullOnlyTypeAcceptsOnlyNull(): void

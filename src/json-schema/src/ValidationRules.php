@@ -161,7 +161,7 @@ class ValidationRules
             $attribute = str_replace(['.', '*'], ['\.', '\*'], (string) $name);
 
             if (! is_null($prefix)) {
-                $attribute = "{$prefix}.{$attribute}";
+                $attribute = $this->nestedAttribute($prefix, $attribute);
             }
 
             $rules += $this->rules(
@@ -276,19 +276,44 @@ class ValidationRules
 
         // "true" and an empty schema allow any item, and arrayRules() enforces that "false" allows none.
         $items = array_key_exists('items', $schema) ? $schema['items'] : true;
-        $rules = in_array($items, [true, false, []], true) ? [] : $this->rules($items, "{$attribute}.*", false);
+        $itemsHaveRules = ! in_array($items, [true, false, []], true);
+        $unique = $schema['uniqueItems'] ?? false;
 
-        if ($schema['uniqueItems'] ?? false) {
+        if (! $itemsHaveRules && ! $unique) {
+            return [];
+        }
+
+        $itemAttribute = $this->nestedAttribute($attribute, '*');
+        $rules = $itemsHaveRules ? $this->rules($items, $itemAttribute, false) : [];
+
+        if ($unique) {
             // "distinct" on a wildcard compares items across every parent list, so each list gets its own rule.
             // An asterisk is a wildcard unless it is escaped, as in a property name.
             if (preg_match('/(?<!\\\)\*/', $attribute) === 1) {
                 $rules[$attribute] = [Rule::forEach(static fn () => ['*' => ['distinct:strict']])];
             } else {
-                $rules["{$attribute}.*"][] = 'distinct:strict';
+                $rules[$itemAttribute][] = 'distinct:strict';
             }
         }
 
         return $rules;
+    }
+
+    /**
+     * Get the attribute of a key nested inside the given attribute.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function nestedAttribute(string $attribute, string $key): string
+    {
+        // The validator reads a backslash before a dot as escaping it, so it cannot address anything below such a name.
+        if (str_ends_with($attribute, '\\')) {
+            throw new InvalidArgumentException(
+                "The JSON Schema property [{$attribute}] ends with a backslash, so validation rules cannot be nested under it."
+            );
+        }
+
+        return "{$attribute}.{$key}";
     }
 
     /**

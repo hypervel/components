@@ -83,7 +83,9 @@ class DistinctArrayItems implements ValidationRule
         $value = array_map(static::normalize(...), $value);
 
         if (! array_is_list($value)) {
-            ksort($value, SORT_STRING);
+            // Integer keys sort numerically, matching a list with the same keys. A string key can look numeric without
+            // equaling an integer key, which a regular sort treats as a tie, so any string key sorts every key as a string.
+            ksort($value, array_any($value, static fn (mixed $item, int|string $key): bool => is_string($key)) ? SORT_STRING : SORT_REGULAR);
         }
 
         return $value;
