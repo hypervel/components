@@ -5,47 +5,39 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Error;
-use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Fixtures\LegacyPost;
 use Hypervel\Tests\Foundation\Fixtures\Models\BlogPost;
-use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class FoundationFormRequestModelTest extends TestCase
 {
-    protected DB $db;
+    use RefreshDatabase;
 
-    protected Application $app;
-
-    protected function setUp(): void
+    protected function resolveApplication(): ApplicationContract
     {
-        parent::setUp();
+        return FormRequestModelTestApplication::configure($this->getApplicationBasePath())
+            ->withMiddleware()
+            ->create();
+    }
 
-        $this->db = new DB;
-        $this->db->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
-        $this->db->bootEloquent();
-
-        $this->db->getConnection()->getSchemaBuilder()->create('blog_posts', function (Blueprint $table) {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('blog_posts', function (Blueprint $table) {
             $table->increments('id');
             $table->integer('account_id');
             $table->string('slug')->unique();
         });
-
-        $this->app = new class extends Application {
-            /**
-             * Get the application namespace.
-             */
-            public function getNamespace(): string
-            {
-                return 'Hypervel\Tests\Foundation\Fixtures\\';
-            }
-        };
     }
 
     public function testModelCanBeRetrievedUsingAnExplicitClass(): void
@@ -400,11 +392,11 @@ class FoundationFormRequestModelTest extends TestCase
     public function testModelsReturnsAnEmptyCollectionWithoutQueryingForMissingOrEmptyInput(): void
     {
         $request = FormRequest::create('/', 'POST', ['article_ids' => []]);
-        $this->db->getConnection()->enableQueryLog();
+        DB::enableQueryLog();
 
         $this->assertTrue($request->models('article_ids', BlogPost::class)->isEmpty());
         $this->assertTrue($request->models('missing_ids', BlogPost::class)->isEmpty());
-        $this->assertSame([], $this->db->getConnection()->getQueryLog());
+        $this->assertSame([], DB::getQueryLog());
     }
 
     public function testModelsPreservesCustomCollectionsForEmptyInput(): void
@@ -466,6 +458,17 @@ class FoundationFormRequestModelTest extends TestCase
         });
 
         $this->assertSame([$post->id], $models->modelKeys());
+    }
+}
+
+class FormRequestModelTestApplication extends Application
+{
+    /**
+     * Get the application namespace.
+     */
+    public function getNamespace(): string
+    {
+        return 'Hypervel\Tests\Foundation\Fixtures\\';
     }
 }
 
