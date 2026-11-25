@@ -13,6 +13,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Number;
 use Hypervel\Validation\Rule;
 use InvalidArgumentException;
+use stdClass;
 
 class ValidationRules
 {
@@ -428,8 +429,8 @@ class ValidationRules
             return [];
         }
 
-        // With the "array" rule, "in" checks each member of an array value instead of the whole value.
-        $comparesWholeArrays = Arr::some($schema['enum'], fn (mixed $value) => is_array($value))
+        // "in" cannot compare objects, and with the "array" rule it checks each member of an array value instead of the whole value.
+        $comparesWholeArrays = Arr::some($schema['enum'], fn (mixed $value) => is_array($value) || $value instanceof stdClass)
             || in_array('object', Arr::wrap($schema['type'] ?? null), true);
 
         return $comparesWholeArrays

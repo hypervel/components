@@ -7,13 +7,14 @@ namespace Hypervel\JsonSchema\Rules;
 use Closure;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Translation\PotentiallyTranslatedString;
+use stdClass;
 
 class DistinctArrayItems implements ValidationRule
 {
     /**
      * Run the validation rule.
      *
-     * Hypervel's "distinct" rule does not compare array items, and it skips blank strings and nullable null items, so this rule compares those.
+     * Hypervel's "distinct" rule does not compare array or object items by content, and it skips blank strings and nullable null items, so this rule compares those.
      *
      * @param Closure(string, ?string=): PotentiallyTranslatedString $fail
      */
@@ -22,7 +23,7 @@ class DistinctArrayItems implements ValidationRule
         $seen = [];
 
         foreach ((array) $value as $item) {
-            if (! is_array($item) && $item !== null && ! (is_string($item) && trim($item) === '')) {
+            if (! is_array($item) && ! $item instanceof stdClass && $item !== null && ! (is_string($item) && trim($item) === '')) {
                 continue;
             }
 
@@ -66,9 +67,15 @@ class DistinctArrayItems implements ValidationRule
 
     /**
      * Sort the keys of every object in the value so that key order does not affect strict comparison.
+     *
+     * A JSON object may be given as a stdClass, which request data represents as an array.
      */
     public static function normalize(mixed $value): mixed
     {
+        if ($value instanceof stdClass) {
+            $value = (array) $value;
+        }
+
         if (! is_array($value)) {
             return $value;
         }

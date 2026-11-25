@@ -8,6 +8,9 @@ use Closure;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Translation\PotentiallyTranslatedString;
 use Hypervel\Validation\Membership;
+use stdClass;
+
+use function Hypervel\Support\enum_value;
 
 class MatchesEnum implements ValidationRule
 {
@@ -30,7 +33,7 @@ class MatchesEnum implements ValidationRule
      */
     public function __construct(protected array $values)
     {
-        [$this->scalars, $this->allowsNull] = Membership::lookup($values);
+        [$this->scalars, $this->allowsNull] = Membership::lookup(array_map(enum_value(...), $values));
     }
 
     /**
@@ -48,18 +51,18 @@ class MatchesEnum implements ValidationRule
     /**
      * Determine if the value is one of the enumerated values.
      *
-     * Scalars are compared like the "in" rule, and arrays strictly by content, since loose comparison treats "1" and "01" (or true and any array) as equal.
+     * Scalars are compared like the "in" rule, and arrays and objects strictly by content, since loose comparison treats "1" and "01" (or true and any array) as equal.
      */
     protected function matches(mixed $value): bool
     {
-        if (! is_array($value)) {
+        if (! is_array($value) && ! $value instanceof stdClass) {
             return Membership::contains($this->scalars, $this->allowsNull, $value);
         }
 
         $value = DistinctArrayItems::normalize($value);
 
         foreach ($this->values as $allowed) {
-            if (is_array($allowed) && DistinctArrayItems::normalize($allowed) === $value) {
+            if ((is_array($allowed) || $allowed instanceof stdClass) && DistinctArrayItems::normalize($allowed) === $value) {
                 return true;
             }
         }

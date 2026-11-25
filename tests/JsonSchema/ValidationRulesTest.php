@@ -14,6 +14,7 @@ use Hypervel\JsonSchema\Types\ObjectType;
 use Hypervel\JsonSchema\ValidationRules;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Validator;
+use Hypervel\Tests\JsonSchema\Fixtures\Enums\StringBackedEnum;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
@@ -128,6 +129,11 @@ class ValidationRulesTest extends TestCase
 
         $this->assertFalse($this->passes($schema, ['rows' => [['a' => 1], ['a' => 1]]]));
         $this->assertTrue($this->passes($schema, ['rows' => [['a' => 1], ['a' => 2]]]));
+
+        $schema = ['type' => 'object', 'properties' => ['rows' => ['type' => 'array', 'uniqueItems' => true]]];
+
+        $this->assertFalse($this->passes($schema, ['rows' => [(object) ['a' => 1], (object) ['a' => 1]]]));
+        $this->assertTrue($this->passes($schema, ['rows' => [(object) ['a' => 1], (object) ['a' => 2]]]));
     }
 
     public function testAnEnumOfObjectsComparesValuesStructurally(): void
@@ -658,6 +664,11 @@ class ValidationRulesTest extends TestCase
         $schema['properties']['value']['enum'] = ['01', ['x']];
 
         $this->assertFalse($this->passes($schema, ['value' => '1']));
+
+        $schema['properties']['value']['enum'] = [StringBackedEnum::One, ['x']];
+
+        $this->assertTrue($this->passes($schema, ['value' => 'one']));
+        $this->assertFalse($this->passes($schema, ['value' => 'two']));
     }
 
     public function testAnObjectEnumComparesTheWholeValue(): void
@@ -666,6 +677,20 @@ class ValidationRulesTest extends TestCase
 
         $this->assertFalse($this->passes($schema, ['meta' => []]));
         $this->assertFalse($this->passes($schema, ['meta' => ['a']]));
+
+        $typed = ['type' => 'object', 'properties' => ['meta' => ['type' => 'object', 'enum' => [(object) ['a' => (object) []], (object) []]]]];
+        $untyped = ['type' => 'object', 'properties' => ['meta' => ['enum' => [(object) ['a' => (object) []], 'none']]]];
+
+        foreach ([$typed, $untyped] as $schema) {
+            $this->assertTrue($this->passes($schema, ['meta' => ['a' => []]]));
+            $this->assertFalse($this->passes($schema, ['meta' => ['a' => 1]]));
+        }
+
+        $this->assertTrue($this->passes($typed, ['meta' => []]));
+        $this->assertTrue($this->passes($untyped, ['meta' => 'none']));
+        $this->assertTrue($this->passes($untyped, ['meta' => (object) ['a' => (object) []]]));
+        $this->assertFalse($this->passes($untyped, ['meta' => (object) ['a' => 1]]));
+        $this->assertFalse($this->passes($typed, ['meta' => (object) ['a' => (object) []]]));
     }
 
     public function testClosedObjectsAcceptNumericPropertyNames(): void
