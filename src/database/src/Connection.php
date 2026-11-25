@@ -188,32 +188,36 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     protected array $queryDurationHandlers = [];
 
     /**
-     * All of the registered transaction duration handlers.
+     * All of the registered transaction duration handlers, keyed in registration order.
      *
-     * @var array{threshold: float|int, handler: callable}[]
+     * @var array<int, array{threshold: float|int, handler: callable}>
      */
     protected array $transactionDurationHandlers = [];
 
     /**
-     * The start time, duration handlers and monitoring state of the running outermost transaction.
+     * The key of the next transaction duration handler.
      *
-     * @var null|array{started_at: float, handlers: array{threshold: float|int, handler: callable}[], monitored: bool}
+     * Keys keep increasing across pool resets, so a handler registered after a reset
+     * cannot be mistaken for one registered before a transaction began.
      */
-    protected ?array $timedTransaction = null;
+    protected int $nextTransactionDurationHandlerKey = 0;
+
+    /**
+     * The timing of the running outermost transaction.
+     */
+    protected ?TransactionTiming $timedTransaction = null;
 
     /**
      * The timing handed to the completion event being fired.
-     *
-     * @var null|array{started_at: float, handlers: array{threshold: float|int, handler: callable}[], monitored: bool}
      */
-    protected ?array $completedTransaction = null;
+    protected ?TransactionTiming $completedTransaction = null;
 
     /**
-     * The start times of monitored transactions, keyed by their completion events.
+     * The timings of outermost transactions, keyed by their begin and completion events.
      *
-     * @var null|WeakMap<TransactionCommitted|TransactionRolledBack, float>
+     * @var null|WeakMap<TransactionBeginning|TransactionCommitted|TransactionRolledBack, TransactionTiming>
      */
-    protected ?WeakMap $monitoredTransactionStartTimes = null;
+    protected ?WeakMap $transactionTimings = null;
 
     /**
      * Indicates if the connection is in a "dry run".
@@ -964,38 +968,22 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             ? $threshold->totalMilliseconds
             : $threshold;
 
-        $this->transactionDurationHandlers[] = [
+        $this->transactionDurationHandlers[$this->nextTransactionDurationHandlerKey++] = [
             'threshold' => $threshold,
             'handler' => $handler,
         ];
     }
 
     /**
-     * Keep the start time of the running outermost transaction for the database manager's monitors.
+     * Get the timing of the outermost transaction the given event began or completed.
      *
-     * Unlike handlers, the start time survives the pool reset, so it also times a transaction rolled back on release.
-     *
-     * @internal
-     */
-    public function monitorRunningTransaction(): void
-    {
-        $this->timedTransaction ??= [
-            'started_at' => hrtime(true) / 1e9,
-            'handlers' => [],
-            'monitored' => false,
-        ];
-
-        $this->timedTransaction['monitored'] = true;
-    }
-
-    /**
-     * Get the start time of the monitored transaction completed by the given event.
+     * Unlike handlers, the timing survives the pool reset, so it also covers a transaction rolled back on release.
      *
      * @internal
      */
-    public function monitoredTransactionStartedAt(TransactionCommitted|TransactionRolledBack $event): ?float
+    public function transactionTiming(TransactionBeginning|TransactionCommitted|TransactionRolledBack $event): ?TransactionTiming
     {
-        return $this->monitoredTransactionStartTimes[$event] ?? null;
+        return $this->transactionTimings[$event] ?? null;
     }
 
     /**
@@ -1327,10 +1315,6 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $this->queryDurationHandlers = [];
         $this->transactionDurationHandlers = [];
 
-        if ($this->timedTransaction !== null) {
-            $this->timedTransaction['handlers'] = [];
-        }
-
         // Reset connection metadata and routing
         $this->database = $this->configuredDatabase;
         $this->tablePrefix = $this->configuredTablePrefix;
@@ -1378,17 +1362,24 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     {
         switch ($event) {
             case 'beganTransaction':
-                if ($this->transactions === 1 && $this->transactionDurationHandlers !== []) {
-                    // Handlers registered during the transaction only time later ones.
-                    $this->timedTransaction = [
-                        'started_at' => hrtime(true) / 1e9,
-                        'handlers' => $this->transactionDurationHandlers,
-                        'monitored' => false,
-                    ];
+                $events = $this->events;
+                $beginning = $events?->hasListeners(TransactionBeginning::class) ? new TransactionBeginning($this) : null;
+
+                if ($this->transactions === 1 && ($beginning !== null || $this->transactionDurationHandlers !== [])) {
+                    $this->timedTransaction = new TransactionTiming(
+                        hrtime(true) / 1e9,
+                        $this->nextTransactionDurationHandlerKey,
+                        $this->getNameWithReadWriteType(),
+                    );
+
+                    if ($beginning !== null) {
+                        $this->transactionTimings ??= new WeakMap;
+                        $this->transactionTimings[$beginning] = $this->timedTransaction;
+                    }
                 }
 
-                if ($this->events?->hasListeners(TransactionBeginning::class)) {
-                    $this->events->dispatch(new TransactionBeginning($this));
+                if ($beginning !== null && $events !== null) {
+                    $events->dispatch($beginning);
                 }
                 break;
             case 'committed':
@@ -1410,10 +1401,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      *
      * Transaction callbacks run before the completion event and may run another
      * transaction, so the caller holds the timing until it fires that event.
-     *
-     * @return null|array{started_at: float, handlers: array{threshold: float|int, handler: callable}[], monitored: bool}
      */
-    protected function stopTransactionTimer(): ?array
+    protected function stopTransactionTimer(): ?TransactionTiming
     {
         if ($this->transactions !== 0) {
             return null;
@@ -1426,10 +1415,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Fire a transaction completion event with the timing of the transaction it completes.
-     *
-     * @param null|array{started_at: float, handlers: array{threshold: float|int, handler: callable}[], monitored: bool} $completedTransaction
      */
-    protected function fireCompletedTransactionEvent(string $event, ?array $completedTransaction): void
+    protected function fireCompletedTransactionEvent(string $event, ?TransactionTiming $completedTransaction): void
     {
         // The protected hook only takes the event name, so the timing is handed over on the connection.
         // An override may complete another transaction before delegating, so restore this handoff afterwards.
@@ -1449,14 +1436,20 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function dispatchTransactionCompletedEvent(string $eventClass): void
     {
-        [$completedTransaction, $this->completedTransaction] = [$this->completedTransaction, null];
+        [$timing, $this->completedTransaction] = [$this->completedTransaction, null];
         $handlers = [];
 
-        if ($completedTransaction !== null && $completedTransaction['handlers'] !== []) {
-            $duration = $this->getElapsedTime($completedTransaction['started_at']);
+        if ($timing !== null) {
+            $timing->duration = $this->getElapsedTime($timing->startedAt);
 
-            foreach ($completedTransaction['handlers'] as $config) {
-                if ($duration > $config['threshold']) {
+            // Handlers registered during the transaction only time later ones. The timing keeps a key rather than
+            // the handlers, so a retained event cannot keep a borrower's handlers alive once the pool reset drops them.
+            foreach ($this->transactionDurationHandlers as $key => $config) {
+                if ($key >= $timing->nextHandlerKey) {
+                    break;
+                }
+
+                if ($timing->duration > $config['threshold']) {
                     $handlers[] = $config['handler'];
                 }
             }
@@ -1472,9 +1465,9 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $event = new $eventClass($this);
 
         // The event may be delivered later, such as when the dispatcher defers it.
-        if ($completedTransaction['monitored'] ?? false) {
-            $this->monitoredTransactionStartTimes ??= new WeakMap;
-            $this->monitoredTransactionStartTimes[$event] = $completedTransaction['started_at'];
+        if ($timing !== null && $hasListeners) {
+            $this->transactionTimings ??= new WeakMap;
+            $this->transactionTimings[$event] = $timing;
         }
 
         if ($hasListeners && $events !== null) {
@@ -1482,7 +1475,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         foreach ($handlers as $handler) {
-            $handler($this, $event, $duration);
+            $handler($this, $event, $timing->duration);
         }
     }
 

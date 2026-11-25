@@ -698,9 +698,10 @@ class DatabaseManager implements ConnectionResolverInterface
 
         $events->listen(QueryExecuted::class, function (QueryExecuted $event) {
             $matchingHandlers = [];
+            $connectionNameWithReadWriteType = $event->connection->getNameWithReadWriteType();
 
             foreach ($this->queryDurationHandlers as $config) {
-                if ($this->monitorsConnection($config['connection'], $event->connectionName, $event->connection)) {
+                if ($this->monitorsConnection($config['connection'], $event->connectionName, $connectionNameWithReadWriteType)) {
                     $matchingHandlers[] = $config;
                 }
             }
@@ -746,34 +747,25 @@ class DatabaseManager implements ConnectionResolverInterface
         /** @var Dispatcher $events */
         $events = $this->app->make('events');
 
+        // Like Laravel's listeners, these monitors only see transactions whose begin and completion events are delivered.
         $events->listen(TransactionBeginning::class, function (TransactionBeginning $event) {
-            $connection = $event->connection;
+            $timing = $event->connection->transactionTiming($event);
 
-            if ($connection->transactionLevel() !== 1) {
-                return;
-            }
-
-            foreach ($this->transactionDurationHandlers as $config) {
-                if ($this->monitorsConnection($config['connection'], $event->connectionName, $connection)) {
-                    $connection->monitorRunningTransaction();
-
-                    return;
-                }
+            if ($timing !== null) {
+                $timing->beginDelivered = true;
             }
         });
 
         $events->listen([TransactionCommitted::class, TransactionRolledBack::class], function (TransactionCommitted|TransactionRolledBack $event) {
-            $connection = $event->connection;
+            $timing = $event->connection->transactionTiming($event);
 
-            if (($startedAt = $connection->monitoredTransactionStartedAt($event)) === null) {
+            if (! $timing?->beginDelivered) {
                 return;
             }
 
-            $duration = round((hrtime(true) / 1e9 - $startedAt) * 1000, 2);
-
             foreach ($this->transactionDurationHandlers as $config) {
-                if ($duration > $config['threshold'] && $this->monitorsConnection($config['connection'], $event->connectionName, $connection)) {
-                    $config['handler']($connection, $event, $duration);
+                if ($timing->duration > $config['threshold'] && $this->monitorsConnection($config['connection'], $event->connectionName, $timing->connectionName)) {
+                    $config['handler']($event->connection, $event, $timing->duration);
                 }
             }
         });
@@ -786,10 +778,10 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * A base connection name also monitors its read and write aliases.
      */
-    protected function monitorsConnection(string $registeredName, ?string $connectionName, Connection $connection): bool
+    protected function monitorsConnection(string $registeredName, ?string $connectionName, ?string $connectionNameWithReadWriteType): bool
     {
         return $registeredName === $connectionName
-            || $registeredName === $connection->getNameWithReadWriteType();
+            || $registeredName === $connectionNameWithReadWriteType;
     }
 
     /**

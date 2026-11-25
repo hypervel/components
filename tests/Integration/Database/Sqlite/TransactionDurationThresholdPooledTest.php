@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
+use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Filesystem\Filesystem;
@@ -13,6 +14,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
@@ -65,23 +67,27 @@ class TransactionDurationThresholdPooledTest extends TestCase
     public function testManagerTransactionDurationHandlersTimeEachPooledBorrower(): void
     {
         $calls = [];
+        $slowCalls = 0;
 
-        DB::whenTransactionRunsLongerThan(10, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) use (&$calls) {
+        DB::whenTransactionRunsLongerThan(-1, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) use (&$calls) {
             $calls[] = [$connection, $event, $duration];
         });
 
-        $slowConnection = null;
+        DB::whenTransactionRunsLongerThan(60000, function () use (&$slowCalls) {
+            ++$slowCalls;
+        });
 
-        run(function () use (&$slowConnection) {
+        $borrowers = [];
+
+        run(function () use (&$borrowers) {
             parallel([
-                function () use (&$slowConnection) {
-                    $slowConnection = DB::connection();
+                function () use (&$borrowers) {
+                    $borrowers[] = DB::connection();
                     DB::transaction(fn () => usleep(20000));
                 },
-                function () {
-                    DB::transaction(function () {
-                        usleep(1000);
-                    });
+                function () use (&$borrowers) {
+                    $borrowers[] = DB::connection();
+                    DB::transaction(fn () => usleep(20000));
                 },
                 function () {
                     DB::connection('analytics')->transaction(fn () => usleep(20000));
@@ -89,11 +95,16 @@ class TransactionDurationThresholdPooledTest extends TestCase
             ]);
         });
 
-        $this->assertCount(1, $calls);
-        $this->assertSame($slowConnection, $calls[0][0]);
-        $this->assertInstanceOf(TransactionCommitted::class, $calls[0][1]);
-        $this->assertSame($slowConnection, $calls[0][1]->connection);
-        $this->assertGreaterThan(10, $calls[0][2]);
+        $this->assertCount(2, $calls);
+        $this->assertNotSame($borrowers[0], $borrowers[1]);
+        $this->assertNotSame($calls[0][0], $calls[1][0]);
+
+        foreach ($calls as [$connection, $event, $duration]) {
+            $this->assertContains($connection, $borrowers);
+            $this->assertInstanceOf(TransactionCommitted::class, $event);
+            $this->assertSame($connection, $event->connection);
+            $this->assertGreaterThanOrEqual(20, $duration);
+        }
 
         run(function () {
             try {
@@ -106,9 +117,10 @@ class TransactionDurationThresholdPooledTest extends TestCase
             }
         });
 
-        $this->assertCount(2, $calls);
-        $this->assertInstanceOf(TransactionRolledBack::class, $calls[1][1]);
-        $this->assertGreaterThan(10, $calls[1][2]);
+        $this->assertCount(3, $calls);
+        $this->assertInstanceOf(TransactionRolledBack::class, $calls[2][1]);
+        $this->assertGreaterThanOrEqual(20, $calls[2][2]);
+        $this->assertSame(0, $slowCalls);
     }
 
     public function testManagerTransactionDurationHandlersTimeTransactionsRolledBackOnRelease(): void
@@ -164,7 +176,38 @@ class TransactionDurationThresholdPooledTest extends TestCase
         $this->assertGreaterThanOrEqual(20, $durations[3][1]);
     }
 
-    public function testManagerTransactionDurationHandlersRequireTheDeliveredCompletionEvent(): void
+    public function testManagerTransactionDurationHandlersMeasureDeferredTransactionsWhenTheyComplete(): void
+    {
+        $managerDurations = [];
+        $connectionDurations = [];
+
+        DB::whenTransactionRunsLongerThan(-1, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) use (&$managerDurations) {
+            $managerDurations[] = $duration;
+        });
+
+        run(function () use (&$connectionDurations) {
+            DB::connection()->whenTransactionRunsLongerThan(-1, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) use (&$connectionDurations) {
+                $connectionDurations[] = $duration;
+            });
+
+            // Deferring every event also delivers the beginning event after the transaction has ended.
+            Event::defer(function () {
+                DB::transaction(fn () => null);
+                usleep(20000);
+            });
+
+            Event::defer(function () {
+                DB::transaction(fn () => null);
+                usleep(20000);
+            }, [TransactionCommitted::class]);
+        });
+
+        $this->assertCount(2, $managerDurations);
+        $this->assertSame($connectionDurations, $managerDurations);
+    }
+
+    #[DataProvider('transactionEventProvider')]
+    public function testManagerTransactionDurationHandlersRequireDeliveredTransactionEvents(string $fakedEvent): void
     {
         $calls = 0;
 
@@ -172,45 +215,57 @@ class TransactionDurationThresholdPooledTest extends TestCase
             ++$calls;
         });
 
-        run(function () {
-            Event::defer(fn () => DB::transaction(fn () => null), [TransactionCommitted::class]);
-        });
-
-        $this->assertSame(1, $calls);
-
-        Event::fake([TransactionCommitted::class]);
+        Event::fake([$fakedEvent]);
 
         run(function () {
             DB::transaction(fn () => null);
         });
 
-        Event::assertDispatched(TransactionCommitted::class);
-        $this->assertSame(1, $calls);
+        Event::assertDispatched($fakedEvent);
+        $this->assertSame(0, $calls);
+    }
+
+    public static function transactionEventProvider(): array
+    {
+        return [
+            'beginning' => [TransactionBeginning::class],
+            'committed' => [TransactionCommitted::class],
+        ];
     }
 
     public function testManagerTransactionDurationHandlersMatchTheRegisteredConnectionRole(): void
     {
         $calls = [];
 
-        DB::whenTransactionRunsLongerThan(-1, function (Connection $connection) use (&$calls) {
-            $calls[] = ['pool_test', $connection->getNameWithReadWriteType()];
+        DB::whenTransactionRunsLongerThan(-1, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event) use (&$calls) {
+            $calls[] = ['pool_test', $event::class];
         });
 
         DB::usingConnection('pool_test::write', function () use (&$calls) {
-            DB::whenTransactionRunsLongerThan(-1, function (Connection $connection) use (&$calls) {
-                $calls[] = ['pool_test::write', $connection->getNameWithReadWriteType()];
+            DB::whenTransactionRunsLongerThan(-1, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event) use (&$calls) {
+                $calls[] = ['pool_test::write', $event::class];
             });
         });
 
         run(function () {
             DB::transaction(fn () => null);
+        });
+
+        run(function () {
             DB::connection('pool_test::write')->transaction(fn () => null);
         });
 
+        // The pool reset clears the write type before rolling back the abandoned transaction.
+        run(function () {
+            DB::connection('pool_test::write')->beginTransaction();
+        });
+
         $this->assertSame([
-            ['pool_test', 'pool_test'],
-            ['pool_test', 'pool_test::write'],
-            ['pool_test::write', 'pool_test::write'],
+            ['pool_test', TransactionCommitted::class],
+            ['pool_test', TransactionCommitted::class],
+            ['pool_test::write', TransactionCommitted::class],
+            ['pool_test', TransactionRolledBack::class],
+            ['pool_test::write', TransactionRolledBack::class],
         ], $calls);
     }
 

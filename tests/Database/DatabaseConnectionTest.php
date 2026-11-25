@@ -51,6 +51,7 @@ use ReflectionClass;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use WeakReference;
 
 class DatabaseConnectionTest extends TestCase
 {
@@ -837,13 +838,25 @@ class DatabaseConnectionTest extends TestCase
 
         $this->assertSame(0, $calls);
 
+        $connection->setTransactionManager(new DatabaseTransactionsManager);
+        $lateCalls = 0;
+        $lateHandler = function () use (&$lateCalls): void {
+            ++$lateCalls;
+        };
+
         $connection->whenTransactionRunsLongerThan(1, $handler);
         $connection->beginTransaction();
+        $connection->afterRollBack(fn () => $connection->whenTransactionRunsLongerThan(1, $lateHandler));
         usleep(5000);
         $connection->resetForPool();
         $connection->rollBack();
 
         $this->assertSame(0, $calls);
+        $this->assertSame(0, $lateCalls);
+
+        $connection->transaction(fn () => usleep(5000));
+
+        $this->assertSame(1, $lateCalls);
 
         $connection->whenTransactionRunsLongerThan(1, $handler);
         $connection->beginTransaction();
@@ -852,6 +865,36 @@ class DatabaseConnectionTest extends TestCase
         $connection->commit();
 
         $this->assertSame(0, $calls);
+
+        $connection = $this->getMockConnection([], $this->createStub(PDOStub::class));
+        $events = new EventsDispatcher;
+        $connection->setEventDispatcher($events);
+        $retainedEvents = [];
+        $events->listen([TransactionBeginning::class, TransactionCommitted::class], function (object $event) use (&$retainedEvents): void {
+            $retainedEvents[] = $event;
+        });
+        $completedHandler = fn () => null;
+        $completedHandlerReference = WeakReference::create($completedHandler);
+
+        $connection->whenTransactionRunsLongerThan(1, $completedHandler);
+        $connection->transaction(fn () => null);
+        $connection->resetForPool();
+        unset($completedHandler);
+
+        $this->assertCount(2, $retainedEvents);
+        $this->assertNull($completedHandlerReference->get());
+
+        $disconnectedHandler = fn () => null;
+        $disconnectedHandlerReference = WeakReference::create($disconnectedHandler);
+
+        $connection->whenTransactionRunsLongerThan(1, $disconnectedHandler);
+        $connection->beginTransaction();
+        $connection->disconnect();
+        $connection->resetForPool();
+        unset($disconnectedHandler);
+
+        $this->assertCount(3, $retainedEvents);
+        $this->assertNull($disconnectedHandlerReference->get());
     }
 
     public function testTransactionMethodRunsSuccessfully(): void
