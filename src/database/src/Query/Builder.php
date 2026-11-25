@@ -3292,7 +3292,7 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Lock the selected rows in the table for updating without blocking foreign key checks.
+     * Lock the selected rows in the table for updating, without blocking foreign key checks on PostgreSQL.
      *
      * @return $this
      */

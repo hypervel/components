@@ -240,7 +240,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         }
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('PostgreSQL 19 or newer is required.');
+        $this->expectExceptionMessageIs('The PostgreSQL version does not support waiting for a commit ID. PostgreSQL 19 or newer is required.');
 
         DB::hasCommitId(DB::getLastCommitId(), wait: 1);
     }
@@ -274,7 +274,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     public function testWaitingForACommitIdRequiresPostgres19(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('PostgreSQL 19 or newer is required.');
+        $this->expectExceptionMessageIs('The PostgreSQL version does not support waiting for a commit ID. PostgreSQL 19 or newer is required.');
 
         DB::hasCommitId(DB::getLastCommitId(), 1);
     }

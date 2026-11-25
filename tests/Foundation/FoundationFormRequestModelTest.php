@@ -210,7 +210,7 @@ class FoundationFormRequestModelTest extends TestCase
         $request->setContainer($this->app);
 
         $this->expectException(Error::class);
-        $this->expectExceptionMessage('Hypervel\Tests\Foundation\Fixtures\Unknown');
+        $this->expectExceptionMessageIs('Class "Hypervel\Tests\Foundation\Fixtures\Unknown" not found');
 
         $request->model('unknown_id');
     }

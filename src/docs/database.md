@@ -1081,7 +1081,7 @@ DB::connection()->whenQueryingForLongerThan(500, function (Connection $connectio
 <a name="monitoring-long-running-transactions"></a>
 ### Monitoring Long-Running Transactions
 
-Long-running transactions hold their locks until they finish, which can slow down other requests. You may provide a duration threshold (in milliseconds) and closure to the `whenTransactionRunsLongerThan` method to be notified when a transaction takes too long. Only the outermost transaction is timed. The closure receives the connection, the `TransactionCommitted` or `TransactionRolledBack` event, and the transaction's duration in milliseconds.:
+Long-running transactions hold their locks until they finish, which can slow down other requests. You may provide a duration threshold (in milliseconds) and closure to the `whenTransactionRunsLongerThan` method to be notified when a transaction takes too long. Only the outermost transaction is timed. The closure receives the connection, the `TransactionCommitted` or `TransactionRolledBack` event, and the transaction's duration in milliseconds:
 
 ```php
 use Hypervel\Database\Connection;
