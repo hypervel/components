@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View;
 
+use Hypervel\Support\HtmlString;
+use Hypervel\Support\Stringable;
 use Hypervel\Tests\Support\Concerns\TestsInteractsWithDataContract;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\ComponentAttributeBag;
@@ -388,5 +390,75 @@ class ViewComponentAttributeBagTest extends TestCase
     protected static function arrayToDataFactory(array $data): object
     {
         return new ComponentAttributeBag($data);
+    }
+
+    public function testStringableAttributesAreEscaped(): void
+    {
+        $xssPayload = 'x" onmouseover=alert(1) data-x="';
+
+        // Plain strings are escaped
+        $bag = new ComponentAttributeBag;
+        $bag = $bag->merge(['title' => $xssPayload]);
+        $this->assertSame('title="x&quot; onmouseover=alert(1) data-x=&quot;"', (string) $bag);
+
+        // Stringable objects should also be escaped
+        $bag = new ComponentAttributeBag;
+        $bag = $bag->merge(['title' => new Stringable($xssPayload)]);
+        $this->assertSame('title="x&quot; onmouseover=alert(1) data-x=&quot;"', (string) $bag);
+    }
+
+    public function testHtmlableAttributesAreNotEscaped(): void
+    {
+        // Htmlable objects should not be escaped
+        $bag = new ComponentAttributeBag;
+        $bag = $bag->merge(['title' => new HtmlString('<em>safe</em>')]);
+        $this->assertSame('title="<em>safe</em>"', (string) $bag);
+    }
+
+    public function testStringableAttributesInPrependsAreEscaped(): void
+    {
+        $xssPayload = 'x" onmouseover=alert(1) data-x="';
+
+        $bag = new ComponentAttributeBag(['class' => 'bar']);
+        $bag = $bag->merge(['class' => $bag->prepends(new Stringable($xssPayload))]);
+        $this->assertStringContainsString('x&quot; onmouseover=alert(1) data-x=&quot;', (string) $bag);
+    }
+
+    public function testPrependsAreEscapedWhenAttributeIsNotPresent(): void
+    {
+        $xssPayload = 'x" onmouseover=alert(1) data-x="';
+
+        $bag = new ComponentAttributeBag;
+        $this->assertSame('class="x&quot; onmouseover=alert(1) data-x=&quot;"', (string) $bag->merge(['class' => $bag->prepends($xssPayload)]));
+        $this->assertSame('data-foo="x&quot; onmouseover=alert(1) data-x=&quot;"', (string) $bag->merge(['data-foo' => $bag->prepends($xssPayload)]));
+        $this->assertSame('data-foo="x&quot; onmouseover=alert(1) data-x=&quot;"', (string) $bag->merge(['data-foo' => $bag->prepends(new Stringable($xssPayload))]));
+        $this->assertSame('data-foo="<em>safe</em>"', (string) $bag->merge(['data-foo' => $bag->prepends(new HtmlString('<em>safe</em>'))]));
+        $this->assertSame('data-foo="<em>raw</em>"', (string) $bag->merge(['data-foo' => $bag->prepends('<em>raw</em>')], false));
+    }
+
+    public function testPresentAttributesResolveTheirPrependedDefaultOnce(): void
+    {
+        $default = new class {
+            public int $casts = 0;
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'foo';
+            }
+        };
+
+        $bag = new ComponentAttributeBag(['class' => 'bar']);
+
+        $this->assertSame('class="foo bar"', (string) $bag->merge(['class' => $bag->prepends($default)]));
+        $this->assertSame(1, $default->casts);
+    }
+
+    public function testHtmlableAttributesInPrependsAreNotEscaped(): void
+    {
+        $bag = new ComponentAttributeBag(['class' => 'bar']);
+        $bag = $bag->merge(['class' => $bag->prepends(new HtmlString('<em>safe</em>'))]);
+        $this->assertStringContainsString('<em>safe</em>', (string) $bag);
     }
 }
