@@ -136,12 +136,15 @@ class TransactionDurationThresholdPooledTest extends TestCase
             $events[] = $event::class;
         });
 
-        run(function () {
+        run(function () use (&$events) {
+            DB::connection()->whenTransactionRunsLongerThan(10, function () use (&$events) {
+                $events[] = 'connection';
+            });
             DB::beginTransaction();
             usleep(20000);
         });
 
-        $this->assertSame([TransactionRolledBack::class], $events);
+        $this->assertSame([TransactionRolledBack::class, 'connection'], $events);
     }
 
     public function testManagerTransactionDurationHandlersTimeTransactionsRunByCallbacksAndListeners(): void
@@ -260,10 +263,15 @@ class TransactionDurationThresholdPooledTest extends TestCase
             DB::connection('pool_test::write')->transaction(fn () => null);
         });
 
-        // The pool reset clears the write type before rolling back the abandoned transaction.
         run(function () {
             DB::connection('pool_test::write')->beginTransaction();
         });
+
+        // The deferred event arrives after the released connection's role was reset.
+        Event::defer(function () {
+            DB::connection('pool_test::write')->transaction(fn () => null);
+            $this->app->make('db.resolver')->releaseConnections();
+        }, [TransactionCommitted::class]);
 
         $this->assertSame([
             ['pool_test', TransactionCommitted::class],
@@ -271,6 +279,8 @@ class TransactionDurationThresholdPooledTest extends TestCase
             ['pool_test::write', TransactionCommitted::class],
             ['pool_test', TransactionRolledBack::class],
             ['pool_test::write', TransactionRolledBack::class],
+            ['pool_test', TransactionCommitted::class],
+            ['pool_test::write', TransactionCommitted::class],
         ], $calls);
     }
 

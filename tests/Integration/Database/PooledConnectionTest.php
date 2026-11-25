@@ -22,6 +22,7 @@ use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Database\QueryException;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Channel;
@@ -465,6 +466,7 @@ class PooledConnectionTest extends DatabaseTestCase
 
     public function testReleaseResetsConnectionState(): void
     {
+        config(['database.connections.pool_test.pool.events' => [ConnectionReleasing::class]]);
         $pool = new DatabasePool($this->app, 'pool_test');
 
         // Get a connection through the pool to test proper release
@@ -475,19 +477,31 @@ class PooledConnectionTest extends DatabaseTestCase
 
         // Add some state that should be reset
         $callbackCalled = false;
-        $connection->beforeExecuting(function () use (&$callbackCalled): void {
+        $callback = function () use (&$callbackCalled): void {
             $callbackCalled = true;
-        });
+        };
+        $connection->beforeExecuting($callback);
         $connection->setReadWriteType('write');
 
+        // Borrower code that runs during release must not leave state for the next borrower either.
+        $rollbacks = 0;
+        $connection->beginTransaction();
+        $connection->afterRollBack(function () use ($connection, $callback, &$rollbacks): void {
+            ++$rollbacks;
+            $connection->whenTransactionRunsLongerThan(-1, $callback);
+        });
+        Event::listen(ConnectionReleasing::class, fn (ConnectionReleasing $event) => $event->connection->getConnection()->beforeExecuting($callback));
+
         $pooledConnection->release();
+
+        $this->assertSame(1, $rollbacks);
 
         // After release, getting the connection again from pool should work
         /** @var PooledConnection $newPooledConnection */
         $newPooledConnection = $pool->borrow();
         $this->assertSame($connection, $newPooledConnection->getConnection());
         $this->assertSame('pool_test', $connection->getNameWithReadWriteType());
-        $connection->select('select 1');
+        $connection->transaction(fn () => $connection->select('select 1'));
         $this->assertFalse($callbackCalled);
         $newPooledConnection->release();
     }
@@ -1171,6 +1185,72 @@ class PooledConnectionTest extends DatabaseTestCase
         $pool->close();
     }
 
+    #[TestWith(['listener'])]
+    #[TestWith(['reset'])]
+    #[TestWith(['warning'])]
+    public function testReleaseAttemptsEveryResetWhenOtherCleanupFails(string $canceledStep): void
+    {
+        $this->app->make('config')->set('database.connections.neutral_pool_test', [
+            'driver' => 'neutral',
+            'database' => 'first',
+            'prefix' => '',
+            'pool' => [
+                'min_retained_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat_interval' => null,
+                'events' => [ConnectionReleasing::class],
+            ],
+        ]);
+        $generation = 0;
+        $this->app->make('db.factory')->extend(
+            'neutral',
+            static function (array $config) use (&$generation): NeutralPoolConnection {
+                return new NeutralPoolConnection(++$generation, $config['database'], $config['prefix'], $config);
+            },
+        );
+        $cancellation = new CanceledException('Release was canceled.');
+        $failure = static fn (string $step): Throwable => $step === $canceledStep ? $cancellation : new RuntimeException("Release {$step} failed.");
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning')->throws($failure('warning'));
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+        $replacement = null;
+        $this->app->make(Dispatcher::class)->listen(
+            ConnectionReleasing::class,
+            static function (ConnectionReleasing $event) use (&$replacement, $failure): never {
+                $replacement = $event->connection->getConnection();
+
+                throw $failure('listener');
+            }
+        );
+        $pool = new DatabasePool($this->app, 'neutral_pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->borrow();
+        /** @var NeutralPoolConnection $connection */
+        $connection = $pooledConnection->getConnection();
+        $connection->resetFailure = $failure('reset');
+        (new ReflectionProperty(Connection::class, 'errorCount'))->setValue($connection, 101);
+
+        // A failed refresh leaves the holder invalid, so the listener reconnects it.
+        (new ReflectionProperty(PooledConnection::class, 'invalid'))->setValue($pooledConnection, true);
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected the release cancellation to propagate.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertInstanceOf(NeutralPoolConnection::class, $replacement);
+        $this->assertNotSame($connection, $replacement);
+        $this->assertSame(1, $connection->resetCalls);
+        $this->assertSame(1, $replacement->resetCalls);
+        $this->assertTrue($this->isInvalid($pooledConnection));
+        $this->assertSame(1, $pool->getIdleCount());
+
+        $pool->close();
+    }
+
     public function testPoolReleaseCancellationEscapesAfterReturningTheConnectionOnce(): void
     {
         $pool = new DatabasePool($this->app, 'pool_test');
@@ -1586,27 +1666,49 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertGreaterThan($expiredAt, $pooledConnection->getCreatedAt());
     }
 
-    public function testReleaseSnapshotsErrorCountBeforeResettingConnection(): void
+    public function testReleaseChecksErrorCountAndResetsTheConnectionAfterReleaseListeners(): void
     {
+        config(['database.connections.pool_test.pool.events' => [ConnectionReleasing::class]]);
+        $listenerConnections = [];
+        Event::listen(ConnectionReleasing::class, function (ConnectionReleasing $event) use (&$listenerConnections): void {
+            $listenerConnections[] = $connection = $event->connection->getConnection();
+            $connection->enableQueryLog();
+            (new ReflectionProperty(Connection::class, 'errorCount'))->setValue($connection, 100);
+
+            try {
+                $connection->select('select * from missing_table');
+            } catch (QueryException) {
+            }
+        });
         $pool = new DatabasePool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
         $pooledConnection = $pool->borrow();
         $connection = $pooledConnection->getConnection();
 
-        (new ReflectionProperty(Connection::class, 'errorCount'))->setValue($connection, 101);
-
         $pooledConnection->release();
 
+        // The listener's failed query is the 101st error.
+        $this->assertSame([$connection], $listenerConnections);
         $this->assertSame(0, $connection->getErrorCount());
-        $this->assertNull($pool->recordedDateFormat());
+        $this->assertFalse($connection->logging());
+        $this->assertTrue($this->isInvalid($pooledConnection));
 
-        /** @var PooledConnection $nextPooledConnection */
-        $nextPooledConnection = $pool->borrow();
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->borrow();
+        $replacement = $pooledConnection->getConnection();
 
-        $this->assertNotSame($connection, $nextPooledConnection->getConnection());
+        $this->assertNotSame($connection, $replacement);
 
-        $nextPooledConnection->release();
+        // A failed refresh leaves the holder invalid, so the listener reconnects it during release.
+        (new ReflectionProperty(PooledConnection::class, 'invalid'))->setValue($pooledConnection, true);
+        $pooledConnection->release();
+
+        $this->assertCount(2, $listenerConnections);
+        $this->assertNotSame($replacement, $listenerConnections[1]);
+        $this->assertSame(0, $listenerConnections[1]->getErrorCount());
+        $this->assertFalse($listenerConnections[1]->logging());
+        $this->assertTrue($this->isInvalid($pooledConnection));
     }
 
     public function testReleaseResetsErrorCountForNextBorrowWindow(): void
@@ -2037,9 +2139,13 @@ class NeutralPoolConnection extends Connection
 {
     public ?Throwable $transactionFailure = null;
 
+    public ?Throwable $resetFailure = null;
+
     public int $pingCalls = 0;
 
     public int $disconnectCalls = 0;
+
+    public int $resetCalls = 0;
 
     private bool $hasResources = true;
 
@@ -2096,6 +2202,16 @@ class NeutralPoolConnection extends Connection
     public function getServerVersion(): string
     {
         return 'test';
+    }
+
+    public function resetForPool(): void
+    {
+        ++$this->resetCalls;
+        parent::resetForPool();
+
+        if ($this->resetFailure !== null) {
+            throw $this->resetFailure;
+        }
     }
 
     protected function getDefaultDriverName(): string

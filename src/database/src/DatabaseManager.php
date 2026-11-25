@@ -763,6 +763,7 @@ class DatabaseManager implements ConnectionResolverInterface
                 return;
             }
 
+            // A deferred event can arrive after the pool has reset the connection's role.
             foreach ($this->transactionDurationHandlers as $config) {
                 if ($timing->duration > $config['threshold'] && $this->monitorsConnection($config['connection'], $event->connectionName, $timing->connectionName)) {
                     $config['handler']($event->connection, $event, $timing->duration);

@@ -394,39 +394,67 @@ class PooledConnection implements PoolConnection
     protected function prepareForRelease(): void
     {
         $connection = $this->lease->connection ?? $this->connection;
+        $failure = null;
 
-        if ($connection !== null) {
-            $errorCount = $connection->getErrorCount();
-
-            // An ended owner's in-flight operations must stop before another borrower reuses the slot.
-            if ($this->lease === null || $this->lease->hasEnded()) {
-                $connection->resetForPool();
-            }
-
-            if ($errorCount > self::MAX_ERROR_COUNT) {
-                $this->logger->warning('Connection has too many errors, marking as stale.');
-                $this->markInvalid();
-            }
-
-            if ($connection->transactionLevel() > 0) {
+        // The rollback callbacks and release listeners run before the reset, since they
+        // need the owner's role and may register more state.
+        try {
+            if ($connection !== null && $connection->transactionLevel() > 0) {
                 $connection->rollBack(0);
                 $this->logger->error('Database transaction was not committed or rolled back before release.');
             }
+
+            $this->lastReleaseTime = hrtime(true) / 1e9;
+            $events = $this->pool->getOptions()->events;
+
+            if (in_array(ConnectionReleasing::class, $events, true)
+                && $this->container->bound('events')
+            ) {
+                // Event::fake() can replace the dispatcher after this connection was created.
+                /** @var Dispatcher $dispatcher */
+                $dispatcher = $this->container->make('events');
+
+                if ($dispatcher->hasListeners(ConnectionReleasing::class)) {
+                    $dispatcher->dispatch(new ConnectionReleasing($this));
+                }
+            }
+        } catch (Throwable $exception) {
+            $failure = $exception;
         }
 
-        $this->lastReleaseTime = hrtime(true) / 1e9;
-        $events = $this->pool->getOptions()->events;
+        // An ended owner's in-flight operations must stop before another borrower reuses the slot.
+        $owner = $this->lease === null || $this->lease->hasEnded() ? $connection : null;
 
-        if (in_array(ConnectionReleasing::class, $events, true)
-            && $this->container->bound('events')
-        ) {
-            // Event::fake() can replace the dispatcher after this connection was created.
-            /** @var Dispatcher $dispatcher */
-            $dispatcher = $this->container->make('events');
+        // A release listener can reconnect an invalid holder, which the next borrower then receives.
+        $replacement = $this->lease === null && $this->connection !== $connection ? $this->connection : null;
 
-            if ($dispatcher->hasListeners(ConnectionReleasing::class)) {
-                $dispatcher->dispatch(new ConnectionReleasing($this));
+        // Read the error counts before the resets clear them.
+        $stale = ($connection !== null && $connection->getErrorCount() > self::MAX_ERROR_COUNT)
+            || ($replacement !== null && $replacement->getErrorCount() > self::MAX_ERROR_COUNT);
+
+        if ($stale) {
+            $this->markInvalid();
+        }
+
+        // A reset can release driver resources, so a failing one must not skip another.
+        foreach ([$owner, $replacement] as $resetConnection) {
+            try {
+                $resetConnection?->resetForPool();
+            } catch (Throwable $exception) {
+                $failure = Coroutine::preferCancellation($failure, $exception);
             }
+        }
+
+        if ($stale) {
+            try {
+                $this->logger->warning('Connection has too many errors, marking as stale.');
+            } catch (Throwable $exception) {
+                $failure = Coroutine::preferCancellation($failure, $exception);
+            }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 

@@ -843,25 +843,14 @@ class DatabaseConnectionTest extends TestCase
 
         $this->assertSame(0, $calls);
 
-        $connection->setTransactionManager(new DatabaseTransactionsManager);
-        $lateCalls = 0;
-        $lateHandler = function () use (&$lateCalls): void {
-            ++$lateCalls;
-        };
-
         $connection->whenTransactionRunsLongerThan(1, $handler);
         $connection->beginTransaction();
-        $connection->afterRollBack(fn () => $connection->whenTransactionRunsLongerThan(1, $lateHandler));
         usleep(5000);
         $connection->resetForPool();
+        $connection->whenTransactionRunsLongerThan(1, $handler);
         $connection->rollBack();
 
         $this->assertSame(0, $calls);
-        $this->assertSame(0, $lateCalls);
-
-        $connection->transaction(fn () => usleep(5000));
-
-        $this->assertSame(1, $lateCalls);
 
         $connection->whenTransactionRunsLongerThan(1, $handler);
         $connection->beginTransaction();

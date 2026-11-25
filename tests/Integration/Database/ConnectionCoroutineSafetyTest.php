@@ -722,6 +722,25 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $this->assertSame('read', $plain->selectOne('select value from markers')->value);
     }
 
+    public function testWriteSuffixAndPlainConnectionRunTheirOwnRollbackCallbacksOnRelease(): void
+    {
+        $rollbacks = [];
+
+        $coroutineId = go(static function () use (&$rollbacks): void {
+            foreach (['sqlite_readwrite_pool', 'sqlite_readwrite_pool::write'] as $name) {
+                $connection = DB::connection($name);
+                $connection->beginTransaction();
+                $connection->afterRollBack(function () use ($name, &$rollbacks): void {
+                    $rollbacks[] = $name;
+                });
+            }
+        });
+
+        Coroutine::join([$coroutineId], 1.0);
+
+        $this->assertEqualsCanonicalizing(['sqlite_readwrite_pool', 'sqlite_readwrite_pool::write'], $rollbacks);
+    }
+
     protected function seedReadWritePoolMarkers(): void
     {
         foreach (['sqlite_readwrite_pool::read' => 'read', 'sqlite_readwrite_pool::write' => 'write'] as $connectionName => $value) {

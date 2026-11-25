@@ -977,8 +977,6 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Get the timing of the outermost transaction the given event began or completed.
      *
-     * Unlike handlers, the timing survives the pool reset, so it also covers a transaction rolled back on release.
-     *
      * @internal
      */
     public function transactionTiming(TransactionBeginning|TransactionCommitted|TransactionRolledBack $event): ?TransactionTiming
