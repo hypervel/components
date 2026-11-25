@@ -14,7 +14,7 @@ class MessageSelector
         . '|(?:' . self::NUMERIC . '|\*),' . self::NUMERIC
         . '|' . self::NUMERIC . ',\*)';
 
-    private const string CONDITION_PATTERN = '/^(?|\{(' . self::CONDITION . ')\}|\[(' . self::CONDITION . ')\])(.*)/s';
+    private const string CONDITION_PATTERN = '/^\s*(?|\{\s*(' . self::CONDITION . ')\s*\}|\[\s*(' . self::CONDITION . ')\s*\])(.*)/s';
 
     /**
      * Select a proper translation string based on the given number.
