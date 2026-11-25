@@ -22,6 +22,11 @@ use function Hypervel\Coroutine\run;
 
 class TransactionDurationThresholdPooledTest extends TestCase
 {
+    /**
+     * How early a coroutine sleep can return, since Swoole timers count whole milliseconds.
+     */
+    protected const float SLEEP_TOLERANCE_MILLISECONDS = 1.0;
+
     protected bool $runTestsInCoroutine = false;
 
     protected static string $primaryDatabasePath;
@@ -103,7 +108,7 @@ class TransactionDurationThresholdPooledTest extends TestCase
             $this->assertContains($connection, $borrowers);
             $this->assertInstanceOf(TransactionCommitted::class, $event);
             $this->assertSame($connection, $event->connection);
-            $this->assertGreaterThanOrEqual(20, $duration);
+            $this->assertGreaterThanOrEqual(20 - self::SLEEP_TOLERANCE_MILLISECONDS, $duration);
         }
 
         run(function () {
@@ -119,7 +124,7 @@ class TransactionDurationThresholdPooledTest extends TestCase
 
         $this->assertCount(3, $calls);
         $this->assertInstanceOf(TransactionRolledBack::class, $calls[2][1]);
-        $this->assertGreaterThanOrEqual(20, $calls[2][2]);
+        $this->assertGreaterThanOrEqual(20 - self::SLEEP_TOLERANCE_MILLISECONDS, $calls[2][2]);
         $this->assertSame(0, $slowCalls);
     }
 
@@ -172,8 +177,8 @@ class TransactionDurationThresholdPooledTest extends TestCase
             [TransactionCommitted::class, TransactionCommitted::class, TransactionCommitted::class, TransactionRolledBack::class],
             array_column($durations, 0)
         );
-        $this->assertGreaterThanOrEqual(20, $durations[1][1]);
-        $this->assertGreaterThanOrEqual(20, $durations[3][1]);
+        $this->assertGreaterThanOrEqual(20 - self::SLEEP_TOLERANCE_MILLISECONDS, $durations[1][1]);
+        $this->assertGreaterThanOrEqual(20 - self::SLEEP_TOLERANCE_MILLISECONDS, $durations[3][1]);
     }
 
     public function testManagerTransactionDurationHandlersMeasureDeferredTransactionsWhenTheyComplete(): void

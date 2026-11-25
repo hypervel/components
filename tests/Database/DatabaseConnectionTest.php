@@ -57,6 +57,11 @@ class DatabaseConnectionTest extends TestCase
 {
     use VerifiesDoubles;
 
+    /**
+     * How early a coroutine sleep can return, since Swoole timers count whole milliseconds.
+     */
+    protected const float SLEEP_TOLERANCE_MILLISECONDS = 1.0;
+
     public function testDriverNameFallsBackToTheConnectionIdentity(): void
     {
         $pdo = new PDOStub;
@@ -816,7 +821,7 @@ class DatabaseConnectionTest extends TestCase
             [TransactionCommitted::class, TransactionCommitted::class, TransactionCommitted::class, TransactionCommitted::class, TransactionRolledBack::class],
             array_column($completions, 0)
         );
-        $this->assertGreaterThanOrEqual(20, $completions[2][1]);
+        $this->assertGreaterThanOrEqual(20 - self::SLEEP_TOLERANCE_MILLISECONDS, $completions[2][1]);
         $this->assertSame([
             'beganTransaction', 'committing', 'beganTransaction', 'committing', 'committed',
             'beganTransaction', 'committing', 'committed', 'committed',
@@ -1403,7 +1408,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame([2], $event->bindings);
         $this->assertSame('read', $event->readWriteType);
         $this->assertSame('analytics', $event->connectionName);
-        $this->assertGreaterThanOrEqual(3.0, $event->time);
+        $this->assertGreaterThanOrEqual(3 - self::SLEEP_TOLERANCE_MILLISECONDS, $event->time);
         $this->assertSame($event->time, $connection->totalQueryDuration());
         $this->assertSame([[
             'query' => 'select ? as modified',
