@@ -27,6 +27,9 @@
         "php": "^8.4",
         "hypervel/contracts": "^0.4"
     },
+    "suggest": {
+        "hypervel/validation": "Required to use JsonSchema::rules() (^0.4)."
+    },
     "autoload": {
         "psr-4": {
             "Hypervel\\JsonSchema\\": "src/"

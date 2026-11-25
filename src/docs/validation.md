@@ -33,6 +33,7 @@
     - [Error Message Indexes and Positions](#error-message-indexes-and-positions)
 - [Validating Files](#validating-files)
 - [Validating Passwords](#validating-passwords)
+- [Deriving Rules From JSON Schemas](#deriving-rules-from-json-schemas)
 - [Custom Validation Rules](#custom-validation-rules)
     - [Using Rule Objects](#using-rule-objects)
     - [Extending Fluent Rules](#extending-fluent-rules)
@@ -2391,10 +2392,16 @@ The field under validation must not be empty when it is present.
 
 The field under validation must be greater than the given _field_ or _value_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule.
 
+If the input also has a field named like a numeric value, such as `10`, the rule cannot tell them apart and fails. To always compare against the value itself, add the `literal` option:
+
+```php
+'count' => 'numeric|gt:10,literal',
+```
+
 <a name="rule-gte"></a>
 #### gte:_field_
 
-The field under validation must be greater than or equal to the given _field_ or _value_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule.
+The field under validation must be greater than or equal to the given _field_ or _value_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
 
 <a name="rule-hex-color"></a>
 #### hex_color
@@ -2506,12 +2513,12 @@ The field under validation must be a valid JSON string.
 <a name="rule-lt"></a>
 #### lt:_field_
 
-The field under validation must be less than the given _field_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule.
+The field under validation must be less than the given _field_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
 
 <a name="rule-lte"></a>
 #### lte:_field_
 
-The field under validation must be less than or equal to the given _field_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule.
+The field under validation must be less than or equal to the given _field_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
 
 <a name="rule-lowercase"></a>
 #### lowercase
@@ -3519,6 +3526,63 @@ Password::defaults(function () {
 
     // ...
 });
+```
+
+<a name="deriving-rules-from-json-schemas"></a>
+## Deriving Rules From JSON Schemas
+
+If your application describes data schemas using Hypervel's [JSON Schema](/docs/{{version}}/json-schema) builder or raw JSON Schema definitions (such as tool inputs in [Hypervel MCP](/docs/{{version}}/mcp#tool-input-schemas)), you may use the `JsonSchema::rules` method to automatically derive Hypervel validation rules from an object schema:
+
+```php
+use Hypervel\JsonSchema\JsonSchema;
+use Hypervel\Support\Facades\Validator;
+
+$schema = JsonSchema::object(fn ($s) => [
+    'name' => $s->string()->max(50)->required(),
+    'age' => $s->integer()->min(18),
+    'role' => $s->string()->enum(['admin', 'user'])->required(),
+]);
+
+$validator = Validator::make($request->all(), JsonSchema::rules($schema));
+```
+
+The `JsonSchema::rules` method also accepts a raw JSON Schema array:
+
+```php
+use Hypervel\JsonSchema\JsonSchema;
+
+$rules = JsonSchema::rules([
+    'type' => 'object',
+    'properties' => [
+        'email' => ['type' => 'string', 'format' => 'email'],
+    ],
+    'required' => ['email'],
+]);
+
+// ['email' => ['required', 'string', 'email']]
+```
+
+You may use the derived rules anywhere Hypervel accepts validation rules, including within your [form request's](#creating-form-requests) `rules` method:
+
+```php
+use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\JsonSchema\JsonSchema;
+
+class StoreUserRequest extends FormRequest
+{
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, \Hypervel\Contracts\Validation\ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        return JsonSchema::rules(JsonSchema::object(fn ($s) => [
+            'name' => $s->string()->max(50)->required(),
+            'email' => $s->string()->format('email')->required(),
+        ]));
+    }
+}
 ```
 
 <a name="custom-validation-rules"></a>

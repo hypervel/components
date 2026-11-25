@@ -459,6 +459,10 @@ trait ReplacesAttributes
      */
     protected function replaceGt(string $message, string $attribute, string $rule, array $parameters): string
     {
+        if ($this->isLiteralComparison($parameters)) {
+            return str_replace(':value', $this->parameterToString($parameters[0]), $message);
+        }
+
         if (is_null($value = $this->getValue($parameters[0]))) {
             return str_replace(':value', $this->getDisplayableAttribute($parameters[0]), $message);
         }

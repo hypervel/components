@@ -2975,6 +2975,21 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
+    public function testComparisonRulesCanCompareAgainstALiteralValue(): void
+    {
+        $trans = $this->getArrayTranslator();
+        $trans->addLines(['validation.gt.numeric' => ':attribute must be greater than :value.'], 'en');
+
+        foreach (['gt:10,literal' => 15, 'gte:10,literal' => 10, 'lt:10,literal' => 5, 'lte:10,literal' => 10] as $rule => $value) {
+            $v = new Validator($trans, ['lhs' => $value, 10 => 99], ['lhs' => "numeric|{$rule}"]);
+            $this->assertTrue($v->passes(), $rule);
+        }
+
+        $v = new Validator($trans, ['lhs' => 5, 10 => 1], ['lhs' => 'numeric|gt:10,literal'], [], ['10' => 'Quantity']);
+        $this->assertFalse($v->passes());
+        $this->assertSame('lhs must be greater than 10.', $v->messages()->first('lhs'));
+    }
+
     public function testValidateAccepted(): void
     {
         $trans = $this->getArrayTranslator();
