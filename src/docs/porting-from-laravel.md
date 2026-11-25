@@ -872,6 +872,8 @@ Do not manually commit or roll back the transaction owned by a `DB::transaction(
 
 If your extension inspects transaction records or registers callbacks directly with `DatabaseTransactionsManager`, use the resolved connection's `getNameWithReadWriteType()` instead of `getName()`. Base, `::read`, and `::write` connections can have independent transactions. Always resolve the connection before reading its name; aliases for a shared in-memory SQLite connection resolve to the same session. Ordinary `afterCommit()` and `afterRollBack()` calls already use the correct connection.
 
+`DB::whenQueryingForLongerThan()` and `DB::whenTransactionRunsLongerThan()` register worker-wide monitors and may only be called while the application boots. Move request-time calls to the connection, such as `DB::connection()->whenTransactionRunsLongerThan(...)`. See [monitoring long-running transactions](/docs/{{version}}/database#monitoring-long-running-transactions).
+
 Custom `ConnectionResolverInterface` implementations must return a `Connection` from `connection()`, not any `ConnectionInterface`. In tests, mock `Connection` for the connections a mocked resolver, database manager or `DB::shouldReceive('connection')` returns.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.

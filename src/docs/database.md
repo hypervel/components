@@ -24,6 +24,7 @@
     - [Running Analytical Queries on Vitess](#running-analytical-queries-on-vitess)
     - [Listening for Query Events](#listening-for-query-events)
     - [Monitoring Cumulative Query Time](#monitoring-cumulative-query-time)
+    - [Monitoring Long-Running Transactions](#monitoring-long-running-transactions)
 - [Database Transactions](#database-transactions)
 - [Connecting to the Database CLI](#connecting-to-the-database-cli)
     - [Custom Database Clients](#custom-database-clients)
@@ -1067,6 +1068,44 @@ class AppServiceProvider extends ServiceProvider
         });
     }
 }
+```
+
+Callbacks registered through the `DB` facade apply to every request the worker handles, so the facade's `whenQueryingForLongerThan` method may only be called while your application boots. To monitor only the current request, register the callback on the connection instead:
+
+```php
+DB::connection()->whenQueryingForLongerThan(500, function (Connection $connection, QueryExecuted $event) {
+    // ...
+});
+```
+
+<a name="monitoring-long-running-transactions"></a>
+### Monitoring Long-Running Transactions
+
+Long-running transactions hold their locks until they finish, which can slow down other requests. You may provide a duration threshold (in milliseconds) and closure to the `whenTransactionRunsLongerThan` method to be notified when a transaction takes too long. Only the outermost transaction is timed. The closure receives the connection, the `TransactionCommitted` or `TransactionRolledBack` event, and the transaction's duration in milliseconds.:
+
+```php
+use Hypervel\Database\Connection;
+use Hypervel\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Support\Facades\DB;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    DB::whenTransactionRunsLongerThan(1000, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) {
+        // Notify development team...
+    });
+}
+```
+
+Like query time monitoring, the facade's `whenTransactionRunsLongerThan` method may only be called while your application boots. To monitor transactions during the current request only, call the method on the connection instead. Callbacks registered on a connection are invoked directly rather than through event listeners, so they still run when transaction events are faked or the connection has no event dispatcher:
+
+```php
+DB::connection()->whenTransactionRunsLongerThan(1000, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) {
+    // ...
+});
 ```
 
 <a name="database-transactions"></a>

@@ -84,6 +84,7 @@ trait ManagesTransactions
             }
 
             $this->transactions = max(0, $this->transactions - 1);
+            $completedTransaction = $this->stopTransactionTimer();
             $exception = null;
 
             try {
@@ -101,7 +102,7 @@ trait ManagesTransactions
             }
 
             try {
-                $this->fireConnectionEvent('committed');
+                $this->fireCompletedTransactionEvent('committed', $completedTransaction);
             } catch (Throwable $throwable) {
                 if (Coroutine::causedByCancellation($throwable)) {
                     throw $throwable;
@@ -260,6 +261,7 @@ trait ManagesTransactions
             max(0, $this->transactions - 1),
         ];
 
+        $completedTransaction = $this->stopTransactionTimer();
         $exception = null;
 
         try {
@@ -277,7 +279,7 @@ trait ManagesTransactions
         }
 
         try {
-            $this->fireConnectionEvent('committed');
+            $this->fireCompletedTransactionEvent('committed', $completedTransaction);
         } catch (Throwable $throwable) {
             if (Coroutine::causedByCancellation($throwable)) {
                 throw $throwable;
@@ -375,6 +377,7 @@ trait ManagesTransactions
         }
 
         $this->transactions = $toLevel;
+        $completedTransaction = $this->stopTransactionTimer();
         $exception = null;
 
         try {
@@ -391,7 +394,7 @@ trait ManagesTransactions
         }
 
         try {
-            $this->fireConnectionEvent('rollingBack');
+            $this->fireCompletedTransactionEvent('rollingBack', $completedTransaction);
         } catch (Throwable $throwable) {
             if (Coroutine::causedByCancellation($throwable)) {
                 throw $throwable;

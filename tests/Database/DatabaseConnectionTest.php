@@ -704,6 +704,156 @@ class DatabaseConnectionTest extends TestCase
         $events->assertNothingDispatched();
     }
 
+    public function testWhenTransactionRunsLongerThan(): void
+    {
+        $pdo = $this->createStub(PDOStub::class);
+        $connection = $this->getMockConnection([], $pdo);
+        $connection->setQueryGrammar(new Grammar($connection));
+        $connection->setEventDispatcher(new EventsDispatcher);
+        $called = 0;
+        $connection->whenTransactionRunsLongerThan(10, function () use (&$called) {
+            ++$called;
+        });
+
+        $connection->transaction(fn () => null);
+        $this->assertSame(0, $called);
+
+        $connection->transaction(function ($connection) {
+            $connection->transaction(fn () => usleep(20000));
+        });
+        $this->assertSame(1, $called);
+    }
+
+    public function testTransactionDurationHandlersRunWithoutAnEventDispatcher(): void
+    {
+        $connection = $this->getMockConnection([], $this->createStub(PDOStub::class));
+        $connection->unsetEventDispatcher();
+        $calls = [];
+        $handler = function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) use (&$calls): void {
+            $calls[] = [$connection, $event, $duration];
+        };
+
+        $connection->beginTransaction();
+        $connection->whenTransactionRunsLongerThan(1, $handler);
+        usleep(5000);
+        $connection->rollBack();
+
+        $this->assertSame([], $calls);
+
+        $connection->beginTransaction();
+        usleep(5000);
+        $connection->rollBack();
+
+        $this->assertCount(1, $calls);
+        $this->assertSame($connection, $calls[0][0]);
+        $this->assertInstanceOf(TransactionRolledBack::class, $calls[0][1]);
+        $this->assertSame($connection, $calls[0][1]->connection);
+        $this->assertGreaterThan(1, $calls[0][2]);
+    }
+
+    public function testTransactionDurationHandlersTimeTransactionsBegunByCompletionListeners(): void
+    {
+        $connection = $this->getMockConnection([], $this->createStub(PDOStub::class));
+        $events = new EventsDispatcher;
+        $connection->setEventDispatcher($events);
+        $calls = 0;
+        $connection->whenTransactionRunsLongerThan(10, function () use (&$calls): void {
+            ++$calls;
+        });
+        $listenerBegan = false;
+        $events->listen(TransactionCommitted::class, function (TransactionCommitted $event) use (&$listenerBegan): void {
+            if (! $listenerBegan) {
+                $listenerBegan = true;
+                $event->connection->beginTransaction();
+            }
+        });
+
+        $connection->transaction(fn () => null);
+        usleep(20000);
+        $connection->commit();
+
+        $this->assertSame(1, $calls);
+    }
+
+    public function testTransactionDurationHandlersTimeTransactionsRunByTransactionCallbacks(): void
+    {
+        $connection = new class(new PDO('sqlite::memory:')) extends SQLiteConnection {
+            public array $firedEvents = [];
+
+            protected bool $ranTransactionBeforeCommitted = false;
+
+            protected function fireConnectionEvent(string $event): void
+            {
+                $this->firedEvents[] = $event;
+
+                if ($event === 'committed' && ! $this->ranTransactionBeforeCommitted) {
+                    $this->ranTransactionBeforeCommitted = true;
+                    $this->transaction(fn () => null);
+                }
+
+                parent::fireConnectionEvent($event);
+            }
+        };
+        $connection->setTransactionManager(new DatabaseTransactionsManager);
+        $completions = [];
+        $connection->whenTransactionRunsLongerThan(-1, function (Connection $connection, TransactionCommitted|TransactionRolledBack $event, float $duration) use (&$completions): void {
+            $completions[] = [$event::class, $duration];
+        });
+
+        $connection->transaction(function (Connection $connection): void {
+            $connection->afterCommit(function () use ($connection): void {
+                usleep(20000);
+                $connection->transaction(fn () => null);
+            });
+        });
+
+        $connection->beginTransaction();
+        $connection->afterRollBack(fn () => $connection->transaction(fn () => null));
+        $connection->rollBack();
+
+        $this->assertSame(
+            [TransactionCommitted::class, TransactionCommitted::class, TransactionCommitted::class, TransactionCommitted::class, TransactionRolledBack::class],
+            array_column($completions, 0)
+        );
+        $this->assertGreaterThanOrEqual(20, $completions[2][1]);
+        $this->assertSame([
+            'beganTransaction', 'committing', 'beganTransaction', 'committing', 'committed',
+            'beganTransaction', 'committing', 'committed', 'committed',
+            'beganTransaction', 'beganTransaction', 'committing', 'committed', 'rollingBack',
+        ], $connection->firedEvents);
+    }
+
+    public function testTransactionDurationHandlersAreClearedWithTheConnectionState(): void
+    {
+        $connection = $this->getMockConnection([], $this->createStub(PDOStub::class));
+        $calls = 0;
+        $handler = function () use (&$calls): void {
+            ++$calls;
+        };
+
+        $connection->whenTransactionRunsLongerThan(1, $handler);
+        $connection->resetForPool();
+        $connection->transaction(fn () => usleep(5000));
+
+        $this->assertSame(0, $calls);
+
+        $connection->whenTransactionRunsLongerThan(1, $handler);
+        $connection->beginTransaction();
+        usleep(5000);
+        $connection->resetForPool();
+        $connection->rollBack();
+
+        $this->assertSame(0, $calls);
+
+        $connection->whenTransactionRunsLongerThan(1, $handler);
+        $connection->beginTransaction();
+        usleep(5000);
+        $connection->disconnect();
+        $connection->commit();
+
+        $this->assertSame(0, $calls);
+    }
+
     public function testTransactionMethodRunsSuccessfully(): void
     {
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['beginTransaction', 'commit'])->getMock();
