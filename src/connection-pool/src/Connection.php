@@ -70,9 +70,13 @@ abstract class Connection implements ConnectionContract
 
     /**
      * Dispatch the release event and report ordinary listener failures.
+     *
+     * Returns whether any listener was notified.
      */
-    private function dispatchReleasingEvent(): void
+    protected function dispatchReleasingEvent(): bool
     {
+        $notified = false;
+
         try {
             $this->lastReleaseTime = hrtime(true) / 1e9;
             $events = $this->pool->getOptions()->events;
@@ -85,6 +89,7 @@ abstract class Connection implements ConnectionContract
                 $dispatcher = $this->container->make('events');
 
                 if ($dispatcher->hasListeners(ConnectionReleasing::class)) {
+                    $notified = true;
                     $dispatcher->dispatch(new ConnectionReleasing($this));
                 }
             }
@@ -95,6 +100,8 @@ abstract class Connection implements ConnectionContract
 
             $this->logger?->error((string) $exception);
         }
+
+        return $notified;
     }
 
     /**

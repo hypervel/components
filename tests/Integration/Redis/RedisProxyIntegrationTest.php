@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
+use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
@@ -531,13 +532,20 @@ class RedisProxyIntegrationTest extends TestCase
             $this->markTestSkipped('Redis Cluster does not support logical databases.');
         }
 
-        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+        $name = $this->createRedisConnectionWithOptions(
             name: 'test_held_select_restore',
             options: ['prefix' => ''],
             maxConnections: 1,
-        ));
+        );
+        $this->app->make('config')->set("database.redis.{$name}.pool.events", [ConnectionReleasing::class]);
+        $redis = Redis::connection($name);
         $primaryDatabase = $this->getParallelRedisDb();
         $secondaryDatabase = $this->getSecondaryRedisDb();
+        $observe = null;
+        $this->app->make('events')->listen(ConnectionReleasing::class, static function (ConnectionReleasing $event) use (&$observe): void {
+            [$callback, $observe] = [$observe, null];
+            $callback?->__invoke($event->connection);
+        });
 
         $redis->withConnection(function (RedisConnection $connection) use ($secondaryDatabase): void {
             $this->assertTrue($connection->select($secondaryDatabase));
@@ -550,6 +558,15 @@ class RedisProxyIntegrationTest extends TestCase
             $this->assertSame($secondaryDatabase, $this->nativeClient($redis)->getDBNum());
         });
         $this->assertSame($primaryDatabase, $this->nativeClient($redis)->getDBNum());
+
+        // Release observers run before the cleanup, so what they leave behind is undone too.
+        $observe = static fn (RedisConnection $connection) => $connection->select($secondaryDatabase);
+        $redis->withConnection(static fn () => null);
+        $this->assertSame($primaryDatabase, $redis->withConnection(static fn (RedisConnection $connection) => $connection->client()->getDBNum()));
+
+        $observe = static fn (RedisConnection $connection) => $connection->multi();
+        $redis->withConnection(static fn () => null);
+        $this->assertSame(PhpRedis::ATOMIC, $redis->withConnection(static fn (RedisConnection $connection) => $connection->client()->getMode()));
     }
 
     public function testRawPipelineAndTransactionSelectionsAreRestoredAfterExec(): void
