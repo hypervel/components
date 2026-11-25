@@ -31,7 +31,7 @@ class SkipLockedTest extends TestCase
         $config->set('database.connections.skip_locked', $connection);
     }
 
-    public function testBothLockModesSkipRowsHeldByAnotherConnection(): void
+    public function testLockModesSkipRowsHeldByAnotherConnection(): void
     {
         if (! DB::connection()->supportsSkipLocked()) {
             $this->markTestSkipped('This server does not support skipping locked rows.');
@@ -55,7 +55,7 @@ class SkipLockedTest extends TestCase
                 try {
                     $holder->table('skip_locked_rows')->insert([['id' => 1], ['id' => 2]]);
 
-                    foreach (['lockForUpdate', 'sharedLock'] as $lockMethod) {
+                    foreach (['lockForUpdate', 'lockForNoKeyUpdate', 'sharedLock'] as $lockMethod) {
                         $holder->beginTransaction();
 
                         try {
