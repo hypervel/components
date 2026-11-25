@@ -402,7 +402,8 @@ class FoundationServiceProvider extends ServiceProvider
      */
     protected function registerExceptionTracking(): void
     {
-        if (! $this->app->runningUnitTests()) {
+        // Applications can use the testing environment without installing hypervel/testing.
+        if (! $this->app->runningUnitTests() || ! class_exists(LoggedExceptionCollection::class)) {
             return;
         }
 

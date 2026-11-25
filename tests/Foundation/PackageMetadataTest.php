@@ -58,9 +58,12 @@ class PackageMetadataTest extends TestCase
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
+        $this->assertArrayNotHasKey('hypervel/testing', $composer['require']);
+
         foreach ([
             'algolia/algoliasearch-client-php',
             'fakerphp/faker',
+            'hypervel/testing',
             'meilisearch/meilisearch-php',
             'typesense/typesense-php',
         ] as $dependency) {

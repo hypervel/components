@@ -68,6 +68,8 @@ Packages and library monopackages may own a thin base test case that extends `Hy
 composer require hypervel/testing --dev
 ```
 
+If your tests use Mockery, install it with `composer require mockery/mockery --dev`.
+
 ```php
 <?php
 

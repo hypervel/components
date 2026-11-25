@@ -68,12 +68,12 @@ class PackageMetadataTest extends TestCase
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
-        $this->assertArrayHasKey('mockery/mockery', $rootComposer['require-dev']);
-        $this->assertArrayHasKey('mockery/mockery', $composer['require']);
-        $this->assertSame($rootComposer['require-dev']['mockery/mockery'], $composer['require']['mockery/mockery']);
+        $devRequirements = $rootComposer['require-dev'];
+        $this->assertArrayNotHasKey('mockery/mockery', $composer['require']);
         $this->assertSame([
-            'brianium/paratest' => 'Required to run tests in parallel (^7.27.2).',
-            'phpunit/phpunit' => "Required to use Hypervel's testing assertions and PHPUnit integration (~13.4.3).",
+            'brianium/paratest' => "Required to run tests in parallel ({$devRequirements['brianium/paratest']}).",
+            'mockery/mockery' => "Required to use mocking and mocked console output in tests ({$devRequirements['mockery/mockery']}).",
+            'phpunit/phpunit' => "Required to use Hypervel's testing assertions and PHPUnit integration ({$devRequirements['phpunit/phpunit']}).",
         ], $composer['suggest']);
 
         $this->assertSame(
