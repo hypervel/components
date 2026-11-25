@@ -6,7 +6,9 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use ArrayIterator;
+use BackedEnum;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -256,7 +258,11 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
             return false;
         }
 
-        return true;
+        // Other objects cannot be rendered as attribute values, so keep them as given for reading from the bag.
+        return ! is_object($value)
+            || $value instanceof Stringable
+            || $value instanceof BackedEnum
+            || $value instanceof DeferringDisplayableValue;
     }
 
     /**

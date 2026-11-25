@@ -9,6 +9,7 @@ use Hypervel\Support\Stringable;
 use Hypervel\Tests\Support\Concerns\TestsInteractsWithDataContract;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\ComponentAttributeBag;
+use stdClass;
 
 class ViewComponentAttributeBagTest extends TestCase
 {
@@ -453,6 +454,18 @@ class ViewComponentAttributeBagTest extends TestCase
 
         $this->assertSame('class="foo bar"', (string) $bag->merge(['class' => $bag->prepends($default)]));
         $this->assertSame(1, $default->casts);
+    }
+
+    public function testObjectDefaultsThatCannotBeRenderedAreKeptAsGiven(): void
+    {
+        $model = new stdClass;
+        $bag = new ComponentAttributeBag(['data' => 'given']);
+
+        $merged = $bag->merge(['data' => $model, 'model' => $model, 'owner' => $bag->prepends($model)]);
+
+        $this->assertSame('given', $merged->get('data'));
+        $this->assertSame($model, $merged->get('model'));
+        $this->assertSame($model, $merged->get('owner'));
     }
 
     public function testHtmlableAttributesInPrependsAreNotEscaped(): void
