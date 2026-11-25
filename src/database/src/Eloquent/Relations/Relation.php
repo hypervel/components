@@ -472,19 +472,6 @@ abstract class Relation implements BuilderContract
     }
 
     /**
-     * Apply query-time casts to the related model instance.
-     */
-    public function withCasts(array $casts): static
-    {
-        $this->query->withCasts($casts);
-
-        // Creation helpers use this model, so follow the query's isolated cast changes.
-        $this->related = $this->query->getModel();
-
-        return $this;
-    }
-
-    /**
      * Get the class name of the related model.
      *
      * @return class-string<TRelatedModel>
@@ -644,6 +631,19 @@ abstract class Relation implements BuilderContract
         $alias = array_search($className, static::$morphMap, strict: true);
 
         return $alias !== false ? $alias : $className;
+    }
+
+    /**
+     * Apply query-time casts to the relationship.
+     */
+    public function withCasts(array $casts): static
+    {
+        $this->query->withCasts($casts);
+
+        // Creation helpers use this model, so follow the query's isolated cast changes.
+        $this->related = $this->query->getModel();
+
+        return $this;
     }
 
     /**

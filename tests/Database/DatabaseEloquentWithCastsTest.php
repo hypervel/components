@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
@@ -45,6 +46,18 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->schema()->create('unique_times', function ($table) {
             $table->increments('id');
             $table->time('time')->unique();
+            $table->timestamps();
+        });
+
+        $this->schema()->create('with_casts_users', function ($table) {
+            $table->increments('id');
+            $table->timestamps();
+        });
+
+        $this->schema()->create('with_casts_transactions', function ($table) {
+            $table->increments('id');
+            $table->unsignedInteger('with_casts_user_id');
+            $table->text('data');
             $table->timestamps();
         });
     }
@@ -102,6 +115,27 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $default = Time::query()->first();
         $this->assertInstanceOf(CarbonInterface::class, $default->time);
         $this->assertTrue($default->hasCast('time', 'datetime'));
+    }
+
+    public function testWithCastsOnRelationIsAppliedWhenCreatingRelatedModels(): void
+    {
+        $user = WithCastsUser::create();
+
+        $transaction = $user->transactions()
+            ->withCasts(['data' => 'array'])
+            ->create(['data' => ['ip' => '127.0.0.1']]);
+
+        $this->assertSame(['ip' => '127.0.0.1'], $transaction->data);
+        $this->assertSame('{"ip":"127.0.0.1"}', $transaction->fresh()->getRawOriginal('data'));
+    }
+
+    public function testWithCastsOnRelationIsAppliedWhenQueryingRelatedModels(): void
+    {
+        $user = WithCastsUser::create();
+        $user->transactions()->create(['data' => '{"ip":"127.0.0.1"}']);
+
+        $this->assertSame(['ip' => '127.0.0.1'], $user->transactions()->withCasts(['data' => 'array'])->first()->data);
+        $this->assertIsString($user->transactions()->first()->data);
     }
 
     public function testGlobalScopeCastsApplyToHydrationAndPlucks(): void
@@ -181,4 +215,22 @@ class UniqueTime extends Eloquent
     protected array $casts = [
         'time' => 'datetime',
     ];
+}
+
+class WithCastsUser extends Eloquent
+{
+    protected array $guarded = [];
+
+    /**
+     * Get the user's transactions.
+     */
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(WithCastsTransaction::class);
+    }
+}
+
+class WithCastsTransaction extends Eloquent
+{
+    protected array $guarded = [];
 }
