@@ -324,8 +324,11 @@ trait GuardsAttributes
         foreach ($this->getGuarded() as $guardedKey) {
             // Compare both the raw key (for backward compatibility with exact matches)
             // and the normalized key (to prevent bypass via delimiter/case variations).
+            // Only a setter resolves alternate spellings to the guarded attribute; without one,
+            // the key is stored as given, so a distinct column such as "username" stays fillable.
             if (preg_match($keyPattern, $guardedKey)
-                || preg_match($normalizedKeyPattern, Str::studly($guardedKey))) {
+                || (preg_match($normalizedKeyPattern, Str::studly($guardedKey))
+                    && ($this->hasSetMutator($key) || $this->hasAttributeSetMutator($key)))) {
                 return true;
             }
         }

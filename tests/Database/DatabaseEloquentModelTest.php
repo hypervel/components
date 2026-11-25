@@ -4704,6 +4704,22 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('Test User', $model->name, 'Non-guarded attributes should work');
     }
 
+    public function testGuardedAttributeSpellingsOnlyMatchKeysThatReachTheGuardedSetter(): void
+    {
+        $resolver = Double::for(Resolver::class)->strict();
+        GuardedDistinctColumnTestModel::setConnectionResolver($resolver);
+        $connection = Double::for(Connection::class)->strict();
+        $resolver->allows('connection')->returns($connection);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
+        $schemaBuilder->allows('getColumnListing')->returns(['id', 'user_name', 'username']);
+        $connection->allows('getSchemaBuilder')->returns($schemaBuilder);
+
+        $model = (new GuardedDistinctColumnTestModel)->fill(['user_name' => 'guarded', 'username' => 'taylor']);
+
+        $this->assertArrayNotHasKey('user_name', $model->getAttributes());
+        $this->assertSame('taylor', $model->username);
+    }
+
     public function testCollectedByAttribute(): void
     {
         $model = new ModelWithCollectedByAttribute;
@@ -6191,6 +6207,11 @@ class ModelFilteredSleepStub extends Model
     {
         return array_values(array_diff(parent::__sleep(), ['transientToken']));
     }
+}
+
+class GuardedDistinctColumnTestModel extends Model
+{
+    protected array $guarded = ['user_name'];
 }
 
 class GuardedAttributeTestModel extends Model
