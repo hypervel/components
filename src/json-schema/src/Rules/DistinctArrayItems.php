@@ -13,7 +13,7 @@ class DistinctArrayItems implements ValidationRule
     /**
      * Run the validation rule.
      *
-     * Hypervel's "distinct" rule does not compare array items, so this rule compares them by content.
+     * Hypervel's "distinct" rule does not compare array items, and it skips blank strings and nullable null items, so this rule compares those.
      *
      * @param Closure(string, ?string=): PotentiallyTranslatedString $fail
      */
@@ -22,7 +22,7 @@ class DistinctArrayItems implements ValidationRule
         $seen = [];
 
         foreach ((array) $value as $item) {
-            if (! is_array($item)) {
+            if (! is_array($item) && $item !== null && ! (is_string($item) && trim($item) === '')) {
                 continue;
             }
 

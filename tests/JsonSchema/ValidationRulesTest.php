@@ -9,7 +9,9 @@ use Hypervel\Container\Container;
 use Hypervel\Http\UploadedFile;
 use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
+use Hypervel\JsonSchema\Rules\MatchesAnyOf;
 use Hypervel\JsonSchema\Types\ObjectType;
+use Hypervel\JsonSchema\ValidationRules;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Tests\TestCase;
@@ -18,6 +20,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\Factory;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use TypeError;
 
 class ValidationRulesTest extends TestCase
 {
@@ -493,6 +496,19 @@ class ValidationRulesTest extends TestCase
             $this->assertTrue($this->passes($schema, ['plan' => 7]));
             $this->assertFalse($this->passes($schema, []));
         }
+
+        $object = fn (array $plan) => ['type' => 'object', 'properties' => ['plan' => $plan], 'required' => ['plan']];
+        $nullBranch = $object(['anyOf' => [['type' => 'null', 'anyOf' => [['type' => ['integer', 'null']]]], ['type' => 'string']]]);
+        $emptyBranch = $object(['anyOf' => [[], ['type' => 'string']]]);
+        $untyped = $object(['description' => 'Any value.']);
+
+        foreach ([$nullBranch, $emptyBranch, $untyped] as $schema) {
+            $this->assertTrue($this->passes($schema, ['plan' => null]));
+            $this->assertTrue($this->passes($schema, ['plan' => 'pro']));
+            $this->assertFalse($this->passes($schema, []));
+        }
+
+        $this->assertFalse($this->passes($nullBranch, ['plan' => 7]));
     }
 
     public function testNullableValueRespectsAnEnumWithoutNull(): void
@@ -507,6 +523,33 @@ class ValidationRulesTest extends TestCase
             $this->assertFalse($this->passes($schema, ['plan' => null]));
             $this->assertTrue($this->passes($schema, ['plan' => 'pro']));
         }
+    }
+
+    public function testAnEnumListingNullAllowsNull(): void
+    {
+        $required = ['type' => 'object', 'properties' => ['flag' => ['enum' => [null]]], 'required' => ['flag']];
+        $optional = ['type' => 'object', 'properties' => ['flag' => ['enum' => [null]]]];
+        $anyOf = ['type' => 'object', 'properties' => ['flag' => ['anyOf' => [['enum' => [null]], ['type' => 'integer']]]], 'required' => ['flag']];
+
+        foreach ([$required, $optional, $anyOf] as $schema) {
+            $this->assertTrue($this->passes($schema, ['flag' => null]));
+            $this->assertFalse($this->passes($schema, ['flag' => 'x']));
+        }
+
+        $this->assertTrue($this->passes($anyOf, ['flag' => 3]));
+
+        $typed = ['type' => 'object', 'properties' => ['flag' => ['type' => 'string', 'enum' => [null, 'a']]], 'required' => ['flag']];
+
+        $this->assertFalse($this->passes($typed, ['flag' => null]));
+    }
+
+    public function testRootRequiredKeysWithoutAPropertySchemaMustBePresent(): void
+    {
+        $schema = ['type' => 'object', 'properties' => ['a' => ['type' => 'string']], 'required' => ['b', 'c.d']];
+
+        $this->assertFalse($this->passes($schema, ['a' => 'x']));
+        $this->assertFalse($this->passes($schema, ['a' => 'x', 'b' => 1]));
+        $this->assertTrue($this->passes($schema, ['b' => null, 'c.d' => []]));
     }
 
     public function testAnyOfBranchChecksNestedObjects(): void
@@ -574,6 +617,245 @@ class ValidationRulesTest extends TestCase
         $this->expectExceptionMessage('it expands beyond [' . JsonSchema::MAX_NODES . '] fragments');
 
         JsonSchema::rules($schema);
+    }
+
+    public function testPropertyNamesWithAnAsteriskAreNotWildcards(): void
+    {
+        $schema = $this->schema(fn ($s) => [
+            'api*key' => $s->integer()->required(),
+            'tag*s' => $s->array()->items($s->string())->unique(),
+        ]);
+
+        $this->assertFalse($this->passes($schema, []));
+        $this->assertFalse($this->passes($schema, ['api*key' => 'x']));
+        $this->assertTrue($this->passes($schema, ['api*key' => 1]));
+
+        $validator = Validator::make(['api*key' => 1, 'tag*s' => ['a', 'a']], JsonSchema::rules($schema));
+
+        $this->assertSame(['tag*s.0', 'tag*s.1'], $validator->errors()->keys());
+    }
+
+    public function testANullOnlyTypeAcceptsOnlyNull(): void
+    {
+        foreach (['null', ['null']] as $type) {
+            $schema = ['type' => 'object', 'properties' => ['nothing' => ['type' => $type]], 'required' => ['nothing']];
+
+            $this->assertTrue($this->passes($schema, ['nothing' => null]));
+            $this->assertFalse($this->passes($schema, ['nothing' => 42]));
+            $this->assertFalse($this->passes($schema, ['nothing' => 'x']));
+            $this->assertFalse($this->passes($schema, ['nothing' => []]));
+        }
+    }
+
+    public function testAnEnumWithArraysComparesScalarsLikeTheInRule(): void
+    {
+        $schema = ['type' => 'object', 'properties' => ['value' => ['enum' => [true, '01', ['x']]]], 'required' => ['value']];
+
+        $this->assertTrue($this->passes($schema, ['value' => true]));
+        $this->assertTrue($this->passes($schema, ['value' => '01']));
+        $this->assertFalse($this->passes($schema, ['value' => 'unlisted']));
+
+        $schema['properties']['value']['enum'] = ['01', ['x']];
+
+        $this->assertFalse($this->passes($schema, ['value' => '1']));
+    }
+
+    public function testAnObjectEnumComparesTheWholeValue(): void
+    {
+        $schema = $this->schema(fn ($s) => ['meta' => $s->object()->enum(['a'])]);
+
+        $this->assertFalse($this->passes($schema, ['meta' => []]));
+        $this->assertFalse($this->passes($schema, ['meta' => ['a']]));
+    }
+
+    public function testClosedObjectsAcceptNumericPropertyNames(): void
+    {
+        $schema = JsonSchema::object(fn ($s) => [
+            'meta' => $s->object(fn ($s) => ['0' => $s->string()])->withoutAdditionalProperties(),
+        ]);
+
+        $this->assertTrue(Validator::make(['meta' => ['0' => 'a']], JsonSchema::rules($schema))->passes());
+        $this->assertFalse(Validator::make(['meta' => ['0' => 'a', 'admin' => true]], JsonSchema::rules($schema))->passes());
+    }
+
+    public function testBooleanAndEmptyItemSchemas(): void
+    {
+        foreach ([true, []] as $items) {
+            $schema = ['type' => 'object', 'properties' => ['tags' => ['type' => 'array', 'items' => $items]]];
+
+            $this->assertTrue($this->passes($schema, ['tags' => ['', 5]]));
+        }
+
+        $schema = ['type' => 'object', 'properties' => ['tags' => ['type' => 'array', 'items' => false]]];
+
+        $this->assertTrue($this->passes($schema, ['tags' => []]));
+        $this->assertFalse($this->passes($schema, ['tags' => ['a']]));
+
+        $this->expectException(TypeError::class);
+
+        JsonSchema::rules(['type' => 'object', 'properties' => ['tags' => ['type' => 'array', 'items' => null]]]);
+    }
+
+    public function testUniqueItemsRefuseRepeatedNullsAndBlankStrings(): void
+    {
+        $schema = $this->schema(fn ($s) => ['tags' => $s->array()->items($s->string()->nullable())->unique()->required()]);
+
+        $this->assertFalse($this->passes($schema, ['tags' => [null, null]]));
+        $this->assertTrue($this->passes($schema, ['tags' => [null, 'a']]));
+
+        $schema = ['type' => 'object', 'properties' => ['tags' => ['type' => 'array', 'uniqueItems' => true]]];
+
+        $this->assertFalse($this->passes($schema, ['tags' => ['', '']]));
+        $this->assertFalse($this->passes($schema, ['tags' => [' ', ' ']]));
+        $this->assertTrue($this->passes($schema, ['tags' => ['', ' ']]));
+    }
+
+    public function testAnOptionalAnyOfAcceptsAnEmptyArrayBranch(): void
+    {
+        $optional = $this->schema(fn ($s) => ['v' => $s->anyOf([$s->array()->items($s->string()), $s->string()])]);
+        $required = $this->schema(fn ($s) => ['v' => $s->anyOf([$s->array()->items($s->string()), $s->string()])->required()]);
+
+        $this->assertTrue($this->passes($optional, ['v' => []]));
+        $this->assertFalse($this->passes($required, ['v' => []]));
+    }
+
+    public function testWhitespaceOnlyStringsAreBlank(): void
+    {
+        $schema = $this->schema(fn ($s) => [
+            'note' => $s->string(),
+            'seats' => $s->integer(),
+            'code' => $s->string()->pattern('x'),
+            'plan' => $s->anyOf([$s->string()->enum(['Basic']), $s->integer()])->nullable(),
+        ]);
+
+        $this->assertTrue($this->passes($schema, []));
+
+        foreach (['note', 'seats', 'code', 'plan'] as $field) {
+            $this->assertFalse($this->passes($schema, [$field => '   ']), $field);
+        }
+    }
+
+    public function testKeywordsBesideAnyOfAlsoApply(): void
+    {
+        $schema = ['type' => 'object', 'properties' => [
+            'size' => ['type' => 'integer', 'maximum' => 10, 'anyOf' => [['type' => 'integer'], ['type' => 'null']]],
+            'item' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'required' => ['id'], 'anyOf' => [['type' => 'object']]],
+        ]];
+
+        $this->assertTrue($this->passes($schema, ['size' => 5]));
+        $this->assertFalse($this->passes($schema, ['size' => 100]));
+        $this->assertFalse($this->passes($schema, ['size' => null]));
+        $this->assertTrue($this->passes($schema, ['item' => ['id' => 1]]));
+        $this->assertFalse($this->passes($schema, ['item' => ['id' => 'x']]));
+        $this->assertFalse($this->passes($schema, ['item' => ['name' => 'x']]));
+
+        $nullable = ['type' => 'object', 'properties' => [
+            'size' => ['type' => ['integer', 'null'], 'anyOf' => [['type' => 'integer'], ['type' => 'null']]],
+            'nothing' => ['type' => 'null', 'anyOf' => [['type' => 'string'], ['type' => 'null']]],
+        ]];
+
+        $this->assertTrue($this->passes($nullable, ['size' => null, 'nothing' => null]));
+        $this->assertFalse($this->passes($nullable, ['nothing' => 'x']));
+    }
+
+    #[DataProvider('unconvertibleSchemas')]
+    public function testRecognizedAssertionsThatCannotBeConvertedAreRefused(array $schema, string $keyword, string $pointer): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("The JSON Schema keyword [{$keyword}] at [{$pointer}] cannot be converted to validation rules.");
+
+        JsonSchema::rules($schema);
+    }
+
+    public static function unconvertibleSchemas(): array
+    {
+        $object = fn (array $properties) => ['type' => 'object', 'properties' => $properties];
+
+        return [
+            'reference' => [$object(['age' => ['$ref' => '#/$defs/age']]) + ['$defs' => ['age' => ['type' => 'integer']]], '$ref', '#/properties/age'],
+            'one of in items' => [$object(['list' => ['type' => 'array', 'items' => ['oneOf' => [['type' => 'string']]]]]), 'oneOf', '#/properties/list/items'],
+            'const in a branch' => [$object(['kind' => ['anyOf' => [['type' => 'string', 'const' => 'a'], ['type' => 'integer']]]]), 'const', '#/properties/kind/anyOf/0'],
+            'const in a null branch' => [$object(['kind' => ['anyOf' => [['type' => 'null', 'const' => null], ['type' => 'string']]]]), 'const', '#/properties/kind/anyOf/0'],
+            'escaped pointer' => [$object(['a/b~c' => ['type' => 'object', 'maxProperties' => 1]]), 'maxProperties', '#/properties/a~1b~0c'],
+            'schema-valued additional properties' => [$object(['meta' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]]), 'additionalProperties', '#/properties/meta'],
+            'object-valued additional properties' => [$object(['meta' => ['type' => 'object', 'additionalProperties' => (object) ['type' => 'string']]]), 'additionalProperties', '#/properties/meta'],
+            'tuple items' => [$object(['pair' => ['type' => 'array', 'items' => [['type' => 'string'], ['type' => 'integer']]]]), 'items', '#/properties/pair'],
+            'root any of' => [['anyOf' => [['type' => 'object']]], 'anyOf', '#'],
+            'root min properties' => [$object([]) + ['minProperties' => 1], 'minProperties', '#'],
+            'root string type' => [['type' => 'string'], 'type', '#'],
+        ];
+    }
+
+    public function testTypeSpecificKeywordsRequireAType(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The JSON Schema keyword [format] at [#/properties/email] requires a [type] to be converted to validation rules.');
+
+        JsonSchema::rules(['type' => 'object', 'properties' => ['email' => ['format' => 'email']]]);
+    }
+
+    public function testAnnotationsUnknownFormatsAndObjectRootsAreAccepted(): void
+    {
+        $schema = [
+            '$schema' => 'https://json-schema.org/draft/2020-12/schema',
+            '$defs' => ['unused' => ['type' => 'string']],
+            'type' => ['object', 'null'],
+            'additionalProperties' => false,
+            'properties' => [
+                'host' => ['format' => 'hostname', '$comment' => 'Checked elsewhere.', 'x-example' => 'hypervel.org'],
+                'meta' => ['type' => 'object', 'additionalProperties' => (object) []],
+            ],
+        ];
+
+        $this->assertTrue($this->passes($schema, ['host' => 'not a hostname', 'meta' => ['any' => 1], 'extra' => true]));
+        $this->assertTrue($this->passes(['properties' => ['seats' => ['type' => 'integer']]], ['seats' => 2]));
+    }
+
+    public function testUpstreamShapedHooksAreUsed(): void
+    {
+        $rules = new class extends ValidationRules {
+            public static array $called = [];
+
+            protected function typeRules(?string $type, array $schema): array
+            {
+                self::$called[] = 'typeRules';
+
+                return parent::typeRules($type, $schema);
+            }
+
+            protected function arrayRules(array $schema): array
+            {
+                self::$called[] = 'arrayRules';
+
+                return [...parent::arrayRules($schema), 'max:5'];
+            }
+
+            protected function anyOf(array $schemas): MatchesAnyOf
+            {
+                self::$called[] = 'anyOf';
+
+                return parent::anyOf($schemas);
+            }
+        };
+
+        $converted = $rules::for($this->schema(fn ($s) => ['tags' => $s->array()->required(), 'plan' => $s->anyOf([$s->string(), $s->integer()])]));
+
+        $this->assertSame(['required', 'list', 'max:5'], $converted['tags']);
+        $this->assertEqualsCanonicalizing(['typeRules', 'arrayRules', 'anyOf'], array_unique($rules::$called));
+    }
+
+    public function testDeeplyNestedCompositionsConvertInOnePass(): void
+    {
+        $branch = ['type' => 'string'];
+
+        for ($depth = 0; $depth < 300; ++$depth) {
+            $branch = ['anyOf' => [$branch, ['type' => 'integer']]];
+        }
+
+        $schema = ['type' => 'object', 'properties' => ['value' => $branch], 'required' => ['value']];
+
+        $this->assertTrue($this->passes($schema, ['value' => 'x']));
+        $this->assertFalse($this->passes($schema, ['value' => []]));
     }
 
     /**

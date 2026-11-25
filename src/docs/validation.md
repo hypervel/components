@@ -3585,6 +3585,10 @@ class StoreUserRequest extends FormRequest
 }
 ```
 
+The derived rules follow Hypervel's usual validation behavior, so a string such as `"3"` passes an `integer` property. An empty or whitespace-only string counts as a missing value: it fails a required property, and an optional property may be left out but not given a blank string. Extra top-level keys do not fail validation, even when the schema sets `additionalProperties` to `false`, but the `validated` method only returns fields that have rules.
+
+The `rules` method converts the `type`, `enum`, `anyOf`, `properties`, `required`, `additionalProperties`, `items`, `uniqueItems`, length, numeric bound, `multipleOf`, `pattern`, and `format` keywords. Annotations such as `title` and `description`, keywords JSON Schema does not define, and formats other than `email`, `uri`, `url`, `uuid`, `date`, and `date-time` add no rules. If the schema uses a validation keyword that has no matching rule, such as `$ref`, `oneOf`, `const`, or an `additionalProperties` schema, or a type-specific keyword such as `minLength` without a `type`, an `InvalidArgumentException` naming the keyword and its location will be thrown. You may resolve local `$ref` references by passing the schema through [`JsonSchema::fromArray`](/docs/{{version}}/json-schema#reconstructing-schemas) first.
+
 <a name="custom-validation-rules"></a>
 ## Custom Validation Rules
 

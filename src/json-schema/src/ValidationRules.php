@@ -17,7 +17,31 @@ use InvalidArgumentException;
 class ValidationRules
 {
     /**
-     * The number of schema fragments converted so far.
+     * The JSON Schema assertions that no validation rule enforces.
+     *
+     * @var array<int, string>
+     */
+    protected const array UNSUPPORTED_KEYWORDS = [
+        '$ref', '$dynamicRef', 'oneOf', 'allOf', 'not', 'if', 'const',
+        'dependentSchemas', 'dependentRequired', 'dependencies',
+        'prefixItems', 'additionalItems', 'contains', 'unevaluatedItems',
+        'patternProperties', 'propertyNames', 'unevaluatedProperties', 'minProperties', 'maxProperties',
+    ];
+
+    /**
+     * The keywords that only constrain values of one type.
+     *
+     * @var array<int, string>
+     */
+    protected const array TYPE_SPECIFIC_KEYWORDS = [
+        'minLength', 'maxLength', 'pattern', 'format',
+        'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
+        'items', 'minItems', 'maxItems', 'uniqueItems',
+        'properties', 'required', 'additionalProperties',
+    ];
+
+    /**
+     * The number of schema fragments examined so far.
      */
     protected int $nodes = 0;
 
@@ -31,7 +55,93 @@ class ValidationRules
      */
     public static function for(Type|array $schema): array
     {
-        return (new static)->properties($schema instanceof Type ? $schema->toArray() : $schema);
+        $converter = new static;
+        $schema = $schema instanceof Type ? $schema->toArray() : $schema;
+
+        $path = [];
+
+        $converter->ensureConvertible($schema, $path);
+
+        // Conversion gets its own budget, since a multi-type schema expands into a branch per type.
+        $converter->nodes = 0;
+
+        return $converter->properties($schema);
+    }
+
+    /**
+     * Ensure every assertion in the schema can be converted to validation rules.
+     *
+     * Unknown keywords and formats are annotations, but a recognized assertion without a rule
+     * would otherwise be dropped silently and let invalid values pass.
+     *
+     * @param array<string, mixed> $schema
+     * @param array<int, string> $path the escaped JSON pointer segments of the schema being checked
+     * @param null|string $segment the segment that leads from the parent schema to this one, or null for the root
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function ensureConvertible(array $schema, array &$path, ?string $segment = null): void
+    {
+        // Like conversion, count the fragments below the root.
+        if ($segment !== null) {
+            $path[] = $segment;
+
+            $this->countNode();
+        }
+
+        foreach (static::UNSUPPORTED_KEYWORDS as $keyword) {
+            if (array_key_exists($keyword, $schema)) {
+                throw $this->unsupportedKeyword($keyword, $path);
+            }
+        }
+
+        // A schema may also be given as an object.
+        $additionalProperties = $schema['additionalProperties'] ?? false;
+
+        if (! is_bool($additionalProperties) && (array) $additionalProperties !== []) {
+            throw $this->unsupportedKeyword('additionalProperties', $path);
+        }
+
+        if (is_array($schema['items'] ?? null) && $schema['items'] !== [] && array_is_list($schema['items'])) {
+            throw $this->unsupportedKeyword('items', $path);
+        }
+
+        if ($segment === null) {
+            // Rules can only be keyed by the root object's properties.
+            if (isset($schema['type']) && $this->types($schema) !== ['object']) {
+                throw $this->unsupportedKeyword('type', $path);
+            }
+
+            foreach (['anyOf', 'enum'] as $keyword) {
+                if (array_key_exists($keyword, $schema)) {
+                    throw $this->unsupportedKeyword($keyword, $path);
+                }
+            }
+        } elseif (! isset($schema['type'])) {
+            foreach (static::TYPE_SPECIFIC_KEYWORDS as $keyword) {
+                if (array_key_exists($keyword, $schema) && ($keyword !== 'format' || $this->formatRules($schema['format']) !== [])) {
+                    throw new InvalidArgumentException(
+                        "The JSON Schema keyword [{$keyword}] at [" . implode('/', ['#', ...$path]) . '] requires a [type] to be converted to validation rules.'
+                    );
+                }
+            }
+        }
+
+        foreach ((array) ($schema['properties'] ?? []) as $name => $property) {
+            $this->ensureConvertible($property, $path, 'properties/' . str_replace(['~', '/'], ['~0', '~1'], (string) $name));
+        }
+
+        if (is_array($schema['items'] ?? null)) {
+            $this->ensureConvertible($schema['items'], $path, 'items');
+        }
+
+        foreach ($schema['anyOf'] ?? [] as $index => $branch) {
+            $this->ensureConvertible($branch, $path, "anyOf/{$index}");
+        }
+
+        if ($segment !== null) {
+            array_pop($path);
+        }
     }
 
     /**
@@ -42,12 +152,12 @@ class ValidationRules
      */
     protected function properties(array $schema, ?string $prefix = null): array
     {
-        $required = array_map('strval', $schema['required'] ?? []);
+        $required = array_fill_keys($schema['required'] ?? [], true);
 
         $rules = [];
 
         foreach ($schema['properties'] ?? [] as $name => $property) {
-            $attribute = str_replace('.', '\.', (string) $name);
+            $attribute = str_replace(['.', '*'], ['\.', '\*'], (string) $name);
 
             if (! is_null($prefix)) {
                 $attribute = "{$prefix}.{$attribute}";
@@ -56,9 +166,18 @@ class ValidationRules
             $rules += $this->rules(
                 $property,
                 $attribute,
-                in_array((string) $name, $required, true),
+                isset($required[$name]),
                 ! is_null($prefix),
             );
+
+            unset($required[$name]);
+        }
+
+        // Nested objects require their keys through "required_array_keys", which the root has no rule for.
+        if (is_null($prefix)) {
+            foreach (array_keys($required) as $name) {
+                $rules[str_replace(['.', '*'], ['\.', '\*'], (string) $name)] = ['present'];
+            }
         }
 
         return $rules;
@@ -72,32 +191,51 @@ class ValidationRules
      */
     protected function rules(array $schema, string $attribute, bool $required, bool $nested = false): array
     {
-        if (++$this->nodes > JsonSchema::MAX_NODES) {
-            throw new InvalidArgumentException(
-                'The JSON Schema is too large to convert to validation rules; it expands beyond [' . JsonSchema::MAX_NODES . '] fragments.'
-            );
-        }
+        $this->countNode();
 
         if (isset($schema['anyOf'])) {
-            $branches = $this->branches($schema['anyOf']);
-            $rules = $this->presenceRules($this->isNullable($schema, $branches), $required, $nested);
+            $anyOf = $this->anyOf($schema['anyOf']);
 
-            return [$attribute => [...$rules, new MatchesAnyOf($branches), ...$this->enumRules($schema)]];
+            // Pass on the converted branches' nullability, since walking nested "anyOf"
+            // branches again at each level repeats work and can exhaust the fragment limit early.
+            $nullable = $this->isNullable($schema, $anyOf->allowsNull());
+
+            // The keywords beside "anyOf" constrain the value too.
+            $rules = $this->valueRules(Arr::except($schema, 'anyOf'), $attribute);
+
+            return [$attribute => [...$this->presenceRules($nullable, $required, $nested), $anyOf, ...$rules[$attribute]]] + $rules;
         }
 
-        $rules = $this->presenceRules($this->isNullable($schema), $required, $nested);
+        $rules = $this->valueRules($schema, $attribute);
+
+        return [$attribute => [...$this->presenceRules($this->isNullable($schema), $required, $nested), ...$rules[$attribute]]] + $rules;
+    }
+
+    /**
+     * Get the type, constraint, and nested rules for the value, keyed by attribute.
+     *
+     * @param array<string, mixed> $schema
+     * @return array<string, array<int, mixed>>
+     */
+    protected function valueRules(array $schema, string $attribute): array
+    {
         $types = $this->types($schema);
 
         if (count($types) > 1) {
             $branches = array_map(fn (string $type) => [...$schema, 'type' => $type], $types);
 
-            return [$attribute => [...$rules, $this->anyOf($branches)]];
+            return [$attribute => [$this->anyOf($branches)]];
+        }
+
+        // An explicit "null" type allows nothing else, and the presence rules let null through.
+        if ($types === [] && isset($schema['type'])) {
+            return [$attribute => [Rule::in([null]), ...$this->enumRules($schema)]];
         }
 
         $type = $types[0] ?? null;
+        $nested = $this->nestedRules($type, $schema, $attribute);
 
-        return [$attribute => [...$rules, ...$this->typeRules($type, $schema, $attribute)]]
-            + $this->nestedRules($type, $schema, $attribute);
+        return [$attribute => [...$this->typeRules($type, $schema), ...$nested[$attribute] ?? []]] + $nested;
     }
 
     /**
@@ -135,11 +273,18 @@ class ValidationRules
             return [];
         }
 
-        $rules = isset($schema['items']) ? $this->rules($schema['items'], "{$attribute}.*", false) : [];
+        // "true" and an empty schema allow any item, and arrayRules() enforces that "false" allows none.
+        $items = array_key_exists('items', $schema) ? $schema['items'] : true;
+        $rules = in_array($items, [true, false, []], true) ? [] : $this->rules($items, "{$attribute}.*", false);
 
-        // Lists inside a wildcard compare their scalar items through arrayRules().
-        if (($schema['uniqueItems'] ?? false) && ! str_contains($attribute, '*')) {
-            $rules["{$attribute}.*"][] = 'distinct:strict';
+        if ($schema['uniqueItems'] ?? false) {
+            // "distinct" on a wildcard compares items across every parent list, so each list gets its own rule.
+            // An asterisk is a wildcard unless it is escaped, as in a property name.
+            if (preg_match('/(?<!\\\)\*/', $attribute) === 1) {
+                $rules[$attribute] = [Rule::forEach(static fn () => ['*' => ['distinct:strict']])];
+            } else {
+                $rules["{$attribute}.*"][] = 'distinct:strict';
+            }
         }
 
         return $rules;
@@ -151,14 +296,14 @@ class ValidationRules
      * @param array<string, mixed> $schema
      * @return array<int, mixed>
      */
-    protected function typeRules(?string $type, array $schema, string $attribute): array
+    protected function typeRules(?string $type, array $schema): array
     {
         $rules = match ($type) {
             'string' => ['string', ...$this->stringRules($schema)],
             'integer' => ['integer', ...$this->numberRules($schema)],
             'number' => ['numeric', ...$this->numberRules($schema)],
             'boolean' => ['boolean'],
-            'array' => $this->arrayRules($schema, $attribute),
+            'array' => $this->arrayRules($schema),
             'object' => $this->objectRules($schema),
             default => [],
         };
@@ -232,17 +377,16 @@ class ValidationRules
      * @param array<string, mixed> $schema
      * @return array<int, mixed>
      */
-    protected function arrayRules(array $schema, string $attribute): array
+    protected function arrayRules(array $schema): array
     {
         $rules = ['list', ...$this->bounds($schema, 'minItems', 'maxItems')];
 
+        if (($schema['items'] ?? null) === false) {
+            $rules[] = 'max:0';
+        }
+
         if ($schema['uniqueItems'] ?? false) {
             $rules[] = new DistinctArrayItems;
-
-            // "distinct" on a nested wildcard compares items across every parent list, so each list gets its own rule.
-            if (str_contains($attribute, '*')) {
-                $rules[] = Rule::forEach(static fn () => ['*' => ['distinct:strict']]);
-            }
         }
 
         return $rules;
@@ -259,7 +403,8 @@ class ValidationRules
         $rules = ['array'];
 
         if (($schema['additionalProperties'] ?? null) === false) {
-            $keys = array_map('strval', array_keys($schema['properties'] ?? []));
+            // The serializer keeps a property map with list-like keys as an object.
+            $keys = array_map('strval', array_keys((array) ($schema['properties'] ?? [])));
 
             $rules = $keys === [] ? ['array', 'max:0'] : ['array:' . $this->parameters($keys)];
         }
@@ -283,7 +428,11 @@ class ValidationRules
             return [];
         }
 
-        return Arr::some($schema['enum'], fn (mixed $value) => is_array($value))
+        // With the "array" rule, "in" checks each member of an array value instead of the whole value.
+        $comparesWholeArrays = Arr::some($schema['enum'], fn (mixed $value) => is_array($value))
+            || in_array('object', Arr::wrap($schema['type'] ?? null), true);
+
+        return $comparesWholeArrays
             ? [new MatchesEnum($schema['enum'])]
             : [Rule::in($schema['enum'])];
     }
@@ -295,21 +444,11 @@ class ValidationRules
      */
     protected function anyOf(array $schemas): MatchesAnyOf
     {
-        return new MatchesAnyOf($this->branches($schemas));
-    }
-
-    /**
-     * Get the rules for each non-null branch, keyed under "value".
-     *
-     * @param array<int, array<string, mixed>> $schemas
-     * @return array<int, array<string, array<int, mixed>>>
-     */
-    protected function branches(array $schemas): array
-    {
-        $schemas = array_filter($schemas, fn (array $schema) => ($schema['type'] ?? null) !== 'null');
-
-        return array_values(array_map(
-            fn (array $schema) => $this->rules($schema, 'value', true),
+        // Unlike Laravel, null-only branches are converted too, since they only accept null
+        // and rules() derives the value's nullability from the converted branches.
+        // The value is already present, and "required" would also reject an empty array.
+        return new MatchesAnyOf(array_map(
+            fn (array $schema) => $this->rules($schema, 'value', false),
             $schemas,
         ));
     }
@@ -351,18 +490,46 @@ class ValidationRules
      * Determine if the schema allows a null value.
      *
      * @param array<string, mixed> $schema
-     * @param array<int, array<string, array<int, mixed>>> $branches the converted non-null "anyOf" branches
+     * @param bool $branchesAllowNull whether a converted "anyOf" branch allows null
      */
-    protected function isNullable(array $schema, array $branches = []): bool
+    protected function isNullable(array $schema, bool $branchesAllowNull = false): bool
     {
         if (isset($schema['enum']) && ! in_array(null, $schema['enum'], true)) {
             return false;
         }
 
-        // Null-only branches are not converted; a converted branch allows null exactly when its presence rules include "nullable".
-        return in_array('null', Arr::wrap($schema['type'] ?? null), true)
-            || Arr::some($schema['anyOf'] ?? [], fn (array $branch) => ($branch['type'] ?? null) === 'null' && $this->isNullable($branch))
-            || Arr::some($branches, fn (array $rules) => in_array('nullable', $rules['value'], true));
+        $types = Arr::wrap($schema['type'] ?? null);
+
+        // Unlike Laravel, an untyped schema allows null, since JSON Schema's "required" only governs
+        // key presence. Null must also satisfy one of the "anyOf" branches.
+        return ($types === [] || in_array('null', $types, true))
+            && (! isset($schema['anyOf']) || $branchesAllowNull);
+    }
+
+    /**
+     * Count a schema fragment against the conversion limit.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function countNode(): void
+    {
+        if (++$this->nodes > JsonSchema::MAX_NODES) {
+            throw new InvalidArgumentException(
+                'The JSON Schema is too large to convert to validation rules; it expands beyond [' . JsonSchema::MAX_NODES . '] fragments.'
+            );
+        }
+    }
+
+    /**
+     * Create an exception for a keyword that cannot be converted to validation rules.
+     *
+     * @param array<int, string> $path the escaped JSON pointer segments of the schema using the keyword
+     */
+    protected function unsupportedKeyword(string $keyword, array $path): InvalidArgumentException
+    {
+        return new InvalidArgumentException(
+            "The JSON Schema keyword [{$keyword}] at [" . implode('/', ['#', ...$path]) . '] cannot be converted to validation rules.'
+        );
     }
 
     /**

@@ -7,9 +7,22 @@ namespace Hypervel\JsonSchema\Rules;
 use Closure;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Translation\PotentiallyTranslatedString;
+use Hypervel\Validation\Membership;
 
 class MatchesEnum implements ValidationRule
 {
+    /**
+     * The lookup of the enumerated scalar values.
+     *
+     * @var array<int|string, true>
+     */
+    protected array $scalars;
+
+    /**
+     * Indicates if null is one of the enumerated values.
+     */
+    protected bool $allowsNull;
+
     /**
      * Create a new rule instance.
      *
@@ -17,6 +30,7 @@ class MatchesEnum implements ValidationRule
      */
     public function __construct(protected array $values)
     {
+        [$this->scalars, $this->allowsNull] = Membership::lookup($values);
     }
 
     /**
@@ -34,12 +48,12 @@ class MatchesEnum implements ValidationRule
     /**
      * Determine if the value is one of the enumerated values.
      *
-     * Arrays are compared strictly by content, since loose comparison treats "1" and "01" (or true and any array) as equal.
+     * Scalars are compared like the "in" rule, and arrays strictly by content, since loose comparison treats "1" and "01" (or true and any array) as equal.
      */
     protected function matches(mixed $value): bool
     {
         if (! is_array($value)) {
-            return in_array($value, array_filter($this->values, fn (mixed $allowed) => ! is_array($allowed)));
+            return Membership::contains($this->scalars, $this->allowsNull, $value);
         }
 
         $value = DistinctArrayItems::normalize($value);
