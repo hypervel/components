@@ -8,6 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
+use Hypervel\Http\Request;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
@@ -112,6 +113,33 @@ class RenderBladeFilesTest extends TestCase
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);
         $this->assertStringContainsString('&lt;script&gt;bad()&lt;/script&gt;', $html);
+    }
+
+    public function testRequestUrlIsRenderedSafelyInJavaScript(): void
+    {
+        $url = "http://localhost/');alert(1);//";
+        $encodedUrl = 'http:\/\/localhost\/\u0027);alert(1);';
+
+        $request = Request::create($url);
+        $exception = new class {
+            /**
+             * Get the exception's HTTP status code.
+             */
+            public function httpStatusCode(): int
+            {
+                return 500;
+            }
+        };
+
+        $path = package_path('src/foundation/resources/exceptions/renderer/components/request-url.blade.php');
+
+        $html = (string) $this->app->make('view')->file($path, compact('exception', 'request'))->render();
+
+        $this->assertStringContainsString(
+            "await window.copyToClipboard('{$encodedUrl}');",
+            $html,
+        );
+        $this->assertStringNotContainsString("await window.copyToClipboard('" . $request->fullUrl() . "');", $html);
     }
 
     public function testRoutingTooltipRendersMultilineSafely(): void
