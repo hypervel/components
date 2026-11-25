@@ -180,13 +180,7 @@ class RequestBridge
             if (is_array($value) && isset($value['tmp_name'])) {
                 $normalized[$key] = is_array($value['tmp_name'])
                     ? static::transformNestedFiles($value)
-                    : new UploadedFile(
-                        $value['tmp_name'],
-                        $value['full_path'] ?? $value['name'],
-                        $value['type'],
-                        $value['error'],
-                        true // Swoole CLI — bypass is_uploaded_file() / move_uploaded_file()
-                    );
+                    : static::transformFile($value);
             } elseif (is_array($value)) {
                 $normalized[$key] = static::transformFiles($value);
             }
@@ -208,6 +202,7 @@ class RequestBridge
                 'name' => $files['name'][$key],
                 'type' => $files['type'][$key],
                 'error' => $files['error'][$key],
+                'size' => $files['size'][$key],
             ];
 
             if (isset($files['full_path'][$key])) {
@@ -216,16 +211,31 @@ class RequestBridge
 
             $normalized[$key] = is_array($spec['tmp_name'])
                 ? static::transformNestedFiles($spec)
-                : new UploadedFile(
-                    $spec['tmp_name'],
-                    $spec['full_path'] ?? $spec['name'],
-                    $spec['type'],
-                    $spec['error'],
-                    true
-                );
+                : static::transformFile($spec);
         }
 
         return $normalized;
+    }
+
+    /**
+     * Transform one file specification to an UploadedFile instance.
+     *
+     * A file input submitted without a file stays an array, so FileBag treats it as
+     * no file, as it does for PHP's own uploads: null, or removed from a list.
+     */
+    protected static function transformFile(array $spec): UploadedFile|array
+    {
+        if ($spec['error'] === UPLOAD_ERR_NO_FILE) {
+            return $spec;
+        }
+
+        return new UploadedFile(
+            $spec['tmp_name'],
+            $spec['full_path'] ?? $spec['name'],
+            $spec['type'],
+            $spec['error'],
+            true // Swoole CLI — bypass is_uploaded_file() / move_uploaded_file()
+        );
     }
 
     /**

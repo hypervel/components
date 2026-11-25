@@ -105,6 +105,51 @@ class NativeRequestParsingTest extends TestCase
         $this->assertFileExists($probe);
     }
 
+    public function testFileInputsSubmittedWithoutAFileAreNotUploads(): void
+    {
+        $boundary = '------------------------hypervel-empty';
+        $body = implode("\r\n", [
+            '--' . $boundary,
+            'Content-Disposition: form-data; name="avatar"',
+            '',
+            '',
+            '--' . $boundary,
+            'Content-Disposition: form-data; name="avatar"; filename=""',
+            'Content-Type: application/octet-stream',
+            '',
+            '',
+            '--' . $boundary,
+            'Content-Disposition: form-data; name="photos[]"; filename=""',
+            'Content-Type: application/octet-stream',
+            '',
+            '',
+            '--' . $boundary,
+            'Content-Disposition: form-data; name="photos[]"; filename="photo.jpg"',
+            'Content-Type: image/jpeg',
+            '',
+            'photo contents',
+            '--' . $boundary . '--',
+            '',
+        ]);
+        $requestData = $this->requestData('POST', '/upload', [
+            'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+            'Content-Length' => (string) strlen($body),
+        ], $body);
+        $swooleRequest = Request::create();
+
+        $this->assertSame(strlen($requestData), $swooleRequest->parse($requestData));
+        $this->assertSame(UPLOAD_ERR_NO_FILE, $swooleRequest->files['avatar']['error']);
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+        $photos = $request->file('photos');
+
+        $this->assertNull($request->file('avatar'));
+        $this->assertNull($request->all()['avatar']);
+        $this->assertSame([1], array_keys($photos));
+        $this->assertSame('photo.jpg', $photos[1]->getClientOriginalName());
+        $this->assertTrue($photos[1]->isValid());
+    }
+
     public function testRequestFieldsSurviveIncrementalParseCalls(): void
     {
         $body = 'first=one&second=two';
