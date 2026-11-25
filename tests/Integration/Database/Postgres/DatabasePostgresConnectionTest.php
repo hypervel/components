@@ -221,6 +221,30 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         $this->assertFalse(DB::hasCommitId('FFFFFFFF/FFFFFFFF'));
     }
 
+    public function testHasCommitIdWithWait(): void
+    {
+        if (version_compare(DB::getServerVersion(), '19', '<')) {
+            $this->markTestSkipped('Waiting for a commit ID requires PostgreSQL 19 or newer.');
+        }
+
+        DB::table('json_table')->insert(['json_col' => '{"commit":"wait"}']);
+
+        $this->assertTrue(DB::hasCommitId(DB::getLastCommitId(), wait: 1));
+        $this->assertFalse(DB::hasCommitId('FFFFFFFF/FFFFFFFF', wait: 1));
+    }
+
+    public function testHasCommitIdWithWaitRequiresPostgres19(): void
+    {
+        if (version_compare(DB::getServerVersion(), '19', '>=')) {
+            $this->markTestSkipped('Waiting for a commit ID is supported on PostgreSQL 19 or newer.');
+        }
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('PostgreSQL 19 or newer is required.');
+
+        DB::hasCommitId(DB::getLastCommitId(), wait: 1);
+    }
+
     public function testCommitIdChecksReturnBooleansWhenFetchesAreStringified(): void
     {
         config()->set('database.connections.pgsql_stringified', [
