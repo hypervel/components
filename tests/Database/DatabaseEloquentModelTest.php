@@ -4669,6 +4669,41 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('Anytown', $model->address_line_two);
     }
 
+    public function testGuardedAttributesCannotBeBypassed(): void
+    {
+        // Test that guarded attributes with set-mutators cannot be bypassed
+        // via alternate spellings (e.g., 'is-admin' vs 'is_admin', 'ro-le' vs 'role')
+        // This addresses the vulnerability where normalized key paths (Str::studly/camel)
+        // could bypass literal guard comparisons.
+        $model = new GuardedAttributeTestModel;
+
+        $resolver = Double::for(Resolver::class)->strict();
+        GuardedAttributeTestModel::setConnectionResolver($resolver);
+        $connection = Double::for(Connection::class)->strict();
+        $resolver->allows('connection')->returns($connection);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
+        $schemaBuilder->allows('getColumnListing')->returns(['id', 'is_admin', 'role', 'name']);
+        $connection->allows('getSchemaBuilder')->returns($schemaBuilder);
+
+        // Test: attempt to bypass guard using hyphenated spelling of 'is_admin' (classic mutator)
+        $model->fill(['is-admin' => true, 'name' => 'Test User']);
+        $this->assertFalse($model->is_admin, 'Guarded attribute (classic mutator) with hyphen spelling should not be fillable');
+        $this->assertSame('Test User', $model->name, 'Non-guarded attributes should still be fillable');
+
+        // Test: attempt to bypass guard using hyphenated spelling of 'role' (Attribute mutator)
+        $model = new GuardedAttributeTestModel;
+        $model->fill(['ro-le' => 'admin', 'name' => 'Test User']);
+        $this->assertNull($model->role, 'Guarded attribute (Attribute mutator) with hyphen spelling should not be fillable');
+        $this->assertSame('Test User', $model->name, 'Non-guarded attributes should work');
+
+        // Test: control - exact guarded keys should also be blocked
+        $model = new GuardedAttributeTestModel;
+        $model->fill(['is_admin' => true, 'role' => 'admin', 'name' => 'Test User']);
+        $this->assertFalse($model->is_admin, 'Exact guarded key (classic mutator) should be protected');
+        $this->assertNull($model->role, 'Exact guarded key (Attribute mutator) should be protected');
+        $this->assertSame('Test User', $model->name, 'Non-guarded attributes should work');
+    }
+
     public function testCollectedByAttribute(): void
     {
         $model = new ModelWithCollectedByAttribute;
@@ -6155,5 +6190,34 @@ class ModelFilteredSleepStub extends Model
     public function __sleep(): array
     {
         return array_values(array_diff(parent::__sleep(), ['transientToken']));
+    }
+}
+
+class GuardedAttributeTestModel extends Model
+{
+    protected array $guarded = ['is_admin', 'role'];
+
+    public array $attributes = [
+        'is_admin' => false,
+        'role' => null,
+        'name' => null,
+    ];
+
+    /**
+     * Set the admin flag.
+     */
+    public function setIsAdminAttribute(mixed $value): void
+    {
+        $this->attributes['is_admin'] = (bool) $value;
+    }
+
+    /**
+     * Get the role attribute.
+     */
+    protected function role(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => ['role' => (string) $value]
+        );
     }
 }

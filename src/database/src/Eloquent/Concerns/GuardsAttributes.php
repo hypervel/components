@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Attributes\Guarded;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Unguarded;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Str;
 use ReflectionClass;
 
 trait GuardsAttributes
@@ -309,9 +310,27 @@ trait GuardsAttributes
             return false;
         }
 
-        return $this->getGuarded() === ['*']
-               || ! empty(preg_grep('/^' . preg_quote($key, '/') . '$/i', $this->getGuarded()))
-               || ! $this->isGuardableColumn($key);
+        if ($this->getGuarded() === ['*']) {
+            return true;
+        }
+
+        // Normalize the key to match against guarded list by using the same
+        // normalization applied in attribute resolution paths (studly/camel).
+        // This prevents bypass via alternate spellings like 'is-admin' vs 'is_admin'.
+        // Build both patterns once rather than for every guarded key.
+        $keyPattern = '/^' . preg_quote($key, '/') . '$/i';
+        $normalizedKeyPattern = '/^' . preg_quote(Str::studly($key), '/') . '$/i';
+
+        foreach ($this->getGuarded() as $guardedKey) {
+            // Compare both the raw key (for backward compatibility with exact matches)
+            // and the normalized key (to prevent bypass via delimiter/case variations).
+            if (preg_match($keyPattern, $guardedKey)
+                || preg_match($normalizedKeyPattern, Str::studly($guardedKey))) {
+                return true;
+            }
+        }
+
+        return ! $this->isGuardableColumn($key);
     }
 
     /**
