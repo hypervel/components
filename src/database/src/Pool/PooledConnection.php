@@ -403,11 +403,18 @@ class PooledConnection implements PoolConnection
                 $connection->rollBack(0);
                 $this->logger->error('Database transaction was not committed or rolled back before release.');
             }
+        } catch (Throwable $exception) {
+            $failure = $exception;
+        }
 
+        try {
             $this->lastReleaseTime = hrtime(true) / 1e9;
             $events = $this->pool->getOptions()->events;
 
-            if (in_array(ConnectionReleasing::class, $events, true)
+            // Listeners still run when only a rollback callback failed. A failed physical rollback keeps
+            // the transaction level and can leave the session in the abandoned transaction.
+            if (($failure === null || $connection?->transactionLevel() === 0)
+                && in_array(ConnectionReleasing::class, $events, true)
                 && $this->container->bound('events')
             ) {
                 // Event::fake() can replace the dispatcher after this connection was created.
@@ -419,7 +426,7 @@ class PooledConnection implements PoolConnection
                 }
             }
         } catch (Throwable $exception) {
-            $failure = $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         // An ended owner's in-flight operations must stop before another borrower reuses the slot.

@@ -35,6 +35,7 @@ use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -1164,8 +1165,18 @@ class PooledConnectionTest extends DatabaseTestCase
         return ['ordinary error' => [false], 'cancellation' => [true]];
     }
 
-    public function testRollbackCancellationStillReturnsTheConnectionAndEscapesExactly(): void
+    public function testRollbackCancellationStillRunsReleaseListenersAndReturnsTheConnection(): void
     {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ConnectionReleasing::class,
+        ]);
+        $notified = false;
+        $this->app->make(Dispatcher::class)->listen(
+            ConnectionReleasing::class,
+            static function () use (&$notified): void {
+                $notified = true;
+            }
+        );
         $pool = new DatabasePool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -1182,10 +1193,42 @@ class PooledConnectionTest extends DatabaseTestCase
             $this->assertSame($cancellation, $throwable);
         }
 
+        $this->assertTrue($notified);
         $this->assertTrue($this->isInvalid($pooledConnection));
         $this->assertSame(1, $pool->getIdleCount());
 
         $pool->close();
+    }
+
+    public function testFailedPhysicalRollbackSkipsReleaseListenersAndDiscardsTheConnection(): void
+    {
+        config(['database.connections.failing_rollback' => array_replace_recursive(
+            config('database.connections.pool_test'),
+            ['driver' => 'failing_rollback', 'pool' => ['max_connections' => 1, 'events' => [ConnectionReleasing::class]]],
+        )]);
+        $pdo = new FailingRollbackPdo('sqlite::memory:');
+        $this->app->make('db.factory')->extend(
+            'failing_rollback',
+            static fn (array $config): SQLiteConnection => new SQLiteConnection($pdo, ':memory:', '', $config),
+        );
+        $notified = false;
+        Event::listen(ConnectionReleasing::class, static function () use (&$notified): void {
+            $notified = true;
+        });
+        $pool = new DatabasePool($this->app, 'failing_rollback');
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->borrow();
+            $pooledConnection->getConnection()->beginTransaction();
+            $pdo->failNextRollback = true;
+            $pooledConnection->release();
+
+            $this->assertFalse($notified);
+            $this->assertSame(0, $pool->getManagedCount());
+        } finally {
+            $pool->close();
+        }
     }
 
     #[TestWith([false])]
@@ -2291,6 +2334,22 @@ class NeutralPoolConnection extends Connection
             $this->generation = $generation;
             $this->hasResources = $hasResources;
         }
+    }
+}
+
+class FailingRollbackPdo extends PDO
+{
+    public bool $failNextRollback = false;
+
+    public function rollBack(): bool
+    {
+        if ($this->failNextRollback) {
+            $this->failNextRollback = false;
+
+            throw new PDOException('Rollback failed.');
+        }
+
+        return parent::rollBack();
     }
 }
 
