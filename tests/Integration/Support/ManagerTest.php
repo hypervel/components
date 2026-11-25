@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Integration\Support;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Support\Manager;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Support\Fixtures\NullableManager;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
+use UnitEnum;
 
 class ManagerTest extends TestCase
 {
@@ -90,6 +92,36 @@ class ManagerTest extends TestCase
         $this->assertSame($driver, $manager->driver(ManagerUnitDriverName::MyDriver));
     }
 
+    public function testDefaultDriverCanBeBackedEnum(): void
+    {
+        $manager = $this->managerWithDefault(ManagerDriverName::MyDriver);
+        $driver = new stdClass;
+
+        $manager->extend('my_driver', static fn (): stdClass => $driver);
+
+        $this->assertSame($driver, $manager->driver());
+        $this->assertSame($driver, $manager->driver('my_driver'));
+        $this->assertSame(['my_driver' => $driver], $manager->getDrivers());
+    }
+
+    public function testDefaultDriverCanBeUnitEnum(): void
+    {
+        $manager = $this->managerWithDefault(ManagerUnitDriverName::MyDriver);
+        $driver = new stdClass;
+
+        $manager->extend('MyDriver', static fn (): stdClass => $driver);
+
+        $this->assertSame($driver, $manager->driver());
+        $this->assertSame(['MyDriver' => $driver], $manager->getDrivers());
+    }
+
+    public function testDefaultEnumDriverUsesCreateMethod(): void
+    {
+        $manager = $this->managerWithDefault(ManagerDriverName::MyDriver);
+
+        $this->assertSame('created', $manager->driver());
+    }
+
     public function testDriverResolvesEveryEnumIdentifierRepresentation(): void
     {
         $manager = $this->createManager();
@@ -166,6 +198,38 @@ class ManagerTest extends TestCase
     protected function createManager(): EnumIdentifierManager
     {
         return new EnumIdentifierManager($this->app);
+    }
+
+    /**
+     * Create a manager with the given default driver.
+     */
+    protected function managerWithDefault(UnitEnum $default): Manager
+    {
+        return new class($this->app, $default) extends Manager {
+            /**
+             * Create a new manager instance.
+             */
+            public function __construct(ContainerContract $container, protected UnitEnum $default)
+            {
+                parent::__construct($container);
+            }
+
+            /**
+             * Get the default driver name.
+             */
+            public function getDefaultDriver(): UnitEnum
+            {
+                return $this->default;
+            }
+
+            /**
+             * Create the "my_driver" driver.
+             */
+            protected function createMyDriverDriver(): string
+            {
+                return 'created';
+            }
+        };
     }
 }
 
