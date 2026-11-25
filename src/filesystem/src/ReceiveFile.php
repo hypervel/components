@@ -32,6 +32,8 @@ class ReceiveFile
         );
 
         try {
+            // Unlike Laravel, pass the body as a string: Swoole has already buffered it, so
+            // getContent(true) would only copy it into a temporary stream.
             abort_unless(
                 Storage::disk($this->disk)->put($path, $request->getContent()),
                 500,

@@ -840,6 +840,17 @@ Storage::disk('local')->moveToDisk(
 );
 ```
 
+If you need to specify [visibility](#file-visibility) or driver-specific options, such as S3's `CacheControl` header, for the file on the destination disk, you may pass them as the fourth argument. You may provide a string to specify only the visibility, or an array of options:
+
+```php
+Storage::disk('local')->moveToDisk('s3', 'tmp/avatar.jpg', 'avatars/1.jpg', 'public');
+
+Storage::disk('local')->copyToDisk('s3', 'tmp/report.pdf', 'reports/report.pdf', [
+    'visibility' => 'private',
+    'CacheControl' => 'max-age=31536000',
+]);
+```
+
 Transfers from pooled disks, including S3 and Google Cloud Storage, buffer live source streams before writing to the destination so the source's pool slot is available during the write. Already buffered sources, including FTP and SFTP downloads, are reused without another copy. Buffering keeps up to 2 MB in memory per transfer, then uses PHP's system temporary directory; allow enough temporary disk space for large files and concurrent transfers. Local sources stream directly.
 
 <a name="automatic-streaming"></a>

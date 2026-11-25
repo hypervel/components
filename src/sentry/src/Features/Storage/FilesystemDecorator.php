@@ -248,23 +248,23 @@ trait FilesystemDecorator
     /**
      * Copy a file to another disk.
      */
-    public function copyToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    public function copyToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null, array|string $options = []): bool
     {
-        return $this->transferToDisk(__FUNCTION__, $disk, $from, $to);
+        return $this->transferToDisk(__FUNCTION__, $disk, $from, $to, $options);
     }
 
     /**
      * Move a file to another disk.
      */
-    public function moveToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    public function moveToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null, array|string $options = []): bool
     {
-        return $this->transferToDisk(__FUNCTION__, $disk, $from, $to);
+        return $this->transferToDisk(__FUNCTION__, $disk, $from, $to, $options);
     }
 
     /**
      * Trace a transfer while preserving the wrapped disk's identity check.
      */
-    protected function transferToDisk(string $method, Filesystem|string|UnitEnum $disk, string $from, ?string $to): bool
+    protected function transferToDisk(string $method, Filesystem|string|UnitEnum $disk, string $from, ?string $to, array|string $options): bool
     {
         $destination = $disk instanceof Filesystem
             ? $disk
@@ -277,7 +277,7 @@ trait FilesystemDecorator
 
         return $this->withSentry(
             $method,
-            [$destination === $this ? $this->filesystem : $destination, $from, $to],
+            [$destination === $this ? $this->filesystem : $destination, $from, $to, $options],
             sprintf('from "%s" to "%s"', $from, $to ?? $from),
             $data,
         );

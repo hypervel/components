@@ -18,28 +18,30 @@ trait TransfersFiles
     /**
      * Copy a file to another disk.
      */
-    public function copyToDisk(FilesystemContract|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    public function copyToDisk(FilesystemContract|string|UnitEnum $disk, string $from, ?string $to = null, array|string $options = []): bool
     {
         $destination = $disk instanceof FilesystemContract
             ? $disk
             : Container::getInstance()->make(FilesystemFactory::class)->disk($disk);
 
-        return $this->transferFile($this, $from, $destination, $to ?? $from);
+        return $this->transferFile($this, $from, $destination, $to ?? $from, $options);
     }
 
     /**
      * Move a file to another disk.
      */
-    public function moveToDisk(FilesystemContract|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    public function moveToDisk(FilesystemContract|string|UnitEnum $disk, string $from, ?string $to = null, array|string $options = []): bool
     {
-        return $this->copyToDisk($disk, $from, $to) && $this->delete($from);
+        return $this->copyToDisk($disk, $from, $to, $options) && $this->delete($from);
     }
 
     /**
      * Transfer a file without holding a source lease during the destination write.
      */
-    protected function transferFile(FilesystemContract $source, string $from, FilesystemContract $destination, string $to): bool
+    protected function transferFile(FilesystemContract $source, string $from, FilesystemContract $destination, string $to, array|string $options = []): bool
     {
+        $options = is_string($options) ? ['visibility' => $options] : $options;
+
         if ($source === $destination) {
             $normalizer = new WhitespacePathNormalizer;
 
@@ -68,7 +70,7 @@ trait TransfersFiles
                 fclose($stream);
             }
 
-            return $destination->writeStream($to, $temporary ?? $stream);
+            return $destination->writeStream($to, $temporary ?? $stream, $options);
         } finally {
             if (is_resource($stream)) {
                 fclose($stream);

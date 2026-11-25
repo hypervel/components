@@ -77,7 +77,7 @@ class ScopedFilesystemProxyTest extends TestCase
         $source->expects('readStream')->with('tenant/file.txt')->returns($stream);
         $destination = $sameDisk ? $source : Double::for(FilesystemContract::class)->strict();
         $destination->expects('writeStream')
-            ->with(($sameDisk ? 'tenant/' : '') . ($to ?? 'file.txt'), $stream)->returns(true);
+            ->with(($sameDisk ? 'tenant/' : '') . ($to ?? 'file.txt'), $stream, ['visibility' => 'public'])->returns(true);
 
         if ($method === 'moveToDisk') {
             $source->expects('delete')->with('tenant/file.txt')->returns(true);
@@ -97,7 +97,7 @@ class ScopedFilesystemProxyTest extends TestCase
             },
         );
 
-        $this->assertTrue($proxy->{$method}($sameDisk ? $proxy : $destination, 'file.txt', $to));
+        $this->assertTrue($proxy->{$method}($sameDisk ? $proxy : $destination, 'file.txt', $to, 'public'));
         $this->assertSame(1, $diskCalls);
         $this->assertSame(1, $prefixCalls);
         $this->assertFalse(is_resource($stream));

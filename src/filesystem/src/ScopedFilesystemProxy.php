@@ -475,23 +475,23 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Copy a scoped file to another disk.
      */
-    public function copyToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    public function copyToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null, array|string $options = []): bool
     {
-        return $this->transferToDisk($disk, $from, $to, false);
+        return $this->transferToDisk($disk, $from, $to, false, $options);
     }
 
     /**
      * Move a scoped file to another disk.
      */
-    public function moveToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    public function moveToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null, array|string $options = []): bool
     {
-        return $this->transferToDisk($disk, $from, $to, true);
+        return $this->transferToDisk($disk, $from, $to, true, $options);
     }
 
     /**
      * Transfer a file using one resolved source disk and prefix.
      */
-    protected function transferToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to, bool $move): bool
+    protected function transferToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to, bool $move, array|string $options = []): bool
     {
         $destination = $disk instanceof Filesystem
             ? $disk
@@ -507,7 +507,7 @@ class ScopedFilesystemProxy implements Filesystem
             $to = $this->applyPrefix($prefix, $to);
         }
 
-        return $this->transferFile($source, $from, $destination, $to)
+        return $this->transferFile($source, $from, $destination, $to, $options)
             && (! $move || $source->delete($from));
     }
 

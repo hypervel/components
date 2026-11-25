@@ -56,6 +56,7 @@ use League\Flysystem\UnableToSetVisibility;
 use League\Flysystem\UnableToWriteFile;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresFunction;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
@@ -653,6 +654,84 @@ class FilesystemAdapterTest extends TestCase
         }
 
         $this->assertSame('Hello World', $filesystemAdapter->get('file.txt'));
+    }
+
+    public function testCopyToDiskWithOptions(): void
+    {
+        $this->filesystem->write('file.txt', 'Hello World');
+
+        $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
+        $destination = Double::for(FilesystemAdapter::class)->passthru(new FilesystemAdapter($backupFilesystem, $backupAdapter));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertTrue($filesystemAdapter->copyToDisk($destination, 'file.txt', 'copy.txt', [
+            'visibility' => 'public',
+            'CacheControl' => 'max-age=31536000',
+        ]));
+        $this->assertTrue($filesystemAdapter->copyToDisk($destination, 'file.txt', options: 'private'));
+
+        $destination->received('writeStream')->with('copy.txt', Argument::any(), [
+            'visibility' => 'public',
+            'CacheControl' => 'max-age=31536000',
+        ]);
+        $destination->received('writeStream')->with('file.txt', Argument::any(), [
+            'visibility' => 'private',
+        ]);
+
+        $this->assertFileExists($this->tempDir . '/file.txt');
+        $this->assertStringEqualsFile($this->tempDir . '/backup/copy.txt', 'Hello World');
+        $this->assertStringEqualsFile($this->tempDir . '/backup/file.txt', 'Hello World');
+    }
+
+    public function testMoveToDiskWithOptions(): void
+    {
+        $this->filesystem->write('first.txt', 'First');
+        $this->filesystem->write('second.txt', 'Second');
+
+        $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
+        $destination = Double::for(FilesystemAdapter::class)->passthru(new FilesystemAdapter($backupFilesystem, $backupAdapter));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertTrue($filesystemAdapter->moveToDisk($destination, 'first.txt', 'moved.txt', [
+            'visibility' => 'public',
+            'CacheControl' => 'max-age=31536000',
+        ]));
+        $this->assertTrue($filesystemAdapter->moveToDisk($destination, 'second.txt', options: 'public'));
+
+        $destination->received('writeStream')->with('moved.txt', Argument::any(), [
+            'visibility' => 'public',
+            'CacheControl' => 'max-age=31536000',
+        ]);
+        $destination->received('writeStream')->with('second.txt', Argument::any(), [
+            'visibility' => 'public',
+        ]);
+
+        $this->assertFileDoesNotExist($this->tempDir . '/first.txt');
+        $this->assertFileDoesNotExist($this->tempDir . '/second.txt');
+        $this->assertStringEqualsFile($this->tempDir . '/backup/moved.txt', 'First');
+        $this->assertStringEqualsFile($this->tempDir . '/backup/second.txt', 'Second');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testCopyToDiskAndMoveToDiskSetVisibility(): void
+    {
+        $this->filesystem->write('first.txt', 'First', ['visibility' => 'public']);
+        $this->filesystem->write('second.txt', 'Second', ['visibility' => 'public']);
+
+        $backupFilesystem = new Filesystem(
+            $backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'),
+            ['visibility' => 'public']
+        );
+        $destination = new FilesystemAdapter($backupFilesystem, $backupAdapter);
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $filesystemAdapter->copyToDisk($destination, 'first.txt', 'copied.txt', 'private');
+        $filesystemAdapter->moveToDisk($destination, 'second.txt', 'moved.txt', ['visibility' => 'private']);
+
+        $this->assertSame('private', $destination->getVisibility('copied.txt'));
+        $this->assertSame('private', $destination->getVisibility('moved.txt'));
     }
 
     public function testStream(): void
