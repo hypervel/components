@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Aws\Credentials\Credentials;
 use DateTimeImmutable;
+use DateTimeInterface;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Container\Container;
@@ -17,6 +18,7 @@ use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Filesystem\ScopedFilesystemProxy;
+use Hypervel\Http\File;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\Sentry\Features\Storage\DecoratedFilesystem;
 use Hypervel\Sentry\Features\Storage\Integration;
@@ -34,6 +36,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
+use Sentry\Breadcrumb;
 use Sentry\Tracing\Span;
 
 class StorageIntegrationTest extends TestCase
@@ -64,7 +67,7 @@ class StorageIntegrationTest extends TestCase
         $span = $spans[1];
         $this->assertSame('file.put', $span->getOp());
         $this->assertSame('foo (3 B)', $span->getDescription());
-        $this->assertSame(['path' => 'foo', 'options' => [], 'disk' => 'local', 'driver' => 'local'], $span->getData());
+        $this->assertSame(['path' => 'foo', 'disk' => 'local', 'driver' => 'local'], $span->getData());
 
         $this->assertArrayHasKey(2, $spans);
         $span = $spans[2];
@@ -144,7 +147,7 @@ class StorageIntegrationTest extends TestCase
             $destination = new FilesystemAdapter(new Flysystem($adapter), $adapter);
             $transaction = $this->startTransaction();
 
-            $this->assertTrue($source->copyToDisk($destination, 'file.txt'));
+            $this->assertTrue($source->copyToDisk($destination, 'file.txt', options: ['visibility' => 'public']));
             $this->assertTrue($source->moveToDisk('source', 'file.txt', 'moved.txt'));
             $spans = $transaction->getSpanRecorder()->getSpans();
 
@@ -160,8 +163,62 @@ class StorageIntegrationTest extends TestCase
                 'disk' => 'source', 'driver' => $scoped ? 'dynamic-scoped' : 'local',
             ], $spans[2]->getData());
             $this->assertSame('contents', $destination->get('file.txt'));
+            $this->assertSame('public', $destination->getVisibility('file.txt'));
             $this->assertSame('contents', $source->get('moved.txt'));
             $this->assertFalse($source->exists('file.txt'));
+        } finally {
+            $files->deleteDirectory($root);
+        }
+    }
+
+    public function testOptionsAreForwardedWithoutBeingRecorded(): void
+    {
+        $root = ParallelTesting::tempDir('SentryStorageOptions');
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $files->ensureDirectoryExists($root);
+
+        try {
+            $files->put($root . '/upload.txt', 'contents');
+            $upload = new File($root . '/upload.txt');
+            $adapter = new LocalFilesystemAdapter($root . '/disk');
+            $filesystem = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+            $disk = new SentryFilesystemAdapter($filesystem, ['disk' => 'plain'], true, true);
+            $options = ['visibility' => 'public', 'SSECustomerKey' => 'dummy-key'];
+            $expiration = new DateTimeImmutable('+5 minutes');
+            $temporaryUrlOptions = null;
+            $disk->buildTemporaryUrlsUsing(
+                static function (string $path, DateTimeInterface $expiration, array $options) use (&$temporaryUrlOptions): string {
+                    $temporaryUrlOptions = $options;
+
+                    return "https://files.test/{$path}";
+                },
+            );
+            $transaction = $this->startTransaction();
+
+            $disk->put('put.txt', 'contents', $options);
+            $stored = $disk->putFile($upload, $options);
+            $disk->putFileAs($upload, 'named.txt', $options);
+            $disk->temporaryUrl('put.txt', $expiration, $options);
+
+            $expected = [
+                ['path' => 'put.txt', 'disk' => 'plain'],
+                ['path' => $upload, 'disk' => 'plain'],
+                ['path' => $upload, 'file' => 'named.txt', 'disk' => 'plain'],
+                ['path' => 'put.txt', 'expiration' => $expiration, 'disk' => 'plain'],
+            ];
+            $this->assertSame($expected, array_map(
+                static fn (Span $span): array => $span->getData(),
+                array_slice($transaction->getSpanRecorder()->getSpans(), 1),
+            ));
+            $this->assertSame($expected, array_map(
+                static fn (Breadcrumb $breadcrumb): array => $breadcrumb->getMetadata(),
+                $this->getCurrentSentryBreadcrumbs(),
+            ));
+            $this->assertSame('public', $filesystem->getVisibility('put.txt'));
+            $this->assertSame('public', $filesystem->getVisibility($stored));
+            $this->assertSame('public', $filesystem->getVisibility('named.txt'));
+            $this->assertSame($options, $temporaryUrlOptions);
         } finally {
             $files->deleteDirectory($root);
         }
@@ -543,7 +600,7 @@ class StorageIntegrationTest extends TestCase
         $span = $breadcrumbs[0];
         $this->assertSame('file.put', $span->getCategory());
         $this->assertSame('foo (3 B)', $span->getMessage());
-        $this->assertSame(['path' => 'foo', 'options' => [], 'disk' => 'local', 'driver' => 'local'], $span->getMetadata());
+        $this->assertSame(['path' => 'foo', 'disk' => 'local', 'driver' => 'local'], $span->getMetadata());
 
         $this->assertArrayHasKey(1, $breadcrumbs);
         $span = $breadcrumbs[1];

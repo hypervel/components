@@ -53,7 +53,7 @@ trait FilesystemAdapterDecorator
      */
     public function checksum(string $path, array $options = []): false|string
     {
-        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path', 'options'));
+        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path'));
     }
 
     /**
@@ -85,7 +85,7 @@ trait FilesystemAdapterDecorator
      */
     public function temporaryUrl(string $path, DateTimeInterface $expiration, array $options = []): string
     {
-        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path', 'expiration', 'options'));
+        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path', 'expiration'));
     }
 
     /**
@@ -93,7 +93,7 @@ trait FilesystemAdapterDecorator
      */
     public function temporaryUploadUrl(string $path, DateTimeInterface $expiration, array $options = []): array|string
     {
-        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path', 'expiration', 'options'));
+        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path', 'expiration'));
     }
 
     /**

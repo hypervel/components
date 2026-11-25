@@ -23,9 +23,9 @@ use function Sentry\trace;
 /**
  * Decorates the underlying filesystem by wrapping all calls to it with tracing.
  *
- * Parameters such as paths, directories or options are attached to the span as data,
- * parameters that contain file contents are omitted due to potential problems with
- * payload size or sensitive data.
+ * Parameters such as paths and directories are attached to the span as data. File
+ * contents are omitted due to potential problems with payload size, and request options
+ * because they can contain secrets such as storage encryption keys.
  */
 trait FilesystemDecorator
 {
@@ -143,7 +143,7 @@ trait FilesystemDecorator
     {
         $description = is_string($contents) ? sprintf('%s (%s)', $path, Filesize::toHuman(strlen($contents))) : $path;
 
-        return $this->withSentry(__FUNCTION__, func_get_args(), $description, compact('path', 'options'));
+        return $this->withSentry(__FUNCTION__, func_get_args(), $description, compact('path'));
     }
 
     /**
@@ -155,8 +155,10 @@ trait FilesystemDecorator
         mixed $options = []
     ): false|string {
         $description = is_string($path) ? $path : $path->getPathname();
+        // The short form passes the options in place of the file.
+        $data = is_array($file) ? compact('path') : compact('path', 'file');
 
-        return $this->withSentry(__FUNCTION__, func_get_args(), $description, compact('path', 'file', 'options'));
+        return $this->withSentry(__FUNCTION__, func_get_args(), $description, $data);
     }
 
     /**
@@ -169,8 +171,10 @@ trait FilesystemDecorator
         mixed $options = []
     ): false|string {
         $description = is_string($path) ? $path : $path->getPathname();
+        // The short form passes the options in place of the name.
+        $data = is_array($name) ? compact('path', 'file') : compact('path', 'file', 'name');
 
-        return $this->withSentry(__FUNCTION__, func_get_args(), $description, compact('path', 'file', 'name', 'options'));
+        return $this->withSentry(__FUNCTION__, func_get_args(), $description, $data);
     }
 
     /**
@@ -180,7 +184,7 @@ trait FilesystemDecorator
      */
     public function writeStream(string $path, mixed $resource, array $options = []): bool
     {
-        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path', 'options'));
+        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path'));
     }
 
     /**
