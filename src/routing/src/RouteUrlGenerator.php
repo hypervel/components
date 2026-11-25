@@ -414,7 +414,9 @@ class RouteUrlGenerator
             $query .= '&' . implode(
                 '&',
                 array_map(
-                    fn ($value): string => rawurlencode((string) $value),
+                    fn ($value): string => $value instanceof EncodedParameter
+                        ? $value->value()
+                        : rawurlencode((string) $value),
                     $this->getNumericParameters($parameters)
                 )
             );
