@@ -6,8 +6,9 @@
 #   ./bin/run-database-tests.sh mysql
 #   ./bin/run-database-tests.sh pgsql -p 3 --filter=EloquentPrunableTest
 #
-# The shared suite covers core database tests and package Database/*Test.php
-# files. The connection's suite adds tests under its matching driver directory.
+# The shared suite covers core database tests outside the driver directories
+# and package Database/*Test.php files. The connection's suite adds tests under
+# its matching driver directories.
 
 set -euo pipefail
 

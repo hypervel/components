@@ -24,19 +24,27 @@
         <testsuite name="database">
             <directory>./tests/Integration/Database</directory>
             <directory>./tests/Integration/*/Database</directory>
-            <!-- Only direct package tests are shared. Each driver suite includes its own subdirectories. -->
+            <!-- Core tests outside the driver directories and direct package tests are shared. Each driver suite includes its own driver directories. -->
+            <exclude>./tests/Integration/Database/MySql</exclude>
+            <exclude>./tests/Integration/Database/MariaDb</exclude>
+            <exclude>./tests/Integration/Database/Postgres</exclude>
+            <exclude>./tests/Integration/Database/Sqlite</exclude>
             <exclude>./tests/Integration/*/Database/*/</exclude>
         </testsuite>
         <testsuite name="mysql">
+            <directory>./tests/Integration/Database/MySql</directory>
             <directory>./tests/Integration/*/Database/MySql</directory>
         </testsuite>
         <testsuite name="mariadb">
+            <directory>./tests/Integration/Database/MariaDb</directory>
             <directory>./tests/Integration/*/Database/MariaDb</directory>
         </testsuite>
         <testsuite name="pgsql">
+            <directory>./tests/Integration/Database/Postgres</directory>
             <directory>./tests/Integration/*/Database/Postgres</directory>
         </testsuite>
         <testsuite name="sqlite">
+            <directory>./tests/Integration/Database/Sqlite</directory>
             <directory>./tests/Integration/*/Database/Sqlite</directory>
         </testsuite>
     </testsuites>
