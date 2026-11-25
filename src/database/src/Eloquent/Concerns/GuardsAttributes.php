@@ -334,17 +334,17 @@ trait GuardsAttributes
             // Normalize the key to match against guarded list by using the same
             // normalization applied in attribute resolution paths (studly/camel).
             // This prevents bypass via alternate spellings like 'is-admin' vs 'is_admin'.
-            // Build both patterns once rather than for every guarded key.
-            $keyPattern = '/^' . preg_quote($key, '/') . '$/i';
-            $normalizedKeyPattern = '/^' . preg_quote(Str::studly($key), '/') . '$/i';
+            $normalizedKey = Str::studly($key);
 
             foreach ($this->getGuarded() as $guardedKey) {
                 // Compare both the raw key (for backward compatibility with exact matches)
                 // and the normalized key (to prevent bypass via delimiter/case variations).
+                // Unlike Laravel, the keys are compared as strings instead of compiled into patterns,
+                // since a long request key can exceed the regex size limit.
                 // Only a setter resolves alternate spellings to the guarded attribute; without one,
                 // the key is stored as given, so a distinct column such as "username" stays fillable.
-                if (preg_match($keyPattern, $guardedKey)
-                    || (preg_match($normalizedKeyPattern, Str::studly($guardedKey))
+                if (strcasecmp($key, $guardedKey) === 0
+                    || (strcasecmp($normalizedKey, Str::studly($guardedKey)) === 0
                         && ($this->hasSetMutator($key) || $this->hasAttributeSetMutator($key)))) {
                     return true;
                 }

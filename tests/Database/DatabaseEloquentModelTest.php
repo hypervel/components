@@ -4758,10 +4758,10 @@ class DatabaseEloquentModelTest extends TestCase
 
         Model::preventSilentlyDiscardingAttributes();
 
-        foreach (['unknown', "bad\xFF"] as $key) {
+        foreach (['unknown' => 'unknown', 'malformed' => "bad\xFF", 'too long for a regex' => str_repeat('a', 70000)] as $label => $key) {
             try {
                 (new AttributeLookupTestModel)->fill([$key => 'value']);
-                $this->fail("Expected [{$key}] to be rejected.");
+                $this->fail("Expected the {$label} key to be rejected.");
             } catch (MassAssignmentException) {
             }
         }
