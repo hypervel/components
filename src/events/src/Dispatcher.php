@@ -19,6 +19,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
 use Hypervel\Contracts\Events\ShouldHandleEventsAfterCommit;
+use Hypervel\Contracts\Events\ShouldNotBeDeferred;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -441,7 +442,9 @@ class Dispatcher implements DispatcherContract
             ...$this->parseEventAndPayload($event, $payload),
         ];
 
-        if ($this->shouldDeferEvent($parsedEvent)) {
+        // Unlike Laravel, marked events skip deferral. Connection lifecycle events use this, since
+        // delayed setup or cleanup could act on the connection's next borrower.
+        if ($this->shouldDeferEvent($parsedEvent) && ! $event instanceof ShouldNotBeDeferred) {
             CoroutineContext::override(self::DEFERRED_EVENTS_CONTEXT_KEY, function (?array $events) use ($event, $payload, $halt) {
                 $events = $events ?? [];
                 $events[] = [$event, $payload, $halt];

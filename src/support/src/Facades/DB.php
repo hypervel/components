@@ -41,6 +41,7 @@ use Hypervel\Support\Attributes\BootOnly;
  * @method static string[] supportedDrivers()
  * @method static mixed usingConnection(\UnitEnum|string $name, callable $callback)
  * @method static void whenQueryingForLongerThan(\DateTimeInterface|\Carbon\CarbonInterval|int|float $threshold, callable $handler)
+ * @method static void whenTransactionRunsLongerThan(\DateTimeInterface|\Carbon\CarbonInterval|int|float $threshold, callable $handler)
  * @method static int affectingStatement(string $query, array $bindings = [])
  * @method static void afterCommit(callable $callback)
  * @method static void afterCommitOrNow(callable $callback)

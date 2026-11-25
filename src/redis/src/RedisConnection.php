@@ -748,8 +748,26 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 }
             }
 
+            $failure = null;
+
+            try {
+                $this->dispatchReleasingEvent();
+            } catch (Throwable $notificationException) {
+                if (Coroutine::causedByCancellation($notificationException)) {
+                    $this->releaseAfterCancellation($notificationException);
+                }
+
+                $failure = $notificationException;
+            }
+
+            // An observer can recover the connection, so invalidate it again to guarantee its replacement.
+            $this->markInvalid();
             $this->resetReleaseState(true);
-            parent::release();
+            $this->pool->release($this);
+
+            if ($failure !== null) {
+                throw $failure;
+            }
 
             return;
         }
@@ -779,10 +797,28 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             return;
         }
 
+        $failure = null;
+        $observed = false;
+
+        // Observers run before the checks below, so whatever they leave behind is undone too.
+        try {
+            $observed = $this->dispatchReleasingEvent();
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                $this->releaseAfterCancellation($exception);
+            }
+
+            // Reporting an observer's failure failed too, which is thrown once the connection is returned.
+            [$failure, $observed] = [$exception, true];
+        }
+
         $cancellation = null;
 
         try {
-            if ($this->connection instanceof Redis) {
+            // @phpstan-ignore booleanOr.rightAlwaysFalse (an observer can watch keys through __call())
+            if ($observed && ($this->isQueueingMode() || $this->watching)) {
+                $this->markInvalid();
+            } elseif ($this->connection instanceof Redis) {
                 $defaultDatabase = $this->config['database'];
 
                 if (! $this->connection->isConnected()) {
@@ -828,7 +864,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             }
 
             $this->resetReleaseState(true);
-            parent::release();
+            $this->pool->release($this);
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
@@ -837,6 +877,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      */
     private function resetReleaseState(bool $availableForReuse): void
     {
+        $this->shouldTransform = false;
         $this->database = null;
         $this->watching = false;
         $this->availableForReuse = $availableForReuse;

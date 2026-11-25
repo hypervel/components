@@ -828,7 +828,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsOverlyDeepActiveReferencePaths(array $schema): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('JSON Schema reference paths may not contain more than 1 distinct references.');
+        $this->expectExceptionMessageIs('The JSON Schema nests "$ref" beyond [1] levels.');
 
         JsonSchemaDepthLimitedDeserializer::deserialize($schema);
     }
@@ -2187,11 +2187,46 @@ class DeserializerTest extends TestCase
 
         JsonSchema::fromArray(['$ref' => '#']);
     }
+
+    public function testItThrowsForUnboundedRefChain(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('The JSON Schema nests "$ref" beyond [64] levels.');
+
+        // Create a chain of local $refs deeper than MAX_REF_DEPTH (64)
+        $defs = [];
+        for ($i = 0; $i < 100; ++$i) {
+            $defs["d{$i}"] = ['$ref' => '#/$defs/d' . ($i + 1)];
+        }
+        $defs['d100'] = ['type' => 'object'];
+
+        JsonSchema::fromArray([
+            '$defs' => $defs,
+            '$ref' => '#/$defs/d0',
+        ]);
+    }
+
+    public function testItAllowsDeepButBoundedRefChains(): void
+    {
+        // Create a chain of local $refs within MAX_REF_DEPTH (64)
+        $defs = [];
+        for ($i = 0; $i < 60; ++$i) {
+            $defs["d{$i}"] = ['$ref' => '#/$defs/d' . ($i + 1)];
+        }
+        $defs['d60'] = ['type' => 'object'];
+
+        $type = JsonSchema::fromArray([
+            '$defs' => $defs,
+            '$ref' => '#/$defs/d0',
+        ]);
+
+        $this->assertInstanceOf(ObjectType::class, $type);
+    }
 }
 
 class JsonSchemaDepthLimitedDeserializer extends Deserializer
 {
-    protected const int MAX_REFERENCE_DEPTH = 1;
+    protected const int MAX_REF_DEPTH = 1;
 }
 
 class JsonSchemaNodeLimitedDeserializer extends Deserializer

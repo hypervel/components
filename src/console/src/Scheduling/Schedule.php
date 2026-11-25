@@ -23,6 +23,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
@@ -271,6 +272,14 @@ class Schedule
         $lock = new UniqueLock(Container::getInstance()->make(Cache::class));
 
         if (! $lock->acquireForDispatch($job)) {
+            if (Container::getInstance()->bound(EventDispatcher::class)) {
+                $events = Container::getInstance()->make(EventDispatcher::class);
+
+                if ($events->hasListeners(UniqueJobSkipped::class)) {
+                    $events->dispatch(new UniqueJobSkipped($job));
+                }
+            }
+
             return;
         }
 

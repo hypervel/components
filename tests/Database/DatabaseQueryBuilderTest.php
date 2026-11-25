@@ -6970,6 +6970,11 @@ SQL, ['"John"'])->returns(1);
         $builder->select('*')->from('foo')->where('bar', '=', 'baz')->lock('lock in share mode');
         $this->assertSame('select * from `foo` where `bar` = ? lock in share mode', $builder->toSql());
         $this->assertEquals(['baz'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('foo')->where('bar', '=', 'baz')->lockForNoKeyUpdate();
+        $this->assertSame('select * from `foo` where `bar` = ? for update', $builder->toSql());
+        $this->assertEquals(['baz'], $builder->getBindings());
     }
 
     public function testPostgresLock(): void
@@ -6988,6 +6993,11 @@ SQL, ['"John"'])->returns(1);
         $builder->select('*')->from('foo')->where('bar', '=', 'baz')->lock('for key share');
         $this->assertSame('select * from "foo" where "bar" = ? for key share', $builder->toSql());
         $this->assertEquals(['baz'], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('foo')->where('bar', '=', 'baz')->lockForNoKeyUpdate();
+        $this->assertSame('select * from "foo" where "bar" = ? for no key update', $builder->toSql());
+        $this->assertEquals(['baz'], $builder->getBindings());
     }
 
     #[DataProvider('skipLockedGrammarProvider')]
@@ -6997,6 +7007,7 @@ SQL, ['"John"'])->returns(1);
         ?bool $isMaria,
         string $updateSql,
         string $sharedSql,
+        string $noKeyUpdateSql,
     ): void {
         $builder = $this->{$factory}()->from('jobs');
         $connection = $builder->getConnection();
@@ -7010,25 +7021,35 @@ SQL, ['"John"'])->returns(1);
         $this->assertSame($builder, $builder->skipLocked());
         $this->assertSame($updateSql, $builder->toSql());
         $this->assertSame($sharedSql, $builder->sharedLock()->toSql());
+        $this->assertSame($noKeyUpdateSql, $builder->lockForNoKeyUpdate()->toSql());
+
+        $builder = $this->{$factory}()->from('jobs');
+        $builder->getConnection()->allows('supportsSkipLocked')->returns($supported);
+
+        if ($isMaria !== null) {
+            $builder->getConnection()->allows('isMaria')->returns($isMaria);
+        }
+
+        $this->assertSame($noKeyUpdateSql, $builder->lockForNoKeyUpdate()->skipLocked()->toSql());
     }
 
     public static function skipLockedGrammarProvider(): array
     {
         return [
-            'MySQL' => ['getMySqlBuilder', true, false, 'select * from `jobs` for update skip locked', 'select * from `jobs` for share skip locked'],
-            'MariaDB through MySQL' => ['getMySqlBuilder', true, true, 'select * from `jobs` for update skip locked', 'select * from `jobs` lock in share mode skip locked'],
-            'older MySQL' => ['getMySqlBuilder', false, null, 'select * from `jobs` for update', 'select * from `jobs` lock in share mode'],
-            'PostgreSQL' => ['getPostgresBuilder', true, null, 'select * from "jobs" for update skip locked', 'select * from "jobs" for share skip locked'],
-            'older PostgreSQL' => ['getPostgresBuilder', false, null, 'select * from "jobs" for update', 'select * from "jobs" for share'],
-            'SQLite' => ['getSQLiteBuilder', false, null, 'select * from "jobs"', 'select * from "jobs"'],
-            'base grammar' => ['getBuilder', false, null, 'select * from "jobs"', 'select * from "jobs"'],
+            'MySQL' => ['getMySqlBuilder', true, false, 'select * from `jobs` for update skip locked', 'select * from `jobs` for share skip locked', 'select * from `jobs` for update skip locked'],
+            'MariaDB through MySQL' => ['getMySqlBuilder', true, true, 'select * from `jobs` for update skip locked', 'select * from `jobs` lock in share mode skip locked', 'select * from `jobs` for update skip locked'],
+            'older MySQL' => ['getMySqlBuilder', false, null, 'select * from `jobs` for update', 'select * from `jobs` lock in share mode', 'select * from `jobs` for update'],
+            'PostgreSQL' => ['getPostgresBuilder', true, null, 'select * from "jobs" for update skip locked', 'select * from "jobs" for share skip locked', 'select * from "jobs" for no key update skip locked'],
+            'older PostgreSQL' => ['getPostgresBuilder', false, null, 'select * from "jobs" for update', 'select * from "jobs" for share', 'select * from "jobs" for no key update'],
+            'SQLite' => ['getSQLiteBuilder', false, null, 'select * from "jobs"', 'select * from "jobs"', 'select * from "jobs"'],
+            'base grammar' => ['getBuilder', false, null, 'select * from "jobs"', 'select * from "jobs"', 'select * from "jobs"'],
         ];
     }
 
     public function testSkipLockedRequiresAnExistingLock(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate(), lockForNoKeyUpdate() or sharedLock().');
 
         $this->getBuilder()->skipLocked();
     }
@@ -7036,7 +7057,7 @@ SQL, ['"John"'])->returns(1);
     public function testSkipLockedCannotFollowACustomLock(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate(), lockForNoKeyUpdate() or sharedLock().');
 
         $this->getBuilder()->lock('for update nowait')->skipLocked();
     }
@@ -7044,7 +7065,7 @@ SQL, ['"John"'])->returns(1);
     public function testCustomLockCannotFollowSkipLocked(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate(), lockForNoKeyUpdate() or sharedLock().');
 
         $this->getBuilder()->lockForUpdate()->skipLocked()->lock('for update nowait');
     }

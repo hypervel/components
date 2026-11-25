@@ -3271,8 +3271,8 @@ class Builder implements BuilderContract
      */
     public function lock(string|bool $value = true): static
     {
-        if ($this->skipLocked && is_string($value)) {
-            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock().');
+        if ($this->skipLocked && is_string($value) && $value !== $this->grammar->getNoKeyUpdateLock()) {
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate(), lockForNoKeyUpdate() or sharedLock().');
         }
 
         $this->lock = $value;
@@ -3292,6 +3292,16 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Lock the selected rows in the table for updating, without blocking foreign key checks on PostgreSQL.
+     *
+     * @return $this
+     */
+    public function lockForNoKeyUpdate(): static
+    {
+        return $this->lock($this->grammar->getNoKeyUpdateLock());
+    }
+
+    /**
      * Share lock the selected rows in the table.
      *
      * @return $this
@@ -3308,8 +3318,8 @@ class Builder implements BuilderContract
      */
     public function skipLocked(): static
     {
-        if (! is_bool($this->lock)) {
-            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock().');
+        if (! is_bool($this->lock) && $this->lock !== $this->grammar->getNoKeyUpdateLock()) {
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate(), lockForNoKeyUpdate() or sharedLock().');
         }
 
         $this->skipLocked = true;

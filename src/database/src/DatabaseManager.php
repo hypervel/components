@@ -16,6 +16,9 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\TransactionBeginning;
+use Hypervel\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
@@ -76,6 +79,18 @@ class DatabaseManager implements ConnectionResolverInterface
      * Indicates if the manager-level query duration listener has been registered.
      */
     protected bool $queryDurationListenerRegistered = false;
+
+    /**
+     * All registered transaction duration handlers.
+     *
+     * @var array<int, array{connection: string, threshold: float|int, handler: callable}>
+     */
+    protected array $transactionDurationHandlers = [];
+
+    /**
+     * Indicates if the manager-level transaction duration listeners have been registered.
+     */
+    protected bool $transactionDurationListenersRegistered = false;
 
     /**
      * Create a new database manager instance.
@@ -547,22 +562,34 @@ class DatabaseManager implements ConnectionResolverInterface
         $connectionName = $this->getEffectiveConnectionName();
         $key = count($this->queryDurationHandlers);
 
-        $threshold = $threshold instanceof DateTimeInterface
-            ? $this->secondsUntil($threshold) * 1000
-            : $threshold;
-
-        $threshold = $threshold instanceof CarbonInterval
-            ? $threshold->totalMilliseconds
-            : $threshold;
-
         $this->queryDurationHandlers[] = [
             'connection' => $connectionName,
             'key' => $this->queryDurationHandlerKey($key, $connectionName),
-            'threshold' => $threshold,
+            'threshold' => $this->thresholdInMilliseconds($threshold),
             'handler' => $handler,
         ];
 
         $this->registerQueryDurationListener();
+    }
+
+    /**
+     * Register a callback to be invoked when a transaction on the current connection runs for longer than a given amount of time.
+     *
+     * The callback persists on the database manager for the worker lifetime and affects every subsequent request for the same connection.
+     * Request-time callbacks belong on the connection itself, which discards them when the connection is released.
+     *
+     * @param (callable(Connection, TransactionCommitted|TransactionRolledBack, float): mixed) $handler
+     */
+    #[BootOnly]
+    public function whenTransactionRunsLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
+    {
+        $this->transactionDurationHandlers[] = [
+            'connection' => $this->getEffectiveConnectionName(),
+            'threshold' => $this->thresholdInMilliseconds($threshold),
+            'handler' => $handler,
+        ];
+
+        $this->registerTransactionDurationListeners();
     }
 
     /**
@@ -571,11 +598,12 @@ class DatabaseManager implements ConnectionResolverInterface
     public function allowQueryDurationHandlersToRunAgain(): void
     {
         $connectionName = $this->getEffectiveConnectionName();
+        $baseConnectionName = ConnectionName::parse($connectionName)->base;
         /** @var array<string, true> $ranHandlers */
         $ranHandlers = CoroutineContext::get(self::QUERY_DURATION_HANDLERS_CONTEXT_KEY, []);
 
         foreach ($this->queryDurationHandlers as $config) {
-            if ($config['connection'] === $connectionName) {
+            if ($config['connection'] === $connectionName || $config['connection'] === $baseConnectionName) {
                 unset($ranHandlers[$config['key']]);
             }
         }
@@ -670,9 +698,10 @@ class DatabaseManager implements ConnectionResolverInterface
 
         $events->listen(QueryExecuted::class, function (QueryExecuted $event) {
             $matchingHandlers = [];
+            $connectionNameWithReadWriteType = $event->connection->getNameWithReadWriteType();
 
             foreach ($this->queryDurationHandlers as $config) {
-                if ($event->connectionName === $config['connection']) {
+                if ($this->monitorsConnection($config['connection'], $event->connectionName, $connectionNameWithReadWriteType)) {
                     $matchingHandlers[] = $config;
                 }
             }
@@ -704,6 +733,70 @@ class DatabaseManager implements ConnectionResolverInterface
         });
 
         $this->queryDurationListenerRegistered = true;
+    }
+
+    /**
+     * Register the manager-level transaction duration listeners.
+     */
+    protected function registerTransactionDurationListeners(): void
+    {
+        if ($this->transactionDurationListenersRegistered || ! $this->app->bound('events')) {
+            return;
+        }
+
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        // Like Laravel's listeners, these monitors only see transactions whose begin and completion events are delivered.
+        $events->listen(TransactionBeginning::class, function (TransactionBeginning $event) {
+            $timing = $event->connection->transactionTiming($event);
+
+            if ($timing !== null) {
+                $timing->beginDelivered = true;
+            }
+        });
+
+        $events->listen([TransactionCommitted::class, TransactionRolledBack::class], function (TransactionCommitted|TransactionRolledBack $event) {
+            $timing = $event->connection->transactionTiming($event);
+
+            if (! $timing?->beginDelivered) {
+                return;
+            }
+
+            // A deferred event can arrive after the pool has reset the connection's role.
+            foreach ($this->transactionDurationHandlers as $config) {
+                if ($timing->duration > $config['threshold'] && $this->monitorsConnection($config['connection'], $event->connectionName, $timing->connectionName)) {
+                    $config['handler']($event->connection, $event, $timing->duration);
+                }
+            }
+        });
+
+        $this->transactionDurationListenersRegistered = true;
+    }
+
+    /**
+     * Determine if a duration handler registered for a connection name monitors the given connection.
+     *
+     * A base connection name also monitors its read and write aliases.
+     */
+    protected function monitorsConnection(string $registeredName, ?string $connectionName, ?string $connectionNameWithReadWriteType): bool
+    {
+        return $registeredName === $connectionName
+            || $registeredName === $connectionNameWithReadWriteType;
+    }
+
+    /**
+     * Convert a duration threshold to milliseconds.
+     */
+    protected function thresholdInMilliseconds(DateTimeInterface|CarbonInterval|float|int $threshold): float|int
+    {
+        $threshold = $threshold instanceof DateTimeInterface
+            ? $this->secondsUntil($threshold) * 1000
+            : $threshold;
+
+        return $threshold instanceof CarbonInterval
+            ? $threshold->totalMilliseconds
+            : $threshold;
     }
 
     /**

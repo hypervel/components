@@ -1431,7 +1431,7 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'gt');
 
-        $comparedToValue = $this->getValue($parameters[0]);
+        $comparedToValue = $this->getComparedValue($parameters);
 
         $this->shouldBeNumeric($attribute, 'Gt');
 
@@ -1477,7 +1477,7 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'lt');
 
-        $comparedToValue = $this->getValue($parameters[0]);
+        $comparedToValue = $this->getComparedValue($parameters);
 
         $this->shouldBeNumeric($attribute, 'Lt');
 
@@ -1523,7 +1523,7 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'gte');
 
-        $comparedToValue = $this->getValue($parameters[0]);
+        $comparedToValue = $this->getComparedValue($parameters);
 
         $this->shouldBeNumeric($attribute, 'Gte');
 
@@ -1569,7 +1569,7 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'lte');
 
-        $comparedToValue = $this->getValue($parameters[0]);
+        $comparedToValue = $this->getComparedValue($parameters);
 
         $this->shouldBeNumeric($attribute, 'Lte');
 
@@ -1604,6 +1604,26 @@ trait ValidatesAttributes
         } catch (MathException) {
             return false;
         }
+    }
+
+    /**
+     * Get the field value a comparison rule compares against.
+     *
+     * @param array<int, int|string> $parameters
+     */
+    protected function getComparedValue(array $parameters): mixed
+    {
+        return $this->isLiteralComparison($parameters) ? null : $this->getValue($parameters[0]);
+    }
+
+    /**
+     * Determine if a comparison rule compares against its parameter itself, even when an input field has that name.
+     *
+     * @param array<int, int|string> $parameters
+     */
+    protected function isLiteralComparison(array $parameters): bool
+    {
+        return ($parameters[1] ?? null) === 'literal';
     }
 
     /**

@@ -486,6 +486,8 @@ Once the `data_collection` option is set, command breadcrumbs instead include th
 
 Redis command parameters are omitted unless `send_default_pii` is enabled. When they are included, the active session key is still redacted from Redis and cache telemetry.
 
+Filesystem telemetry includes file paths, but never file contents or the options passed to filesystem methods, which may contain secrets such as S3 encryption keys.
+
 SQL bindings are controlled separately using `SENTRY_BREADCRUMBS_SQL_BINDINGS_ENABLED` and `SENTRY_TRACE_SQL_BINDINGS_ENABLED`. Review these settings carefully before enabling them in production.
 
 Once the `data_collection` option is set, its `database_query_data` setting controls both SQL bindings and Redis command parameters instead.

@@ -130,27 +130,13 @@ trait InteractsWithTestCaseLifecycle
 
         if ($app !== null) {
             try {
-                $this->runInCoroutine(
-                    fn () => DatabaseConnectionResolver::flushCachedConnections()
-                );
-            } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
-            }
-
-            try {
-                // Use a separate coroutine so destroyed callbacks release their
-                // borrowed connections through defer before the pools are closed.
-                if ($app->resolved(PoolManager::class)) {
-                    $this->runInCoroutine(
-                        fn () => $app->make(PoolManager::class)->purgeAll()
-                    );
-                }
-            } catch (Throwable $throwable) {
-                $exception = Coroutine::preferCancellation($exception, $throwable);
-            }
-
-            try {
                 ParallelTesting::callTearDownTestCaseCallbacks($this);
+            } catch (Throwable $throwable) {
+                $exception = Coroutine::preferCancellation($exception, $throwable);
+            }
+
+            try {
+                $this->disconnectDatabaseConnections();
             } catch (Throwable $throwable) {
                 $exception = Coroutine::preferCancellation($exception, $throwable);
             }
@@ -188,6 +174,40 @@ trait InteractsWithTestCaseLifecycle
     {
         // Other framework static state is reset by AfterEachTestSubscriber.
         HandleExceptions::flushState($this);
+    }
+
+    /**
+     * Disconnect every resolved database connection of the application.
+     *
+     * @throws Throwable
+     */
+    protected function disconnectDatabaseConnections(): void
+    {
+        $exception = null;
+
+        try {
+            $this->runInCoroutine(
+                fn () => DatabaseConnectionResolver::flushCachedConnections()
+            );
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            // Use a separate coroutine so destroyed callbacks release their
+            // borrowed connections through defer before the pools are closed.
+            if ($this->app->resolved(PoolManager::class)) {
+                $this->runInCoroutine(
+                    fn () => $this->app->make(PoolManager::class)->purgeAll()
+                );
+            }
+        } catch (Throwable $throwable) {
+            $exception = Coroutine::preferCancellation($exception, $throwable);
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

@@ -41,12 +41,12 @@ class Deserializer
     /**
      * The maximum number of schema fragments that may be expanded.
      */
-    protected const int MAX_NODES = 20000;
+    protected const int MAX_NODES = JsonSchema::MAX_NODES;
 
     /**
-     * The maximum number of distinct references on one active path.
+     * The maximum number of local "$ref" references along one path through the schema.
      */
-    protected const int MAX_REFERENCE_DEPTH = 256;
+    protected const int MAX_REF_DEPTH = 64;
 
     /**
      * The number of schema fragments expanded so far.
@@ -901,9 +901,9 @@ class Deserializer
                 throw new InvalidArgumentException("Circular JSON Schema \$ref [{$ref}] detected.");
             }
 
-            if (count($refs) >= static::MAX_REFERENCE_DEPTH) {
+            if (count($refs) >= static::MAX_REF_DEPTH) {
                 throw new InvalidArgumentException(
-                    'JSON Schema reference paths may not contain more than ' . static::MAX_REFERENCE_DEPTH . ' distinct references.'
+                    'The JSON Schema nests "$ref" beyond [' . static::MAX_REF_DEPTH . '] levels.'
                 );
             }
 

@@ -344,15 +344,23 @@ class PostgresGrammar extends Grammar
      */
     protected function compileLock(Builder $query, bool|string $value): string
     {
-        if (! is_string($value)) {
-            $lock = $value ? 'for update' : 'for share';
-
-            return $query->skipLocked && $this->connection->supportsSkipLocked()
-                ? $lock . ' skip locked'
-                : $lock;
+        if (is_string($value) && $value !== $this->getNoKeyUpdateLock()) {
+            return $value;
         }
 
-        return $value;
+        $lock = is_string($value) ? $value : ($value ? 'for update' : 'for share');
+
+        return $query->skipLocked && $this->connection->supportsSkipLocked()
+            ? $lock . ' skip locked'
+            : $lock;
+    }
+
+    /**
+     * Get the lock value for updating rows without blocking foreign key checks.
+     */
+    public function getNoKeyUpdateLock(): string
+    {
+        return 'for no key update';
     }
 
     /**

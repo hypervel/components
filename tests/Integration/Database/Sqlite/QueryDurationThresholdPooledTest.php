@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Filesystem\Filesystem;
@@ -47,11 +48,14 @@ class QueryDurationThresholdPooledTest extends TestCase
         parent::tearDownAfterClass();
     }
 
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
+        parent::defineEnvironment($app);
 
-        $this->configureDatabase();
+        $config = $app->make('config');
+        $config->set('database.default', 'pool_test');
+        $config->set('database.connections.pool_test', $this->connectionConfig(self::$primaryDatabasePath));
+        $config->set('database.connections.analytics', $this->connectionConfig(self::$analyticsDatabasePath));
     }
 
     public function testManagerQueryDurationHandlersSurvivePooledConnectionRelease(): void
@@ -183,13 +187,38 @@ class QueryDurationThresholdPooledTest extends TestCase
         ], $connections);
     }
 
-    protected function configureDatabase(): void
+    public function testManagerQueryDurationHandlersMatchTheRegisteredConnectionRole(): void
     {
-        $config = $this->app->make('config');
+        $calls = [];
 
-        $config->set('database.default', 'pool_test');
-        $config->set('database.connections.pool_test', $this->connectionConfig(self::$primaryDatabasePath));
-        $config->set('database.connections.analytics', $this->connectionConfig(self::$analyticsDatabasePath));
+        DB::whenQueryingForLongerThan(-1, function () use (&$calls) {
+            $calls[] = 'pool_test';
+        });
+
+        DB::usingConnection('pool_test::write', function () use (&$calls) {
+            DB::whenQueryingForLongerThan(-1, function () use (&$calls) {
+                $calls[] = 'pool_test::write';
+            });
+        });
+
+        run(function () {
+            DB::select('SELECT 1');
+            DB::allowQueryDurationHandlersToRunAgain();
+            DB::connection('pool_test::write')->select('SELECT 1');
+            DB::allowQueryDurationHandlersToRunAgain();
+            DB::connection('pool_test::write')->select('SELECT 1');
+            DB::usingConnection('pool_test::write', fn () => DB::allowQueryDurationHandlersToRunAgain());
+            DB::connection('pool_test::write')->select('SELECT 1');
+        });
+
+        $this->assertSame([
+            'pool_test',
+            'pool_test',
+            'pool_test::write',
+            'pool_test',
+            'pool_test',
+            'pool_test::write',
+        ], $calls);
     }
 
     protected function connectionConfig(string $databasePath): array

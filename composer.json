@@ -59,8 +59,8 @@
         "google/protobuf": "^5.35",
         "guzzlehttp/psr7": "^3.1",
         "guzzlehttp/uri-template": "^1.0 || ^2.0",
-        "hypervel/guzzle": "^8.5.0.2",
-        "hypervel/guzzle-promises": "^3.1",
+        "hypervel/guzzle": "^8.6.0.1",
+        "hypervel/guzzle-promises": "^3.2",
         "laravel/agent-detector": "^2.0.5",
         "laravel/serializable-closure": "^2.0.11",
         "lcobucci/jwt": "^5.7",
@@ -410,7 +410,8 @@
         "sort-packages": true,
         "policy": {
             "cooldown": {
-                "period": "3 days"
+                "period": "3 days",
+                "ignore": ["hypervel/guzzle", "hypervel/guzzle-promises"]
             }
         }
     },

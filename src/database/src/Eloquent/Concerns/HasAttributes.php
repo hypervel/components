@@ -36,6 +36,7 @@ use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\LazyLoadingViolationException;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Carbon;
@@ -211,6 +212,21 @@ trait HasAttributes
      * The cache of the "Attribute" return type marked mutated, settable attributes for each class.
      */
     protected static array $setAttributeMutatorCache = [];
+
+    /**
+     * The maximum number of attribute names whose lookups are retained for each class.
+     */
+    protected const int MAX_ATTRIBUTE_LOOKUPS = 1024;
+
+    /**
+     * The studly and camel method spellings of each class's attribute names.
+     *
+     * Attribute names can come from query results and input, so each class caches a
+     * limited number of them, and its mutator caches are trimmed with them.
+     *
+     * @var array<class-string, array<string, array{studly: string, camel: string}>>
+     */
+    protected static array $attributeMethodNames = [];
 
     /**
      * The cache of the resolved custom caster class instances.
@@ -675,7 +691,9 @@ trait HasAttributes
      */
     public function hasGetMutator(string $key): bool
     {
-        return method_exists($this, 'get' . StrCache::studly($key) . 'Attribute');
+        $names = static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key);
+
+        return method_exists($this, 'get' . $names['studly'] . 'Attribute');
     }
 
     /**
@@ -687,15 +705,19 @@ trait HasAttributes
             return static::$attributeMutatorCache[get_class($this)][$key];
         }
 
-        if (! method_exists($this, $method = StrCache::camel($key))) {
-            return static::$attributeMutatorCache[get_class($this)][$key] = false;
+        $method = (static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key))['camel'];
+
+        if (! method_exists($this, $method)) {
+            return $this->rememberAttributeMutator(static::$attributeMutatorCache, $key, false);
         }
 
         $returnType = (new ReflectionMethod($this, $method))->getReturnType();
 
-        return static::$attributeMutatorCache[get_class($this)][$key]
-                    = $returnType instanceof ReflectionNamedType
-                    && $returnType->getName() === Attribute::class;
+        return $this->rememberAttributeMutator(
+            static::$attributeMutatorCache,
+            $key,
+            $returnType instanceof ReflectionNamedType && $returnType->getName() === Attribute::class
+        );
     }
 
     /**
@@ -707,11 +729,13 @@ trait HasAttributes
             return static::$getAttributeMutatorCache[get_class($this)][$key];
         }
 
+        $method = (static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key))['camel'];
+
         if (! $this->hasAttributeMutator($key)) {
-            return static::$getAttributeMutatorCache[get_class($this)][$key] = false;
+            return $this->rememberAttributeMutator(static::$getAttributeMutatorCache, $key, false);
         }
 
-        return static::$getAttributeMutatorCache[get_class($this)][$key] = is_callable($this->{StrCache::camel($key)}()->get);
+        return $this->rememberAttributeMutator(static::$getAttributeMutatorCache, $key, is_callable($this->{$method}()->get));
     }
 
     /**
@@ -729,7 +753,9 @@ trait HasAttributes
     {
         $this->mergeAttributesFromCachedCasts();
 
-        return $this->{'get' . StrCache::studly($key) . 'Attribute'}($value);
+        $names = static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key);
+
+        return $this->{'get' . $names['studly'] . 'Attribute'}($value);
     }
 
     /**
@@ -743,7 +769,8 @@ trait HasAttributes
 
         $this->mergeAttributesFromCachedCasts();
 
-        $attribute = $this->{StrCache::camel($key)}();
+        $names = static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key);
+        $attribute = $this->{$names['camel']}();
 
         $value = call_user_func($attribute->get ?: function ($value) {
             return $value;
@@ -1146,7 +1173,9 @@ trait HasAttributes
      */
     public function hasSetMutator(string $key): bool
     {
-        return method_exists($this, 'set' . StrCache::studly($key) . 'Attribute');
+        $names = static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key);
+
+        return method_exists($this, 'set' . $names['studly'] . 'Attribute');
     }
 
     /**
@@ -1160,16 +1189,21 @@ trait HasAttributes
             return static::$setAttributeMutatorCache[$class][$key];
         }
 
-        if (! method_exists($this, $method = StrCache::camel($key))) {
-            return static::$setAttributeMutatorCache[$class][$key] = false;
+        $method = (static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key))['camel'];
+
+        if (! method_exists($this, $method)) {
+            return $this->rememberAttributeMutator(static::$setAttributeMutatorCache, $key, false);
         }
 
         $returnType = (new ReflectionMethod($this, $method))->getReturnType();
 
-        return static::$setAttributeMutatorCache[$class][$key]
-                    = $returnType instanceof ReflectionNamedType
-                    && $returnType->getName() === Attribute::class
-                    && is_callable($this->{$method}()->set);
+        return $this->rememberAttributeMutator(
+            static::$setAttributeMutatorCache,
+            $key,
+            $returnType instanceof ReflectionNamedType
+                && $returnType->getName() === Attribute::class
+                && is_callable($this->{$method}()->set)
+        );
     }
 
     /**
@@ -1179,7 +1213,8 @@ trait HasAttributes
     {
         $this->mergeAttributesFromCachedCasts();
 
-        $result = $this->{'set' . StrCache::studly($key) . 'Attribute'}($value);
+        $names = static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key);
+        $result = $this->{'set' . $names['studly'] . 'Attribute'}($value);
 
         // A legacy setter can refresh stored data after reading a cached accessor.
         // Class casts reconcile their own writes so in-place mutations survive.
@@ -1195,7 +1230,8 @@ trait HasAttributes
     {
         $this->mergeAttributesFromCachedCasts();
 
-        $attribute = $this->{StrCache::camel($key)}();
+        $names = static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key);
+        $attribute = $this->{$names['camel']}();
 
         $callback = $attribute->set ?: function ($value) use ($key) {
             $this->attributes[$key] = $value;
@@ -1964,7 +2000,8 @@ trait HasAttributes
         }
 
         $value = $this->attributeCastCache[$key];
-        $attribute = $value === null ? null : $this->{StrCache::camel($key)}();
+        $names = static::$attributeMethodNames[static::class][$key] ?? $this->resolveAttributeMethodNames($key);
+        $attribute = $value === null ? null : $this->{$names['camel']}();
 
         // Cached nulls and get-only accessors have no writeback. Refresh them when
         // their raw input changes without invoking a setter or guessing dependencies.
@@ -2703,5 +2740,56 @@ trait HasAttributes
 
             return false;
         })->map->name->values()->all();
+    }
+
+    /**
+     * Resolve the method spellings of an attribute name not cached for this class.
+     *
+     * @return array{studly: string, camel: string}
+     */
+    protected function resolveAttributeMethodNames(string $key): array
+    {
+        $studly = Str::studly($key);
+        $names = ['studly' => $studly, 'camel' => Str::lcfirst($studly)];
+
+        // A name the mass assignment guard checks may be request input it is about to reject. The
+        // marker holds the checking coroutine's ID, since a child coroutine can copy the context.
+        if (CoroutineContext::get(self::GUARDING_ATTRIBUTE_CONTEXT_KEY) === Coroutine::id()) {
+            return $names;
+        }
+
+        $class = static::class;
+
+        // Dropping the older half at the limit lets names still in use return on their next
+        // lookup without tracking each hit. The mutator caches drop the same names. Report
+        // aliases and unusual accepted spellings, such as "first__name", also take slots: an
+        // accepted tradeoff, since the limit bounds memory and churn only repeats lookups.
+        if (count(static::$attributeMethodNames[$class] ?? []) >= self::MAX_ATTRIBUTE_LOOKUPS) {
+            $remaining = static::$attributeMethodNames[$class] = array_slice(
+                static::$attributeMethodNames[$class],
+                intdiv(self::MAX_ATTRIBUTE_LOOKUPS, 2),
+                preserve_keys: true
+            );
+
+            static::$attributeMutatorCache[$class] = array_intersect_key(static::$attributeMutatorCache[$class] ?? [], $remaining);
+            static::$getAttributeMutatorCache[$class] = array_intersect_key(static::$getAttributeMutatorCache[$class] ?? [], $remaining);
+            static::$setAttributeMutatorCache[$class] = array_intersect_key(static::$setAttributeMutatorCache[$class] ?? [], $remaining);
+        }
+
+        return static::$attributeMethodNames[$class][$key] = $names;
+    }
+
+    /**
+     * Cache a mutator check for an attribute whose method spellings are cached.
+     *
+     * @param array<class-string, array<string, bool>> $cache
+     */
+    protected function rememberAttributeMutator(array &$cache, string $key, bool $result): bool
+    {
+        if (isset(static::$attributeMethodNames[static::class][$key])) {
+            $cache[static::class][$key] = $result;
+        }
+
+        return $result;
     }
 }

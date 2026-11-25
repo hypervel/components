@@ -1260,6 +1260,22 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertFalse($url->hasValidSignature($request));
     }
 
+    public function testEncodedNumericQueryParametersAreNotEncodedAgain(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], 'foo', ['as' => 'foo', fn (): string => '']));
+
+        $this->assertSame('http://www.foo.com/foo?q=000001', $url->route('foo', new EncodedParameter('q=000001')));
+        $this->assertSame('http://www.foo.com/foo?a=1&q=000001', $url->route('foo', ['a' => 1, new EncodedParameter('q=000001')]));
+        $this->assertSame('http://www.foo.com/foo?foo%20bar', $url->route('foo', [new EncodedParameter('foo%20bar')]));
+
+        $this->assertSame('http://www.foo.com/foo?q%3D000001', $url->route('foo', ['q=000001']));
+    }
+
     #[TestWith(['foo', ['expires'], true])]
     #[TestWith(['foo', ['expires'], false])]
     #[TestWith(['foo', ['signature'], false])]

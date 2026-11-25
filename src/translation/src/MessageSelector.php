@@ -11,10 +11,10 @@ class MessageSelector
     private const string NUMERIC = '-?(?:\d+(?:\.\d*)?|\.\d+)';
 
     private const string CONDITION = '(?:' . self::NUMERIC
-        . '|(?:' . self::NUMERIC . '|\*),' . self::NUMERIC
-        . '|' . self::NUMERIC . ',\*)';
+        . '|(?:' . self::NUMERIC . '|\*)\s*,\s*' . self::NUMERIC
+        . '|' . self::NUMERIC . '\s*,\s*\*)';
 
-    private const string CONDITION_PATTERN = '/^(?|\{(' . self::CONDITION . ')\}|\[(' . self::CONDITION . ')\])(.*)/s';
+    private const string CONDITION_PATTERN = '/^\s*(?|\{\s*(' . self::CONDITION . ')\s*\}|\[\s*(' . self::CONDITION . ')\s*\])(.*)/s';
 
     /**
      * Select a proper translation string based on the given number.
@@ -68,7 +68,7 @@ class MessageSelector
         $value = $matches[2];
 
         if (str_contains($condition, ',')) {
-            [$from, $to] = explode(',', $condition, 2);
+            [$from, $to] = array_map(trim(...), explode(',', $condition, 2));
 
             if ($to === '*') {
                 return $number >= (float) $from ? $value : null;

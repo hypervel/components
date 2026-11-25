@@ -8,6 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Testbench\TestCase;
 
+use function Hypervel\Prompts\autocomplete;
 use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\multisearch;
 use function Hypervel\Prompts\multiselect;
@@ -129,6 +130,27 @@ class PromptsAssertionTest extends TestCase
 
         $this
             ->artisan('test:suggest')
+            ->expectsChoice('What is your name?', 'Joe', ['John', 'Jane'])
+            ->expectsOutput('Joe');
+    }
+
+    public function testAssertionForAutocompletePrompt(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:autocomplete';
+
+                public function handle(): void
+                {
+                    $name = autocomplete('What is your name?', ['John', 'Jane']);
+
+                    $this->line($name);
+                }
+            }
+        );
+
+        $this
+            ->artisan('test:autocomplete')
             ->expectsChoice('What is your name?', 'Joe', ['John', 'Jane'])
             ->expectsOutput('Joe');
     }

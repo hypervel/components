@@ -9,6 +9,7 @@ use Error;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
+use Hypervel\Contracts\Events\ShouldNotBeDeferred;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -198,6 +199,37 @@ class EventsDispatcherTest extends TestCase
         }, [DeferTestEvent::class]);
 
         $this->assertSame(['ImmediateTestEvent', 'DeferTestEvent'], $_SERVER['__event.test']);
+    }
+
+    public function testDeferDispatchesEventsThatShouldNotBeDeferredImmediately(): void
+    {
+        $_SERVER['__event.test'] = [];
+        $d = new Dispatcher;
+
+        $d->listen(DeferTestEvent::class, function () {
+            $_SERVER['__event.test'][] = 'DeferTestEvent';
+        });
+
+        $d->listen(NotDeferredTestEvent::class, function () {
+            $_SERVER['__event.test'][] = 'NotDeferredTestEvent';
+        });
+
+        $d->defer(function () use ($d) {
+            $d->dispatch(new DeferTestEvent);
+            $d->dispatch(new NotDeferredTestEvent);
+
+            $this->assertSame(['NotDeferredTestEvent'], $_SERVER['__event.test']);
+        });
+
+        $this->assertSame(['NotDeferredTestEvent', 'DeferTestEvent'], $_SERVER['__event.test']);
+
+        $_SERVER['__event.test'] = [];
+
+        $d->defer(function () use ($d) {
+            $d->dispatch(new NotDeferredTestEvent);
+
+            $this->assertSame(['NotDeferredTestEvent'], $_SERVER['__event.test']);
+        }, [NotDeferredTestEvent::class]);
     }
 
     public function testHaltingEventExecution(): void
@@ -1770,6 +1802,10 @@ class DeferTestEvent
 }
 
 class ImmediateTestEvent
+{
+}
+
+class NotDeferredTestEvent implements ShouldNotBeDeferred
 {
 }
 

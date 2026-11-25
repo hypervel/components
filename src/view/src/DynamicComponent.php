@@ -11,6 +11,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\ComponentTagCompiler;
+use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;
 
@@ -47,6 +48,11 @@ class DynamicComponent extends Component
     public function __construct(BackedEnum|string $component)
     {
         $this->component = (string) enum_value($component);
+
+        // Unlike upstream, the name checks end with "\z", since "$" also matches before a final newline.
+        if (! preg_match('/^[\w\-:.]+\z/', $this->component)) {
+            throw new InvalidArgumentException("Invalid component name [{$this->component}].");
+        }
     }
 
     /**
@@ -65,6 +71,12 @@ EOF;
 
         return function ($data) use ($template) {
             $bindings = $this->bindings($class = $this->classForComponent());
+
+            foreach ($bindings as $key) {
+                if (! preg_match('/^[\w\-:.]+\z/', $key)) {
+                    throw new InvalidArgumentException("Invalid attribute name [{$key}] for component [{$this->component}].");
+                }
+            }
 
             return str_replace(
                 [
@@ -151,6 +163,11 @@ EOF;
     {
         return (new Collection($slots))
             ->reject(fn ($slot, $name) => $name === '__default')
+            ->each(function ($slot, $name) {
+                if (! preg_match('/^[a-zA-Z_]\w*\z/', $name)) {
+                    throw new InvalidArgumentException("Invalid slot name [{$name}] for component [{$this->component}].");
+                }
+            })
             ->map(fn ($slot, $name) => '<x-slot name="' . $name . '" :attributes="$' . $name . '->attributes">{{ $' . $name . ' }}</x-slot>')
             ->implode(PHP_EOL);
     }

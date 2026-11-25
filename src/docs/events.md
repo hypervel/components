@@ -1090,7 +1090,7 @@ Event::defer(function () {
 });
 ```
 
-All events triggered within the closure will be dispatched after the closure is executed. This ensures that event listeners have access to all related records that were created during the deferred execution. If an exception occurs within the closure, the deferred events will not be dispatched.
+All events triggered within the closure, except those that opt out as described below, will be dispatched after the closure is executed. This ensures that event listeners have access to all related records that were created during the deferred execution. If an exception occurs within the closure, the deferred events will not be dispatched.
 
 To defer only specific events, pass an array of events as the second argument to the `defer` method:
 
@@ -1104,6 +1104,8 @@ Event::defer(function () {
     $user->posts()->create(['title' => 'My first post!']);
 }, ['eloquent.created: '.User::class]);
 ```
+
+Events that implement the `Hypervel\Contracts\Events\ShouldNotBeDeferred` interface are not deferred, even when you list them explicitly. They are dispatched normally instead. The database `ConnectionEstablished` event and the connection pool's `ConnectionReleasing` event implement this interface, so listeners that set up or clean up a connection run while the current borrower still owns it, even if the closure later throws.
 
 <a name="event-subscribers"></a>
 ## Event Subscribers

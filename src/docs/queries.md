@@ -1901,6 +1901,15 @@ DB::table('users')
     ->get();
 ```
 
+On PostgreSQL, a "for update" lock also blocks inserts of rows that reference the locked rows through a foreign key. If you only need to prevent concurrent updates, you may use the `lockForNoKeyUpdate` method, which still locks the rows against other writers but allows those foreign key checks. MySQL and MariaDB use a regular "for update" lock, while SQLite does not add a locking clause:
+
+```php
+DB::table('teams')
+    ->where('id', $teamId)
+    ->lockForNoKeyUpdate()
+    ->first();
+```
+
 While not obligatory, it is recommended to wrap pessimistic locks within a [transaction](/docs/{{version}}/database#database-transactions). This ensures that the data retrieved remains unaltered in the database until the entire operation completes. In case of a failure, the transaction will roll back any changes and release the locks automatically:
 
 ```php
@@ -1931,7 +1940,7 @@ DB::transaction(function () {
 });
 ```
 
-When several workers read from a queue-like table, you may call `skipLocked` after `lockForUpdate` or `sharedLock` to skip rows locked by another transaction:
+When several workers read from a queue-like table, you may call `skipLocked` after `lockForUpdate`, `lockForNoKeyUpdate`, or `sharedLock` to skip rows locked by another transaction:
 
 ```php
 DB::transaction(function () {

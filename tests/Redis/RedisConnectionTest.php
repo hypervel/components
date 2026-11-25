@@ -412,17 +412,29 @@ class RedisConnectionTest extends TestCase
 
     public function testModeDetectionFailureInvalidatesAndReleasesConnection(): void
     {
-        $pool = $this->getMockedPool();
+        $container = $this->getContainer();
+        $dispatcher = new Dispatcher($container);
+        $container->instance('events', $dispatcher);
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
         $pool->expects('release')->with(Argument::type(RedisConnection::class));
         $redis = Double::for(Redis::class)->strict();
         $redis->expects('getMode')->throws(new RuntimeException('Mode failed.'));
-        $connection = new class($this->getContainer(), $pool, $this->standaloneConfig()) extends PhpRedisConnectionStub {
+        $connection = new class($container, $pool, $this->standaloneConfig()) extends PhpRedisConnectionStub {
             public function isInvalidForTest(): bool
             {
                 return $this->invalid;
             }
+
+            public function recoverForTest(): void
+            {
+                $this->markValid();
+            }
         };
         $connection->setActiveConnection($redis);
+
+        // An observer can recover the connection, as getActiveConnection() does by reconnecting.
+        $dispatcher->listen(ConnectionReleasing::class, static fn () => $connection->recoverForTest());
 
         $connection->release();
 
@@ -468,6 +480,40 @@ class RedisConnectionTest extends TestCase
         $this->assertNull(
             (new ReflectionProperty(RedisConnection::class, 'database'))->getValue($connection),
         );
+    }
+
+    public function testReleaseThrowsAnObserverReportingFailureAfterReturningTheConnection(): void
+    {
+        $reportingFailure = new RuntimeException('Reporting the release observer failure failed.');
+        $container = $this->getContainer();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')->throws($reportingFailure);
+        $container->instance(StdoutLoggerInterface::class, $logger);
+        $dispatcher = new Dispatcher($container);
+        $container->instance('events', $dispatcher);
+        $pool = Double::for(ConnectionPool::class)->strict();
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $pool->expects('release')->with(Argument::type(RedisConnection::class));
+        $redis = Double::for(Redis::class)->strict();
+        $redis->allows('getMode')->returns(Redis::ATOMIC);
+        $redis->expects('isConnected')->returns(true);
+        $redis->expects('getDBNum')->returns(0);
+        $connection = $this->mockRedisConnection(container: $container, pool: $pool);
+        $connection->setActiveConnection($redis);
+        $dispatcher->listen(ConnectionReleasing::class, static function () use ($connection): never {
+            $connection->shouldTransform(true);
+
+            throw new RuntimeException('Release observer failed.');
+        });
+
+        try {
+            $connection->release();
+            $this->fail('Expected the reporting failure to escape.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($reportingFailure, $exception);
+        }
+
+        $this->assertFalse($connection->getShouldTransform());
     }
 
     public function testReleasePreservesOperationCancellationOverPoolCleanupCancellation(): void

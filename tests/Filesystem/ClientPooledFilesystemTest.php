@@ -144,7 +144,7 @@ class ClientPooledFilesystemTest extends TestCase
         $source->put('file.txt', 'retained');
         $failedDestination = Double::for(FilesystemContract::class)->strict();
         $stream = null;
-        $failedDestination->expects('writeStream')->with('file.txt', Argument::satisfies(is_resource(...)))->resolves(function (string $path, mixed $resource) use (&$stream): bool {
+        $failedDestination->expects('writeStream')->with('file.txt', Argument::satisfies(is_resource(...)), [])->resolves(function (string $path, mixed $resource) use (&$stream): bool {
             $stream = $resource;
             $this->assertSame(0, $this->pools->get('filesystem:transfer')->getBorrowedCount());
             $this->assertSame('retained', stream_get_contents($resource));

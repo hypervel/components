@@ -74,6 +74,7 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\StrCache;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Testbench\TestCase;
@@ -90,6 +91,7 @@ use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
+use ReflectionClassConstant;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
@@ -4007,6 +4009,7 @@ class DatabaseEloquentModelTest extends TestCase
         $reflection->setStaticPropertyValue('attributeMutatorCache', [ModelStub::class => ['foo' => true]]);
         $reflection->setStaticPropertyValue('getAttributeMutatorCache', [ModelStub::class => ['foo' => true]]);
         $reflection->setStaticPropertyValue('setAttributeMutatorCache', [ModelStub::class => ['foo' => true]]);
+        $reflection->setStaticPropertyValue('attributeMethodNames', [ModelStub::class => ['foo' => ['studly' => 'Foo', 'camel' => 'foo']]]);
         $reflection->setStaticPropertyValue('casterCache', [ModelStub::class => ['foo' => new stdClass]]);
         $reflection->setStaticPropertyValue('castTypeCache', ['foo' => 'bar']);
 
@@ -4043,6 +4046,7 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame([], $reflection->getStaticPropertyValue('attributeMutatorCache'));
         $this->assertSame([], $reflection->getStaticPropertyValue('getAttributeMutatorCache'));
         $this->assertSame([], $reflection->getStaticPropertyValue('setAttributeMutatorCache'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('attributeMethodNames'));
         $this->assertSame([], $reflection->getStaticPropertyValue('casterCache'));
         $this->assertSame([], $reflection->getStaticPropertyValue('castTypeCache'));
         $this->assertNull(Model::$encrypter);
@@ -4669,6 +4673,165 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('Anytown', $model->address_line_two);
     }
 
+    public function testGuardedAttributesCannotBeBypassed(): void
+    {
+        // Test that guarded attributes with set-mutators cannot be bypassed
+        // via alternate spellings (e.g., 'is-admin' vs 'is_admin', 'ro-le' vs 'role')
+        // This addresses the vulnerability where normalized key paths (Str::studly/camel)
+        // could bypass literal guard comparisons.
+        $model = new GuardedAttributeTestModel;
+
+        $resolver = Double::for(Resolver::class)->strict();
+        GuardedAttributeTestModel::setConnectionResolver($resolver);
+        $connection = Double::for(Connection::class)->strict();
+        $resolver->allows('connection')->returns($connection);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
+        $schemaBuilder->allows('getColumnListing')->returns(['id', 'is_admin', 'role', 'name']);
+        $connection->allows('getSchemaBuilder')->returns($schemaBuilder);
+
+        // Test: attempt to bypass guard using hyphenated spelling of 'is_admin' (classic mutator)
+        $model->fill(['is-admin' => true, 'name' => 'Test User']);
+        $this->assertFalse($model->is_admin, 'Guarded attribute (classic mutator) with hyphen spelling should not be fillable');
+        $this->assertSame('Test User', $model->name, 'Non-guarded attributes should still be fillable');
+
+        // Test: attempt to bypass guard using hyphenated spelling of 'role' (Attribute mutator)
+        $model = new GuardedAttributeTestModel;
+        $model->fill(['ro-le' => 'admin', 'name' => 'Test User']);
+        $this->assertNull($model->role, 'Guarded attribute (Attribute mutator) with hyphen spelling should not be fillable');
+        $this->assertSame('Test User', $model->name, 'Non-guarded attributes should work');
+
+        // Test: control - exact guarded keys should also be blocked
+        $model = new GuardedAttributeTestModel;
+        $model->fill(['is_admin' => true, 'role' => 'admin', 'name' => 'Test User']);
+        $this->assertFalse($model->is_admin, 'Exact guarded key (classic mutator) should be protected');
+        $this->assertNull($model->role, 'Exact guarded key (Attribute mutator) should be protected');
+        $this->assertSame('Test User', $model->name, 'Non-guarded attributes should work');
+    }
+
+    public function testGuardedAttributeSpellingsOnlyMatchKeysThatReachTheGuardedSetter(): void
+    {
+        $resolver = Double::for(Resolver::class)->strict();
+        GuardedDistinctColumnTestModel::setConnectionResolver($resolver);
+        $connection = Double::for(Connection::class)->strict();
+        $resolver->allows('connection')->returns($connection);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
+        $schemaBuilder->allows('getColumnListing')->returns(['id', 'user_name', 'username']);
+        $connection->allows('getSchemaBuilder')->returns($schemaBuilder);
+
+        $model = (new GuardedDistinctColumnTestModel)->fill(['user_name' => 'guarded', 'username' => 'taylor']);
+
+        $this->assertArrayNotHasKey('user_name', $model->getAttributes());
+        $this->assertSame('taylor', $model->username);
+    }
+
+    public function testMassAssignmentDoesNotCacheRejectedNames(): void
+    {
+        $resolver = Double::for(Resolver::class)->strict();
+        AttributeLookupTestModel::setConnectionResolver($resolver);
+        $connection = Double::for(Connection::class)->strict();
+        $resolver->allows('connection')->returns($connection);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
+        $schemaBuilder->allows('getColumnListing')->returns(['id', 'email']);
+        $connection->allows('getSchemaBuilder')->returns($schemaBuilder);
+
+        $model = (new AttributeLookupTestModel)->fill([
+            'email' => 'taylor@example.com',
+            'display_name' => 'Taylor',
+            'displayName' => 'Taylor Otwell',
+            'display__name' => 'Otwell',
+            'nick_name' => 'tay',
+            'unknown' => 'value',
+            "bad\xFF" => 'value',
+        ]);
+
+        $this->assertSame(['email' => 'taylor@example.com', 'display_name' => 'Otwell', 'nickname' => 'tay'], $model->getAttributes());
+        $this->assertSame('taylor@example.com', $model->email);
+        $this->assertSame('OTWELL', $model->display_name);
+        $this->assertSame('', $model->display__name);
+        $this->assertSame('TAY', $model->nickname);
+        $this->assertEqualsCanonicalizing(
+            ['email', 'display_name', 'displayName', 'display__name', 'nick_name', 'nickname'],
+            array_keys($this->attributeMethodNames(AttributeLookupTestModel::class))
+        );
+        $this->assertArrayNotHasKey('display__name', (new ReflectionProperty(StrCache::class, 'studlyCache'))->getValue());
+        $this->assertArrayNotHasKey('unknown', (new ReflectionProperty(StrCache::class, 'studlyCache'))->getValue());
+
+        Model::preventSilentlyDiscardingAttributes();
+
+        foreach (['unknown' => 'unknown', 'malformed' => "bad\xFF", 'too long for a regex' => str_repeat('a', 70000)] as $label => $key) {
+            try {
+                (new AttributeLookupTestModel)->fill([$key => 'value']);
+                $this->fail("Expected the {$label} key to be rejected.");
+            } catch (MassAssignmentException) {
+            }
+        }
+    }
+
+    public function testAttributeLookupsDropTheOlderHalfAtTheLimit(): void
+    {
+        $limit = (new ReflectionClassConstant(Model::class, 'MAX_ATTRIBUTE_LOOKUPS'))->getValue();
+        $model = new AttributeLookupTestModel;
+
+        for ($i = 0; $i < $limit; ++$i) {
+            $model->hasAttributeGetMutator("report_{$i}");
+            $model->hasAttributeSetMutator("report_{$i}");
+        }
+
+        $this->assertCount($limit, $this->attributeMethodNames(AttributeLookupTestModel::class));
+
+        $model->hasGetMutator('email');
+        $names = $this->attributeMethodNames(AttributeLookupTestModel::class);
+
+        $this->assertCount(intdiv($limit, 2) + 1, $names);
+        $this->assertArrayNotHasKey('report_0', $names);
+        $this->assertArrayHasKey('report_' . ($limit - 1), $names);
+        $this->assertArrayHasKey('email', $names);
+
+        foreach (['attributeMutatorCache', 'getAttributeMutatorCache', 'setAttributeMutatorCache'] as $property) {
+            $results = (new ReflectionProperty(Model::class, $property))->getValue()[AttributeLookupTestModel::class];
+
+            $this->assertArrayNotHasKey('report_0', $results);
+            $this->assertArrayHasKey('report_' . ($limit - 1), $results);
+        }
+    }
+
+    public function testOverlappingGuardChecksDoNotCacheRejectedNames(): void
+    {
+        $model = new YieldingGuardTestModel;
+
+        $this->assertSame(
+            [true, true],
+            parallel([
+                static fn (): bool => $model->isGuarded('first_rejected'),
+                static fn (): bool => $model->isGuarded('second_rejected'),
+            ])
+        );
+
+        $model->hasGetMutator('email');
+
+        $this->assertSame(['email'], array_keys($this->attributeMethodNames(YieldingGuardTestModel::class)));
+    }
+
+    public function testChildCoroutineOfAGuardCheckCachesNames(): void
+    {
+        $this->assertTrue((new ChildCoroutineGuardTestModel)->isGuarded('rejected'));
+
+        $this->assertSame(['email'], array_keys($this->attributeMethodNames(ChildCoroutineGuardTestModel::class)));
+    }
+
+    public function testAttributeLookupsPreserveUnicodeNamesAndExtensionHooks(): void
+    {
+        $model = new AttributeLookupHookTestModel;
+        $model->display_name = 'Taylor';
+
+        $this->assertSame('élève', $model->élève);
+        $this->assertSame('https://hypervel.org', $model->url);
+        $this->assertArrayHasKey('url', $this->attributeMethodNames(AttributeLookupHookTestModel::class));
+        $this->assertSame('title', $model->title);
+        $this->assertSame('labelled', $model->label);
+        $this->assertSame(['setDisplayNameAttribute'], $model->calledSetters);
+    }
+
     public function testCollectedByAttribute(): void
     {
         $model = new ModelWithCollectedByAttribute;
@@ -4896,6 +5059,14 @@ class DatabaseEloquentModelTest extends TestCase
     protected function newBuilder(): Builder
     {
         return new Builder((new SQLiteConnection(new PDO('sqlite::memory:')))->query());
+    }
+
+    /**
+     * Get the attribute method names cached for the given model class.
+     */
+    protected function attributeMethodNames(string $class): array
+    {
+        return (new ReflectionProperty(Model::class, 'attributeMethodNames'))->getValue()[$class] ?? [];
     }
 }
 
@@ -6155,5 +6326,176 @@ class ModelFilteredSleepStub extends Model
     public function __sleep(): array
     {
         return array_values(array_diff(parent::__sleep(), ['transientToken']));
+    }
+}
+
+class GuardedDistinctColumnTestModel extends Model
+{
+    protected array $guarded = ['user_name'];
+}
+
+class GuardedAttributeTestModel extends Model
+{
+    protected array $guarded = ['is_admin', 'role'];
+
+    public array $attributes = [
+        'is_admin' => false,
+        'role' => null,
+        'name' => null,
+    ];
+
+    /**
+     * Set the admin flag.
+     */
+    public function setIsAdminAttribute(mixed $value): void
+    {
+        $this->attributes['is_admin'] = (bool) $value;
+    }
+
+    /**
+     * Get the role attribute.
+     */
+    protected function role(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => ['role' => (string) $value]
+        );
+    }
+}
+
+class AttributeLookupTestModel extends Model
+{
+    protected array $guarded = ['id'];
+
+    /**
+     * Get the display name.
+     */
+    public function getDisplayNameAttribute(?string $value): string
+    {
+        return strtoupper((string) $value);
+    }
+
+    /**
+     * Set the display name.
+     */
+    public function setDisplayNameAttribute(string $value): void
+    {
+        $this->attributes['display_name'] = $value;
+    }
+
+    /**
+     * Get or set the nickname.
+     */
+    protected function nickname(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value) => strtoupper((string) $value),
+            set: fn (string $value) => ['nickname' => $value],
+        );
+    }
+}
+
+class AttributeLookupHookTestModel extends Model
+{
+    public array $calledSetters = [];
+
+    /**
+     * Determine if a set mutator exists for an attribute.
+     */
+    public function hasSetMutator(string $key): bool
+    {
+        return $key === 'display_name' || parent::hasSetMutator($key);
+    }
+
+    /**
+     * Determine if a "Attribute" return type marked mutator exists for an attribute.
+     */
+    public function hasAttributeMutator(string $key): bool
+    {
+        return $key === 'label' || parent::hasAttributeMutator($key);
+    }
+
+    /**
+     * Get the title.
+     */
+    public function getTitleAttribute(): string
+    {
+        return 'title';
+    }
+
+    /**
+     * Get all of the attribute mutator methods.
+     */
+    protected static function getMutatorMethods(mixed $class): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the URL.
+     */
+    public function getURLAttribute(): string
+    {
+        return 'https://hypervel.org';
+    }
+
+    /**
+     * Get the accented name.
+     */
+    protected function élève(): Attribute
+    {
+        return Attribute::get(fn () => 'élève');
+    }
+
+    /**
+     * Get the label without declaring the return type.
+     */
+    protected function label() // @phpstan-ignore missingType.return (An untyped accessor is found only through the overridden hasAttributeMutator().)
+    {
+        return Attribute::get(fn () => 'labelled');
+    }
+
+    /**
+     * Record setters resolved dynamically.
+     */
+    public function __call(string $method, array $parameters): mixed
+    {
+        if (str_starts_with($method, 'set') && str_ends_with($method, 'Attribute')) {
+            $this->calledSetters[] = $method;
+
+            return null;
+        }
+
+        return parent::__call($method, $parameters);
+    }
+}
+
+class YieldingGuardTestModel extends Model
+{
+    protected array $guarded = ['id'];
+
+    /**
+     * Let another coroutine run before checking the key's setters.
+     */
+    protected function isGuardableColumn(string $key): bool
+    {
+        usleep(1000);
+
+        return $this->hasSetMutator($key) || $this->hasAttributeSetMutator($key);
+    }
+}
+
+class ChildCoroutineGuardTestModel extends Model
+{
+    protected array $guarded = ['id'];
+
+    /**
+     * Look up a name in a child coroutine that copies the guard check's context, then reject the key.
+     */
+    protected function isGuardableColumn(string $key): bool
+    {
+        parallel([static fn () => (new static)->hasGetMutator('email')], copyContext: true);
+
+        return false;
     }
 }

@@ -10,6 +10,8 @@ use Hypervel\Database\Eloquent\Attributes\Guarded;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Unguarded;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Engine\Coroutine;
+use Hypervel\Support\Str;
 use ReflectionClass;
 
 trait GuardsAttributes
@@ -309,9 +311,51 @@ trait GuardsAttributes
             return false;
         }
 
-        return $this->getGuarded() === ['*']
-               || ! empty(preg_grep('/^' . preg_quote($key, '/') . '$/i', $this->getGuarded()))
-               || ! $this->isGuardableColumn($key);
+        if ($this->getGuarded() === ['*']) {
+            return true;
+        }
+
+        // A key that is not valid UTF-8 names no attribute and cannot be normalized.
+        if (! mb_check_encoding($key, 'UTF-8')) {
+            return true;
+        }
+
+        // A key the class has not cached may be request input that this check rejects,
+        // so lookups made while checking it are not cached.
+        $guarding = ! isset(static::$attributeMethodNames[static::class][$key]);
+        $previousGuard = null;
+
+        if ($guarding) {
+            $previousGuard = CoroutineContext::get(self::GUARDING_ATTRIBUTE_CONTEXT_KEY);
+            CoroutineContext::set(self::GUARDING_ATTRIBUTE_CONTEXT_KEY, Coroutine::id());
+        }
+
+        try {
+            // Normalize the key to match against guarded list by using the same
+            // normalization applied in attribute resolution paths (studly/camel).
+            // This prevents bypass via alternate spellings like 'is-admin' vs 'is_admin'.
+            $normalizedKey = Str::studly($key);
+
+            foreach ($this->getGuarded() as $guardedKey) {
+                // Compare both the raw key (for backward compatibility with exact matches)
+                // and the normalized key (to prevent bypass via delimiter/case variations).
+                // Unlike Laravel, the keys are compared as strings instead of compiled into patterns,
+                // since a long request key can exceed the regex size limit.
+                // Only a setter resolves alternate spellings to the guarded attribute; without one,
+                // the key is stored as given, so a distinct column such as "username" stays fillable.
+                if (strcasecmp($key, $guardedKey) === 0
+                    || (strcasecmp($normalizedKey, Str::studly($guardedKey)) === 0
+                        && ($this->hasSetMutator($key) || $this->hasAttributeSetMutator($key)))) {
+                    return true;
+                }
+            }
+
+            return ! $this->isGuardableColumn($key);
+        } finally {
+            if ($guarding) {
+                CoroutineContext::set(self::GUARDING_ATTRIBUTE_CONTEXT_KEY, $previousGuard);
+            }
+        }
     }
 
     /**

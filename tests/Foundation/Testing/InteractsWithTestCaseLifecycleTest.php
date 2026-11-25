@@ -2,15 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation\Testing\Concerns;
+namespace Hypervel\Tests\Foundation\Testing;
 
 use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting as ParallelTestingService;
@@ -18,6 +23,7 @@ use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 use RuntimeException;
+use stdClass;
 
 class InteractsWithTestCaseLifecycleTest extends TestCase
 {
@@ -127,9 +133,9 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             $this->assertSame([
                 'callback:first',
                 'callback:second',
+                'parallel',
                 'database',
                 'pool',
-                'parallel',
                 'application',
                 'flushState',
             ], $steps);
@@ -199,6 +205,58 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             'setUpHasRun' => false,
         ], $testCase->lifecycleState());
     }
+
+    public function testDatabaseConnectionsAreDisconnectedWhenTheTestEnvironmentIsTornDown(): void
+    {
+        $connection = DB::connection();
+
+        $this->assertNotNull($connection->getPdo());
+
+        $testCase = new FoundationLifecycleTestCaseFixture('testPlaceholder');
+        $testCase->useApplication($this->app);
+        $testCase->disconnectDatabaseConnections();
+
+        $this->assertNull($connection->getRawPdo());
+    }
+
+    public function testTearDownWithoutDatabaseManager(): void
+    {
+        $application = new Application;
+
+        $application->instance('db', new stdClass);
+
+        $this->tearDownApplication($application);
+
+        $this->assertFalse($application->bound('db'));
+    }
+
+    public function testTearDownWithMockedDatabaseManager(): void
+    {
+        $application = new Application;
+
+        $application->instance('db', Double::for(DatabaseManager::class)->strict()->instance());
+
+        $this->tearDownApplication($application);
+
+        $this->assertFalse($application->bound('db'));
+    }
+
+    private function tearDownApplication(Application $application): void
+    {
+        $application->instance(ParallelTestingService::class, new ParallelTestingService($application));
+
+        Facade::setFacadeApplication($application);
+
+        try {
+            $testCase = new FoundationLifecycleTestCaseFixture('testPlaceholder');
+            $testCase->useApplication($application);
+            $testCase->tearDownEnvironment();
+        } finally {
+            Container::setInstance($this->app);
+            Facade::setFacadeApplication($this->app);
+            Facade::clearResolvedInstances();
+        }
+    }
 }
 
 class FoundationLifecycleTestCaseFixture extends FoundationTestCase
@@ -232,6 +290,11 @@ class FoundationLifecycleTestCaseFixture extends FoundationTestCase
     public function tearDownEnvironment(): void
     {
         $this->tearDownTheTestEnvironment();
+    }
+
+    public function disconnectDatabaseConnections(): void
+    {
+        parent::disconnectDatabaseConnections();
     }
 
     public function lifecycleState(): array

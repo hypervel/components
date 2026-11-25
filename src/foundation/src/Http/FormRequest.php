@@ -17,6 +17,7 @@ use Hypervel\Foundation\Http\Attributes\RedirectTo;
 use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\Concerns\HasCasts;
+use Hypervel\Foundation\Http\Concerns\InteractsWithModels;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
 use Hypervel\Support\Arr;
@@ -30,6 +31,7 @@ use ReflectionClass;
 class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 {
     use HasCasts;
+    use InteractsWithModels;
     use ValidatesWhenResolvedTrait;
 
     /**

@@ -198,7 +198,7 @@ bin/run-database-tests.sh pgsql
 bin/run-database-tests.sh sqlite
 ```
 
-The runner sets `DB_CONNECTION` from this argument. Configure the remaining database environment variables (see `.env.example`) before running the command. Each run includes tests directly under `tests/Integration/<Package>/Database/` and the matching `MySql/`, `MariaDb/`, `Postgres/`, or `Sqlite/` subdirectory. Additional options are passed to ParaTest. For example, you may use `bin/run-database-tests.sh pgsql -p 3 --filter=EloquentPrunableTest` to control the worker count and select a specific test.
+The runner sets `DB_CONNECTION` from this argument. Configure the remaining database environment variables (see `.env.example`) before running the command. Each run includes the shared tests in `tests/Integration/Database/` and directly under `tests/Integration/<Package>/Database/`, plus the matching `MySql/`, `MariaDb/`, `Postgres/`, or `Sqlite/` subdirectory of each. Additional options are passed to ParaTest. For example, you may use `bin/run-database-tests.sh pgsql -p 3 --filter=EloquentPrunableTest` to control the worker count and select a specific test.
 
 Configure the Redis test environment variables (see `.env.example`). Run `bin/run-redis-tests.sh standalone` for Redis or Valkey, or `bin/run-redis-tests.sh cluster` for Redis Cluster. Both modes discover `tests/Integration/<Package>/Redis/` and accept test runner options such as `--filter=RedisSharedStateTest`.
 

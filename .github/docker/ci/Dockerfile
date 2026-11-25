@@ -44,6 +44,7 @@ RUN set -eux; \
         unzip; \
     rm -rf /var/lib/apt/lists/*
 
+# pg_dump can dump older servers but not newer ones, so install pgdg's newest stable client.
 RUN set -eux; \
     install -d /usr/share/postgresql-common/pgdg; \
     curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
@@ -53,7 +54,7 @@ RUN set -eux; \
     printf 'Types: deb\nURIs: https://apt.postgresql.org/pub/repos/apt\nSuites: %s-pgdg\nComponents: main\nSigned-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc\n' "$VERSION_CODENAME" \
         > /etc/apt/sources.list.d/pgdg.sources; \
     apt-get update; \
-    apt-get install --yes --no-install-recommends postgresql-client-18; \
+    apt-get install --yes --no-install-recommends postgresql-client; \
     rm -rf /var/lib/apt/lists/*
 
 # The release key expires on 2027-10-23; update its URL when Oracle renews it.

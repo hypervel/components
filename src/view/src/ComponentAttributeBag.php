@@ -6,7 +6,9 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use ArrayIterator;
+use BackedEnum;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -196,6 +198,10 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
     public function merge(array $attributeDefaults = [], bool $escape = true): static
     {
         $attributeDefaults = array_map(function ($value) use ($escape) {
+            if ($value instanceof AppendableAttributeValue) {
+                return $value;
+            }
+
             return $this->shouldEscapeAttributeValue($escape, $value)
                 ? e($value)
                 : $value;
@@ -225,6 +231,13 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
             return [$key => implode(' ', array_unique(array_filter([$defaultsValue, $value])))];
         })->merge($nonAppendableAttributes)->all();
 
+        // Present attributes already include their resolved default, so resolve only the missing ones once.
+        foreach ($attributeDefaults as $key => $value) {
+            if ($value instanceof AppendableAttributeValue && ! array_key_exists($key, $attributes)) {
+                $attributeDefaults[$key] = $this->resolveAppendableAttributeDefault($attributeDefaults, $key, $escape);
+            }
+        }
+
         return new static(array_merge($attributeDefaults, $attributes));
     }
 
@@ -237,9 +250,19 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
             return false;
         }
 
+        if (is_null($value) || is_bool($value)) {
+            return false;
+        }
+
+        if ($value instanceof Htmlable) {
+            return false;
+        }
+
+        // Other objects cannot be rendered as attribute values, so keep them as given for reading from the bag.
         return ! is_object($value)
-               && ! is_null($value)
-               && ! is_bool($value);
+            || $value instanceof Stringable
+            || $value instanceof BackedEnum
+            || $value instanceof DeferringDisplayableValue;
     }
 
     /**

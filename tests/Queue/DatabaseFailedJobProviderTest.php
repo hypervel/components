@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -70,11 +71,16 @@ class DatabaseFailedJobProviderTest extends TestCase
     {
         $builder = Double::for(Builder::class)->strict();
         $builder->allows('when')->returns($builder);
-        $builder->allows('orderBy');
+        $builder->allows('orderBy')->returns($builder);
         $builder->allows('pluck')->with('id')->returns(new Collection([new Stringable('4'), 3]));
 
-        $provider = Double::for($this->provider)->passthru();
-        $provider->allows('getTable')->returns($builder);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('table')->with('failed_jobs')->returns($builder);
+
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('default')->returns($connection);
+
+        $provider = new DatabaseFailedJobProvider($resolver, 'default', 'failed_jobs');
 
         $this->assertSame(['4', 3], $provider->ids());
     }

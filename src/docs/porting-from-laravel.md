@@ -721,6 +721,8 @@ Google users' raw data does not include Laravel's deprecated `id`, `verified_ema
 
 When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
 
+`JsonSchema::rules()` throws for validation keywords it cannot convert, such as `$ref`, `oneOf`, and `const`, instead of ignoring them, and rejects whitespace-only strings for optional properties. Check schemas passed to it, such as tool input schemas. A `uri` format validates RFC 3986 URIs instead of using the `url` rule, so it rejects raw non-ASCII characters, and custom messages for it use the `uri` key instead of `url`. See [deriving rules from JSON schemas](/docs/{{version}}/validation#deriving-rules-from-json-schemas).
+
 <a name="validation"></a>
 ### Validation
 
@@ -866,11 +868,15 @@ Database connections are persistent, pooled worker resources. Define every conne
 
 To use a custom query grammar on every connection, register a connection subclass with `Connection::resolverFor()` that overrides `getDefaultQueryGrammar()`. On connections that support early release, `setQueryGrammar()` changes only the current coroutine's connection, and `ConnectionEstablished` runs only when a new database session opens, so neither applies a grammar to every caller. See [extending database connections](/docs/{{version}}/database#extending-database-connections).
 
+`Event::defer()` dispatches `ConnectionEstablished` immediately instead of after its closure, so listeners that configure the connection run before the deferred code uses it, even if the closure throws. Review listeners that relied on running after the closure. See [deferring events](/docs/{{version}}/events#deferring-events).
+
 Framework operations release idle database sessions at the boundaries listed in [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections). Wrap code that depends on the same session across those boundaries, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically.
 
 Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
 If your extension inspects transaction records or registers callbacks directly with `DatabaseTransactionsManager`, use the resolved connection's `getNameWithReadWriteType()` instead of `getName()`. Base, `::read`, and `::write` connections can have independent transactions. Always resolve the connection before reading its name; aliases for a shared in-memory SQLite connection resolve to the same session. Ordinary `afterCommit()` and `afterRollBack()` calls already use the correct connection.
+
+`DB::whenQueryingForLongerThan()` and `DB::whenTransactionRunsLongerThan()` register worker-wide monitors and may only be called while the application boots. Move request-time calls to the connection, such as `DB::connection()->whenTransactionRunsLongerThan(...)`. See [monitoring long-running transactions](/docs/{{version}}/database#monitoring-long-running-transactions).
 
 Custom `ConnectionResolverInterface` implementations must return a `Connection` from `connection()`, not any `ConnectionInterface`. In tests, mock `Connection` for the connections a mocked resolver, database manager or `DB::shouldReceive('connection')` returns.
 
