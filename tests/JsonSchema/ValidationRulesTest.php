@@ -437,6 +437,30 @@ class ValidationRulesTest extends TestCase
         }
     }
 
+    public function testUriFormatFollowsRfc3986(): void
+    {
+        $schema = $this->schema(fn ($s) => ['link' => $s->string()->format('uri')->required()]);
+
+        foreach ([
+            'URN' => 'urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6',
+            'mailto' => 'mailto:taylor@hypervel.org',
+            'file' => 'file:///etc/hosts',
+            'IPv6 host' => 'https://user@[2001:db8::1]:8080/a%20b?q=1#top',
+            'IPvFuture host' => 'https://[V1F.fe]/',
+            'long escaped data URI' => 'data:text/plain,' . str_repeat('%41', 100000),
+        ] as $label => $uri) {
+            $this->assertTrue($this->passes($schema, ['link' => $uri]), $label);
+        }
+
+        foreach (['https://hypervel.org/ü', 'https://hypervel.org/%zz', 'https://hypervel.org/a b', 'https://[zz]/', '/relative', 'x://a@b@c'] as $value) {
+            $this->assertFalse($this->passes($schema, ['link' => $value]), $value);
+        }
+
+        $validator = Validator::make(['link' => 'not a uri'], JsonSchema::rules($schema), ['link.uri' => 'The link is not a URI.']);
+
+        $this->assertSame(['link' => ['The link is not a URI.']], $validator->errors()->toArray());
+    }
+
     public function testEmailFormatWithAValidAddress(): void
     {
         $schema = $this->schema(fn ($s) => ['email' => $s->string()->format('email')->required()]);
@@ -637,7 +661,7 @@ class ValidationRulesTest extends TestCase
         $schema = $this->schema(fn ($s) => array_fill(0, JsonSchema::MAX_NODES + 1, $s->string()));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('it expands beyond [' . JsonSchema::MAX_NODES . '] fragments');
+        $this->expectExceptionMessageIsOrContains('it expands beyond [' . JsonSchema::MAX_NODES . '] fragments');
 
         JsonSchema::rules($schema);
     }
@@ -668,6 +692,11 @@ class ValidationRulesTest extends TestCase
         $this->assertTrue($this->passes($schema, ['count\\' => 1, 'tags\\' => ['x']]));
         $this->assertFalse($this->passes($schema, ['count\\' => 'x', 'tags\\' => ['x']]));
         $this->assertFalse($this->passes($schema, ['count\\' => 1, 'tags\\' => []]));
+
+        $empty = ['type' => 'object', 'properties' => ['none\\' => ['type' => 'array', 'items' => false, 'uniqueItems' => true]]];
+
+        $this->assertTrue($this->passes($empty, ['none\\' => []]));
+        $this->assertFalse($this->passes($empty, ['none\\' => ['x']]));
 
         foreach ([
             'tags\\' => fn ($s) => $s->array()->items($s->integer()),
@@ -829,7 +858,7 @@ class ValidationRulesTest extends TestCase
     public function testRecognizedAssertionsThatCannotBeConvertedAreRefused(array $schema, string $keyword, string $pointer): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("The JSON Schema keyword [{$keyword}] at [{$pointer}] cannot be converted to validation rules.");
+        $this->expectExceptionMessageIs("The JSON Schema keyword [{$keyword}] at [{$pointer}] cannot be converted to validation rules.");
 
         JsonSchema::rules($schema);
     }
@@ -856,7 +885,7 @@ class ValidationRulesTest extends TestCase
     public function testTypeSpecificKeywordsRequireAType(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The JSON Schema keyword [format] at [#/properties/email] requires a [type] to be converted to validation rules.');
+        $this->expectExceptionMessageIs('The JSON Schema keyword [format] at [#/properties/email] requires a [type] to be converted to validation rules.');
 
         JsonSchema::rules(['type' => 'object', 'properties' => ['email' => ['format' => 'email']]]);
     }

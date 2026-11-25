@@ -721,7 +721,7 @@ Google users' raw data does not include Laravel's deprecated `id`, `verified_ema
 
 When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
 
-`JsonSchema::rules()` throws for validation keywords it cannot convert, such as `$ref`, `oneOf`, and `const`, instead of ignoring them, and rejects whitespace-only strings for optional properties. Check schemas passed to it, such as tool input schemas. See [deriving rules from JSON schemas](/docs/{{version}}/validation#deriving-rules-from-json-schemas).
+`JsonSchema::rules()` throws for validation keywords it cannot convert, such as `$ref`, `oneOf`, and `const`, instead of ignoring them, and rejects whitespace-only strings for optional properties. Check schemas passed to it, such as tool input schemas. A `uri` format validates RFC 3986 URIs instead of using the `url` rule, so it rejects raw non-ASCII characters, and custom messages for it use the `uri` key instead of `url`. See [deriving rules from JSON schemas](/docs/{{version}}/validation#deriving-rules-from-json-schemas).
 
 <a name="validation"></a>
 ### Validation

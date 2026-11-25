@@ -8,6 +8,7 @@ use Hypervel\JsonSchema\Rules\DistinctArrayItems;
 use Hypervel\JsonSchema\Rules\MatchesAnyOf;
 use Hypervel\JsonSchema\Rules\MatchesEnum;
 use Hypervel\JsonSchema\Rules\RejectEmptyString;
+use Hypervel\JsonSchema\Rules\Uri;
 use Hypervel\JsonSchema\Types\Type;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Number;
@@ -277,7 +278,8 @@ class ValidationRules
         // "true" and an empty schema allow any item, and arrayRules() enforces that "false" allows none.
         $items = array_key_exists('items', $schema) ? $schema['items'] : true;
         $itemsHaveRules = ! in_array($items, [true, false, []], true);
-        $unique = $schema['uniqueItems'] ?? false;
+        // A list that allows no items is always unique.
+        $unique = $items !== false && ($schema['uniqueItems'] ?? false);
 
         if (! $itemsHaveRules && ! $unique) {
             return [];
@@ -341,7 +343,7 @@ class ValidationRules
      * Get the length, pattern, and format rules for a string schema.
      *
      * @param array<string, mixed> $schema
-     * @return array<int, string>
+     * @return array<int, string|Uri>
      */
     protected function stringRules(array $schema): array
     {
@@ -357,13 +359,15 @@ class ValidationRules
     /**
      * Get the rules for the given string format.
      *
-     * @return array<int, string>
+     * @return array<int, string|Uri>
      */
     protected function formatRules(?string $format): array
     {
         return match ($format) {
             'email' => ['email'],
-            'uri', 'url' => ['url'],
+            // Unlike Laravel, "uri" follows RFC 3986 instead of reusing the "url" rule, so URNs and "mailto:" addresses pass.
+            'uri' => [new Uri],
+            'url' => ['url'],
             'uuid' => ['uuid'],
             'date' => ['date_format:Y-m-d'],
             'date-time' => ['regex:/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/i', 'date'],
@@ -409,9 +413,7 @@ class ValidationRules
 
         if (($schema['items'] ?? null) === false) {
             $rules[] = 'max:0';
-        }
-
-        if ($schema['uniqueItems'] ?? false) {
+        } elseif ($schema['uniqueItems'] ?? false) {
             $rules[] = new DistinctArrayItems;
         }
 

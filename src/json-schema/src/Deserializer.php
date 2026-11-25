@@ -44,7 +44,7 @@ class Deserializer
     protected const int MAX_NODES = JsonSchema::MAX_NODES;
 
     /**
-     * The maximum depth of chained local "$ref" resolution.
+     * The maximum number of local "$ref" references along one path through the schema.
      */
     protected const int MAX_REF_DEPTH = 64;
 

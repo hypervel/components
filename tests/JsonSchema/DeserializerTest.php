@@ -2191,7 +2191,7 @@ class DeserializerTest extends TestCase
     public function testItThrowsForUnboundedRefChain(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The JSON Schema nests "$ref" beyond [64] levels.');
+        $this->expectExceptionMessageIs('The JSON Schema nests "$ref" beyond [64] levels.');
 
         // Create a chain of local $refs deeper than MAX_REF_DEPTH (64)
         $defs = [];

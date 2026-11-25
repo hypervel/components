@@ -3589,6 +3589,8 @@ The derived rules follow Hypervel's usual validation behavior, so a string such 
 
 The `rules` method converts the `type`, `enum`, `anyOf`, `properties`, `required`, `additionalProperties`, `items`, `uniqueItems`, length, numeric bound, `multipleOf`, `pattern`, and `format` keywords. Annotations such as `title` and `description`, keywords JSON Schema does not define, and formats other than `email`, `uri`, `url`, `uuid`, `date`, and `date-time` add no rules. If the schema uses a validation keyword that has no matching rule, such as `$ref`, `oneOf`, `const`, or an `additionalProperties` schema, or a type-specific keyword such as `minLength` without a `type`, an `InvalidArgumentException` naming the keyword and its location will be thrown. You may resolve local `$ref` references by passing the schema through [`JsonSchema::fromArray`](/docs/{{version}}/json-schema#reconstructing-schemas) first.
 
+A `uri` format accepts any absolute URI, such as a URN or a `mailto:` address, while a `url` format uses the [`url`](#rule-url) rule. Non-ASCII characters in a URI must be percent-encoded. You may customize the message for a `uri` format using the `uri` key, such as `link.uri`. The validator's `failed` method reports this failure under the `Hypervel\JsonSchema\Rules\Uri` rule.
+
 <a name="custom-validation-rules"></a>
 ## Custom Validation Rules
 
