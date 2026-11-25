@@ -241,7 +241,7 @@ $schema = JsonSchema::fromArray([
 
 Keywords beside a local reference still apply to the referenced schema. Title, description, and default annotations beside the reference override the same annotations on its target. Supported validation rules may be added beside the reference or repeated with the same value, but conflicting values will throw an `InvalidArgumentException` because the fluent builder cannot safely represent both rules. Values must match exactly, including the order of array values.
 
-Only local references are supported. An `InvalidArgumentException` will be thrown if the schema contains a remote or circular reference, a reference path with more than 256 references, or more than 20,000 expanded schema fragments.
+Only local references are supported. An `InvalidArgumentException` will be thrown if the schema contains a remote or circular reference, a reference path with more than 64 references, or more than 20,000 expanded schema fragments.
 
 <a name="supported-schema-subset"></a>
 ### Supported Schema Subset
