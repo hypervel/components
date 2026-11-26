@@ -11,6 +11,7 @@ use Hypervel\Mcp\Server;
 use Hypervel\Mcp\Server\Tool;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\ExpectationFailedException;
 
 enum ReservationStep: string
@@ -23,7 +24,39 @@ class RestaurantT extends Server
     protected array $tools = [
         ReservationTool::class,
         SerializableNotificationTool::class,
+        ReservationProgressTool::class,
+        UnorderedAndMetaProgressTool::class,
     ];
+}
+
+class UnorderedAndMetaProgressTool extends Tool
+{
+    /**
+     * Stream progress notifications with reordered keys and metadata.
+     */
+    public function handle(): Generator
+    {
+        yield Response::notification('notifications/progress', ['total' => 2, 'progress' => 1]);
+
+        yield Response::progress(2)->withMeta('trace', 'abc');
+
+        yield 'Your booking is confirmed!';
+    }
+}
+
+class ReservationProgressTool extends Tool
+{
+    /**
+     * Stream progress notifications and the booking confirmation.
+     */
+    public function handle(): Generator
+    {
+        yield Response::progress(1, total: 2, message: 'Checking tables');
+
+        yield Response::progress(2);
+
+        yield 'Your booking is confirmed!';
+    }
 }
 
 class SerializableNotificationTool extends Tool
@@ -124,5 +157,49 @@ class AssertNotificationTest extends TestCase
         $response = RestaurantT::tool(SerializableNotificationTool::class);
 
         $response->assertSentNotification('booking/empty', []);
+    }
+
+    public function testMayAssertProgressNotificationsGotSent(): void
+    {
+        $response = RestaurantT::tool(ReservationProgressTool::class);
+
+        $response->assertNotificationCount(2)
+            ->assertSentProgress(1, 2, 'Checking tables')
+            ->assertSentProgress(2);
+    }
+
+    public function testMayAssertProgressNotificationsWithDifferentKeyOrderOrMetadata(): void
+    {
+        $response = RestaurantT::tool(UnorderedAndMetaProgressTool::class);
+
+        $response->assertNotificationCount(2)
+            ->assertSentProgress(1, 2)
+            ->assertSentProgress(2);
+    }
+
+    /**
+     * @param array<int, null|float|int|string> $expected
+     */
+    #[DataProvider('unexpectedProgress')]
+    public function testMayFailToAssertProgressThatWasNotSent(array $expected): void
+    {
+        $response = RestaurantT::tool(ReservationProgressTool::class);
+
+        $this->expectException(AssertionFailedError::class);
+        $response->assertSentProgress(...$expected);
+    }
+
+    /**
+     * Provide mismatched progress expectations.
+     *
+     * @return array<string, array{array<int, null|float|int|string>}>
+     */
+    public static function unexpectedProgress(): array
+    {
+        return [
+            'wrong progress' => [[3]],
+            'missing total' => [[1]],
+            'wrong message' => [[1, 2, 'Seating guests']],
+        ];
     }
 }

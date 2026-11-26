@@ -60,12 +60,12 @@ class RedactsSensitiveDataTest extends TestCase
         $redacted = $this->redactor->exposeRedactUrls([
             '__meta' => [
                 'url' => '/search?password=secret&q=hi',
-                'redirectLocation' => 'http://exa mple.test/?token=abc',
+                'redirectLocation' => 'http://[invalid/?token=abc',
             ],
         ], ['password', 'token']);
 
         $this->assertSame('/search?password=%5BREDACTED%5D&q=hi', $redacted['__meta']['url']);
-        $this->assertSame('http://exa mple.test/?token=%5BREDACTED%5D', $redacted['__meta']['redirectLocation']);
+        $this->assertSame('http://[invalid/?token=%5BREDACTED%5D', $redacted['__meta']['redirectLocation']);
     }
 
     public function testUrlRedactionKeepsEveryOtherParameterAsRecorded(): void

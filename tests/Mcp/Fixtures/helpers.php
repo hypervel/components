@@ -336,6 +336,25 @@ function callToolMessage(): array
 }
 
 /**
+ * Create a mirrored-header tool invocation.
+ *
+ * @param array<string, mixed> $arguments
+ */
+function mirroredHeaderToolMessage(array $arguments): array
+{
+    return [
+        'jsonrpc' => '2.0',
+        'id' => 7,
+        'method' => 'tools/call',
+        'params' => [
+            'name' => 'mirrored-header-tool',
+            'arguments' => $arguments,
+            '_meta' => protocolMeta(),
+        ],
+    ];
+}
+
+/**
  * Create a resource-read message.
  */
 function readResourceMessage(string $uri = 'file://resources/last-log-line-resource'): array

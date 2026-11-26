@@ -215,8 +215,10 @@ class ValidateMcpHeadersTest extends TestCase
         $response->assertStatus(400);
 
         $this->assertSame($message['id'], $response->json('id'));
-        $this->assertSame(-32020, $response->json('error.code'));
-        $this->assertStringContainsString('header value [=?base64?/w==?=]', $response->json('error.message'));
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => "Header mismatch: The [{$header}] header value contains invalid characters.",
+        ], $response->json('error'));
     }
 
     public function testQuotesANonAsciiNameHeaderDecodedInTheMismatchMessage(): void
@@ -358,6 +360,35 @@ class ValidateMcpHeadersTest extends TestCase
         $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 4, 'method' => 'tools/list', 'params' => []], [
             'MCP-Protocol-Version' => " \t2025-06-18  ",
         ])->assertStatus(200);
+    }
+
+    public function testRejectsALegacyRequestWhosePresentMethodOrNameHeaderContradictsTheBody(): void
+    {
+        $message = callToolMessage();
+        unset($message['params']['_meta']);
+
+        $response = $this->postJson('test-mcp', $message, [
+            'MCP-Protocol-Version' => '2025-11-25',
+            'Mcp-Name' => 'some-other-tool',
+        ]);
+
+        $response->assertStatus(400);
+
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => "Header mismatch: The [Mcp-Name] header value [some-other-tool] does not match the request body value [{$message['params']['name']}].",
+        ], $response->json('error'));
+
+        $methodResponse = $this->postJson('test-mcp', $message, [
+            'Mcp-Method' => 'tools/list',
+        ]);
+
+        $methodResponse->assertStatus(400);
+
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => 'Header mismatch: The [Mcp-Method] header value [tools/list] does not match the request body value [tools/call].',
+        ], $methodResponse->json('error'));
     }
 
     #[DataProvider('legacyVersions')]

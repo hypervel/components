@@ -66,24 +66,12 @@ class AuthServerDiscovery
         $this->requireFetchable($metadataUrl, $resourceUrl);
 
         $resourceMetadata = $this->fetchResourceMetadata($metadataUrl, explicit: $resourceMetadataUrl !== null);
-        $resource = $resourceUrl;
 
-        if ($resourceMetadataUrl === null && $resourceMetadata === []) {
-            $origin = $this->origin($resourceUrl);
-            $rootMetadataUrl = $this->wellKnown($origin, 'oauth-protected-resource');
+        $this->requireResourceMatches($resourceMetadata, $resourceUrl);
 
-            if ($rootMetadataUrl !== $metadataUrl) {
-                $resourceMetadata = $this->fetchResourceMetadata($rootMetadataUrl);
-
-                if ($resourceMetadata !== []) {
-                    // Root discovery identifies the origin, while explicit metadata identifies the requested URL.
-                    $resource = $origin;
-                }
-            }
+        if ($resourceMetadata === [] && $resourceMetadataUrl === null) {
+            $resourceMetadata = $this->fetchRootResourceMetadata($resourceUrl, $metadataUrl);
         }
-
-        $this->requireResourceMatches($resourceMetadata, $resource);
-        $resource = is_string($resourceMetadata['resource'] ?? null) ? $resourceMetadata['resource'] : $resource;
 
         $issuer = $this->issuerFrom($resourceMetadata) ?? $this->origin($resourceUrl);
 
@@ -107,8 +95,9 @@ class AuthServerDiscovery
         }
 
         $scopesSupported = array_values(array_map(strval(...), (array) ($resourceMetadata['scopes_supported'] ?? [])));
+        $resource = Arr::get($resourceMetadata, 'resource');
 
-        return new DiscoveryResult($serverMetadata, $scopesSupported, $resource);
+        return new DiscoveryResult($serverMetadata, $scopesSupported, is_string($resource) ? $resource : $resourceUrl);
     }
 
     /**
@@ -240,6 +229,29 @@ class AuthServerDiscovery
 
             throw new OAuthException("Protected resource metadata resource [{$resource}] did not match the expected resource [{$resourceUrl}].");
         }
+    }
+
+    /**
+     * Fetch root protected resource metadata when path-based metadata is absent.
+     *
+     * @return array<string, mixed>
+     */
+    protected function fetchRootResourceMetadata(string $resourceUrl, string $metadataUrl): array
+    {
+        $origin = $this->origin($resourceUrl);
+        $rootMetadataUrl = $this->wellKnown($origin, 'oauth-protected-resource');
+
+        // Skip a duplicate fetch on root-path resource URLs; requireFetchable() already validated this origin.
+        if ($rootMetadataUrl === $metadataUrl) {
+            return [];
+        }
+
+        $resourceMetadata = $this->fetchResourceMetadata($rootMetadataUrl);
+        $resource = Arr::get($resourceMetadata, 'resource');
+
+        return ! is_string($resource) || in_array($resource, [$resourceUrl, $origin, $origin . '/'], true)
+            ? $resourceMetadata
+            : [];
     }
 
     /**

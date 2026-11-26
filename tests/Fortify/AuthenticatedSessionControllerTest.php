@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Carbon\CarbonInterval;
 use Hypervel\Auth\Events\Logout;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\LoginRateLimiter;
@@ -13,7 +14,9 @@ use Hypervel\Http\Request;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Hash;
 use Hypervel\Support\Sleep;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithMigration;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -69,6 +72,45 @@ class AuthenticatedSessionControllerTest extends TestCase
         ], static fn (string|bool|null $value): bool => $value !== null));
 
         $response->assertRedirect('/home');
+    }
+
+    #[DefineEnvironment('withoutTwoFactorAuthentication')]
+    public function testCustomAuthenticationCallbackIsTimeboxedUsingTheConfiguredDuration(): void
+    {
+        User::forceCreate([
+            'name' => 'Taylor Otwell',
+            'email' => 'taylor@laravel.com',
+            'password' => bcrypt('secret'),
+        ]);
+
+        Fortify::authenticateUsing(static function (Request $request): ?User {
+            $user = User::where('email', $request->email)->first();
+
+            if ($user instanceof User && Hash::check((string) $request->password, $user->password)) {
+                return $user;
+            }
+
+            return null;
+        });
+
+        config()->set('auth.timebox_duration', 1_000_000);
+        Sleep::fake();
+
+        $this->post('/login', [
+            'email' => 'nobody@laravel.com',
+            'password' => 'secret',
+        ])->assertSessionHasErrors('email');
+
+        Sleep::assertSlept(static fn (CarbonInterval $duration): bool => $duration->totalMicroseconds > 900_000);
+
+        Sleep::fake();
+
+        $this->post('/login', [
+            'email' => 'taylor@laravel.com',
+            'password' => 'secret',
+        ])->assertRedirect('/home');
+
+        Sleep::assertNeverSlept();
     }
 
     public function testValidationExceptionReturnedOnFailure(): void

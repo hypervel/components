@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Support;
 
+use Hypervel\Mcp\Transport\HeaderValue;
+
 enum MirroredParameterType: string
 {
     case String = 'string';
@@ -29,6 +31,21 @@ enum MirroredParameterType: string
             self::String => is_string($value) ? $value : null,
             self::Boolean => is_bool($value) ? ($value ? 'true' : 'false') : null,
             self::Integer => $this->stringifyInteger($value),
+        };
+    }
+
+    /**
+     * Determine whether the header value matches the given body value.
+     */
+    public function matches(string $header, mixed $value): bool
+    {
+        $expected = $this->stringify($value);
+        $header = HeaderValue::fromHeader($header)->value;
+
+        return match (true) {
+            $expected === null => false,
+            $this === self::Integer => is_numeric($header) && (float) $header === (float) $expected,
+            default => $header === $expected,
         };
     }
 

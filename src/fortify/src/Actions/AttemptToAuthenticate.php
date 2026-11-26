@@ -7,10 +7,12 @@ namespace Hypervel\Fortify\Actions;
 use Closure;
 use Hypervel\Auth\Events\Failed;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\LoginRateLimiter;
 use Hypervel\Http\Request;
+use Hypervel\Support\Timebox;
 use Hypervel\Validation\ValidationException;
 
 class AttemptToAuthenticate
@@ -22,6 +24,7 @@ class AttemptToAuthenticate
      */
     public function __construct(
         protected LoginRateLimiter $limiter,
+        protected readonly Config $config,
     ) {
     }
 
@@ -54,13 +57,21 @@ class AttemptToAuthenticate
     protected function handleUsingCustomCallback(Request $request, Closure $next): mixed
     {
         $callback = Fortify::authenticateUsingCallback();
-        $user = $callback instanceof Closure ? $callback($request) : null;
 
-        if (! $user instanceof Authenticatable) {
-            $this->fireFailedEvent($request);
+        $user = (new Timebox)->call(function (Timebox $timebox) use ($request, $callback): Authenticatable {
+            $user = $callback instanceof Closure ? $callback($request) : null;
 
-            $this->throwFailedAuthenticationException($request);
-        }
+            if (! $user instanceof Authenticatable) {
+                $this->fireFailedEvent($request);
+
+                $this->throwFailedAuthenticationException($request);
+            }
+
+            // Only failed attempts need a fixed duration, so successful logins skip the wait, as SessionGuard does.
+            $timebox->returnEarly();
+
+            return $user;
+        }, $this->config->integer('auth.timebox_duration'));
 
         Fortify::guard()->login($user, $request->boolean('remember'));
 

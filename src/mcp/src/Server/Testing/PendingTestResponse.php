@@ -6,6 +6,7 @@ namespace Hypervel\Mcp\Server\Testing;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Mcp\Enums\MetaKey;
 use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Mcp\Server;
 use Hypervel\Mcp\Server\Contracts\HasUriTemplate;
@@ -22,6 +23,11 @@ use Stringable;
 
 class PendingTestResponse
 {
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $clientCapabilities = [];
+
     /**
      * Create a pending invocation for the given server.
      *
@@ -46,7 +52,7 @@ class PendingTestResponse
             $request = new JsonRpcRequest(
                 uniqid(),
                 'tools/list',
-                $cursor !== null ? ['cursor' => $cursor] : [],
+                ['_meta' => $this->meta(), ...($cursor !== null ? ['cursor' => $cursor] : [])],
             );
 
             $response = $this->executeRequest($server, $request);
@@ -81,7 +87,7 @@ class PendingTestResponse
             $request = new JsonRpcRequest(
                 uniqid(),
                 'resources/list',
-                $cursor !== null ? ['cursor' => $cursor] : [],
+                ['_meta' => $this->meta(), ...($cursor !== null ? ['cursor' => $cursor] : [])],
             );
 
             $response = $this->executeRequest($server, $request);
@@ -104,6 +110,18 @@ class PendingTestResponse
     }
 
     /**
+     * Declare the client capabilities sent with test requests.
+     *
+     * @param array<string, mixed> $capabilities
+     */
+    public function withClientCapabilities(array $capabilities): static
+    {
+        $this->clientCapabilities = $capabilities;
+
+        return $this;
+    }
+
+    /**
      * Retrieve every page of registered prompts.
      */
     public function prompts(): TestListResponse
@@ -116,7 +134,7 @@ class PendingTestResponse
             $request = new JsonRpcRequest(
                 uniqid(),
                 'prompts/list',
-                $cursor !== null ? ['cursor' => $cursor] : [],
+                ['_meta' => $this->meta(), ...($cursor !== null ? ['cursor' => $cursor] : [])],
             );
 
             $response = $this->executeRequest($server, $request);
@@ -198,6 +216,7 @@ class PendingTestResponse
                 'context' => [
                     'arguments' => $currentArgs,
                 ],
+                '_meta' => $this->meta(),
             ],
         );
 
@@ -254,6 +273,16 @@ class PendingTestResponse
     }
 
     /**
+     * Get the metadata sent with each test request.
+     *
+     * @return array<string, mixed>
+     */
+    protected function meta(): array
+    {
+        return [MetaKey::CLIENT_CAPABILITIES->value => $this->clientCapabilities];
+    }
+
+    /**
      * Execute a request and capture protocol errors.
      */
     protected function executeRequest(Server $server, JsonRpcRequest $request): mixed
@@ -303,7 +332,11 @@ class PendingTestResponse
             $params['uri'] = $this->expandUriTemplate($primitive->uriTemplate(), $arguments);
         }
 
-        $request = new JsonRpcRequest(uniqid(), $method, $params);
+        $id = uniqid();
+
+        $params['_meta'] = [...$this->meta(), ...$params['_meta'] ?? [], 'progressToken' => $id];
+
+        $request = new JsonRpcRequest($id, $method, $params);
 
         $response = $this->executeRequest($server, $request);
 

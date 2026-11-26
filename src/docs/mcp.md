@@ -591,6 +591,14 @@ Tools, prompts and resources follow the container's normal lifetimes. An unbound
 
 Use `$request->isObject('options')` when you need to distinguish an incoming JSON object from an array. This also recognizes objects whose property names are consecutive numbers, even though PHP decodes their keys as integers. Calling `isObject()` without a key checks the complete argument map.
 
+To check whether the connected client declared support for a capability during initialization, use the `clientSupports` method (dot notation is supported):
+
+```php
+if ($request->clientSupports('roots.listChanged')) {
+    // ...
+}
+```
+
 <a name="tool-annotations"></a>
 ### Tool Annotations
 
@@ -830,6 +838,12 @@ class CurrentWeatherTool extends Tool
 ```
 
 When using web-based servers, streaming responses automatically open an SSE (Server-Sent Events) stream. Notifications are sent as they are yielded; other responses are collected into the final result.
+
+Tools may report progress using `Response::progress`. Progress is only sent when the client asked for it with a progress token:
+
+```php
+yield Response::progress($index + 1, total: count($locations), message: "Checking {$location}...");
+```
 
 For the `2026-07-28` protocol, disconnecting the HTTP client cancels stream production. Put resource cleanup in `finally` blocks and allow coroutine cancellation to propagate. Older protocol versions finish producing the response after a disconnect. See [stream cancellation](/docs/{{version}}/responses#canceling-disconnected-streams) for the HTTP server's cancellation behavior and limitations.
 
@@ -1881,6 +1895,17 @@ Mcp::web('/mcp/weather', WeatherExample::class)
     ]);
 ```
 
+If your application serves protected-resource metadata from an external or custom URL, you may override the `resource_metadata` URL advertised in `WWW-Authenticate` challenges in the `boot` method of your `AppServiceProvider`. Return a URL string to override the default, or `null` to fall back to the named protected-resource metadata route:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Mcp\Server\Middleware\AddWwwAuthenticateHeader;
+
+AddWwwAuthenticateHeader::resolveResourceMetadataUrlUsing(
+    fn (Request $request): ?string => config()->nullableString('services.mcp.metadata_url')
+);
+```
+
 <a name="new-passport-installation"></a>
 #### New Passport Installation
 
@@ -2148,7 +2173,12 @@ use Hypervel\Support\Facades\Auth;
 Mcp::oAuthRoutesFor('projects', function (string $client, TokenSet $token): RedirectResponse {
     Auth::user()->update([
         'projects_token' => $token->accessToken,
+        'projects_refresh_token' => $token->refreshToken,
+        'projects_token_expires_at' => $token->expiresAt,
         'projects_scope' => $token->scope,
+        'projects_client_id' => $token->clientId,
+        'projects_client_secret' => $token->clientSecret,
+        'projects_token_auth_method' => $token->tokenEndpointAuthMethod?->value,
     ]);
 
     return redirect('/chat');
@@ -2176,7 +2206,28 @@ public function tools(): iterable
 }
 ```
 
-Store tokens using [encrypted casts](/docs/{{version}}/eloquent-mutators#encrypted-casting) and hide them from model serialization. If the service issues expiring tokens, also persist the refresh token and expiry information from the `TokenSet` and handle renewal before making tool calls. For queued agents, resolve credentials from an explicitly provided user instead of `Auth::user()`.
+Store tokens using [encrypted casts](/docs/{{version}}/eloquent-mutators#encrypted-casting) and hide them from model serialization. If the service issues expiring tokens, persist the refresh token, expiry time, and—for dynamically registered or metadata-document clients—the `clientId`, `clientSecret`, and `tokenEndpointAuthMethod` from the `TokenSet`, then renew the token before making tool calls:
+
+```php
+use Hypervel\Mcp\Client\OAuth\Enums\TokenEndpointAuthMethod;
+use Hypervel\Mcp\Facades\Mcp;
+
+$refreshed = Mcp::client('projects')->oAuthClient()->refreshCredentials(
+    refreshToken: $user->projects_refresh_token,
+    clientId: $user->projects_client_id,
+    clientSecret: $user->projects_client_secret,
+    authMethod: TokenEndpointAuthMethod::tryFrom((string) $user->projects_token_auth_method),
+);
+
+$user->update([
+    'projects_token' => $refreshed->accessToken,
+    'projects_refresh_token' => $refreshed->refreshToken,
+    'projects_token_expires_at' => $refreshed->expiresAt,
+    'projects_token_auth_method' => $refreshed->tokenEndpointAuthMethod?->value,
+]);
+```
+
+For queued agents, resolve credentials from an explicitly provided user instead of `Auth::user()`.
 
 > [!NOTE]
 > `Mcp::oAuthRoutesFor` connects your users to an external service. In contrast, `Mcp::oauthRoutes` allows external AI clients to authenticate to your own MCP servers using Passport. You do not need Passport or `Mcp::oauthRoutes` for the account-linking flow above.
@@ -2211,15 +2262,15 @@ If you set a custom `redirectUri` through `withOAuth`, also include it in `clien
 <a name="client-oauth-scopes"></a>
 #### OAuth Scopes and Authorization Challenges
 
-Hypervel uses the scopes requested by the server's authorization challenge. When there is no challenge scope, it uses the `scope` configured through `withOAuth`, or the scopes advertised in the server's protected resource metadata. If none are available, it omits the scope parameter. To request a particular scope, pass it explicitly:
+Hypervel uses the scopes requested by the server's authorization challenge. When there is no challenge scope, it uses the `scope` configured through `withOAuth`, or the scopes advertised in the server's protected resource metadata. If none are available, it omits the scope parameter. When requesting authorization with no configured `scope` and a non-empty scope list, Hypervel also appends `offline_access` if the authorization server advertises it in `scopes_supported`. To request a particular scope, pass it explicitly:
 
 ```php
 $client = Client::web('https://mcp.example.com/mcp')->withOAuth(scope: 'mcp:use');
 ```
 
-Token refreshes use the configured or challenged scope without adding advertised scopes. When neither is supplied, the authorization server preserves the original grant. `TokenSet::$scope` contains the scope returned by the server, or the requested scope when the server leaves it unchanged and omits it from the response.
+Token refreshes send only the configured `scope` without adding advertised scopes or `offline_access`. When no scope is configured, the parameter is omitted so the authorization server preserves the original grant. `TokenSet::$scope` contains the scope returned by the server, or the requested scope when the server leaves it unchanged and omits it from the response.
 
-When a server requires authorization, the client throws `AuthorizationRequiredException`. Pass its challenge parameters to the named client's connect route using a signed URL. The signature prevents visitors from replacing discovery hints and directing your application's credentials to another authorization server. If the user already has a token, include its stored scopes so authorizing another operation preserves the permissions previously granted:
+When a server requires authorization, the client throws `AuthorizationRequiredException`. Pass its challenge parameters to the named client's connect route using a signed URL. The signature prevents visitors from replacing discovery hints and directing your application's credentials to another authorization server. Hypervel automatically remembers scopes requested earlier in the current session when stepping up to a challenged scope; if the user already has a stored token from an earlier session, include its stored scopes so reauthorization preserves the permissions previously granted:
 
 ```php
 use Hypervel\Mcp\Client\Exceptions\AuthorizationRequiredException;
@@ -2464,6 +2515,14 @@ You may also act as an authenticated user by chaining the `actingAs` method befo
 $response = WeatherServer::actingAs($user)->tool(...);
 ```
 
+To declare client capabilities for a test request, chain `withClientCapabilities` before invoking the primitive:
+
+```php
+$response = WeatherServer::withClientCapabilities([
+    'roots' => ['listChanged' => true],
+])->tool(...);
+```
+
 Once you receive the response, you may use various assertion methods to verify the content and status of the response.
 
 You may assert that a response is successful using the `assertOk` method. This checks that the response does not have any errors:
@@ -2535,6 +2594,13 @@ $response->assertHasErrors([
 ]);
 ```
 
+To assert a specific JSON-RPC error code and optional error `data` payload, use `assertErrorCode`:
+
+```php
+$response->assertErrorCode(-32602);
+$response->assertErrorCode(-32021, ['requiredCapabilities' => ['sampling' => []]]);
+```
+
 You may assert that a response does not contain an error using the `assertHasNoErrors` method:
 
 ```php
@@ -2563,6 +2629,13 @@ $response->assertSentNotification('processing/progress', [
 ]);
 
 $response->assertNotificationCount(5);
+```
+
+For standard progress notifications yielded with `Response::progress()`, use `assertSentProgress()`:
+
+```php
+$response->assertSentProgress(1, 2, 'Checking tables');
+$response->assertSentProgress(2);
 ```
 
 Finally, if you wish to inspect the raw response content, you may use the `dd` or `dump` methods to output the response for debugging purposes:

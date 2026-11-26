@@ -50,20 +50,27 @@ trait TwoFactorAuthenticatable
     }
 
     /**
+     * Determine if the user's two factor authentication has recovery codes.
+     */
+    public function hasRecoveryCodes(): bool
+    {
+        return $this->two_factor_recovery_codes !== null
+            && $this->two_factor_recovery_codes !== '';
+    }
+
+    /**
      * Get the user's two factor authentication recovery codes.
      *
      * @return array<int, string>
      */
     public function recoveryCodes(): array
     {
-        $encryptedCodes = $this->two_factor_recovery_codes;
-
-        if ($encryptedCodes === null || $encryptedCodes === '') {
+        if (! $this->hasRecoveryCodes()) {
             return [];
         }
 
         $codes = json_decode(
-            Fortify::currentEncrypter()->decrypt($encryptedCodes),
+            Fortify::currentEncrypter()->decrypt($this->two_factor_recovery_codes),
             true,
             flags: JSON_THROW_ON_ERROR,
         );

@@ -8,6 +8,7 @@ use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\ClientEvent;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
@@ -215,6 +216,37 @@ class ClientEventTest extends ReverbTestCase
             ]),
         ]);
         $connectionTwo->connection()->assertNothingReceived();
+    }
+
+    public function testRequiresChannelMembershipWhenAcceptClientEventsFromIsNotConfigured(): void
+    {
+        config()->set(
+            'reverb.apps.apps.0',
+            Arr::except(config()->array('reverb.apps.apps.0'), 'accept_client_events_from'),
+        );
+        $this->channels()->findOrCreate('private-test-channel');
+
+        $connection = new FakeConnection;
+
+        $this->channelConnectionManager->expects('find')->returns(null);
+        $this->channelConnectionManager->expects('all')->never();
+
+        ClientEvent::handle(
+            $connection,
+            [
+                'event' => 'client-test-message',
+                'channel' => 'private-test-channel',
+                'data' => ['foo' => 'bar'],
+            ]
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:error',
+            'data' => json_encode([
+                'code' => 4009,
+                'message' => 'The client is not a member of the specified channel.',
+            ]),
+        ]);
     }
 
     public function testDoesNotForwardClientMessageWhenSetToNone(): void

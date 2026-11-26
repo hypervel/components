@@ -475,6 +475,127 @@ class ServerTest extends ReverbTestCase
         $this->assertNull($this->channels()->find('presence-test-channel'));
     }
 
+    public function testLimitsTheNumberOfChannelsAConnectionCanSubscribeTo(): void
+    {
+        config()->set('reverb.apps.apps.0.max_channels_per_connection', 3);
+
+        $this->server->open($connection = new FakeConnection);
+
+        for ($i = 0; $i < 3; ++$i) {
+            $this->server->message(
+                $connection,
+                json_encode([
+                    'event' => 'pusher:subscribe',
+                    'data' => ['channel' => "test-channel-{$i}"],
+                ])
+            );
+        }
+
+        $connection->resetReceived();
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel-3'],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:subscription_error',
+            'data' => json_encode([
+                'type' => 'LimitReached',
+                'error' => 'Connection is over channel quota',
+                'status' => 4300,
+            ]),
+            'channel' => 'test-channel-3',
+        ]);
+        $this->assertNull($this->channels()->find('test-channel-3'));
+
+        $connection->resetReceived();
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel-0'],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => 'test-channel-0',
+        ]);
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:unsubscribe',
+                'data' => ['channel' => 'test-channel-0'],
+            ])
+        );
+
+        $connection->resetReceived();
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel-3'],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => 'test-channel-3',
+        ]);
+    }
+
+    public function testLimitsTheLengthOfChannelNames(): void
+    {
+        $this->server->open($connection = new FakeConnection);
+
+        $validName = str_repeat('a', 164);
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => $validName],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => $validName,
+        ]);
+
+        $tooLongName = str_repeat('b', 165);
+        $connection->resetReceived();
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => $tooLongName],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:subscription_error',
+            'data' => json_encode([
+                'type' => 'InvalidChannelName',
+                'error' => 'Channel name is too long',
+                'status' => 4300,
+            ]),
+            'channel' => $tooLongName,
+        ]);
+        $this->assertNull($this->channels()->find($tooLongName));
+    }
+
     #[DataProvider('invalidOriginProvider')]
     public function testRejectsAConnectionFromAnInvalidOrigin(string $origin, array $allowedOrigins): void
     {

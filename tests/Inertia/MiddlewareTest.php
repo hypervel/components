@@ -17,6 +17,7 @@ use Hypervel\Inertia\Middleware;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Inertia\Support\Header;
+use Hypervel\Inertia\Testing\AssertableInertia;
 use Hypervel\Routing\Route as RouteInstance;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
@@ -524,6 +525,169 @@ class MiddlewareTest extends TestCase
         $response->assertJson([
             'flash' => ['message' => 'Success!'],
         ]);
+    }
+
+    public function testFlashDataIsPreservedWhenTheAssetVersionChanged(): void
+    {
+        config()->set('app.asset_url', 'https://cdn.example.com');
+
+        $this->prepareFlashEndpoints();
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->get('/posts', ['X-Inertia' => 'true', 'X-Inertia-Version' => 'outdated'])
+            ->assertStatus(409)
+            ->assertHeader('X-Inertia-Location', $this->baseUrl . '/posts');
+
+        $this->get('/posts')->assertInertia(fn (AssertableInertia $page) => $page->hasFlash('message', 'Saved!'));
+    }
+
+    public function testFlashDataIsIncludedWhenACustomVersionChangeHandlerReturnsThePage(): void
+    {
+        config()->set('app.asset_url', 'https://cdn.example.com');
+
+        $this->app->instance(Middleware::class, new class extends Middleware {
+            public function onVersionChange(Request $request, SymfonyResponse $response): SymfonyResponse
+            {
+                return $response;
+            }
+        });
+
+        $this->prepareFlashEndpoints();
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->get('/posts', ['X-Inertia' => 'true', 'X-Inertia-Version' => 'outdated'])
+            ->assertOk()
+            ->assertJson(['flash' => ['message' => 'Saved!']]);
+    }
+
+    public function testFlashDataOfMultipleRendersIsPreservedWhenTheAssetVersionChanged(): void
+    {
+        config()->set('app.asset_url', 'https://cdn.example.com');
+
+        $this->prepareFlashEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])->get('/posts/rendered-twice', function (Request $request) {
+            Inertia::render('Posts')->toResponse($request);
+
+            Inertia::flash('status', 'Reordered!');
+
+            return Inertia::render('Posts');
+        });
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->get('/posts/rendered-twice', ['X-Inertia' => 'true', 'X-Inertia-Version' => 'outdated'])->assertStatus(409);
+
+        $this->get('/posts')->assertInertia(
+            fn (AssertableInertia $page) => $page
+                ->hasFlash('message', 'Saved!')
+                ->hasFlash('status', 'Reordered!')
+        );
+    }
+
+    public function testExplicitlyPulledFlashDataIsNotRestoredWhenTheAssetVersionChanged(): void
+    {
+        config()->set('app.asset_url', 'https://cdn.example.com');
+
+        $this->prepareFlashEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])->get('/posts/pulled', function () {
+            Inertia::pullFlashed();
+
+            return Inertia::render('Posts');
+        });
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->get('/posts/pulled', ['X-Inertia' => 'true', 'X-Inertia-Version' => 'outdated'])->assertStatus(409);
+
+        $this->get('/posts')->assertInertia(fn (AssertableInertia $page) => $page->missingFlash('message'));
+    }
+
+    public function testFlashDataIsPreservedWhenAnEmptyResponseRedirectsBack(): void
+    {
+        $this->prepareFlashEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])->put('/posts/order', function () {
+        });
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->from('/posts')->put('/posts/order', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->get('/posts', ['X-Inertia' => 'true'])->assertJson([
+            'flash' => ['message' => 'Saved!'],
+        ]);
+    }
+
+    public function testFlashDataIsPreservedWhenAnEmptyResponseReturnsALocationResponse(): void
+    {
+        $this->app->instance(Middleware::class, new class extends Middleware {
+            public function onEmptyResponse(Request $request, SymfonyResponse $response): SymfonyResponse
+            {
+                return Inertia::location('/posts');
+            }
+        });
+
+        $this->prepareFlashEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])->put('/posts/order', function () {
+        });
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->put('/posts/order', [], ['X-Inertia' => 'true'])
+            ->assertStatus(409)
+            ->assertHeader('X-Inertia-Location', '/posts');
+
+        $this->get('/posts')->assertInertia(fn (AssertableInertia $page) => $page->hasFlash('message', 'Saved!'));
+    }
+
+    public function testEmptyResponseRedirectingWithHashFragmentReturns409ForInertiaRequests(): void
+    {
+        Route::middleware([StartSession::class, Middleware::class])->put('/posts/order', function () {
+        });
+
+        $response = $this->from('/article#section')->put('/posts/order', [], [
+            'X-Inertia' => 'true',
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertHeader('X-Inertia-Redirect', $this->baseUrl . '/article#section');
+    }
+
+    public function testFlashDataIsPreservedOnLocationResponse(): void
+    {
+        $this->prepareFlashEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])->get('/posts/reload', function () {
+            return Inertia::location('/posts');
+        });
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->get('/posts/reload', ['X-Inertia' => 'true'])
+            ->assertStatus(409)
+            ->assertHeader('X-Inertia-Location', '/posts');
+
+        $this->get('/posts')->assertInertia(fn (AssertableInertia $page) => $page->hasFlash('message', 'Saved!'));
+    }
+
+    public function testFlashDataIsNotPreservedWhenASuccessfulResponseHasALocationHeader(): void
+    {
+        $this->prepareFlashEndpoints();
+
+        Route::middleware([StartSession::class, Middleware::class])->get('/posts/export', function () {
+            return response('posts.csv')->header('X-Inertia-Location', '/posts');
+        });
+
+        $this->post('/posts', [], ['X-Inertia' => 'true'])->assertRedirect('/posts');
+
+        $this->get('/posts/export', ['X-Inertia' => 'true'])->assertOk();
+
+        $this->get('/posts')->assertInertia(fn (AssertableInertia $page) => $page->missingFlash('message'));
     }
 
     public function testInertiaVisitsAreStoredAsThePreviousUrlAndRoute(): void
@@ -1093,6 +1257,22 @@ class MiddlewareTest extends TestCase
                 'url' => $request->session()->previousUrl(),
                 'route' => $request->session()->previousRoute(),
             ]);
+        });
+    }
+
+    /**
+     * Register the routes used by the flash preservation tests.
+     */
+    private function prepareFlashEndpoints(): void
+    {
+        Route::middleware([StartSession::class, Middleware::class])->post('/posts', function () {
+            Inertia::flash('message', 'Saved!');
+
+            return redirect('/posts');
+        });
+
+        Route::middleware([StartSession::class, Middleware::class])->get('/posts', function () {
+            return Inertia::render('Posts');
         });
     }
 }

@@ -53,6 +53,7 @@ class ApplicationProviderTest extends ReverbTestCase
                 'allowed_origins' => ['*'],
                 'max_message_size' => '10000',
                 'max_connections' => '100',
+                'max_channels_per_connection' => '250',
                 'accept_client_events_from' => 'members',
                 'rate_limiting' => [
                     'enabled' => '1',
@@ -84,6 +85,7 @@ class ApplicationProviderTest extends ReverbTestCase
         $this->assertSame(45, $app->activityTimeout());
         $this->assertSame(10000, $app->maxMessageSize());
         $this->assertSame(100, $app->maxConnections());
+        $this->assertSame(250, $app->maxChannelsPerConnection());
         $this->assertTrue($app->usesRateLimiting());
         $this->assertSame([
             'enabled' => true,
@@ -110,6 +112,7 @@ class ApplicationProviderTest extends ReverbTestCase
         unset(
             $application['activity_timeout'],
             $application['max_connections'],
+            $application['max_channels_per_connection'],
             $application['accept_client_events_from'],
             $application['options'],
             $application['rate_limiting'],
@@ -121,6 +124,7 @@ class ApplicationProviderTest extends ReverbTestCase
 
         $this->assertSame(Application::DEFAULT_ACTIVITY_TIMEOUT, $app->activityTimeout());
         $this->assertNull($app->maxConnections());
+        $this->assertSame(Application::DEFAULT_MAX_CHANNELS_PER_CONNECTION, $app->maxChannelsPerConnection());
         $this->assertSame(Application::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM, $app->acceptClientEventsFrom());
         $this->assertSame([], $app->options());
         $this->assertNull($app->rateLimiting());

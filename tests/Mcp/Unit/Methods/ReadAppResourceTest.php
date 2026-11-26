@@ -25,6 +25,8 @@ use Hypervel\Tests\Mcp\Fixtures\ArrayTransport;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function Hypervel\Tests\Mcp\Fixtures\readResourceMessage;
+
 class ReadAppResourceTest extends TestCase
 {
     public function testIncludesUiMetaOnContentItemsForUiResources(): void
@@ -262,7 +264,7 @@ class ReadAppResourceTest extends TestCase
             }
         };
 
-        $server->handle('{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"ui://documents/html"}}');
+        $server->handle(json_encode(readResourceMessage('ui://documents/html'), JSON_THROW_ON_ERROR));
 
         $payload = json_decode($transport->sent[0], true, flags: JSON_THROW_ON_ERROR)['result'];
         $content = $payload['contents'][0];

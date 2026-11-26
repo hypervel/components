@@ -13,6 +13,7 @@ use Hypervel\Mcp\Server\Prompt;
 use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
 use Hypervel\Mcp\Transport\JsonRpcResponse;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Json;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -60,6 +61,29 @@ class TestResponse
             // Lazy prompt and resource failures surface after earlier notifications.
             $this->response = $exception->toJsonRpcResponse();
         }
+    }
+
+    /**
+     * Assert that the response is a JSON-RPC error with the given code and optional data.
+     *
+     * @param null|array<string, mixed> $data
+     */
+    public function assertErrorCode(int $code, ?array $data = null): static
+    {
+        $error = $this->response->toArray()['error'] ?? null;
+
+        Assert::assertIsArray($error, 'The response is not a JSON-RPC error.');
+        Assert::assertSame($code, $error['code'] ?? null, 'The response does not carry the expected error code.');
+
+        if (! is_null($data)) {
+            Assert::assertSame(
+                $this->toJsonRepresentation($data),
+                $this->toJsonRepresentation($error['data'] ?? null),
+                'The response does not carry the expected error data.',
+            );
+        }
+
+        return $this;
     }
 
     /**
@@ -410,6 +434,35 @@ class TestResponse
         }
 
         Assert::fail("The expected notification [{$method}], but it was not found.");
+    }
+
+    /**
+     * Assert that the given progress notification was received.
+     */
+    public function assertSentProgress(int|float $progress, int|float|null $total = null, ?string $message = null): static
+    {
+        $expected = Arr::whereNotNull(['progress' => $progress, 'total' => $total, 'message' => $message]);
+        ksort($expected);
+
+        foreach ($this->notifications as $notification) {
+            $content = $notification->toArray();
+
+            if ($content['method'] !== 'notifications/progress') {
+                continue;
+            }
+
+            // Ignore transport-attached progress tokens, notification metadata, and JSON key order.
+            $actual = Arr::except($content['params'], ['progressToken', '_meta']);
+            ksort($actual);
+
+            if ($actual === $expected) {
+                Assert::assertTrue(true); // @phpstan-ignore staticMethod.alreadyNarrowedType (counts a passed assertion)
+
+                return $this;
+            }
+        }
+
+        Assert::fail("The expected progress [{$progress}] was not sent.");
     }
 
     /**

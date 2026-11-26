@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Hypervel\Fortify\Events\RecoveryCodesGenerated;
-use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Tests\Fortify\Fixtures\UserWithTwoFactor;
 
 #[WithMigration]
 class RecoveryCodeControllerTest extends TestCase
@@ -19,7 +19,7 @@ class RecoveryCodeControllerTest extends TestCase
     {
         Event::fake();
 
-        $user = TestTwoFactorRecoveryCodeUser::forceCreate([
+        $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',
             'email' => 'taylor@laravel.com',
             'password' => bcrypt('secret'),
@@ -37,10 +37,7 @@ class RecoveryCodeControllerTest extends TestCase
 
         $this->assertNotNull($user->two_factor_recovery_codes);
         $this->assertIsArray(json_decode(decrypt($user->two_factor_recovery_codes), true));
+        $this->assertTrue($user->hasRecoveryCodes());
+        $this->assertNotEmpty($user->recoveryCodes());
     }
-}
-
-class TestTwoFactorRecoveryCodeUser extends User
-{
-    protected ?string $table = 'users';
 }

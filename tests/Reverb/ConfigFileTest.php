@@ -35,6 +35,7 @@ class ConfigFileTest extends TestCase
             'REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS' => '500',
             'REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES' => '524288',
             'REVERB_APP_ACTIVITY_TIMEOUT' => null,
+            'REVERB_APP_MAX_CHANNELS_PER_CONNECTION' => null,
             'REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM' => null,
         ];
         $this->withEnvironmentValues($environment, function (): void {
@@ -64,9 +65,19 @@ class ConfigFileTest extends TestCase
             $this->assertSame(524288, $config['apps']['apps'][0]['webhooks']['batching']['max_payload_bytes']);
             $this->assertSame(Application::DEFAULT_ACTIVITY_TIMEOUT, $config['apps']['apps'][0]['activity_timeout']);
             $this->assertSame(
+                Application::DEFAULT_MAX_CHANNELS_PER_CONNECTION,
+                $config['apps']['apps'][0]['max_channels_per_connection'],
+            );
+            $this->assertSame(
                 Application::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM,
                 $config['apps']['apps'][0]['accept_client_events_from'],
             );
+        });
+
+        $this->withEnvironmentValues(['REVERB_APP_MAX_CHANNELS_PER_CONNECTION' => '250'], function (): void {
+            $config = require dirname(__DIR__, 2) . '/src/reverb/config/reverb.php';
+
+            $this->assertSame(250, $config['apps']['apps'][0]['max_channels_per_connection']);
         });
     }
 }

@@ -20,6 +20,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static void flushMacros()
  * @method static void flushShared()
  * @method static void flushState()
+ * @method static \Hypervel\Inertia\ResponseFactory forgetFlashed(array<int, \BackedEnum|string|\UnitEnum>|\BackedEnum|string|\UnitEnum $keys, \Hypervel\Http\Request|null $request = null)
  * @method static array<string, mixed> getFlashed(\Hypervel\Http\Request|null $request = null)
  * @method static mixed getShared(string|null $key = null, mixed $default = null)
  * @method static string getVersion()

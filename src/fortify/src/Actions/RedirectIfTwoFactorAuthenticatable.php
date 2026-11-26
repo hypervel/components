@@ -64,15 +64,21 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
     {
         if (Fortify::authenticateUsingCallback() instanceof Closure) {
             $callback = Fortify::authenticateUsingCallback();
-            $user = $callback($request);
 
-            if (! $user instanceof Authenticatable || ! $user instanceof Model) {
-                $this->fireFailedEvent($request);
+            return (new Timebox)->call(function (Timebox $timebox) use ($request, $callback): Authenticatable&Model {
+                $user = $callback($request);
 
-                $this->throwFailedAuthenticationException($request);
-            }
+                if (! $user instanceof Authenticatable || ! $user instanceof Model) {
+                    $this->fireFailedEvent($request);
 
-            return $user;
+                    $this->throwFailedAuthenticationException($request);
+                }
+
+                // Only failed attempts need a fixed duration, so successful logins skip the wait, as SessionGuard does.
+                $timebox->returnEarly();
+
+                return $user;
+            }, $this->config->integer('auth.timebox_duration'));
         }
 
         $provider = $this->provider();

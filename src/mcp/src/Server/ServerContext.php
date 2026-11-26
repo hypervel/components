@@ -12,6 +12,7 @@ use Hypervel\Mcp\Server\Resource as McpResource;
 use Hypervel\Mcp\Server\Tools\ToolSearch;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\HeaderBag;
 
 class ServerContext
 {
@@ -44,6 +45,7 @@ class ServerContext
         protected array $tools,
         protected array $resources,
         protected array $prompts,
+        public ?HeaderBag $headers = null,
     ) {
     }
 

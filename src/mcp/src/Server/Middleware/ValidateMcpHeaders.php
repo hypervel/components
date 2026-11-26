@@ -36,12 +36,18 @@ class ValidateMcpHeaders
         );
 
         if ($message->isLegacy()) {
-            return $this->unsupportedLegacyVersion($request, $body['id']) ?? $next($request);
-        }
+            if (($response = $this->unsupportedLegacyVersion($request, $body['id'])) !== null) {
+                return $response;
+            }
 
-        $mismatch = $this->mismatch($request, RequestHeader::PROTOCOL_VERSION, $message->meta()[MetaKey::PROTOCOL_VERSION->value] ?? null, true)
-            ?? $this->mismatch($request, RequestHeader::METHOD, $message->method, true)
-            ?? $this->mismatch($request, RequestHeader::NAME, $message->name(), $message->requiresName());
+            // Legacy clients omit method and name headers, but any header present must still match the body.
+            $mismatch = $this->mismatch($request, RequestHeader::METHOD, $message->method, false)
+                ?? $this->mismatch($request, RequestHeader::NAME, $message->name(), false);
+        } else {
+            $mismatch = $this->mismatch($request, RequestHeader::PROTOCOL_VERSION, $message->meta()[MetaKey::PROTOCOL_VERSION->value] ?? null, true)
+                ?? $this->mismatch($request, RequestHeader::METHOD, $message->method, true)
+                ?? $this->mismatch($request, RequestHeader::NAME, $message->name(), $message->requiresName());
+        }
 
         if ($mismatch === null) {
             return $next($request);
@@ -113,6 +119,10 @@ class ValidateMcpHeaders
 
         if (! is_string($value) || $value === '') {
             return $required ? "Header mismatch: The [{$header->value}] header is required." : null;
+        }
+
+        if (! HeaderValue::isSafe($value)) {
+            return "Header mismatch: The [{$header->value}] header value contains invalid characters.";
         }
 
         $headerValue = $header === RequestHeader::NAME

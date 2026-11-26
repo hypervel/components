@@ -63,6 +63,8 @@ class OAuthClient
         $clientSecret = $this->config->clientSecret;
         $redirectUri = $this->config->redirectUri ?? throw new OAuthException('A redirect URI is required.');
 
+        $tokenAuthMethod = null;
+
         if ($clientId === null) {
             $registration = $this->usesClientIdMetadataDocument($metadata)
                 ? new ClientRegistration(clientId: (string) $this->clientIdMetadataUrl)
@@ -70,12 +72,13 @@ class OAuthClient
 
             $clientId = $registration->clientId;
             $clientSecret = $registration->clientSecret;
+            $tokenAuthMethod = $registration->tokenEndpointAuthMethod;
         }
 
+        $scope = $this->authorizationScope();
+        $resource = $this->resourceIdentifier();
         $pkce = Pkce::generate();
         $state = Str::random(40);
-        $scope = $this->authorizationScope();
-        $resource = $discovered->resource ?? $this->resourceUrl;
 
         Session::put($this->sessionKey(), [
             'state' => $state,
@@ -83,7 +86,7 @@ class OAuthClient
             'client_id' => $clientId,
             'client_secret' => $clientSecret,
             'token_endpoint' => $metadata->tokenEndpoint,
-            'token_auth_method' => $this->resolveTokenAuthMethod($metadata, $clientSecret)->value,
+            'token_auth_method' => ($tokenAuthMethod ?? $this->resolveTokenAuthMethod($metadata, $clientSecret))->value,
             'redirect_uri' => $redirectUri,
             'return_to' => $returnTo,
             'issuer' => $metadata->issuer,
@@ -121,8 +124,8 @@ class OAuthClient
             $discovered->server->tokenEndpoint,
             [
                 'grant_type' => 'client_credentials',
-                'scope' => $this->authorizationScope(),
-                'resource' => $discovered->resource ?? $this->resourceUrl,
+                'scope' => $this->resolveScope(),
+                'resource' => $this->resourceIdentifier(),
             ],
             $this->config->clientId,
             $this->config->clientSecret,
@@ -170,27 +173,30 @@ class OAuthClient
         ?string $clientId = null,
         #[SensitiveParameter]
         ?string $clientSecret = null,
+        ?TokenEndpointAuthMethod $authMethod = null,
     ): TokenSet {
         $discovered = $this->discover();
 
         $clientId ??= $this->config->clientId;
         $clientSecret ??= $this->config->clientSecret;
+        $authMethod ??= $this->resolveTokenAuthMethod($discovered->server, $clientSecret);
 
         $token = $this->requestToken(
             $discovered->server->tokenEndpoint,
             [
                 'grant_type' => 'refresh_token',
                 'refresh_token' => $refreshToken,
-                'scope' => $this->resolveScope(),
-                'resource' => $discovered->resource ?? $this->resourceUrl,
+                'scope' => filled($this->config->scope) ? $this->config->scope : null,
+                'resource' => $this->resourceIdentifier(),
             ],
             $clientId,
             $clientSecret,
-            $this->resolveTokenAuthMethod($discovered->server, $clientSecret),
+            $authMethod,
         );
 
         $token->clientId = $clientId;
         $token->clientSecret = $clientSecret;
+        $token->tokenEndpointAuthMethod = $authMethod;
         $token->refreshToken ??= $refreshToken;
 
         return $token;
@@ -220,6 +226,8 @@ class OAuthClient
 
         $this->discovery->requireFetchable($tokenEndpoint, $this->resourceUrl);
 
+        $authMethod = TokenEndpointAuthMethod::from((string) $stored['token_auth_method']);
+
         $token = $this->requestToken(
             $tokenEndpoint,
             [
@@ -231,12 +239,21 @@ class OAuthClient
             ],
             $clientId,
             $clientSecret,
-            TokenEndpointAuthMethod::tryFrom((string) ($stored['token_auth_method'] ?? '')) ?? TokenEndpointAuthMethod::ClientSecretPost,
+            $authMethod,
         );
 
         $token->clientId = $clientId;
         $token->clientSecret = $clientSecret;
+        $token->tokenEndpointAuthMethod = $authMethod;
         $token->scope ??= $stored['scope'] ?? null;
+
+        if (is_string($stored['scope'] ?? null) && filled($stored['scope'])) {
+            // Pair remembered scopes with their issuer so switching authorization servers drops stale scopes.
+            Session::put($this->requestedScopeSessionKey(), [
+                'issuer' => (string) $stored['issuer'],
+                'scope' => $stored['scope'],
+            ]);
+        }
 
         return $token;
     }
@@ -412,30 +429,63 @@ class OAuthClient
     }
 
     /**
-     * Resolve the challenged or configured authorization scope.
+     * Resolve the challenged, configured, or advertised scope.
      */
     protected function resolveScope(): ?string
     {
-        if (filled($this->challengeScope)) {
-            return $this->challengeScope;
-        }
+        $supported = trim(implode(' ', $this->discover()->scopesSupported));
 
-        return filled($this->config->scope) ? $this->config->scope : null;
+        // Omit scope instead of assuming 'mcp:use' when none is challenged, configured, or advertised.
+        return match (true) {
+            filled($this->challengeScope) => $this->challengeScope,
+            filled($this->config->scope) => $this->config->scope,
+            $supported !== '' => $supported,
+            default => null,
+        };
     }
 
     /**
-     * Use advertised scopes when no authorization scope was selected.
+     * Resolve the authorization scope, retaining step-up scopes and adding offline_access when supported.
      */
     protected function authorizationScope(): ?string
     {
-        if (($scope = $this->resolveScope()) !== null) {
-            return $scope;
+        $scopes = $this->splitScope($this->resolveScope());
+
+        if (filled($this->challengeScope)) {
+            $requested = Session::get($this->requestedScopeSessionKey());
+
+            if (is_array($requested)
+                && is_string($requested['issuer'] ?? null)
+                && is_string($requested['scope'] ?? null)
+                && $requested['issuer'] === $this->discover()->server->issuer) {
+                $scopes = [...$this->splitScope($requested['scope']), ...$scopes];
+            }
         }
 
-        $scopes = $this->discover()->scopesSupported;
+        // Only append offline_access when scopes are requested, preserving Hypervel's omitted-scope behavior.
+        if ($scopes !== [] && blank($this->config->scope) && in_array('offline_access', $this->discover()->server->scopesSupported, true)) {
+            $scopes[] = 'offline_access';
+        }
 
-        // Refresh grants keep resolveScope(): inferred scopes could exceed the original grant.
-        return $scopes === [] ? null : implode(' ', $scopes);
+        return $scopes === [] ? null : implode(' ', array_unique($scopes));
+    }
+
+    /**
+     * Split a space-delimited scope string into individual scopes.
+     *
+     * @return array<int, string>
+     */
+    protected function splitScope(?string $scope): array
+    {
+        return preg_split('/\s+/', $scope ?? '', -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    /**
+     * Get the resource identifier to include in authorization and token requests.
+     */
+    protected function resourceIdentifier(): string
+    {
+        return $this->discover()->resource ?? $this->resourceUrl;
     }
 
     /**
@@ -500,7 +550,23 @@ class OAuthClient
      */
     protected function sessionKey(): string
     {
-        return 'mcp.oauth.' . hash('xxh128', serialize([
+        return 'mcp.oauth.' . $this->sessionKeyHash();
+    }
+
+    /**
+     * Get the session key for scopes previously requested by this client.
+     */
+    protected function requestedScopeSessionKey(): string
+    {
+        return 'mcp.oauth_requested_scope.' . $this->sessionKeyHash();
+    }
+
+    /**
+     * Build the per-client identity hash used for OAuth session keys.
+     */
+    private function sessionKeyHash(): string
+    {
+        return hash('xxh128', serialize([
             $this->resourceUrl,
             $this->config->clientId,
             $this->config->redirectUri,

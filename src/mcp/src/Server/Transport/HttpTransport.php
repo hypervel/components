@@ -13,6 +13,7 @@ use Hypervel\Mcp\Enums\ErrorCode;
 use Hypervel\Mcp\Server\Contracts\StreamsMessages;
 use Hypervel\Mcp\Server\Contracts\Transport;
 use ReflectionFunction;
+use Symfony\Component\HttpFoundation\HeaderBag;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HttpTransport implements Transport, StreamsMessages
@@ -33,6 +34,14 @@ class HttpTransport implements Transport, StreamsMessages
         protected ?string $reply = null,
         protected ?Closure $stream = null,
     ) {
+    }
+
+    /**
+     * Get the incoming HTTP request headers.
+     */
+    public function headers(): HeaderBag
+    {
+        return $this->request->headers;
     }
 
     /**

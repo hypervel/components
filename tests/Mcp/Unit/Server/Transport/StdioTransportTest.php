@@ -69,7 +69,16 @@ class StdioTransportTest extends TestCase
         $this->assertTrue($streamExecuted);
     }
 
-    public function testHandlesRunMethodWithHandler(): void
+    public function testImplementsTransportInterface(): void
+    {
+        $transport = new StdioTransport;
+
+        $this->assertInstanceOf(Transport::class, $transport);
+    }
+
+    // REMOVED: Windows-only inputStream() blocking-pipe test — Hypervel requires Swoole/POSIX and reads blocking STDIN directly.
+
+    public function testReadsEveryMessageFromStdinUntilTheClientClosesIt(): void
     {
         // Swoole's hooked proc_open gives the child socket-backed standard input.
         $input = new InputStream;
@@ -78,28 +87,27 @@ class StdioTransportTest extends TestCase
 
         try {
             $output = '';
-            $process->start(static function (string $type, string $chunk) use ($input, &$output): void {
+            $sentMessages = false;
+            $runningWhileOpen = false;
+            $process->start(static function (string $type, string $chunk) use ($input, $process, &$output, &$sentMessages, &$runningWhileOpen): void {
                 if ($type === Process::OUT) {
                     $output .= $chunk;
                 }
 
-                if (! $input->isClosed() && str_contains($output, "ready\n")) {
+                if (! $sentMessages && ! $input->isClosed() && str_contains($output, "ready\n")) {
+                    $sentMessages = true;
                     $input->write("message\nAnother message\n");
+                } elseif (! $input->isClosed() && $output === "ready\nTest message\nAnother message\n") {
+                    $runningWhileOpen = $process->isRunning();
                     $input->close();
                 }
             });
             $this->assertSame(0, $process->wait());
+            $this->assertTrue($runningWhileOpen);
             $this->assertSame("ready\nTest message\nAnother message\n", $process->getOutput());
         } finally {
             $input->close();
             $process->stop(0);
         }
-    }
-
-    public function testImplementsTransportInterface(): void
-    {
-        $transport = new StdioTransport;
-
-        $this->assertInstanceOf(Transport::class, $transport);
     }
 }

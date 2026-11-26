@@ -42,8 +42,8 @@ trait InteractsWithOAuthEndpoints
             });
     }
 
-    // oAuthCurlOptions() is intentionally omitted: the transport owns HTTP/HTTPS restrictions
-    // and rejects raw protocol/size options. The capped sink also bounds bodies without a declared length.
+    // oAuthTransportOptions() is intentionally omitted: Guzzle already restricts schemes to HTTP/HTTPS,
+    // and the capped sink aborts oversized bodies including those without a declared length.
 
     /**
      * Validate and pin an OAuth endpoint within the prepared request's limits.

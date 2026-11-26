@@ -11,6 +11,7 @@ use Hypervel\Inertia\DevTools\DevTools;
 use Hypervel\Inertia\Ssr\ExcludesSsrPaths;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Support\Header;
+use Hypervel\Inertia\Support\RequestAttribute;
 use Hypervel\Inertia\Support\SessionKey;
 use Hypervel\Routing\Route;
 use Hypervel\Session\Store;
@@ -166,7 +167,9 @@ class Middleware
 
         $response = $next($request);
 
-        if ($isRedirect = $response->isRedirect()) {
+        // The client follows a location response with a full page visit, so we will
+        // keep the flash data for that visit, just like we do for redirects.
+        if ($response->isRedirect() || $this->isLocationResponse($response)) {
             $this->reflash($request);
         }
 
@@ -186,6 +189,11 @@ class Middleware
 
         if ($response->isOk() && $response->getContent() === '') {
             $response = $this->onEmptyResponse($request, $response);
+
+            // Re-check the final response, since onEmptyResponse() may return a redirect or location response.
+            if ($response->isRedirect() || $this->isLocationResponse($response)) {
+                $this->reflash($request);
+            }
         }
 
         // Back redirects must read the previous location before this visit replaces it.
@@ -195,7 +203,8 @@ class Middleware
             $response->setStatusCode(303);
         }
 
-        if ($isRedirect && $this->redirectHasFragment($response) && ! $request->prefetch()) {
+        // Check the final response so redirects returned by onEmptyResponse() also receive fragment handling.
+        if ($response->isRedirect() && $this->redirectHasFragment($response) && ! $request->prefetch()) {
             $response = $this->onRedirectWithFragment($request, $response);
         }
 
@@ -276,6 +285,15 @@ class Middleware
     }
 
     /**
+     * Determine if the response instructs the client to visit another location.
+     */
+    protected function isLocationResponse(Response $response): bool
+    {
+        return $response->getStatusCode() === 409
+            && $response->headers->has(Header::LOCATION);
+    }
+
+    /**
      * Reflash the session data for the next request.
      */
     protected function reflash(Request $request): void
@@ -312,6 +330,12 @@ class Middleware
             /** @var Store $session */
             $session = $request->session();
             $session->reflash();
+
+            // The rendered page is discarded in favor of a full page reload, so we will
+            // put back the flash data it pulled from the session for the next request.
+            if ($pulled = $request->attributes->get(RequestAttribute::PULLED_FLASH_DATA)) {
+                $session->flash(SessionKey::FLASH_DATA, [...$pulled, ...Inertia::getFlashed($request)]);
+            }
         }
 
         $response = Inertia::location($request->fullUrl());

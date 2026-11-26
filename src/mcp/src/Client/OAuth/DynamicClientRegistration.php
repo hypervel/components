@@ -55,6 +55,7 @@ class DynamicClientRegistration
         return new ClientRegistration(
             clientId: (string) $data['client_id'],
             clientSecret: isset($data['client_secret']) ? (string) $data['client_secret'] : null,
+            tokenEndpointAuthMethod: TokenEndpointAuthMethod::tryFrom((string) ($data['token_endpoint_auth_method'] ?? '')),
         );
     }
 }

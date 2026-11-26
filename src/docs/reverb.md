@@ -146,6 +146,7 @@ return [
                 'activity_timeout' => (int) env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_connections' => $maxConnections === null ? null : (int) $maxConnections,
                 'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
+                'max_channels_per_connection' => (int) env('REVERB_APP_MAX_CHANNELS_PER_CONNECTION', 1000),
                 'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
                 'rate_limiting' => [
                     'enabled' => (bool) env('REVERB_APP_RATE_LIMITING_ENABLED', false),
@@ -159,7 +160,9 @@ return [
 ];
 ```
 
-When using the `config` application provider, omitting `activity_timeout` uses 30 seconds, omitting `max_connections` allows unlimited connections, omitting `accept_client_events_from` uses `members`, and omitting `options` uses an empty array. Omitting `rate_limiting` or `webhooks` disables that feature. A null `max_connections` value also allows unlimited connections.
+When using the `config` application provider, omitting `activity_timeout` uses 30 seconds, omitting `max_connections` allows unlimited connections, omitting `max_channels_per_connection` uses 1,000 channels, omitting `accept_client_events_from` uses `members`, and omitting `options` uses an empty array. Omitting `rate_limiting` or `webhooks` disables that feature. A null `max_connections` value also allows unlimited connections.
+
+The `max_channels_per_connection` option limits how many channels a single WebSocket connection may subscribe to at once. Channel names are limited to 164 characters. Subscriptions that exceed either limit receive a `pusher:subscription_error` event with status `4300`.
 
 The `accept_client_events_from` option controls which connections may send client events. The default value, `members`, allows client events from connections subscribed to the target private or presence channel. You may use `all` to allow client events from any connection, or any other value to disable client events.
 

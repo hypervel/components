@@ -15,6 +15,7 @@ use Hypervel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided;
 use Hypervel\Fortify\Features;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Hash;
@@ -24,6 +25,7 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Fortify\Fixtures\UserWithTwoFactor;
 use OTPHP\TOTP;
+use PHPUnit\Framework\Attributes\TestWith;
 
 #[WithMigration]
 #[DefineEnvironment('withTwoFactorAuthentication')]
@@ -31,6 +33,74 @@ use OTPHP\TOTP;
 class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
 {
     use RefreshDatabase;
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFailedLoginIsTimeboxedUsingTheConfiguredDuration(bool $usingCallback): void
+    {
+        UserWithTwoFactor::forceCreate([
+            'name' => 'Taylor Otwell',
+            'email' => 'taylor@laravel.com',
+            'password' => bcrypt('secret'),
+        ]);
+
+        if ($usingCallback) {
+            $this->authenticateUsingCallback();
+        }
+
+        config()->set('auth.timebox_duration', 1_000_000);
+        Sleep::fake();
+
+        $this->post('/login', [
+            'email' => 'taylor@laravel.com',
+            'password' => 'wrong-password',
+        ])->assertSessionHasErrors('email');
+
+        $this->post('/login', [
+            'email' => 'nobody@laravel.com',
+            'password' => 'secret',
+        ])->assertSessionHasErrors('email');
+
+        Sleep::assertSlept(static fn (CarbonInterval $duration): bool => $duration->totalMicroseconds > 900_000, 2);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSuccessfulLoginReturnsEarlyFromTheTimebox(bool $usingCallback): void
+    {
+        UserWithTwoFactor::forceCreate([
+            'name' => 'Taylor Otwell',
+            'email' => 'taylor@laravel.com',
+            'password' => bcrypt('secret'),
+            'two_factor_secret' => 'test-secret',
+        ]);
+
+        if ($usingCallback) {
+            $this->authenticateUsingCallback();
+        }
+
+        Sleep::fake();
+
+        $this->post('/login', [
+            'email' => 'taylor@laravel.com',
+            'password' => 'secret',
+        ])->assertRedirect('/two-factor-challenge');
+
+        Sleep::assertNeverSlept();
+    }
+
+    protected function authenticateUsingCallback(): void
+    {
+        Fortify::authenticateUsing(static function (Request $request): ?UserWithTwoFactor {
+            $user = UserWithTwoFactor::where('email', $request->email)->first();
+
+            if ($user instanceof UserWithTwoFactor && Hash::check((string) $request->password, $user->password)) {
+                return $user;
+            }
+
+            return null;
+        });
+    }
 
     public function testUserIsRedirectedToChallengeWhenUsingTwoFactorAuthentication(): void
     {
@@ -177,38 +247,6 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
         $response->assertRedirect('/two-factor-challenge');
 
         $this->assertSame($user->password, $user->fresh()->password);
-    }
-
-    #[WithConfig('auth.timebox_duration', 1000000)]
-    public function testFailedCredentialValidationIsTimeboxed(): void
-    {
-        Sleep::fake();
-
-        UserWithTwoFactor::forceCreate([
-            'name' => 'Taylor Otwell',
-            'email' => 'taylor@hypervel.org',
-            'password' => bcrypt('secret'),
-            'two_factor_secret' => 'test-secret',
-        ]);
-
-        $this->post('/login', [
-            'email' => 'taylor@hypervel.org',
-            'password' => 'secret',
-        ])->assertRedirect('/two-factor-challenge');
-
-        Sleep::assertNeverSlept();
-
-        $this->post('/login', [
-            'email' => 'taylor@hypervel.org',
-            'password' => 'wrong-password',
-        ])->assertSessionHasErrors('email');
-
-        $this->post('/login', [
-            'email' => 'missing@hypervel.org',
-            'password' => 'secret',
-        ])->assertSessionHasErrors('email');
-
-        Sleep::assertSlept(static fn (CarbonInterval $duration): bool => $duration->totalMicroseconds > 500000, 2);
     }
 
     public function testTwoFactorChallengeCanBePassedViaCode(): void

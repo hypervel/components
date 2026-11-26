@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Mcp\Fixtures\Workbench\Providers;
 use Hypervel\Mcp\Facades\Mcp;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
+use Hypervel\Tests\Mcp\Fixtures\MirroredHeaderServer;
 use Hypervel\Tests\Mcp\Fixtures\ServerWithDynamicTools;
 
 class WorkbenchServiceProvider extends ServiceProvider
@@ -35,5 +36,6 @@ class WorkbenchServiceProvider extends ServiceProvider
         Mcp::local('test-mcp', ExampleServer::class);
         Mcp::web('test-mcp', ExampleServer::class);
         Mcp::web('test-mcp-dynamic-tools', ServerWithDynamicTools::class);
+        Mcp::web('test-mcp-mirrored-headers', MirroredHeaderServer::class);
     }
 }

@@ -27,16 +27,12 @@ server:
   - prompts-get-embedded-resource
   # The diagnostic tool for requests needing an undeclared client capability is not implemented.
   - server-stateless
-  # The server does not validate mirrored Mcp-Param headers against the request body.
-  - http-custom-header-server-validation
 
 client:
   # Multi-round input requests are not implemented.
   - sep-2322-client-request-state
   # The client retries a different mutually supported version; this fixture rejects the same version it offers.
   - request-metadata
-  # The fixture requires a fixed .local client ID, which is not eligible for public metadata discovery.
-  - auth/basic-cimd
   # JWT assertions, enterprise authorization, DPoP and workload identity federation are not implemented.
   - auth/client-credentials-jwt
   - auth/enterprise-managed-authorization

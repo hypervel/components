@@ -8530,7 +8530,15 @@ return Inertia::flash('highlight', $project->id)
     ->render('Projects/Index', ['projects' => $projects]);
 ```
 
-Flash data is scoped to the current request. The middleware automatically persists it to the session when redirecting. After the flash data is sent to the client, it is cleared and will not appear in subsequent requests.
+Flash data is scoped to the current request. The middleware automatically persists it to the session when redirecting, returning an `Inertia::location()` response, or reloading after an asset version change. After the flash data is sent to the client, it is cleared and will not appear in subsequent requests.
+
+You may remove specific keys from the current flash data using `Inertia::forgetFlashed()`, passing a key, an enum, or an array of keys (including dot notation for nested values).
+
+```php
+Inertia::forgetFlashed('toast');
+
+Inertia::forgetFlashed(['toast', 'user.name']);
+```
 
 <a name="flash-data-accessing-flash-data"></a>
 
