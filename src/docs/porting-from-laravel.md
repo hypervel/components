@@ -898,7 +898,7 @@ Model casts are not applied to direct query builder operations or Eloquent key h
 
 Eloquent `updateOrInsert` and `updateFrom` honor global scopes, including soft deletes. Review calls that rely on matching rows excluded by those scopes. Both methods return their write result, so do not chain another query onto them. Eloquent `updateFrom` also maintains `updated_at`, like `update`; supply that column explicitly if it must stay unchanged. See [mass updates](/docs/{{version}}/eloquent#mass-updates).
 
-Hypervel's `migrate:fresh` command discovers the connection declared by each migration and resets every resolved target before rebuilding the schema. Keep each migration's connection stable, and split manual cross-connection schema work into separate migrations with explicit connection declarations. See [drop all tables and migrate](/docs/{{version}}/migrations#drop-all-tables-migrate) for details.
+Hypervel's `migrate:fresh` command discovers the connection declared by each migration and resets every resolved target before rebuilding the schema; with `--schema-only` it resets only the selected connection. Keep each migration's connection stable, and split manual cross-connection schema work into separate migrations with explicit connection declarations. See [drop all tables and migrate](/docs/{{version}}/migrations#drop-all-tables-migrate) for details.
 
 <a name="redis"></a>
 ### Redis

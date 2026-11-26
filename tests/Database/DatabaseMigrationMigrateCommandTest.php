@@ -184,6 +184,22 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $this->runCommand($command, ['--step' => true]);
     }
 
+    public function testSchemaOnlySkipsMigrations(): void
+    {
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
+        $app->useDatabasePath(__DIR__);
+        $migrator = Double::for(Migrator::class)->strict();
+        $dispatcher = new EventsDispatcher;
+        $command = new MigrateCommand($migrator, $dispatcher);
+        $command->setHypervel($app);
+        // No migration file is read, so connections declared only by migrations are not created.
+        $this->expectMigrationPreflight($migrator, discoveredPaths: []);
+        $migrator->expects('hasRunAnyMigrations')->returns(true);
+        $migrator->expects('run')->never();
+
+        $this->runCommand($command, ['--schema-only' => true]);
+    }
+
     public function testGracefulReturnsSuccessWhenRunMigrationsThrows(): void
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
@@ -565,8 +581,9 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         Migrator $migrator,
         ?string $database = null,
         bool $repositoryExists = true,
+        ?array $discoveredPaths = null,
     ): void {
-        $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
+        $paths = $discoveredPaths ?? [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
 
         $migrator->expects('paths')->returns([]);
         $migrator->expects('getMigrationConnections')->with($paths, $database)->returns([$database ?? 'default']);

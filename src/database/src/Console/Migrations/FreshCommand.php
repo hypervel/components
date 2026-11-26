@@ -29,6 +29,7 @@ class FreshCommand extends BaseCommand
                     {--path=* : The path(s) to the migrations files to be executed}
                     {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
                     {--schema-path= : The path to a schema dump file}
+                    {--schema-only : Only load the schema dump without running any migrations}
                     {--seed : Indicates if the seed task should be re-run}
                     {--seeder= : The class name of the root seeder}
                     {--step : Force the migrations to be run so they can be rolled back individually}';
@@ -59,7 +60,8 @@ class FreshCommand extends BaseCommand
 
         $database = $this->input->getOption('database');
         $paths = $this->getMigrationPaths();
-        $connections = $this->migrator->getMigrationConnections($paths, $database);
+        // A schema-only refresh loads one dump and runs no migrations, so only that connection is rebuilt.
+        $connections = $this->migrator->getMigrationConnections($this->option('schema-only') ? [] : $paths, $database);
         $missingDatabases = $this->inspectMigrationConnections($connections);
         $preExistingConnections = array_values(array_diff($connections, array_keys($missingDatabases)));
 
@@ -101,6 +103,7 @@ class FreshCommand extends BaseCommand
             '--path' => $this->input->getOption('path'),
             '--realpath' => $this->input->getOption('realpath'),
             '--schema-path' => $this->input->getOption('schema-path'),
+            '--schema-only' => $this->option('schema-only'),
             '--force' => true,
             '--step' => $this->option('step'),
         ])) !== self::SUCCESS) {

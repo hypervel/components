@@ -119,6 +119,29 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $this->assertSame(0, $this->runCommand($command, ['--database' => 'sqlite']));
     }
 
+    public function testSchemaOnlyWipesOnlyTheConnectionThatLoadsTheDump(): void
+    {
+        $app = $this->makeApplication();
+        $command = $this->getMockBuilder(FreshCommand::class)
+            ->onlyMethods(['call', 'callSilent'])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
+            ->getMock();
+        $command->setHypervel($app);
+        // No migration file is read, so a database declared only by migrations is neither wiped nor created.
+        $this->expectPreExistingMigrationTargets($migrator, ['sqlite'], discoveredPaths: []);
+        $command->expects($this->once())->method('callSilent')->with('db:wipe', [
+            '--database' => 'sqlite',
+            '--force' => true,
+        ])->willReturn(0);
+        $command->expects($this->once())->method('call')->with('migrate', [
+            '--database' => 'sqlite',
+            '--schema-only' => true,
+            '--force' => true,
+        ])->willReturn(0);
+
+        $this->assertSame(0, $this->runCommand($command, ['--database' => 'sqlite', '--schema-only' => true]));
+    }
+
     public function testMissingTargetIsCreatedAndVerifiedButNeverWiped(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'hypervel-sqlite-');
@@ -446,8 +469,9 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         ?string $database = 'sqlite',
         bool $repositoryExists = true,
         array $registeredPaths = [],
+        ?array $discoveredPaths = null,
     ): void {
-        $paths = [...$registeredPaths, __DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
+        $paths = $discoveredPaths ?? [...$registeredPaths, __DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
 
         $migrator->expects('paths')->returns($registeredPaths);
         $migrator->expects('getMigrationConnections')->with($paths, $database)->returns($connections);
