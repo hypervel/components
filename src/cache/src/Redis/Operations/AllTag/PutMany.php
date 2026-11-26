@@ -60,7 +60,6 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -71,13 +70,15 @@ class PutMany
 
             $namespacedKeys = array_keys($preparedEntries);
 
-            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $preparedEntries, $seconds, $tagIds, $namespacedKeys, $score): void {
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $preparedEntries, $seconds, $tagIds, $namespacedKeys): void {
                 // Publish values first so Prune cannot discard fresh memberships.
                 // Unlike SET NX, unconditional SETEX needs no
                 // conditional membership publication; keep these writes in one pipeline.
                 foreach ($preparedEntries as $namespacedKey => $serialized) {
                     $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
                 }
+
+                $score = $this->context->expirationScore($seconds);
 
                 // Batch ZADD: one command per tag with all cache keys as members
                 // ZADD format: key, score1, member1, score2, member2, ...
@@ -106,7 +107,6 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -131,6 +131,8 @@ class PutMany
             if ($namespacedKeys === []) {
                 return false;
             }
+
+            $score = $this->context->expirationScore($seconds);
 
             // Batch ZADD: one command per tag with all cache keys as members
             // Each tag's sorted set is in one slot, so variadic ZADD works in cluster

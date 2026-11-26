@@ -79,7 +79,6 @@ class Add
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
 
             $result = $connection->set(
                 $prefix . $key,
@@ -91,6 +90,7 @@ class Add
                 return false;
             }
 
+            $score = $this->context->expirationScore($seconds);
             $membershipsSucceeded = true;
 
             foreach ($tagIds as $tagId) {

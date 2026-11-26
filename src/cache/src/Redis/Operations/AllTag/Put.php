@@ -59,14 +59,15 @@ class Put
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
-            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $key, $seconds, $serialized, $tagIds, $score): void {
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $key, $seconds, $serialized, $tagIds): void {
                 // Publish the value first so Prune cannot discard fresh memberships.
                 // Unlike SET NX, unconditional SETEX needs no
                 // conditional membership publication; keep both writes in one pipeline.
                 $pipeline->setex($prefix . $key, $seconds, $serialized);
+
+                $score = $this->context->expirationScore($seconds);
 
                 // ZADD to each tag's sorted set
                 foreach ($tagIds as $tagId) {
@@ -88,7 +89,6 @@ class Put
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
             // Publish the value before its memberships so concurrent pruning
@@ -97,6 +97,7 @@ class Put
                 return false;
             }
 
+            $score = $this->context->expirationScore($seconds);
             $membershipsSucceeded = true;
 
             // ZADD to each tag's sorted set (sequential - cross-slot)

@@ -70,6 +70,10 @@ class StoreContext
 
     /**
      * Get the tag membership score for a cache lifetime.
+     *
+     * When values and tag memberships are written in separate commands, calculate
+     * the score after issuing the value writes so a slow batch cannot shorten
+     * tag membership.
      */
     public function expirationScore(int $seconds): int
     {
