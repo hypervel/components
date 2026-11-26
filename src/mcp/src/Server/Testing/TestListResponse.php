@@ -35,9 +35,10 @@ class TestListResponse
     {
         $itemNames = Arr::pluck($this->items, 'name');
         $classes = is_array($classes) ? $classes : [$classes];
+        $container = Container::getInstance();
 
         foreach ($classes as $class) {
-            $name = Container::getInstance()->make($class)->name();
+            $name = $container->make($class)->name();
 
             Assert::assertContains($name, $itemNames, "The expected class [{$class}] was not found in the response content.");
         }
@@ -57,9 +58,10 @@ class TestListResponse
     {
         $itemNames = Arr::pluck($this->items, 'name');
         $classes = is_array($classes) ? $classes : [$classes];
+        $container = Container::getInstance();
 
         foreach ($classes as $class) {
-            $name = Container::getInstance()->make($class)->name();
+            $name = $container->make($class)->name();
 
             Assert::assertNotContains($name, $itemNames, "The expected class [{$class}] was found in the response content.");
         }

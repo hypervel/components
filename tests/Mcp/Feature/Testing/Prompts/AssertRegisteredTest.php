@@ -16,7 +16,12 @@ class GarageListPromptsServer extends Server
     protected array $prompts = [
         OilChangePrompt::class,
         TireRotationPrompt::class,
+        EngineDiagnosticPrompt::class,
     ];
+}
+
+class ServiceHistoryRepository
+{
 }
 
 class OilChangePrompt extends Prompt
@@ -52,6 +57,26 @@ class TireRotationPrompt extends Prompt
     public function handle(): string
     {
         return 'Tires rotated.';
+    }
+}
+
+class EngineDiagnosticPrompt extends Prompt
+{
+    protected string $name = 'garage/engine-diagnostics';
+
+    /**
+     * Create the diagnostic prompt.
+     */
+    public function __construct(protected ServiceHistoryRepository $history)
+    {
+    }
+
+    /**
+     * Return the diagnostic confirmation.
+     */
+    public function handle(): string
+    {
+        return 'Diagnostics complete.';
     }
 }
 
@@ -111,5 +136,10 @@ class AssertRegisteredTest extends TestCase
         ])->assertNotRegistered([
             OilChangePrompt::class,
         ]);
+    }
+
+    public function testResolvesPromptsWithConstructorDependenciesWhenAssertingTheyAreRegistered(): void
+    {
+        GarageListPromptsServer::prompts()->assertRegistered(EngineDiagnosticPrompt::class);
     }
 }
