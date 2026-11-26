@@ -11,6 +11,7 @@ use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\DevTools\DevTools;
 use Hypervel\Inertia\Support\Header;
+use Hypervel\Inertia\Support\RequestAttribute;
 use Hypervel\Inertia\Support\SessionKey;
 use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Response as ResponseFactory;
@@ -253,6 +254,13 @@ class Response implements Responsable
         if (! $flash) {
             return [];
         }
+
+        // Keep track of the pulled flash data so the middleware may put it back in the
+        // session when this page is replaced by a full page reload on a version change.
+        $request->attributes->set(RequestAttribute::PULLED_FLASH_DATA, [
+            ...$request->attributes->get(RequestAttribute::PULLED_FLASH_DATA, []),
+            ...$flash,
+        ]);
 
         return ['flash' => $this->encodeBigIntegersWhenEnabled($flash)];
     }
