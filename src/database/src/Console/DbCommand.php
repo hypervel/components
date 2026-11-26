@@ -46,7 +46,7 @@ class DbCommand extends Command
             // host list or an unselected read / write split has no endpoint.
             $requiresHost = match ($connection['driver']) {
                 'sqlite' => false,
-                'mysql', 'mariadb' => empty($connection['unix_socket']),
+                'mysql', 'mariadb' => empty($connection['unix_socket']) || array_key_exists('host', $connection),
                 default => array_key_exists('host', $connection) || isset($connection['read']) || isset($connection['write']),
             };
 

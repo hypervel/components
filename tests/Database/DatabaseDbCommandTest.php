@@ -453,6 +453,7 @@ class DatabaseDbCommandTest extends TestCase
                 [],
             ],
             // The connector rejects an empty host list; only an omitted host means a local server.
+            'empty mysql host list with a socket' => [['driver' => 'mysql', 'host' => [], 'unix_socket' => '/tmp/mysql.sock', 'database' => 'app'], []],
             'empty postgres host list' => [['driver' => 'pgsql', 'host' => [], 'database' => 'app'], []],
             'empty postgres read host list' => [['driver' => 'pgsql', 'database' => 'app', 'read' => ['host' => []]], ['--read' => true]],
         ];
