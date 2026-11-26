@@ -1057,7 +1057,7 @@ $startsAt = datetimepicker('When should the maintenance window start?');
 $time = timepicker('What time should the report be sent?');
 ```
 
-The date picker returns the date at midnight. Without a default, it starts on today, while the other pickers start on the current time. When input isn't interactive, a picker returns its default, so an optional picker without one returns `null`.
+The date picker returns the date at the start of the day. Without a default, it starts on today, while the other pickers start on the current time. When input isn't interactive, a picker returns its default, so an optional picker without one returns `null`.
 
 You may also include a default value, an informational hint, and the earliest and latest values the user may choose. Each value may be a `DateTimeInterface` instance or a date string:
 

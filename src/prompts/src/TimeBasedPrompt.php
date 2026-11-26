@@ -76,14 +76,14 @@ abstract class TimeBasedPrompt extends Prompt
         public ?Closure $transform = null,
     ) {
         $this->default = $this->normalizeDate($default);
-        $this->min = $this->normalizeDate($min);
-        $this->max = $this->normalizeDate($max);
+        $this->min = $this->normalizeBound($min);
+        $this->max = $this->normalizeBound($max);
 
         if ($this->min !== null && $this->max !== null && $this->compare($this->min, $this->max) > 0) {
             throw new InvalidArgumentException('Argument [min] must be on or before [max].');
         }
 
-        $this->goTo($this->default ?? $this->initialDate());
+        $this->select($this->startingValue($this->default ?? $this->initialDate()));
 
         $this->focused = $this->segments()[0];
         $this->hint = $hint ?? 'Left/Right or Tab: move. Up/Down: change. Type to edit.';
@@ -200,7 +200,23 @@ abstract class TimeBasedPrompt extends Prompt
      */
     protected function goTo(DateTimeImmutable $date): void
     {
-        $this->date = $this->clamp($date);
+        $this->select($this->clamp($date));
+    }
+
+    /**
+     * Get the value to start on, within the range.
+     */
+    protected function startingValue(DateTimeImmutable $date): DateTimeImmutable
+    {
+        return $this->clamp($date);
+    }
+
+    /**
+     * Select the given value.
+     */
+    protected function select(DateTimeImmutable $date): void
+    {
+        $this->date = $date;
     }
 
     /**
@@ -274,6 +290,14 @@ abstract class TimeBasedPrompt extends Prompt
     }
 
     /**
+     * Normalize a min or max bound.
+     */
+    protected function normalizeBound(DateTimeInterface|string|null $bound): ?DateTimeImmutable
+    {
+        return $this->normalizeDate($bound);
+    }
+
+    /**
      * Parse an answer typed in the displayed format, or a given date, within the prompt's range.
      *
      * A typed answer keeps the selected date and timezone.
@@ -286,6 +310,14 @@ abstract class TimeBasedPrompt extends Prompt
             return $this->ensureInRange($this->normalizeDate($value));
         }
 
+        return $this->ensureInRange($this->parseDisplayed($value) ?? throw new InvalidArgumentException("{$this->noun} [{$value}] is not valid."));
+    }
+
+    /**
+     * Parse a value in the displayed format, keeping the selected date and timezone, or return null when it is not valid.
+     */
+    protected function parseDisplayed(string $value): ?DateTimeImmutable
+    {
         $format = $this->displayFormat();
         $input = $value;
 
@@ -301,10 +333,10 @@ abstract class TimeBasedPrompt extends Prompt
         // Formatting the result back rejects overflowing dates and times skipped by a daylight saving change.
         // Like segment editing, a typed year starts at 1.
         if ($date === false || strcasecmp($date->format($format), $input) !== 0 || $date->format('Y') === '0000') {
-            throw new InvalidArgumentException("{$this->noun} [{$value}] is not valid.");
+            return null;
         }
 
-        return $this->ensureInRange($date);
+        return $date;
     }
 
     /**
@@ -399,6 +431,24 @@ abstract class TimeBasedPrompt extends Prompt
             return;
         }
 
+        // Pasted text that completes the value from the focused segment applies whole, since a later segment,
+        // such as the period, can make an earlier one valid. Like a typed value, it is checked against the range on submit.
+        if (strlen($key) > 1 && ! $this->editingSegment) {
+            $segments = $this->segments();
+            $format = $this->displayFormat();
+
+            // Each segment is one placeholder of the display format, in order.
+            preg_match_all('/[a-zA-Z]/', $format, $placeholders, PREG_OFFSET_CAPTURE);
+            $offset = $placeholders[0][array_search($this->focused, $segments, true)][1];
+
+            if (($date = $this->parseDisplayed($this->date->format(substr($format, 0, $offset)) . $key)) !== null) {
+                $this->select($date);
+                $this->focused = $segments[count($segments) - 1];
+
+                return;
+            }
+        }
+
         foreach (str_split($key) as $char) {
             $skipSeparator = $autoAdvanced;
             $autoAdvanced = false;
@@ -481,7 +531,7 @@ abstract class TimeBasedPrompt extends Prompt
             return false;
         }
 
-        $this->date = $this->segmentDate();
+        $this->select($this->segmentDate());
         $this->segmentBuffer = '';
         $this->editingSegment = false;
 

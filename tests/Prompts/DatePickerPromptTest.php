@@ -122,6 +122,36 @@ class DatePickerPromptTest extends TestCase
         Prompt::assertOutputContains('Must be on or before 2026-07-25.');
     }
 
+    #[DataProvider('dayChangesAfterASkippedMidnight')]
+    public function testReturnsTheSelectedDayAtItsStartAfterASkippedMidnight(array $keys): void
+    {
+        Prompt::fake([...$keys, Key::ENTER]);
+
+        // Sao Paulo skipped midnight on 2018-11-04, so that day starts at 01:00.
+        $result = datepicker(label: 'Release date', default: new DateTimeImmutable('2018-11-04', new DateTimeZone('America/Sao_Paulo')));
+
+        $this->assertSame('2018-11-05 00:00', $result->format('Y-m-d H:i'));
+    }
+
+    public static function dayChangesAfterASkippedMidnight(): array
+    {
+        return [
+            'step' => [[Key::SHIFT_TAB, Key::UP]],
+            'type' => [[Key::SHIFT_TAB, '05']],
+        ];
+    }
+
+    public function testComparesBoundsInOtherTimezonesByCalendarDate(): void
+    {
+        $prompt = new DatePickerPrompt(
+            label: 'Release date',
+            default: new DateTimeImmutable('2026-07-25', new DateTimeZone('+09:00')),
+            min: new DateTimeImmutable('2026-07-24', new DateTimeZone('UTC')),
+        );
+
+        $this->assertSame('2026-07-24 +09:00', $prompt->parse('2026-07-24')->format('Y-m-d P'));
+    }
+
     public function testPreservesTheTimezoneWhenTypingInlineSegments(): void
     {
         Prompt::fake(['2027-12-25', Key::ENTER]);

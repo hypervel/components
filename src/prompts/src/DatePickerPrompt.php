@@ -63,11 +63,11 @@ class DatePickerPrompt extends TimeBasedPrompt
             return;
         }
 
-        $date = match ($this->focused) {
+        $date = $this->truncateTime(match ($this->focused) {
             'year' => $this->addMonths($step * 12),
             'month' => $this->addMonths($step),
             default => $this->date->modify(sprintf('%+d days', $step)),
-        };
+        });
 
         if ((int) $date->format('Y') >= 1 && (int) $date->format('Y') <= 9999) {
             $this->goTo($date);
@@ -98,7 +98,7 @@ class DatePickerPrompt extends TimeBasedPrompt
             $day = min($day, (int) $this->date->setDate($year, $month, 1)->format('t'));
         }
 
-        return checkdate($month, $day, $year) ? $this->date->setDate($year, $month, $day) : null;
+        return checkdate($month, $day, $year) ? $this->truncateTime($this->date->setDate($year, $month, $day)) : null;
     }
 
     /**
@@ -110,7 +110,8 @@ class DatePickerPrompt extends TimeBasedPrompt
 
         $day = min((int) $this->date->format('j'), (int) $month->format('t'));
 
-        return $month->setDate((int) $month->format('Y'), (int) $month->format('n'), $day);
+        // setDate() keeps a time that daylight saving skips on the target day, which modify() moves forward as the day step does.
+        return $this->date->setDate((int) $month->format('Y'), (int) $month->format('n'), $day)->modify('+0 days');
     }
 
     /**
@@ -127,6 +128,14 @@ class DatePickerPrompt extends TimeBasedPrompt
     protected function truncateTime(DateTimeImmutable $date): DateTimeImmutable
     {
         return $date->setTime(0, 0);
+    }
+
+    /**
+     * Compare calendar dates only, since a day whose midnight daylight saving skips starts later.
+     */
+    protected function compare(DateTimeImmutable $a, DateTimeImmutable $b): int
+    {
+        return $a->format('Y-m-d') <=> $b->format('Y-m-d');
     }
 
     /**

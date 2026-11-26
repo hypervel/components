@@ -221,6 +221,43 @@ class TimePickerPromptTest extends TestCase
         $this->assertSame('2026-07-24 10:15', $result->format('Y-m-d H:i'));
     }
 
+    #[DataProvider('clockOnlyBounds')]
+    public function testAppliesAClockOnlyBoundAsWritten(string $bound): void
+    {
+        $prompt = new TimePickerPrompt('Start time', default: '2026-03-09 03:00', min: $bound);
+
+        $this->assertSame('02:30', $prompt->parse('02:30')->format('H:i'));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Must be on or after 02:30.');
+
+        $prompt->parse('02:15');
+    }
+
+    public static function clockOnlyBounds(): array
+    {
+        return [
+            '24-hour' => ['02:30'],
+            '12-hour' => ['2:30am'],
+            'with a timezone' => ['02:30 America/New_York'],
+        ];
+    }
+
+    public function testReadsADatedBoundOnItsDate(): void
+    {
+        $previous = date_default_timezone_get();
+        date_default_timezone_set('America/New_York');
+
+        try {
+            // 02:45 does not exist in New York on 2026-03-08, so PHP moves the dated bound as it does any dated value.
+            $prompt = new TimePickerPrompt('Start time', min: '2026-03-08 02:45');
+
+            $this->assertSame('03:45', $prompt->min->format('H:i'));
+        } finally {
+            date_default_timezone_set($previous);
+        }
+    }
+
     public function testPreservesHintsAndAllowsAnEmptyHint(): void
     {
         Prompt::fake([Key::ENTER]);
@@ -324,6 +361,28 @@ class TimePickerPromptTest extends TestCase
         $this->assertSame('09:45:00', timepicker('Start time', default: '14:30')->format('H:i:s'));
     }
 
+    #[DataProvider('completePastesAcrossADaylightSavingGap')]
+    public function testKeepsACompletePasteWhoseHourAloneFallsInADaylightSavingGap(array $keys, ?string $max, string $output): void
+    {
+        Prompt::fake(['02:15 PM', ...$keys, Key::CTRL_C]);
+
+        // 02:15 AM does not exist in New York on 2026-03-08, but the pasted period makes it 14:15.
+        $prompt = new TimePickerPrompt('Start time', default: new DateTimeImmutable('2026-03-08 01:30', new DateTimeZone('America/New_York')), max: $max, use12Hours: true);
+        $prompt->prompt();
+
+        $this->assertSame('2026-03-08 14:15', $prompt->date->format('Y-m-d H:i'));
+        Prompt::assertOutputDoesntContain('Invalid time.');
+        Prompt::assertOutputContains($output);
+    }
+
+    public static function completePastesAcrossADaylightSavingGap(): array
+    {
+        return [
+            'in range' => [[], null, '02:15 PM'],
+            'out of range' => [[Key::ENTER], '12:00', 'Must be on or before 12:00 PM.'],
+        ];
+    }
+
     #[DataProvider('pastedPeriods')]
     public function testPreservesThePeriodWhenPastingSecondsAtEitherPrecision(string $period, bool $withSeconds, string $expected): void
     {
@@ -394,6 +453,38 @@ class TimePickerPromptTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('cannot be represented');
 
+        timepicker('Start time', default: new DateTimeImmutable('2026-03-08 04:30', new DateTimeZone('America/New_York')), max: '02:30');
+    }
+
+    public function testGivesACustomFallbackTheSelectionWithinTheRange(): void
+    {
+        Prompt::interactive(true);
+        Prompt::fallbackWhen(true);
+        TimePickerPrompt::fallbackUsing(fn (TimePickerPrompt $prompt) => $prompt->value());
+
+        $this->assertSame('09:00', timepicker('Start time', default: '08:00', min: '09:00')->format('H:i'));
+    }
+
+    public function testRejectsAnUnrepresentableClampTargetBeforeAnInteractiveCustomFallback(): void
+    {
+        Prompt::interactive(true);
+        Prompt::fallbackWhen(true);
+        TimePickerPrompt::fallbackUsing(fn (TimePickerPrompt $prompt) => $prompt->date);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('cannot be represented');
+
+        timepicker('Start time', default: new DateTimeImmutable('2026-03-08 04:30', new DateTimeZone('America/New_York')), max: '02:30');
+    }
+
+    public function testValidatesANonInteractiveDefaultWhoseClampTargetFallsInADaylightSavingGap(): void
+    {
+        Prompt::interactive(false);
+
+        $this->expectException(NonInteractiveValidationException::class);
+        $this->expectExceptionMessage('Must be on or before 02:30.');
+
+        // Only an interactive prompt clamps its selection, which here would land in the gap.
         timepicker('Start time', default: new DateTimeImmutable('2026-03-08 04:30', new DateTimeZone('America/New_York')), max: '02:30');
     }
 

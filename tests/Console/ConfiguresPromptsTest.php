@@ -20,6 +20,7 @@ use Hypervel\Prompts\TextPrompt;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
+use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
@@ -504,7 +505,34 @@ class ConfiguresPromptsTest extends TestCase
         return [
             'missing required default' => [fn () => datepicker('Test', required: true), 'Required.'],
             'default outside the range' => [fn () => datepicker('Test', default: '2026-07-24', min: '2026-08-01'), 'Must be on or after 2026-08-01.'],
+            'default whose clamp target falls in a daylight saving gap' => [fn () => self::gapTimepicker(), 'Must be on or before 02:30.'],
         ];
+    }
+
+    public function testNonInteractivePickerFallbackValidatesAnUnrepresentableStartWhileRunningTests(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        // Tests run prompts interactively, but this fallback follows its non-interactive input.
+        $status = $this->runCommand(
+            $this->makePromptCommand(fn () => self::gapTimepicker()),
+            fn ($components) => $components->expects('error')->with('Must be on or before 02:30.'),
+            runningUnitTests: true,
+            interactive: false,
+        );
+
+        $this->assertSame(Command::FAILURE, $status);
+    }
+
+    public function testInteractivePickerFallbackRejectsAnUnrepresentableStartBeforeAsking(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('cannot be represented');
+
+        // The strict components double fails if the fallback asks.
+        $this->runCommand($this->makePromptCommand(fn () => self::gapTimepicker()), function (): void {});
     }
 
     public function testNonInteractiveFallbackFailsInsteadOfRetryingTheSameDefault(): void
@@ -768,6 +796,15 @@ class ConfiguresPromptsTest extends TestCase
         $this->runCommand($command, $expectations, $runningUnitTests);
 
         return $command->answer;
+    }
+
+    /**
+     * Ask for a time whose max is a clock time that doesn't exist on the default's date.
+     */
+    private static function gapTimepicker(): ?DateTimeImmutable
+    {
+        // Daylight saving skips 02:00 to 03:00 in New York on 2026-03-08.
+        return timepicker('Test', default: new DateTimeImmutable('2026-03-08 04:30', new DateTimeZone('America/New_York')), max: '02:30');
     }
 
     protected function makePromptCommand(Closure $prompt): object

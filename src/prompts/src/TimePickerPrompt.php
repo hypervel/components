@@ -37,6 +37,34 @@ class TimePickerPrompt extends TimeBasedPrompt
     }
 
     /**
+     * Register the fallback implementation.
+     *
+     * Like the prompt itself, the fallback starts from a time within the range when the prompt is interactive.
+     */
+    public static function fallbackUsing(Closure $fallback): void
+    {
+        static::registerFallback($fallback, static fn (): bool => static::isInteractive() !== false);
+    }
+
+    /**
+     * Register a fallback that starts from a time within the range when it asks for input.
+     *
+     * @internal
+     *
+     * @param Closure(): bool $interactive Whether the fallback asks for input
+     */
+    public static function registerFallback(Closure $fallback, Closure $interactive): void
+    {
+        parent::fallbackUsing(static function (self $prompt) use ($fallback, $interactive): mixed {
+            if ($interactive()) {
+                $prompt->goTo($prompt->date);
+            }
+
+            return $fallback($prompt);
+        });
+    }
+
+    /**
      * Get the display value of each segment, keyed by segment name.
      *
      * @return array<string, string>
@@ -83,6 +111,25 @@ class TimePickerPrompt extends TimeBasedPrompt
     }
 
     /**
+     * Build a bound given as a clock time alone from its fields, since it applies on any date.
+     *
+     * Parsing it would place it on the current date, where daylight saving could move it.
+     */
+    protected function normalizeBound(DateTimeInterface|string|null $bound): ?DateTimeImmutable
+    {
+        if (is_string($bound)) {
+            $parsed = date_parse($bound);
+
+            if ($parsed['error_count'] === 0 && $parsed['warning_count'] === 0 && $parsed['hour'] !== false
+                && $parsed['year'] === false && $parsed['month'] === false && $parsed['day'] === false && ! isset($parsed['relative'])) {
+                $bound = (new DateTimeImmutable('@0'))->setTime($parsed['hour'], $parsed['minute'], $parsed['second']);
+            }
+        }
+
+        return parent::normalizeBound($bound);
+    }
+
+    /**
      * Compare clock times only, so the bounds apply on any date.
      */
     protected function compare(DateTimeImmutable $a, DateTimeImmutable $b): int
@@ -95,19 +142,44 @@ class TimePickerPrompt extends TimeBasedPrompt
      */
     protected function clamp(DateTimeImmutable $time): DateTimeImmutable
     {
+        return $this->clampedTime($time)
+            ?? throw new InvalidArgumentException('Time [' . parent::clamp($time)->format('H:i:s') . '] cannot be represented on ' . $time->format('Y-m-d') . ' in ' . $time->getTimezone()->getName() . '.');
+    }
+
+    /**
+     * Start on the time within the range, unless the bound's clock time doesn't exist on its date.
+     *
+     * Asking for input then fails, while a non-interactive prompt validates its default instead.
+     */
+    protected function startingValue(DateTimeImmutable $date): DateTimeImmutable
+    {
+        return $this->clampedTime($date) ?? $date;
+    }
+
+    /**
+     * Move the time onto the bound's clock time, or return null when that clock time doesn't exist on its date.
+     */
+    protected function clampedTime(DateTimeImmutable $time): ?DateTimeImmutable
+    {
         $bound = parent::clamp($time);
 
         if ($bound === $time) {
             return $time;
         }
 
-        $candidate = $this->timeAt($time, (int) $bound->format('G'), (int) $bound->format('i'), (int) $bound->format('s'));
+        return $this->timeAt($time, (int) $bound->format('G'), (int) $bound->format('i'), (int) $bound->format('s'));
+    }
 
-        if ($candidate === null) {
-            throw new InvalidArgumentException('Time [' . $bound->format('H:i:s') . '] cannot be represented on ' . $time->format('Y-m-d') . ' in ' . $time->getTimezone()->getName() . '.');
+    /**
+     * Render the prompt, starting from a time within the range.
+     */
+    protected function render(): void
+    {
+        if ($this->state === 'initial') {
+            $this->goTo($this->date);
         }
 
-        return $candidate;
+        parent::render();
     }
 
     /**

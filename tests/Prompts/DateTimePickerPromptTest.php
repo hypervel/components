@@ -27,6 +27,30 @@ class DateTimePickerPromptTest extends TestCase
         Prompt::assertStrippedOutputContains('12:05 AM');
     }
 
+    public function testPastesATimeIntoTheHourWhoseHourAloneFallsInADaylightSavingGap(): void
+    {
+        Prompt::fake([Key::TAB, Key::TAB, Key::TAB, '02:15 PM', Key::CTRL_C]);
+
+        // 02:15 AM does not exist in New York on 2026-03-08, but the pasted period makes it 14:15.
+        $prompt = new DateTimePickerPrompt('Release', default: new DateTimeImmutable('2026-03-08 01:30', new DateTimeZone('America/New_York')), use12Hours: true);
+        $prompt->prompt();
+
+        $this->assertSame('2026-03-08 14:15', $prompt->date->format('Y-m-d H:i'));
+        Prompt::assertOutputDoesntContain('Invalid');
+    }
+
+    public function testPastedClockEditsKeepTheSelectedOccurrenceOfARepeatedTime(): void
+    {
+        Prompt::fake([Key::TAB, Key::TAB, Key::TAB, Key::TAB, '20', Key::CTRL_C]);
+
+        // Berlin repeats 02:00 to 03:00 on 2026-10-25, and the selection is the first occurrence.
+        $default = (new DateTimeImmutable('2026-10-25 02:10:00+02:00'))->setTimezone(new DateTimeZone('Europe/Berlin'));
+        $prompt = new DateTimePickerPrompt('Release', default: $default);
+        $prompt->prompt();
+
+        $this->assertSame('2026-10-25 02:20 +02:00', $prompt->date->format('Y-m-d H:i P'));
+    }
+
     public function testValidates12HourDatetimeEditsAgainstFullInstantBounds(): void
     {
         Prompt::fake([Key::TAB, Key::TAB, Key::TAB, '09:30 AM', Key::ENTER, 'p', Key::ENTER]);
@@ -41,6 +65,28 @@ class DateTimePickerPromptTest extends TestCase
 
         $this->assertSame('2026-07-24 21:30', $result->format('Y-m-d H:i'));
         Prompt::assertOutputContains('Must be on or after 2026-07-24 12:00 PM.');
+    }
+
+    #[DataProvider('monthStepsAcrossDaylightSaving')]
+    public function testMonthStepsKeepTheTimeUnlessTheTargetDaySkipsIt(string $default, string $timezone, string $expected): void
+    {
+        Prompt::fake([Key::RIGHT, Key::UP, Key::ENTER]);
+
+        $result = datetimepicker('Release', default: new DateTimeImmutable($default, new DateTimeZone($timezone)));
+
+        $this->assertSame($expected, $result->format('Y-m-d H:i'));
+        $this->assertSame((new DateTimeImmutable($expected, new DateTimeZone($timezone)))->getTimestamp(), $result->getTimestamp());
+        Prompt::assertStrippedOutputContains($expected);
+    }
+
+    public static function monthStepsAcrossDaylightSaving(): array
+    {
+        return [
+            // 02:30 does not exist in New York on 2026-03-08.
+            'target day skips the time' => ['2026-02-08 02:30', 'America/New_York', '2026-03-08 03:30'],
+            // Sydney skips 02:30 on 2017-10-01, not on the target day.
+            'month start skips the time' => ['2017-09-15 02:30', 'Australia/Sydney', '2017-10-15 02:30'],
+        ];
     }
 
     public function testPastesAFull12HourDatetimeIncludingSeconds(): void

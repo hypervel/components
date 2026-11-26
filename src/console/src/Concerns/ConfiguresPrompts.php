@@ -127,7 +127,10 @@ trait ConfiguresPrompts
 
         DateTimePickerPrompt::fallbackUsing(fn (DateTimePickerPrompt $prompt) => $this->timeBasedFallback($prompt));
 
-        TimePickerPrompt::fallbackUsing(fn (TimePickerPrompt $prompt) => $this->timeBasedFallback($prompt));
+        TimePickerPrompt::registerFallback(
+            fn (TimePickerPrompt $prompt) => $this->timeBasedFallback($prompt),
+            fn (): bool => $this->input->isInteractive(),
+        );
 
         SuggestPrompt::fallbackUsing(fn (SuggestPrompt $prompt) => $this->promptUntilValid(
             fn () => $this->transformFallbackAnswer(

@@ -87,4 +87,12 @@ class DateTimePickerPrompt extends DatePickerPrompt
     {
         return 'Y-m-d ' . $this->timeFormat();
     }
+
+    /**
+     * Compare the instants, since the time is part of the value.
+     */
+    protected function compare(DateTimeImmutable $a, DateTimeImmutable $b): int
+    {
+        return $a <=> $b;
+    }
 }

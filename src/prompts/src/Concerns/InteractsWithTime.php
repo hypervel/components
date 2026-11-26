@@ -124,6 +124,25 @@ trait InteractsWithTime
     }
 
     /**
+     * Parse a value in the displayed format onto the selected instant.
+     */
+    protected function parseDisplayed(string $value): ?DateTimeImmutable
+    {
+        if (($date = parent::parseDisplayed($value)) === null) {
+            return null;
+        }
+
+        // Parsing picks one occurrence of a time that daylight saving repeats, while setting
+        // the clock on the selection keeps the occurrence being edited, as typing does.
+        return $this->timeAt(
+            $this->date->setDate((int) $date->format('Y'), (int) $date->format('n'), (int) $date->format('j')),
+            (int) $date->format('G'),
+            (int) $date->format('i'),
+            (int) $date->format('s'),
+        );
+    }
+
+    /**
      * Set the time on the given date, or null when it falls in a daylight saving gap.
      */
     protected function timeAt(DateTimeImmutable $date, int $hour, int $minute, int $second): ?DateTimeImmutable
@@ -165,27 +184,13 @@ trait InteractsWithTime
     }
 
     /**
-     * Move to the given value and update the time segments.
+     * Select the given value and update the time segments.
      */
-    protected function goTo(DateTimeImmutable $date): void
+    protected function select(DateTimeImmutable $date): void
     {
-        parent::goTo($date);
+        parent::select($date);
 
         $this->syncTime();
-    }
-
-    /**
-     * Apply the edited segment and update the time segments.
-     */
-    protected function commitSegment(): bool
-    {
-        if (! parent::commitSegment()) {
-            return false;
-        }
-
-        $this->syncTime();
-
-        return true;
     }
 
     /**
