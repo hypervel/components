@@ -87,6 +87,16 @@ class Worker
     protected int $monitorId = 0;
 
     /**
+     * The number of jobs handed to a daemon that have not finished yet.
+     */
+    protected int $jobsInFlight = 0;
+
+    /**
+     * Indicates if the daemon has stopped taking new jobs.
+     */
+    protected bool $stopped = false;
+
+    /**
      * Indicates if the job monitor is checking for timeout jobs.
      */
     protected bool $monitorLocked = false;
@@ -144,66 +154,83 @@ class Worker
 
         $waiter = new Waiter();
         $concurrent = new Concurrent($options->concurrency);
+        $this->stopped = false;
 
         // Before we begin processing, we will setup the monitor to check for timeout jobs
         $monitorTimeoutJobs
             ? $monitorTimeoutJobs($options)
             : $this->monitorTimeoutJobs($options);
 
-        while (true) {
-            // Before reserving any jobs, we will make sure this queue is not paused and
-            // if it is we will just pause this worker for a given amount of time and
-            // make sure we do not need to kill this worker process off completely.
-            if (! $this->daemonShouldRun($options, $connectionName, $queue)) {
-                $status = $this->pauseWorker($options, $lastRestart);
+        try {
+            while (true) {
+                // Before reserving any jobs, we will make sure this queue is not paused and
+                // if it is we will just pause this worker for a given amount of time and
+                // make sure we do not need to kill this worker process off completely.
+                if (! $this->daemonShouldRun($options, $connectionName, $queue)) {
+                    $status = $this->pauseWorker($options, $lastRestart);
+
+                    if (! is_null($status)) {
+                        return $this->stop($status, $options);
+                    }
+
+                    continue;
+                }
+
+                // If there are timeout jobs or the concurrency limit is hit,
+                // we should not accept new jobs
+                if ($this->hasTimeoutJobs() || $concurrent->isFull()) {
+                    $this->sleep($options->sleep);
+                    continue;
+                }
+
+                // First, we will attempt to get the next job off of the queue.
+                // Then, we can fire off this job in coroutine. If there are no jobs,
+                // we will need to sleep the worker so no more jobs are processed
+                // until they should be processed.
+                $job = $waiter->wait(fn () => $this->getNextJob(
+                    $this->manager->connection($connectionName),
+                    $queue
+                ));
+                if ($job) {
+                    ++$jobsProcessed;
+
+                    // The count belongs to the worker rather than to this daemon run, so a
+                    // reused worker keeps monitoring the jobs of an earlier run as well.
+                    ++$this->jobsInFlight;
+                    $concurrent->create(function () use ($job, $connectionName, $options) {
+                        try {
+                            $this->runJob($job, $connectionName, $options);
+                        } finally {
+                            --$this->jobsInFlight;
+                        }
+                    });
+
+                    if ($options->rest > 0) {
+                        $this->sleep($options->rest);
+                    }
+                } else {
+                    $this->sleep($options->sleep);
+                }
+
+                // Finally, we will check to see if we have exceeded our memory limits or if
+                // the queue should restart based on other indications. If so, we'll stop
+                // this worker and let whatever is "monitoring" it restart the process.
+                $status = $this->stopIfNecessary(
+                    $options,
+                    $lastRestart,
+                    $startTime,
+                    $jobsProcessed,
+                    $job
+                );
 
                 if (! is_null($status)) {
                     return $this->stop($status, $options);
                 }
-
-                continue;
             }
-
-            // If there are timeout jobs or the concurrency limit is hit,
-            // we should not accept new jobs
-            if ($this->hasTimeoutJobs() || $concurrent->isFull()) {
-                $this->sleep($options->sleep);
-                continue;
-            }
-
-            // First, we will attempt to get the next job off of the queue.
-            // Then, we can fire off this job in coroutine. If there are no jobs,
-            // we will need to sleep the worker so no more jobs are processed
-            // until they should be processed.
-            $job = $waiter->wait(fn () => $this->getNextJob(
-                $this->manager->connection($connectionName),
-                $queue
-            ));
-            if ($job) {
-                ++$jobsProcessed;
-                $concurrent->create(fn () => $this->runJob($job, $connectionName, $options));
-
-                if ($options->rest > 0) {
-                    $this->sleep($options->rest);
-                }
-            } else {
-                $this->sleep($options->sleep);
-            }
-
-            // Finally, we will check to see if we have exceeded our memory limits or if
-            // the queue should restart based on other indications. If so, we'll stop
-            // this worker and let whatever is "monitoring" it restart the process.
-            $status = $this->stopIfNecessary(
-                $options,
-                $lastRestart,
-                $startTime,
-                $jobsProcessed,
-                $job
-            );
-
-            if (! is_null($status)) {
-                return $this->stop($status, $options);
-            }
+        } finally {
+            // However the daemon leaves its loop, the timeout monitor has to end once
+            // the jobs that are still running have finished.
+            $this->stopped = true;
         }
     }
 
@@ -228,15 +255,33 @@ class Worker
 
             $this->monitorLocked = true;
 
-            $this->terminateTimeoutJobs($options);
+            try {
+                $this->terminateTimeoutJobs($options);
 
-            if ($this->hasTimeoutJobs()) {
-                $this->shouldQuit = true;
-                $this->kill(static::EXIT_SUCCESS, $options);
+                if ($this->hasTimeoutJobs()) {
+                    $this->shouldQuit = true;
+                    $this->kill(static::EXIT_SUCCESS, $options);
+                }
+            } finally {
+                $this->monitorLocked = false;
             }
 
-            $this->monitorLocked = false;
+            // A stopped daemon keeps enforcing timeouts until its last job has finished.
+            // After that the monitor must end, or its coroutine keeps the process alive.
+            if ($this->stopped && ! $this->hasJobsInFlight()) {
+                $this->monitorId = 0;
+
+                return Timer::STOP;
+            }
         });
+    }
+
+    /**
+     * Determine if any job handed to the daemon has not finished yet.
+     */
+    protected function hasJobsInFlight(): bool
+    {
+        return $this->jobsInFlight > 0;
     }
 
     /**
@@ -249,7 +294,14 @@ class Worker
             if ($job['expires_at'] <= $currentTime) {
                 $this->timeoutJobIds[] = $jobId;
                 unset($this->runningJobs[$jobId]);
-                $this->handleTimeoutJob($job['job'], $options);
+
+                // A failing listener must not keep the other timed out jobs from being
+                // handled, nor keep the worker from being killed afterwards.
+                try {
+                    $this->handleTimeoutJob($job['job'], $options);
+                } catch (Throwable $e) {
+                    $this->exceptions->report($e);
+                }
             }
         }
     }
@@ -757,6 +809,22 @@ class Worker
     }
 
     /**
+     * Wait for the running jobs to finish before the process is killed.
+     */
+    protected function waitForRunningJobs(?WorkerOptions $options): void
+    {
+        while ($this->hasActiveCoroutines()) {
+            $this->sleep(1);
+
+            // The timeout monitor is blocked for as long as we wait here, so we have to
+            // expire the jobs that pass their own timeout or a stuck one never ends.
+            if ($options) {
+                $this->terminateTimeoutJobs($options);
+            }
+        }
+    }
+
+    /**
      * Kill the process.
      *
      * @return never
@@ -765,11 +833,7 @@ class Worker
     {
         $this->events->dispatch(new WorkerStopping($status, $options));
 
-        // If there are any active coroutines, we will need to wait for
-        // them to finish before we can exit.
-        while ($this->hasActiveCoroutines()) {
-            $this->sleep(1);
-        }
+        $this->waitForRunningJobs($options);
 
         if (extension_loaded('posix')) {
             posix_kill(getmypid(), SIGKILL);

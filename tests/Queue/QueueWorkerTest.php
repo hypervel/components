@@ -8,8 +8,13 @@ use DateInterval;
 use DateTimeInterface;
 use Exception;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Coordinator\Constants;
+use Hyperf\Coordinator\CoordinatorManager;
+use Hyperf\Coordinator\Timer;
+use Hyperf\Coroutine\Coroutine;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hyperf\Engine\Channel;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Queue\Contracts\Job;
@@ -20,6 +25,7 @@ use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\Worker;
@@ -432,6 +438,192 @@ class QueueWorkerTest extends TestCase
         Worker::popUsing('myworker', null);
     }
 
+    public function testDaemonStopsMonitoringTimeoutJobsWhenItThrows()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $worker = $this->getWorker('default', ['queue' => []], function () {
+            throw new RuntimeException('maintenance check failed');
+        });
+
+        $timers = Timer::stats()['num'];
+
+        try {
+            $worker->daemon('default', 'queue', new WorkerOptions());
+
+            $this->fail('The daemon should have thrown.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('maintenance check failed', $e->getMessage());
+        }
+
+        $this->assertSame($timers + 1, Timer::stats()['num']);
+
+        // The monitor only ends on its next tick.
+        $this->waitUntil(fn () => Timer::stats()['num'] === $timers);
+
+        $this->assertSame($timers, Timer::stats()['num']);
+    }
+
+    public function testDaemonKeepsMonitoringTimeoutJobsUntilRunningJobsFinish()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $workerOptions = new WorkerOptions();
+        $workerOptions->stopWhenEmpty = true;
+        $workerOptions->concurrency = 2;
+
+        $release = new Channel(1);
+        $finished = false;
+        $worker = $this->getWorker('default', ['queue' => [
+            new WorkerFakeJob(function () use ($release, &$finished) {
+                $release->pop(10);
+                $finished = true;
+            }),
+        ]]);
+
+        $timers = Timer::stats()['num'];
+        $rounds = Timer::stats()['round'];
+
+        // The queue is empty after the first pop, so the daemon stops while the job is still running.
+        $worker->daemon('default', 'queue', $workerOptions);
+
+        // Let the monitor complete a tick while the job is still running.
+        $this->waitUntil(fn () => Timer::stats()['round'] > $rounds);
+
+        $this->assertFalse($finished);
+        $this->assertSame($timers + 1, Timer::stats()['num']);
+
+        $release->push(true);
+
+        $this->waitUntil(fn () => Timer::stats()['num'] === $timers);
+
+        $this->assertTrue($finished);
+        $this->assertSame($timers, Timer::stats()['num']);
+    }
+
+    public function testWorkerIsKilledWhenHandlingATimedOutJobThrows()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $e = new RuntimeException('listener failed');
+        $this->events->shouldReceive('dispatch')->with(m::type(JobTimedOut::class))->andThrow($e);
+
+        $workerOptions = new WorkerOptions();
+        $workerOptions->stopWhenEmpty = true;
+        $workerOptions->concurrency = 2;
+
+        $release = new Channel(1);
+        $job = new class(fn () => $release->pop(10)) extends WorkerFakeJob {
+            public function timeout(): int
+            {
+                return 0;
+            }
+        };
+
+        $worker = new KillRecordingWorker(...$this->workerDependencies('default', ['queue' => [$job]]));
+
+        $worker->daemon('default', 'queue', $workerOptions);
+
+        $this->assertSame(0, $worker->killed);
+
+        // The monitor's first tick finds the job past its timeout.
+        $this->waitUntil(fn () => $worker->killed > 0);
+
+        $this->assertSame(1, $worker->killed);
+        $this->exceptionHandler->shouldHaveReceived('report')->with($e)->once();
+
+        $release->push(true);
+    }
+
+    public function testWorkerExpiresOtherRunningJobsWhileWaitingToBeKilled()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $workerOptions = new WorkerOptions();
+        $workerOptions->stopWhenEmpty = true;
+        $workerOptions->concurrency = 3;
+
+        $release = new Channel(2);
+        $job = fn (int $timeout) => new class(fn () => $release->pop(10), $timeout) extends WorkerFakeJob {
+            public function __construct($callback, private int $seconds)
+            {
+                parent::__construct($callback);
+            }
+
+            public function timeout(): int
+            {
+                return $this->seconds;
+            }
+        };
+
+        // The first job is past its timeout on the monitor's first tick, the second
+        // only later, while the worker is already waiting to be killed.
+        $worker = new KillRecordingWorker(...$this->workerDependencies('default', ['queue' => [$job(0), $job(2)]]));
+
+        $worker->daemon('default', 'queue', $workerOptions);
+
+        $this->waitUntil(fn () => $worker->killed > 0);
+
+        $this->assertSame(1, $worker->killed);
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobTimedOut::class))->twice();
+
+        $release->push(true);
+        $release->push(true);
+    }
+
+    public function testReusedWorkerKeepsMonitoringTheJobsOfAnEarlierRun()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $release = new Channel(1);
+        $finished = false;
+        $worker = $this->getWorker('default', ['queue' => [
+            new WorkerFakeJob(function () use ($release, &$finished) {
+                $release->pop(10);
+                $finished = true;
+            }),
+        ]]);
+
+        $timers = Timer::stats()['num'];
+        $rounds = Timer::stats()['round'];
+
+        // The first run stops after taking one job, which is still running.
+        $worker->daemon('default', 'queue', $this->workerOptions(['maxJobs' => 1, 'concurrency' => 2]));
+
+        // The second run finds the queue empty and stops right away.
+        $worker->daemon('default', 'queue', $this->workerOptions(['stopWhenEmpty' => true, 'concurrency' => 2]));
+
+        // Let the monitor complete a tick, or end, while the job is still running.
+        $this->waitUntil(fn () => Timer::stats()['round'] > $rounds || Timer::stats()['num'] === $timers);
+
+        $this->assertFalse($finished);
+        $this->assertSame($timers + 1, Timer::stats()['num']);
+
+        $release->push(true);
+
+        $this->waitUntil(fn () => Timer::stats()['num'] === $timers);
+
+        $this->assertTrue($finished);
+        $this->assertSame($timers, Timer::stats()['num']);
+    }
+
+    /**
+     * Wait for the given condition without depending on timer precision.
+     */
+    private function waitUntil(callable $condition, float $timeout = 5.0): void
+    {
+        $deadline = microtime(true) + $timeout;
+
+        while (! $condition() && microtime(true) < $deadline) {
+            Coroutine::sleep(0.02);
+        }
+    }
+
     /**
      * Helpers...
      * @param mixed $connectionName
@@ -495,6 +687,24 @@ class InsomniacWorker extends Worker
     public function memoryExceeded(int $memoryLimit): bool
     {
         return $this->stopOnMemoryExceeded;
+    }
+}
+
+class KillRecordingWorker extends InsomniacWorker
+{
+    public int $killed = 0;
+
+    public function sleep(float|int $seconds): void
+    {
+        // Yield, so the jobs this worker waits for can make progress.
+        Coroutine::sleep(0.01);
+    }
+
+    public function kill(int $status = 0, ?WorkerOptions $options = null): void
+    {
+        $this->waitForRunningJobs($options);
+
+        ++$this->killed;
     }
 }
 

@@ -219,6 +219,12 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
 
             $this->processPendingCommands();
 
+            // Terminating removes this master supervisor's record from storage, so we
+            // must not persist it again on the way out of the loop.
+            if ($this->shouldExitLoop) {
+                return;
+            }
+
             if ($this->working) {
                 $this->monitorSupervisors();
             }

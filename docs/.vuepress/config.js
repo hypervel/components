@@ -7,6 +7,9 @@ import { docsearchPlugin } from '@vuepress/plugin-docsearch'
 import { sidebarConfig } from './sidebar.js'
 import { removeHtmlExtensionPlugin } from 'vuepress-plugin-remove-html-extension'
 import { seoPlugin } from '@vuepress/plugin-seo'
+import { getDirname, path } from 'vuepress/utils'
+
+const __dirname = getDirname(import.meta.url)
 
 export default defineUserConfig({
   lang: 'en-US',
@@ -15,6 +18,11 @@ export default defineUserConfig({
 
   ignoreDeadLinks: true,
   bundler: viteBundler(),
+
+  alias: {
+    // The home page layout has no slots, so the version notice is added by wrapping the hero.
+    '@theme/VPHomeHero.vue': path.resolve(__dirname, './components/HomeHero.vue'),
+  },
 
   plugins: [
     seoPlugin({
