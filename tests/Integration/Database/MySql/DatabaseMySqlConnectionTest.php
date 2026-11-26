@@ -154,7 +154,7 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
     #[RequiresDatabase('mysql', '>=8.0.17')]
     public function testJsonComparisonsWithBinaryConnectionCollation(): void
     {
-        DB::table(self::TABLE)->insert([self::JSON_COL => json_encode(['name' => 'Taylor', 'active' => true])]);
+        DB::table(self::TABLE)->insert([self::JSON_COL => json_encode(['name' => 'Taylor', 'active' => true, 'rank' => 5])]);
 
         $query = fn () => DB::connection('mysql_0900_bin')->table(self::TABLE);
 
@@ -165,6 +165,7 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
         $this->assertTrue($query()->whereRowValues([self::JSON_COL . '->name'], '=', ['Taylor'])->exists());
         $this->assertTrue($query()->whereIn(self::JSON_COL . '->active', [true])->exists());
         $this->assertFalse($query()->whereIn(self::JSON_COL . '->active', [false])->exists());
+        $this->assertTrue($query()->whereBetween(self::JSON_COL . '->rank', [['1', 10]])->exists());
     }
 
     public function testJsonPathUpdate(): void

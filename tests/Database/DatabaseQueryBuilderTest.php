@@ -1494,6 +1494,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame([], $builder->getBindings());
 
         $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereBetween('id', [new Raw(1), 2, 3]);
+        $this->assertSame('select * from "users" where "id" between 1 and ?', $builder->toSql());
+        $this->assertSame([2], $builder->getBindings());
+
+        $builder = $this->getBuilder();
         $period = today()->toPeriod(now()->addDay()->startOfDay());
         $builder->select('*')->from('users')->whereBetween('created_at', $period);
         $this->assertSame('select * from "users" where "created_at" between ? and ?', $builder->toSql());
@@ -2883,6 +2888,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->select('*')->from('users')->havingBetween('id', [[1, 2], [3, 4]]);
         $this->assertSame('select * from "users" having "id" between ? and ?', $builder->toSql());
         $this->assertEquals([0 => 1, 1 => 2], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->havingBetween('id', [new Raw(1), 2, 3]);
+        $this->assertSame('select * from "users" having "id" between 1 and ?', $builder->toSql());
+        $this->assertSame([2], $builder->getBindings());
 
         $start = now()->startOfDay();
 
@@ -6631,6 +6641,16 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->where('items->price', '=', 1.5);
         $this->assertSame('select * from `users` where json_unquote(json_extract(`items`, \'$."price"\')) = json_unquote(json_quote(?))', $builder->toSql());
+    }
+
+    public function testMySqlWrappingJsonBetweenBoundsByTheirOwnValues(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')
+            ->whereBetween('items->price', [['1', 10]])
+            ->havingBetween('items->price', [1, '10', 3]);
+        $this->assertSame('select * from `users` where json_unquote(json_extract(`items`, \'$."price"\')) between json_unquote(json_quote(?)) and ? having json_unquote(json_extract(`items`, \'$."price"\')) between ? and json_unquote(json_quote(?))', $builder->toSql());
+        $this->assertSame(['1', 10, 1, '10'], $builder->getBindings());
     }
 
     public function testMySqlWrappingJsonWithBoolean(): void

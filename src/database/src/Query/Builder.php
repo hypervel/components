@@ -1573,11 +1573,12 @@ class Builder implements BuilderContract
             $values = $this->resolveDatePeriodBounds($values);
         }
 
-        $values = is_array($values) ? $values : iterator_to_array($values, false);
+        // Keep only the two bounds the grammar compiles, so a raw bound never shifts the bindings that follow it.
+        $values = array_slice(Arr::flatten($values), 0, 2);
 
         $this->wheres[] = ['type' => $type, 'column' => $column, 'values' => $values, 'boolean' => $boolean, 'not' => $not];
 
-        $this->addBinding(array_slice($this->cleanBindings(Arr::flatten($values)), 0, 2), 'where');
+        $this->addBinding($this->cleanBindings($values), 'where');
 
         return $this;
     }
@@ -2734,11 +2735,12 @@ class Builder implements BuilderContract
             $values = $this->resolveDatePeriodBounds($values);
         }
 
-        $values = is_array($values) ? $values : iterator_to_array($values, false);
+        // Keep only the two bounds the grammar compiles, so a raw bound never shifts the bindings that follow it.
+        $values = array_slice(Arr::flatten($values), 0, 2);
 
         $this->havings[] = ['type' => $type, 'column' => $column, 'values' => $values, 'boolean' => $boolean, 'not' => $not];
 
-        $this->addBinding(array_slice($this->cleanBindings(Arr::flatten($values)), 0, 2), 'having');
+        $this->addBinding($this->cleanBindings($values), 'having');
 
         return $this;
     }
