@@ -36,8 +36,8 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
         $this->assertSame(0, substr_count($response, 'HTTP/1.1 100 Continue'));
         $this->assertSame(2, substr_count($response, 'HTTP/1.1 200 OK'));
         $this->assertStringContainsString('"content":"hello"', $response);
-        // Swoole does not keep pipelined responses in request order, so only check that the second response's body arrived.
-        $this->assertStringContainsString("\r\n\r\nup", $response);
+        // Swoole does not keep pipelined responses in request order, so the up response may end the stream or precede the other.
+        $this->assertMatchesRegularExpression('/\r\n\r\nup(?:HTTP\/1\.1 |\z)/', $response);
     }
 
     public function testOversizedHttpTwoRequestBodyLeavesOtherStreamsUsable(): void
