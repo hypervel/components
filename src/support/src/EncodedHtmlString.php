@@ -20,9 +20,19 @@ class EncodedHtmlString extends HtmlString
     protected const string ENCODER_CONTEXT_KEY = '__support.encoded_html.encoder';
 
     /**
+     * Context key for the marker kept while scoped encoder callbacks may be in use.
+     */
+    protected const string ENCODER_MARKER_CONTEXT_KEY = '__support.encoded_html.encoder_marker';
+
+    /**
      * The callback that should be used to encode the HTML strings.
      */
     protected static ?Closure $encodeUsingFactory = null;
+
+    /**
+     * The marker kept while the boot encoder is registered.
+     */
+    protected static ?HtmlEncoderMarker $encodeUsingMarker = null;
 
     /**
      * Create a new encoded HTML string instance.
@@ -45,6 +55,20 @@ class EncodedHtmlString extends HtmlString
     }
 
     /**
+     * Encode the given value using the active encoder.
+     *
+     * @internal
+     */
+    public static function encode(mixed $value, bool $doubleEncode = true): string
+    {
+        $encoder = CoroutineContext::get(self::ENCODER_CONTEXT_KEY) ?? static::$encodeUsingFactory;
+
+        return $encoder === null
+            ? static::convert((string) ($value ?? ''), doubleEncode: $doubleEncode)
+            : $encoder($value, $doubleEncode);
+    }
+
+    /**
      * Get the HTML string.
      */
     #[Override]
@@ -64,11 +88,7 @@ class EncodedHtmlString extends HtmlString
             $value = $value->value;
         }
 
-        $factory = CoroutineContext::get(self::ENCODER_CONTEXT_KEY) ?? static::$encodeUsingFactory;
-
-        return ($factory ?? function ($value, $doubleEncode) {
-            return static::convert((string) ($value ?? ''), doubleEncode: $doubleEncode);
-        })($value, $this->doubleEncode);
+        return static::encode($value, $this->doubleEncode);
     }
 
     /**
@@ -81,6 +101,7 @@ class EncodedHtmlString extends HtmlString
     public static function encodeUsing(?callable $factory = null): void
     {
         static::$encodeUsingFactory = $factory === null ? null : Closure::fromCallable($factory);
+        static::$encodeUsingMarker = $factory === null ? null : new HtmlEncoderMarker;
     }
 
     /**
@@ -92,8 +113,14 @@ class EncodedHtmlString extends HtmlString
         // the previous coroutine-local state instead of falling back globally.
         $hadPreviousFactory = CoroutineContext::has(self::ENCODER_CONTEXT_KEY);
         $previousFactory = CoroutineContext::get(self::ENCODER_CONTEXT_KEY);
+        $hadMarker = CoroutineContext::has(self::ENCODER_MARKER_CONTEXT_KEY);
 
         CoroutineContext::set(self::ENCODER_CONTEXT_KEY, $factory);
+
+        // Forked coroutines share the marker, so e() keeps looking up encoders until every copy has finished.
+        if (! $hadMarker) {
+            CoroutineContext::set(self::ENCODER_MARKER_CONTEXT_KEY, new HtmlEncoderMarker);
+        }
 
         try {
             return $callback();
@@ -102,6 +129,10 @@ class EncodedHtmlString extends HtmlString
                 CoroutineContext::set(self::ENCODER_CONTEXT_KEY, $previousFactory);
             } else {
                 CoroutineContext::forget(self::ENCODER_CONTEXT_KEY);
+            }
+
+            if (! $hadMarker) {
+                CoroutineContext::forget(self::ENCODER_MARKER_CONTEXT_KEY);
             }
         }
     }
@@ -112,5 +143,6 @@ class EncodedHtmlString extends HtmlString
     public static function flushState(): void
     {
         static::$encodeUsingFactory = null;
+        static::$encodeUsingMarker = null;
     }
 }

@@ -14,6 +14,7 @@ use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
+use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\Env;
 use Hypervel\Support\Optional;
 use Hypervel\Support\Sleep;
@@ -99,6 +100,20 @@ class SupportHelpersTest extends TestCase
 
         $enumValue = IntBackedEnum::RoleAdmin;
         $this->assertSame('1', e($enumValue));
+    }
+
+    public function testEDoubleEncodingAndCustomEncoder(): void
+    {
+        $this->assertSame('&amp; &amp;amp; &quot;', e('& &amp; "'));
+        $this->assertSame('&amp; &amp; &quot;', e('& &amp; "', false));
+
+        EncodedHtmlString::encodeUsing(fn ($value, $doubleEncode) => $value . ($doubleEncode ? '-true' : '-false'));
+
+        try {
+            $this->assertSame('value-false', e('value', false));
+        } finally {
+            EncodedHtmlString::flushState();
+        }
     }
 
     public function testBlank(): void

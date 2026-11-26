@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Mail;
 
+use DOMDocument;
+use DOMXPath;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
@@ -121,6 +123,8 @@ TABLE, false);
             '<em>Hi</em> Visit &lt;span&gt;https://hypervel.org/docs&lt;/span&gt; to browse the documentation',
         ];
 
+        yield ['Tea & coffee &amp; cake', '<em>Hi</em> Tea &amp; coffee &amp;amp; cake'];
+
         // Encoding must block Markdown injection without deleting the user's backslashes.
         yield ['\[Hypervel](https://hypervel.org)', '<em>Hi</em> \[Hypervel](https://hypervel.org)'];
 
@@ -183,6 +187,8 @@ TABLE, false);
             'url' => $url,
             'host' => 'evil.test\\',
             'number' => 42,
+            'link' => '[Click](https://evil.test)',
+            'entities' => '&#42;tea&#42; &amp; & "quoted"',
         ])->toHtml();
         $document = new Crawler($html);
 
@@ -195,6 +201,64 @@ TABLE, false);
         $this->assertNull($document->selectLink('Open')->attr('data-injected'));
         $this->assertStringContainsString('content: "[x]"', $document->filter('style')->last()->text());
         $this->assertSame('https://evil.test%5C.good.test', $document->selectLink('Destination')->attr('href'));
-        $this->assertContains('42', $document->filter('p')->each(fn (Crawler $paragraph): string => $paragraph->text()));
+        $paragraphs = $document->filter('p')->each(fn (Crawler $paragraph): string => $paragraph->text());
+        $this->assertContains('42', $paragraphs);
+        // Explicit e() calls use the secured encoder too, and keep existing entities when asked.
+        $this->assertContains('[Click](https://evil.test)', $paragraphs);
+        $this->assertCount(0, $document->filter('a[href="https://evil.test"]'));
+        $this->assertContains('*tea* & & "quoted"', $paragraphs);
+        $this->assertCount(0, $document->filter('em'));
+    }
+
+    #[DataProvider('attributeValues')]
+    public function testSecuredEncodingProtectsHtmlAttributes(string $value): void
+    {
+        $mailable = new class($value) extends Mailable {
+            /**
+             * Create the mailable for the given value.
+             */
+            public function __construct(public string $value)
+            {
+            }
+
+            /**
+             * Build the mailable.
+             */
+            public function build(): static
+            {
+                return $this->markdown('attributes-with-template');
+            }
+        };
+
+        $document = new DOMDocument;
+        $document->loadHTML($mailable->render());
+        $xpath = new DOMXPath($document);
+
+        $image = $xpath->query('//img[@id="test-image"]')->item(0);
+        $this->assertNotNull($image);
+        $this->assertSame($value, $image->getAttribute('alt'));
+        $this->assertSame($value, $image->getAttribute('title'));
+        $this->assertFalse($image->hasAttribute('onerror'));
+
+        $helper = $xpath->query('//span[@id="test-helper"]')->item(0);
+        $this->assertNotNull($helper);
+        $this->assertSame(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $helper->getAttribute('title'));
+        $this->assertFalse($helper->hasAttribute('onerror'));
+
+        $button = $xpath->query('//a[contains(@class, "button")]')->item(0);
+        $this->assertNotNull($button);
+        $this->assertSame($value, rawurldecode($button->getAttribute('href')));
+        $this->assertFalse($button->hasAttribute('onerror'));
+    }
+
+    /**
+     * Provide values that must stay inside their HTML attributes.
+     */
+    public static function attributeValues(): iterable
+    {
+        yield 'double quote' => ['Taylor" onerror="alert(1)'];
+        yield 'single quote' => ["Taylor' onerror='alert(1)"];
+        yield 'entities and ampersands' => ['Taylor &quot; &#39; &amp; & test'];
+        yield 'markdown and html' => ['[Taylor] <example>'];
     }
 }
