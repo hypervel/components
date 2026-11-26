@@ -8,6 +8,7 @@ use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Attributes\Boot;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
@@ -53,6 +54,7 @@ class ModelSerializationTest extends TestCase
         Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email');
+            $table->string('ulid')->nullable();
         });
 
         Schema::connection('custom')->create('users', function (Blueprint $table): void {
@@ -357,6 +359,29 @@ class ModelSerializationTest extends TestCase
 
         $this->assertSame('taylor@laravel.com', $unserialized->users->first()->email);
         $this->assertSame('mohamed@laravel.com', $unserialized->users->last()->email);
+    }
+
+    public function testItSerializesACollectionUsingQueueableIdentifiers(): void
+    {
+        $firstUser = ModelSerializationTestQueueableUser::create([
+            'email' => 'mohamed@laravel.com',
+            'ulid' => '01KAV6RF9H3W4X7C2QPMJ8N5TY',
+        ]);
+        $secondUser = ModelSerializationTestQueueableUser::create([
+            'email' => 'taylor@laravel.com',
+            'ulid' => '01KAV6S3E6F8R9V2Z7YCN4MPTW',
+        ]);
+
+        $serialized = serialize(new CollectionSerializationTestClass(
+            new Collection([$secondUser, $firstUser])
+        ));
+
+        $unserialized = unserialize($serialized);
+
+        $this->assertSame(
+            [$secondUser->getKey(), $firstUser->getKey()],
+            $unserialized->users->modelKeys()
+        );
     }
 
     public function testItCanUnserializeACollectionInCorrectOrderAndHandleDeletedModels(): void
@@ -759,6 +784,27 @@ class ModelSerializationTestUser extends Model
     protected array $guarded = [];
 
     public bool $timestamps = false;
+}
+
+class ModelSerializationTestQueueableUser extends ModelSerializationTestUser
+{
+    /**
+     * Get the queueable identity for the entity.
+     */
+    public function getQueueableId(): mixed
+    {
+        return $this->ulid;
+    }
+
+    /**
+     * Get a new query to restore one or more models by their queueable IDs.
+     */
+    public function newQueryForRestoration(array|int|string $ids): Builder
+    {
+        return is_array($ids)
+            ? $this->newQueryWithoutScopes()->whereIn('ulid', $ids)
+            : $this->newQueryWithoutScopes()->where('ulid', $ids);
+    }
 }
 
 class ModelSerializationTestCustomUserCollection extends Collection
