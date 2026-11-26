@@ -24,6 +24,7 @@ use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Terminal;
 use Throwable;
+use WeakMap;
 
 use function Termwind\terminal;
 
@@ -65,6 +66,13 @@ class WorkCommand extends Command
      * Indicates if the worker's event listeners have been registered.
      */
     protected static bool $hasRegisteredListeners = false;
+
+    /**
+     * The time each job started at, keyed by the job.
+     *
+     * @var null|WeakMap<Job, float>
+     */
+    protected ?WeakMap $jobsStartedAt = null;
 
     /**
      * Create a new queue work command.
@@ -212,7 +220,7 @@ class WorkCommand extends Command
         ));
 
         if ($status == 'starting') {
-            $this->setLatestStartedAt(microtime(true));
+            $this->markJobAsStarted($job);
 
             $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
                 $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
@@ -225,7 +233,7 @@ class WorkCommand extends Command
             return;
         }
 
-        $runTime = $this->runTimeForHumans($this->getLatestStartedAt());
+        $runTime = $this->runTimeForHumans($this->jobStartedAt($job));
 
         $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
             $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
@@ -268,9 +276,9 @@ class WorkCommand extends Command
         ]);
 
         if ($status === 'starting') {
-            $this->setLatestStartedAt(microtime(true));
+            $this->markJobAsStarted($job);
         } else {
-            $log['duration'] = round(microtime(true) - $this->getLatestStartedAt(), 6);
+            $log['duration'] = round(microtime(true) - $this->jobStartedAt($job), 6);
         }
 
         $this->output->writeln(json_encode($log));
@@ -329,11 +337,30 @@ class WorkCommand extends Command
         return $this->option('json');
     }
 
+    /**
+     * Record the time the given job started at.
+     */
+    protected function markJobAsStarted(Job $job): void
+    {
+        $this->setLatestStartedAt($startedAt = microtime(true));
+
+        $this->jobsStartedAt ??= new WeakMap();
+        $this->jobsStartedAt[$job] = $startedAt;
+    }
+
+    /**
+     * Get the time the given job started at.
+     */
+    protected function jobStartedAt(Job $job): float
+    {
+        // A timed out job is failed from the worker's monitor coroutine, where the start
+        // time kept in the coroutine context is not available, so we look it up by job.
+        return $this->jobsStartedAt[$job] ?? $this->getLatestStartedAt() ?? microtime(true);
+    }
+
     protected function getLatestStartedAt(): ?float
     {
-        // A timed out job is failed from the worker's monitor coroutine, which never
-        // recorded a start time, so we fall back to the current time there.
-        return Context::get('__queue.worker.latest_started_at') ?? microtime(true);
+        return Context::get('__queue.worker.latest_started_at');
     }
 
     protected function setLatestStartedAt(?float $latestStartedAt): void
