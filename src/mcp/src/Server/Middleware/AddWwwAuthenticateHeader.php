@@ -106,7 +106,7 @@ class AddWwwAuthenticateHeader
         $route = $request->route();
         $matchedParameters = $route instanceof Route ? $route->parameters() : [];
 
-        // Keep shared path parameters from the matched MCP route, then overlay host parameters bound for the metadata route.
+        // Bind without cloning the shared route or writing unused CoroutineContext slots, keeping path parameters the matched MCP route shares with the metadata route (such as a {tenant} prefix).
         $parameters = array_replace(
             array_intersect_key(
                 $matchedParameters,

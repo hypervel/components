@@ -250,7 +250,7 @@ class OAuthClient
         if (is_string($stored['scope'] ?? null) && filled($stored['scope'])) {
             // Pair remembered scopes with their issuer so switching authorization servers drops stale scopes.
             Session::put($this->requestedScopeSessionKey(), [
-                'issuer' => is_string($stored['issuer'] ?? null) ? $stored['issuer'] : '',
+                'issuer' => (string) $stored['issuer'],
                 'scope' => $stored['scope'],
             ]);
         }

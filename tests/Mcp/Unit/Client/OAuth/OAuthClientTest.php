@@ -216,6 +216,7 @@ class OAuthClientTest extends TestCase
             'token_auth_method' => 'none',
             'redirect_uri' => 'https://app.test/callback',
             'return_to' => null,
+            'issuer' => 'https://auth.test',
             'scope' => 'mcp:read mcp:write',
             'resource' => 'https://mcp.test/mcp',
         ]);
