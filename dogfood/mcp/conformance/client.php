@@ -6,6 +6,8 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Client\Exceptions\AuthorizationRequiredException;
+use Hypervel\Mcp\Client\OAuth\OAuthClient;
+use Hypervel\Mcp\Client\OAuth\OAuthConfig;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application;
@@ -49,15 +51,10 @@ $log(sprintf('start url=%s', $url));
 $status = 0;
 
 run(function () use ($url, $scenario, $context, $log, &$status): void {
-    $client = Client::web($url)->withTimeout(30)->withOAuth(
-        clientId: $context['client_id'] ?? null,
-        clientSecret: $context['client_secret'] ?? null,
-        redirectUri: 'http://127.0.0.1/callback',
-    );
+    $client = Client::web($url)->withTimeout(30);
 
     $authorizations = 0;
-    $grantedScope = null;
-    $execute = function (Closure $operation) use ($client, $scenario, &$authorizations, &$grantedScope): mixed {
+    $execute = function (Closure $operation) use ($client, $url, $scenario, $context, &$authorizations): mixed {
         while (true) {
             try {
                 return $operation();
@@ -66,13 +63,15 @@ run(function () use ($url, $scenario, $context, $log, &$status): void {
                     throw $exception;
                 }
 
-                $scope = $exception->scope();
-
-                if ($grantedScope !== null) {
-                    $scope = implode(' ', array_unique(explode(' ', trim($grantedScope . ' ' . ($scope ?? '')))));
-                }
-
-                $oauth = $client->oAuthClient($exception->resourceMetadataUrl(), $scope);
+                $oauth = new class(new OAuthConfig(clientId: $context['client_id'] ?? null, clientSecret: $context['client_secret'] ?? null, redirectUri: 'http://localhost/callback'), $url, $exception->resourceMetadataUrl(), $exception->scope(), clientIdMetadataUrl: 'https://conformance-test.local/client-metadata.json') extends OAuthClient {
+                    /**
+                     * Allow the conformance suite's fixed .local client metadata identifier.
+                     */
+                    protected function isPubliclyResolvable(string $host): bool
+                    {
+                        return true;
+                    }
+                };
 
                 // Pre-registration also supplies credentials but requires the authorization-code flow.
                 if ($scenario === 'auth/client-credentials-basic') {
@@ -90,7 +89,6 @@ run(function () use ($url, $scenario, $context, $log, &$status): void {
                 }
 
                 $client->withToken($token->accessToken);
-                $grantedScope = $token->scope;
             }
         }
     };

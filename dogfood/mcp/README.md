@@ -24,6 +24,6 @@ The server fixtures exercise the package's supported tools, prompts, resources, 
 
 The client fixture exercises discovery, tool calls, schema preservation, HTTP header mirroring and OAuth against the runner's local servers. Authorization runs headlessly: the mock authorization endpoint redirects directly to a callback, which the fixture passes to the package's OAuth client. An array session holds the pending exchange. The fixture allows initial authorization and one reauthorization, including scope step-up and authorization-server migration.
 
-The baseline distinguishes unsupported OAuth extensions from fixture limitations. The CIMD scenario requires a fixed `.local` metadata URL that the package rejects for public discovery. The version-retry scenario rejects the same modern version it offers as supported; the client retries when a different mutually supported version is available.
+The baseline distinguishes unsupported OAuth extensions from fixture limitations. The version-retry scenario rejects the same modern version it offers as supported; the client retries when a different mutually supported version is available.
 
 Keep the baseline tied to observed results. Remove an entry when its scenario passes and investigate new failures before adding entries. This harness is separate from the normal PHPUnit and JavaScript CI suites.

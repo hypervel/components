@@ -58,6 +58,7 @@ class OAuthCallbackRouteTest extends TestCase
             'client_id' => 'client-123',
             'client_secret' => null,
             'token_endpoint' => 'https://auth.test/token',
+            'token_auth_method' => 'none',
             'redirect_uri' => 'https://app.test/callback',
             'return_to' => null,
             'resource' => 'https://mcp.test/mcp',

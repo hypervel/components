@@ -31,7 +31,7 @@ class InteractsWithOAuthEndpointsTest extends TestCase
         $this->app->instance(OAuthDestinationPolicy::class, new FakeDestinationPolicy);
     }
 
-    // REMOVED: raw cURL option assertions. Protocols are transport-owned; response limits use capped sinks.
+    // REMOVED: oAuthTransportOptions() assertions — Guzzle already limits schemes to HTTP/HTTPS and capped sinks abort oversized bodies.
     public function testLimitsDiscoveryRequestsToHttpAndHttpsWithACappedResponseSize(): void
     {
         $options = [];

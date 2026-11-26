@@ -596,7 +596,7 @@ MCP's anonymous client registrations receive explicit scope allowances from `pas
 
 OAuth clients check resolved destinations before sending, including when HTTP responses are faked. Explicitly allow private DNS destinations and substitute DNS for invented test hostnames; see [OAuth destinations](/docs/{{version}}/mcp#oauth-destinations) and [OAuth tests](/docs/{{version}}/mcp#testing-oauth). The Inspector also keeps HTTPS verification enabled; configure `NODE_EXTRA_CA_CERTS` for locally issued certificates.
 
-If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote server does not advertise it, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise uses the remote server's advertised scopes; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
+If an OAuth client relies on Laravel's implicit `mcp:use` fallback when no scope is challenged, configured, or advertised, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise omits the `scope` parameter; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
 
 Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` to an MCP client's connect route. Unsigned hints are rejected to prevent credential disclosure through substituted discovery metadata; see [authorization challenges](/docs/{{version}}/mcp#client-oauth-scopes).
 
