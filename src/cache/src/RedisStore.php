@@ -189,6 +189,29 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     }
 
     /**
+     * Store multiple items in the cache indefinitely.
+     *
+     * @internal
+     *
+     * @param array<array-key, mixed> $values
+     * @return array<array-key, bool>
+     */
+    public function foreverMany(array $values): array
+    {
+        if (count($values) < 2 || $this->getContext()->isCluster()) {
+            $results = [];
+
+            foreach ($values as $key => $value) {
+                $results[$key] = $this->forever((string) $key, $value);
+            }
+
+            return $results;
+        }
+
+        return $this->getForeverOperation()->executeMany($values);
+    }
+
+    /**
      * Get a lock instance.
      */
     public function lock(string $name, int $seconds = 0, ?string $owner = null): RedisLock
@@ -226,6 +249,26 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
         }
 
         return $this->getForgetOperation()->execute($key);
+    }
+
+    /**
+     * Remove multiple items from the cache.
+     *
+     * @internal
+     *
+     * @param array<array-key, string> $keys
+     * @return list<bool>
+     */
+    public function forgetManyKeys(array $keys): array
+    {
+        $keys = array_values($keys);
+
+        // Any-mode forgets also remove each key's tag entries.
+        if (count($keys) < 2 || $this->tagMode === TagMode::Any || $this->getContext()->isCluster()) {
+            return array_map($this->forget(...), $keys);
+        }
+
+        return $this->getForgetOperation()->executeMany($keys);
     }
 
     /**

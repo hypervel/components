@@ -59,6 +59,7 @@ abstract class RedisCacheTestCase extends TestCase
     {
         // RedisCluster has no pipeline method, so attempts to pipeline already fail natively.
         $client = Double::for(RedisCluster::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
         $client->allows('getOption')->with(Redis::OPT_SERIALIZER)->returns(Redis::SERIALIZER_NONE);
         $client->allows('getOption')->with(Redis::OPT_COMPRESSION)->returns(Redis::COMPRESSION_NONE);
         $client->allows('getOption')->with(Redis::OPT_PREFIX)->returns('');

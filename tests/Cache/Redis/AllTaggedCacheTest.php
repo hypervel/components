@@ -387,12 +387,17 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $namespace = hash('xxh128', '_all:tag:users:entries') . ':';
 
-        $connection->client()->expects('del')
+        $client = $connection->client();
+        $client->expects('pipeline')->returns($client)->ordered();
+        $client->expects('del')
             ->with("prefix:{$namespace}name")
-            ->returns(1);
-        $connection->client()->expects('del')
+            ->returns($client)
+            ->ordered();
+        $client->expects('del')
             ->with("prefix:{$namespace}age")
-            ->returns(1);
+            ->returns($client)
+            ->ordered();
+        $client->expects('exec')->returns([1, 1])->ordered();
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->putMany([

@@ -121,7 +121,7 @@ class Add
             }
 
             return true;
-        });
+        }, needsReplies: true);
     }
 
     /**

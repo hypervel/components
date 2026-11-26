@@ -9,6 +9,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use Redis as PhpRedis;
 use RedisException;
 
 class EvalWithShaCacheIntegrationTest extends TestCase
@@ -150,6 +151,25 @@ class EvalWithShaCacheIntegrationTest extends TestCase
             return $connection->client()->script('exists', $sha);
         });
         $this->assertEquals([1], $exists, 'Script should be cached after eval');
+    }
+
+    public function testEvalWithShaCacheSendsTheScriptToAnOpenPipeline(): void
+    {
+        if ($this->usingRedisCluster()) {
+            $this->markTestSkipped('Redis Cluster connections do not support pipelines.');
+        }
+
+        // A unique script is not cached, so a queued EVALSHA would reply NOSCRIPT with no chance to fall back.
+        $uniqueId = uniqid('', true);
+        $script = "return 'queued_test_{$uniqueId}'";
+
+        $results = Redis::pipeline(function (PhpRedis $pipeline) use ($script): void {
+            $pipeline->echo('before');
+            Redis::withConnection(fn ($connection) => $connection->evalWithShaCache($script, ['{eval-cache}:route'], []));
+            $pipeline->echo('after');
+        });
+
+        $this->assertSame(['before', "queued_test_{$uniqueId}", 'after'], $results);
     }
 
     public function testEvalWithShaCacheThrowsOnSyntaxError(): void

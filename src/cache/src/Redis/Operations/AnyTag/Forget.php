@@ -55,7 +55,7 @@ class Forget
             }
 
             return (bool) $connection->del($this->context->prefix() . $key);
-        });
+        }, needsReplies: true);
     }
 
     /**

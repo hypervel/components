@@ -263,6 +263,23 @@ class TagConsistencyIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('plain', Cache::get('reused-key'));
     }
 
+    public function testAnyModeDeleteMultiplePreventsTagFlushFromDeletingReusedKeys(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        Cache::tags(['tag-x'])->put('reused-1', 'tagged', 60);
+        Cache::tags(['tag-x'])->put('reused-2', 'tagged', 60);
+
+        $this->assertTrue(Cache::deleteMultiple(['reused-1', 'reused-2']));
+
+        Cache::put('reused-1', 'plain', 60);
+        Cache::put('reused-2', 'plain', 60);
+        Cache::tags(['tag-x'])->flush();
+
+        $this->assertSame('plain', Cache::get('reused-1'));
+        $this->assertSame('plain', Cache::get('reused-2'));
+    }
+
     public function testAnyModePlainForgetOfUntaggedKeyDeletesValue(): void
     {
         $this->setTagMode(TagMode::Any);

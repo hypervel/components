@@ -2025,7 +2025,6 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      */
     public function evalWithShaCache(string $script, array $keys = [], array $args = []): mixed
     {
-        $sha = sha1($script);
         $numKeys = count($keys);
 
         // phpredis signature: evalSha(sha, combined_args, num_keys)
@@ -2039,8 +2038,13 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             // reflects this call, not a previous one
             $this->connection->clearLastError();
 
+            // A queued EVALSHA cannot fall back to EVAL on NOSCRIPT, so a pipeline or transaction gets the script itself.
+            if ($this->isQueueingMode()) {
+                return $this->connection->eval($script, $combinedArgs, $numKeys);
+            }
+
             // Try evalSha first - uses cached compiled script
-            $result = $this->connection->evalSha($sha, $combinedArgs, $numKeys);
+            $result = $this->connection->evalSha(sha1($script), $combinedArgs, $numKeys);
 
             if ($result === false) {
                 $error = $this->connection->getLastError();

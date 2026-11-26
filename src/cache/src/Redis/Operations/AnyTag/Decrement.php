@@ -121,7 +121,7 @@ class Decrement
             }
 
             return $newValue;
-        });
+        }, needsReplies: true);
     }
 
     /**
@@ -148,7 +148,7 @@ class Decrement
             ];
 
             return $connection->evalWithShaCache($this->decrementWithTagsScript(), $keys, $args);
-        });
+        }, needsReplies: true);
     }
 
     /**

@@ -2916,6 +2916,7 @@ class RedisConnectionTest extends TestCase
     {
         $exception = new RedisException('READONLY replica is read-only');
         $redis = Double::for(Redis::class)->strict();
+        $redis->allows('getMode')->returns(Redis::ATOMIC);
         $redis->expects('clearLastError');
         $redis->expects('evalSha')->with(sha1('return 1'), [], 0)->throws($exception);
         $redis->expects('getLastError')->returns($exception->getMessage());

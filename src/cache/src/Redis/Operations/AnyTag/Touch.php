@@ -75,7 +75,7 @@ class Touch
             $connection->zadd($this->context->registryKey(), ['GT'], ...$zaddArgs);
 
             return true;
-        });
+        }, needsReplies: true);
     }
 
     /**

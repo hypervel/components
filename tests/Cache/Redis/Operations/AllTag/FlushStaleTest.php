@@ -24,7 +24,7 @@ class FlushStaleTest extends RedisCacheTestCase
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
             ->returns($connection->client());
 
-        $connection->client()->expects('exec');
+        $connection->client()->expects('exec')->returns([1]);
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -49,7 +49,7 @@ class FlushStaleTest extends RedisCacheTestCase
             ->with('prefix:_all:tag:comments:entries', '0', (string) now()->getTimestamp())
             ->returns($connection->client());
 
-        $connection->client()->expects('exec');
+        $connection->client()->expects('exec')->returns([1, 1, 1]);
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -80,7 +80,7 @@ class FlushStaleTest extends RedisCacheTestCase
             ->with('custom_prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
             ->returns($connection->client());
 
-        $connection->client()->expects('exec');
+        $connection->client()->expects('exec')->returns([0]);
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $operation = new FlushStale($store->getContext());
@@ -104,7 +104,7 @@ class FlushStaleTest extends RedisCacheTestCase
             ->with('prefix:_all:tag:users:entries', '0', $expectedTimestamp)
             ->returns($connection->client());
 
-        $connection->client()->expects('exec');
+        $connection->client()->expects('exec')->returns([0]);
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -127,7 +127,7 @@ class FlushStaleTest extends RedisCacheTestCase
         $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:users:entries', '0', '1001')
             ->returns($connection->client());
-        $connection->client()->expects('exec');
+        $connection->client()->expects('exec')->returns([0]);
 
         (new FlushStale($store->getContext()))->execute(['_all:tag:users:entries']);
     }
@@ -152,7 +152,7 @@ class FlushStaleTest extends RedisCacheTestCase
                 return $connection->client();
             });
 
-        $connection->client()->expects('exec');
+        $connection->client()->expects('exec')->returns([0]);
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());

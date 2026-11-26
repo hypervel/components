@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Store an item in the cache with all tag tracking.
@@ -61,21 +62,19 @@ class Put
             $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
-            $pipeline = $connection->pipeline();
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $key, $seconds, $serialized, $tagIds, $score): void {
+                // Publish the value first so Prune cannot discard fresh memberships.
+                // Unlike SET NX, unconditional SETEX needs no
+                // conditional membership publication; keep both writes in one pipeline.
+                $pipeline->setex($prefix . $key, $seconds, $serialized);
 
-            // Publish the value first so Prune cannot discard fresh memberships.
-            // Unlike SET NX, unconditional SETEX needs no
-            // conditional membership publication; keep both writes in one pipeline.
-            $pipeline->setex($prefix . $key, $seconds, $serialized);
+                // ZADD to each tag's sorted set
+                foreach ($tagIds as $tagId) {
+                    $pipeline->zadd($prefix . $tagId, $score, $key);
+                }
+            });
 
-            // ZADD to each tag's sorted set
-            foreach ($tagIds as $tagId) {
-                $pipeline->zadd($prefix . $tagId, $score, $key);
-            }
-
-            $results = $pipeline->exec();
-
-            return $results !== false && ! in_array(false, $results, true);
+            return $results === null || ($results !== false && ! in_array(false, $results, true));
         });
     }
 

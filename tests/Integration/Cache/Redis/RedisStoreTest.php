@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use BadMethodCallException;
 use DateTime;
+use Hypervel\Cache\Events\ForgettingKey;
+use Hypervel\Cache\Events\KeyForgetFailed;
+use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Redis\Operations\AllTag\Flush;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
 use Hypervel\Cache\RedisStore;
@@ -13,6 +16,7 @@ use Hypervel\Cache\Repository;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
@@ -23,6 +27,7 @@ use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use Redis;
 use RuntimeException;
+use UnitEnum;
 
 class RedisStoreTest extends TestCase
 {
@@ -356,6 +361,10 @@ class RedisStoreTest extends TestCase
             ['foo' => 'bar', 'fizz' => 'buzz', 'norf' => 'quz', 'missing' => null],
             $store->many(['foo', 'fizz', 'norf', 'missing'])
         );
+
+        $ttl = $store->connection()->ttl($store->getPrefix() . 'fizz');
+        $this->assertGreaterThan(0, $ttl);
+        $this->assertLessThanOrEqual(60, $ttl);
     }
 
     public function testItIncrementsAndDecrementsValues(): void
@@ -456,6 +465,176 @@ class RedisStoreTest extends TestCase
 
         $this->assertTrue($store->flush());
         $this->assertNull($store->get('fizz'));
+    }
+
+    public function testItStoresManyValuesForeverInOnePipeline(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        // REMOVED: Upstream records the commands run outside a pipeline. Redis command events fire only for RedisProxy
+        // calls, not inside the store's held connection, so ForeverTest asserts the single pipeline instead.
+        $this->assertTrue($store->putMany(['foo' => 'bar', 'number' => 5, 'array' => ['a' => 1]]));
+
+        $this->assertEquals(['foo' => 'bar', 'number' => 5, 'array' => ['a' => 1]], $store->many(['foo', 'number', 'array']));
+        $this->assertSame(-1, $store->connection()->ttl($store->getPrefix() . 'foo'));
+        $this->assertSame(6, $store->increment('number'));
+    }
+
+    // REMOVED: testItStoresManyValuesWithTtlInOneTransactionPipeline - putMany() with a TTL is one Lua call (PutManyTest),
+    // and testItStoresAndRetrievesManyValues checks its values and TTL.
+
+    public function testItDeletesManyValuesInOnePipeline(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        $store->putMany(['foo' => 'bar', 'fizz' => 'buzz', 'norf' => 'quz']);
+
+        $keys = (function () {
+            yield 'foo';
+            yield 'fizz';
+            yield 'foo';
+        })();
+
+        // The repeated key no longer exists when it is deleted the second time...
+        $this->assertFalse($store->deleteMultiple($keys));
+
+        $this->assertSame(['foo' => null, 'fizz' => null, 'norf' => 'quz'], $store->many(['foo', 'fizz', 'norf']));
+        $this->assertTrue($store->deleteMultiple(['norf']));
+    }
+
+    public function testTaggedValuesStoredManyForeverCanBeFlushed(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+
+        $store->tags(['people'])->putMany(['person-1' => 'Sally', 'person-2' => 'John']);
+        $this->assertSame(['person-1' => 'Sally', 'person-2' => 'John'], $store->tags(['people'])->many(['person-1', 'person-2']));
+
+        $store->tags(['people'])->flush();
+
+        $this->assertSame(['person-1' => null, 'person-2' => null], $store->tags(['people'])->many(['person-1', 'person-2']));
+    }
+
+    // REMOVED: testItWritesAndDeletesManyValuesAfterTheConnectionWasDropped - Hypervel does not replay Redis commands
+    // after a lost connection, because a replayed DEL can remove a value written again in between. The pooled
+    // connection is invalidated and reconnects when it is next used.
+
+    // REMOVED: testAFailedTransactionLeavesTheConnectionReadingItsOwnReplies - putMany() with a TTL is one Lua call,
+    // not a pipelined MULTI, so a failed write leaves no transaction replies unread.
+
+    public function testDeletingManyMemoizedTaggedValuesDeletesThem(): void
+    {
+        Cache::store('redis')->clear();
+
+        $memoized = Cache::memo('redis')->tags(['people']);
+        $memoized->putMany(['person-1' => 'Sally', 'person-2' => 'John'], 60);
+        $this->assertSame('Sally', $memoized->get('person-1'));
+
+        $this->assertTrue($memoized->deleteMultiple(['person-1', 'person-2']));
+
+        $this->assertNull($memoized->get('person-1'));
+        $this->assertNull(Cache::store('redis')->tags(['people'])->get('person-1'));
+    }
+
+    public function testRepositoriesThatOverrideForeverOrForgetStillSeeEachKey(): void
+    {
+        $repository = new class(Cache::store('redis')->getStore()) extends Repository {
+            public array $calls = [];
+
+            public function forever(UnitEnum|string $key, mixed $value): bool
+            {
+                $this->calls[] = "forever {$key}";
+
+                return parent::forever($key, $value);
+            }
+
+            public function forget(array|UnitEnum|string $key): bool
+            {
+                $this->calls[] = 'forget ' . (is_array($key) ? implode(',', $key) : $key);
+
+                return parent::forget($key);
+            }
+        };
+
+        $repository->putMany(['foo' => 'bar', 'fizz' => 'buzz']);
+        $repository->deleteMultiple(['foo', 'fizz']);
+
+        $this->assertSame(['forever foo', 'forever fizz', 'forget foo', 'forget fizz'], $repository->calls);
+    }
+
+    public function testObservedDeletesDispatchEachKeysEventsInOrder(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+        $store->put('foo', 'bar', 60);
+
+        $events = [];
+        Event::listen(
+            [ForgettingKey::class, KeyForgotten::class, KeyForgetFailed::class],
+            function (ForgettingKey|KeyForgotten|KeyForgetFailed $event) use (&$events): void {
+                $events[] = [$event::class, $event->key];
+            },
+        );
+
+        $this->assertFalse($store->deleteMultiple(['foo', 'missing']));
+
+        $this->assertSame([
+            [ForgettingKey::class, 'foo'],
+            [KeyForgotten::class, 'foo'],
+            [ForgettingKey::class, 'missing'],
+            [KeyForgetFailed::class, 'missing'],
+        ], $events);
+        $this->assertNull($store->get('foo'));
+    }
+
+    public function testCacheWritesJoinAPipelineOpenOnTheCacheConnection(): void
+    {
+        if ($this->usingRedisCluster()) {
+            $this->markTestSkipped('Redis Cluster connections do not support pipelines.');
+        }
+
+        $store = Cache::store('redis');
+        $store->clear();
+
+        $results = $store->getStore()->connection()->pipeline(function (Redis $pipeline) use ($store): void {
+            $pipeline->echo('before');
+            $store->putMany(['foo' => 'bar', 'fizz' => 'buzz']);
+            $store->tags(['people'])->put('person-1', 'Sally', 60);
+            $store->deleteMultiple(['foo', 'missing']);
+            $pipeline->echo('after');
+        });
+
+        // The caller's EXEC receives every reply, including those of the cache commands it ran.
+        $this->assertSame('before', $results[0]);
+        $this->assertSame('after', array_last($results));
+        $this->assertSame(['foo' => null, 'fizz' => 'buzz'], $store->many(['foo', 'fizz']));
+        $this->assertSame('Sally', $store->tags(['people'])->get('person-1'));
+    }
+
+    #[WithConfig('cache.stores.failover.stores', ['redis', 'array'])]
+    public function testACounterRejectsAPipelineOpenOnTheCacheConnectionBeforeQueuingIt(): void
+    {
+        if ($this->usingRedisCluster()) {
+            $this->markTestSkipped('Redis Cluster connections do not support pipelines.');
+        }
+
+        $redis = Cache::store('redis');
+        $redis->clear();
+        $redis->forever('count', 10);
+        Cache::store('array')->forever('count', 40);
+
+        // The failover store catches Redis' failure, so a counter queued before failing would still run at EXEC.
+        $results = $redis->getStore()->connection()->pipeline(function (Redis $pipeline) use (&$value): void {
+            $pipeline->echo('before');
+            $value = Cache::store('failover')->increment('count');
+            $pipeline->echo('after');
+        });
+
+        $this->assertSame(41, $value);
+        $this->assertSame(['before', 'after'], $results);
+        $this->assertEquals(10, $redis->get('count'));
     }
 
     public function testFlushingManyTagsOnlyPassesEachEntrysOwnTagToTheScript(): void

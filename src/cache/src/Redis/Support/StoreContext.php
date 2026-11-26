@@ -8,7 +8,9 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\CarbonImmutable;
+use LogicException;
 use Redis;
+use Throwable;
 
 /**
  * Mode-aware context for Redis cache operations.
@@ -139,15 +141,67 @@ class StoreContext
      * active pipeline/multi connections). Cache operations use raw phpredis
      * behavior unless they explicitly request Laravel-style transforms.
      *
+     * An operation that reads replies before it finishes passes $needsReplies, so it fails before
+     * queuing anything on a connection whose open pipeline or transaction belongs to the caller.
+     *
      * @template T
      * @param callable(RedisConnection): T $callback
      * @return T
      */
-    public function withConnection(callable $callback, bool $transform = false): mixed
+    public function withConnection(callable $callback, bool $transform = false, bool $needsReplies = false): mixed
     {
+        if ($needsReplies) {
+            $callback = function (RedisConnection $connection) use ($callback): mixed {
+                if ($this->isQueueing($connection)) {
+                    throw new LogicException(
+                        'This cache operation needs Redis replies, but its connection is queuing a pipeline or transaction.'
+                    );
+                }
+
+                return $callback($connection);
+            };
+        }
+
         return $this->redis
             ->connection($this->connectionName)
             ->withConnection($callback, transform: $transform);
+    }
+
+    /**
+     * Run write commands in one pipeline, or add them to the caller's open pipeline or transaction.
+     *
+     * Returns null when the commands joined the caller's queue, whose owner runs them.
+     *
+     * @param callable(Redis): void $commands
+     * @return null|array<int, mixed>|false
+     */
+    public function pipeline(RedisConnection $connection, callable $commands): array|false|null
+    {
+        if ($this->isQueueing($connection)) {
+            $commands($connection->client());
+
+            return null;
+        }
+
+        try {
+            $pipeline = $connection->pipeline();
+            $commands($pipeline);
+
+            return $pipeline->exec();
+        } catch (Throwable $exception) {
+            // A failed pipeline can leave queued commands or unread replies on a connection a caller may still hold.
+            $connection->invalidate();
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Determine if the connection is queuing a pipeline or transaction.
+     */
+    private function isQueueing(RedisConnection $connection): bool
+    {
+        return $connection->client()->getMode() !== Redis::ATOMIC;
     }
 
     /**

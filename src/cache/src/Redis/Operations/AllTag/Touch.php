@@ -64,7 +64,7 @@ class Touch
             }
 
             return $membershipsSucceeded;
-        });
+        }, needsReplies: true);
     }
 
     /**

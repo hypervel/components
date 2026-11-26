@@ -41,6 +41,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Testing\Fakes\EventFake;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
@@ -1065,6 +1066,53 @@ class CacheRepositoryTest extends TestCase
         $repo->getStore()->expects('forget')->with('a-second-key')->returns(false);
 
         $this->assertFalse($repo->deleteMultiple(['a-key', 'a-second-key']));
+    }
+
+    public function testRemovingMultipleKeysSubmitsEachBatchBeforeReadingMoreKeys(): void
+    {
+        $store = new class extends ArrayStore {
+            /**
+             * @var list<list<string>>
+             */
+            public array $batches = [];
+
+            public function forgetManyKeys(array $keys): array
+            {
+                $this->batches[] = $keys;
+
+                return array_map($this->forget(...), $keys);
+            }
+        };
+        $repository = new Repository($store);
+        $repository->forever('foo', 'bar');
+
+        $keys = (function () use ($store) {
+            yield 'foo';
+            yield from array_map(static fn (int $index): string => "missing-{$index}", range(1, 999));
+            $this->assertCount(1, $store->batches);
+            yield 'foo';
+        })();
+
+        $this->assertFalse($repository->deleteMultiple($keys));
+        $this->assertSame([1000, 1], array_map(count(...), $store->batches));
+        $this->assertSame(['foo'], $store->batches[1]);
+    }
+
+    public function testBulkWritesAndDeletesUseOnlyDeclaredPublicStoreMethods(): void
+    {
+        $store = new class extends ArrayStore {
+            use Macroable;
+
+            protected function forgetManyKeys(array $keys): array
+            {
+                throw new RuntimeException('The protected helper was called.');
+            }
+        };
+        $repository = new Repository($store);
+
+        $this->assertTrue($repository->putMany(['foo' => 'bar', 'fizz' => 'buzz']));
+        $this->assertTrue($repository->deleteMultiple(['foo', 'fizz']));
+        $this->assertSame(['foo' => null, 'fizz' => null], $repository->many(['foo', 'fizz']));
     }
 
     public function testAllTagsArePassedToTaggableStore(): void

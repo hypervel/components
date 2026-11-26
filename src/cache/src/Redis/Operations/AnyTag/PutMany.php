@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Operations\AnyTag;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Store multiple items in the cache with tags support.
@@ -150,7 +151,7 @@ class PutMany
             }
 
             return true;
-        });
+        }, needsReplies: true);
     }
 
     /**
@@ -165,92 +166,98 @@ class PutMany
 
             foreach (array_chunk($values, self::CHUNK_SIZE, true) as $chunk) {
                 // Step 1: Retrieve old tags for all keys in the chunk
-                $pipeline = $connection->pipeline();
+                $oldTagsResults = $this->context->pipeline($connection, function (Redis $pipeline) use ($chunk): void {
+                    foreach ($chunk as $key => $value) {
+                        $pipeline->smembers($this->context->reverseIndexKey($key));
+                    }
+                });
 
-                foreach ($chunk as $key => $value) {
-                    $pipeline->smembers($this->context->reverseIndexKey($key));
+                // A failed read is not an empty tag list; writing on it would leave stale tag entries.
+                if (! is_array($oldTagsResults) || in_array(false, $oldTagsResults, true)) {
+                    return false;
                 }
 
-                $oldTagsResults = $pipeline->exec();
+                $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($chunk, $oldTagsResults, $tags, $prefix, $seconds, $connection, $registryKey, $expiry): void {
+                    // Step 2: Prepare updates
+                    $keysByNewTag = [];
+                    $keysToRemoveByTag = [];
 
-                // Step 2: Prepare updates
-                $keysByNewTag = [];
-                $keysToRemoveByTag = [];
+                    $i = 0;
 
-                $pipeline = $connection->pipeline();
-                $i = 0;
+                    foreach ($chunk as $key => $value) {
+                        $oldTags = $oldTagsResults[$i];
+                        ++$i;
 
-                foreach ($chunk as $key => $value) {
-                    $oldTags = $oldTagsResults[$i] ?? [];
-                    ++$i;
+                        // Calculate tags to remove (Old Tags - New Tags)
+                        $tagsToRemove = array_diff($oldTags, $tags);
 
-                    // Calculate tags to remove (Old Tags - New Tags)
-                    $tagsToRemove = array_diff($oldTags, $tags);
+                        foreach ($tagsToRemove as $tag) {
+                            $keysToRemoveByTag[$tag][] = $key;
+                        }
 
-                    foreach ($tagsToRemove as $tag) {
-                        $keysToRemoveByTag[$tag][] = $key;
+                        // 1. Store the actual cache value
+                        $pipeline->setex(
+                            $prefix . $key,
+                            $seconds,
+                            $this->serialization->serialize($connection, $value)
+                        );
+
+                        // 2. Store reverse index of tags for this key
+                        $tagsKey = $this->context->reverseIndexKey($key);
+                        $pipeline->del($tagsKey); // Clear old tags
+
+                        if (! empty($tags)) {
+                            $pipeline->sadd($tagsKey, ...$tags);
+                            $pipeline->expire($tagsKey, $seconds);
+                        }
+
+                        // Collect keys for batch tag update (New Tags)
+                        foreach ($tags as $tag) {
+                            $keysByNewTag[$tag][] = $key;
+                        }
                     }
 
-                    // 1. Store the actual cache value
-                    $pipeline->setex(
-                        $prefix . $key,
-                        $seconds,
-                        $this->serialization->serialize($connection, $value)
-                    );
-
-                    // 2. Store reverse index of tags for this key
-                    $tagsKey = $this->context->reverseIndexKey($key);
-                    $pipeline->del($tagsKey); // Clear old tags
-
-                    if (! empty($tags)) {
-                        $pipeline->sadd($tagsKey, ...$tags);
-                        $pipeline->expire($tagsKey, $seconds);
+                    // 3. Batch remove from old tags
+                    foreach ($keysToRemoveByTag as $tag => $keys) {
+                        $tag = (string) $tag;
+                        $pipeline->hdel($this->context->tagHashKey($tag), ...$keys);
                     }
 
-                    // Collect keys for batch tag update (New Tags)
-                    foreach ($tags as $tag) {
-                        $keysByNewTag[$tag][] = $key;
-                    }
-                }
-
-                // 3. Batch remove from old tags
-                foreach ($keysToRemoveByTag as $tag => $keys) {
-                    $tag = (string) $tag;
-                    $pipeline->hdel($this->context->tagHashKey($tag), ...$keys);
-                }
-
-                // 4. Batch update new tag hashes
-                //
-                // Hash field names are the logical cache key only — the
-                // store prefix is already on the hash's own Redis key path
-                // (via tagHashKey) and is re-applied by readers
-                // (Flush/Prune). Avoids duplicating the prefix in every
-                // field.
-                foreach ($keysByNewTag as $tag => $keys) {
-                    $tag = (string) $tag;
-                    $tagHashKey = $this->context->tagHashKey($tag);
-
-                    $fields = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
-
-                    $pipeline->hsetex($tagHashKey, $fields, ['EX' => $seconds]);
-                }
-
-                // Update Registry in batch
-                if (! empty($keysByNewTag)) {
-                    $zaddArgs = [];
-
+                    // 4. Batch update new tag hashes
+                    //
+                    // Hash field names are the logical cache key only — the
+                    // store prefix is already on the hash's own Redis key path
+                    // (via tagHashKey) and is re-applied by readers
+                    // (Flush/Prune). Avoids duplicating the prefix in every
+                    // field.
                     foreach ($keysByNewTag as $tag => $keys) {
-                        $zaddArgs[] = $expiry;
-                        $zaddArgs[] = (string) $tag;
+                        $tag = (string) $tag;
+                        $tagHashKey = $this->context->tagHashKey($tag);
+
+                        $fields = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
+
+                        $pipeline->hsetex($tagHashKey, $fields, ['EX' => $seconds]);
                     }
 
-                    $pipeline->zadd($registryKey, ['GT'], ...$zaddArgs);
-                }
+                    // Update Registry in batch
+                    if (! empty($keysByNewTag)) {
+                        $zaddArgs = [];
 
-                $pipeline->exec();
+                        foreach ($keysByNewTag as $tag => $keys) {
+                            $zaddArgs[] = $expiry;
+                            $zaddArgs[] = (string) $tag;
+                        }
+
+                        $pipeline->zadd($registryKey, ['GT'], ...$zaddArgs);
+                    }
+                });
+
+                if (! is_array($results) || in_array(false, $results, true)) {
+                    return false;
+                }
             }
 
             return true;
-        });
+        }, needsReplies: true);
     }
 }

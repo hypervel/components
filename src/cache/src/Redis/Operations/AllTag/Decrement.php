@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Decrement a value in the cache with all tag tracking.
@@ -56,26 +57,20 @@ class Decrement
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): int|false {
             $prefix = $this->context->prefix();
 
-            $pipeline = $connection->pipeline();
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $key, $value, $tagIds): void {
+                // Publish the counter before its memberships so concurrent pruning
+                // cannot mistake a newly written member for an orphan.
+                $pipeline->decrBy($prefix . $key, $value);
 
-            // Publish the counter before its memberships so concurrent pruning
-            // cannot mistake a newly written member for an orphan.
-            $pipeline->decrBy($prefix . $key, $value);
-
-            // ZADD NX to each tag's sorted set (only add if not exists)
-            foreach ($tagIds as $tagId) {
-                $pipeline->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
-            }
-
-            $results = $pipeline->exec();
-
-            if ($results === false) {
-                return false;
-            }
+                // ZADD NX to each tag's sorted set (only add if not exists)
+                foreach ($tagIds as $tagId) {
+                    $pipeline->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
+                }
+            });
 
             // First result is the DECRBY result
             return $results[0] ?? false;
-        });
+        }, needsReplies: true);
     }
 
     /**
@@ -99,6 +94,6 @@ class Decrement
             }
 
             return $newValue;
-        });
+        }, needsReplies: true);
     }
 }

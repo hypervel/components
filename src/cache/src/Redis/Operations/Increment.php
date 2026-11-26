@@ -27,6 +27,6 @@ class Increment
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value) {
             return $connection->incrBy($this->context->prefix() . $key, $value);
-        });
+        }, needsReplies: true);
     }
 }
