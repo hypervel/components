@@ -41,6 +41,31 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('123.45678900000000000000', $model->amount);
     }
 
+    public function testItLimitsExponent(): void
+    {
+        $model = new class extends Model {
+            public bool $timestamps = false;
+
+            protected array $casts = [
+                'amount' => 'decimal:2',
+            ];
+        };
+
+        $model->amount = '1e-1000';
+        $this->assertSame('0.00', $model->amount);
+
+        foreach (['1e-100000000', '1E+100000000'] as $value) {
+            $model->amount = $value;
+
+            try {
+                $model->amount;
+                $this->fail();
+            } catch (MathException $e) {
+                $this->assertSame('Unable to cast value to a decimal.', $e->getMessage());
+            }
+        }
+    }
+
     #[DataProvider('decimalParsingProvider')]
     public function testDecimalParsingPreservesPrecisionAndBoundsExponentExpansion(float|int|string $value, ?string $expected): void
     {

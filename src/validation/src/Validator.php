@@ -145,6 +145,18 @@ class Validator implements ValidatorContract
     protected array $distinctValueCounts = [];
 
     /**
+     * The cached groups of values for the "distinct" rule.
+     *
+     * @var array<string, array<int, array<string, array<array-key, mixed>>>>
+     */
+    protected array $distinctValueGroups = [];
+
+    /**
+     * Indicates if the validator overrides a hook that selects distinct candidates.
+     */
+    protected ?bool $distinctCandidatesOverridden = null;
+
+    /**
      * The compiled execution plans for the current passes() invocation.
      *
      * @var array<string, AttributePlan>
@@ -481,6 +493,7 @@ class Validator implements ValidatorContract
         $this->messages = new MessageBag;
         [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
         $this->distinctValueCounts = [];
+        $this->distinctValueGroups = [];
         $this->originalPresenceVerifier = null;
         $this->parsedTables = [];
 

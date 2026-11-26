@@ -3905,6 +3905,10 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['foo' => '1'], ['foo' => 'Numeric']);
         $this->assertTrue($v->passes());
+
+        // PHP accepts these as numeric whitespace, but trim() only removes form feeds from PHP 8.6.
+        $v = new Validator($trans, ['foo' => "\v1", 'bar' => "1\f"], ['foo' => 'Numeric', 'bar' => 'Numeric']);
+        $this->assertSame(['foo', 'bar'], $v->errors()->keys());
     }
 
     public function testValidateNumericStrict(): void
@@ -4965,6 +4969,23 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => ['0100', '100']], ['foo.*' => 'distinct:strict']);
         $this->assertTrue($v->passes());
 
+        $v = new Validator($trans, ['foo' => ['bar', 1, '1.0']], ['foo.*' => 'distinct']);
+        $this->assertFalse($v->passes());
+        $this->assertSame(['foo.1', 'foo.2'], $v->errors()->keys());
+
+        $v = new Validator($trans, ['foo' => ['bar', 'baz', true]], ['foo.*' => 'distinct']);
+        $this->assertFalse($v->passes());
+        $this->assertSame(['foo.0', 'foo.1', 'foo.2'], $v->errors()->keys());
+
+        $v = new Validator($trans, ['foo' => ['bar', "\u{212A}", 'k']], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertFalse($v->passes());
+        $this->assertSame(['foo.1', 'foo.2'], $v->errors()->keys());
+
+        // All three share a case-insensitive group, so the final comparison decides.
+        $v = new Validator($trans, ['foo' => ['K', 'k', 's']], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertFalse($v->passes());
+        $this->assertSame(['foo.0', 'foo.1'], $v->errors()->keys());
+
         $v = new Validator($trans, ['users' => [['name' => ['John']], ['name' => ['john']]]], ['users.*.name' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());
 
@@ -5047,6 +5068,38 @@ class ValidationValidatorTest extends TestCase
 
         $validator = new Validator($this->getArrayTranslator(), ['values' => [NAN, true]], ['values.*' => 'distinct']);
         $this->assertFalse($validator->validateDistinct('values.0', NAN, []));
+    }
+
+    public function testDistinctHonorsAnOverriddenCandidateHook(): void
+    {
+        $arguments = [$this->getArrayTranslator(), ['values' => ['same', 'same']], ['values.*' => 'distinct:strict']];
+
+        $this->assertFalse((new class(...$arguments) extends Validator {})->passes());
+
+        $validator = new class(...$arguments) extends Validator {
+            /**
+             * Get the distinct values that may be equal to the given value.
+             */
+            protected function getDistinctValuesToCompare(string $attribute, mixed $value, bool $ignoreCase): array
+            {
+                return [];
+            }
+        };
+
+        $this->assertTrue($validator->passes());
+
+        // As upstream, a custom "invalid" group makes every value a candidate.
+        $validator = new class($this->getArrayTranslator(), ['values' => ['1', 1]], ['values.*' => 'distinct']) extends Validator {
+            /**
+             * Get the group of a distinct value, or "*" if it may be equal to values in any group.
+             */
+            protected function getDistinctValueGroup(mixed $value, bool $ignoreCase): string
+            {
+                return is_int($value) ? 'invalid' : parent::getDistinctValueGroup($value, $ignoreCase);
+            }
+        };
+
+        $this->assertFalse($validator->passes());
     }
 
     public function testFirstDeclaredOverlappingWildcardDefinesDistinctScope(): void
@@ -11921,6 +11974,26 @@ class ValidationValidatorTest extends TestCase
             ['1.0E1001'],
             ['1.0e-1001'],
             ['1.0E-1001'],
+        ];
+    }
+
+    #[DataProvider('outsideRangeExponentRules')]
+    public function testItLimitsScientificNotationExponentForMultipleOfAndFieldComparisons(array $data, string $rule): void
+    {
+        $trans = $this->getArrayTranslator();
+        $validator = new Validator($trans, $data, ['foo' => ['numeric', $rule]]);
+
+        $this->assertFalse($validator->passes());
+    }
+
+    public static function outsideRangeExponentRules(): array
+    {
+        return [
+            [['foo' => '1e-100000000'], 'multiple_of:2'],
+            [['foo' => '1e-100000000', 'bar' => 2], 'gt:bar'],
+            [['foo' => '1e-100000000', 'bar' => 2], 'gte:bar'],
+            [['foo' => '1e-100000000', 'bar' => 2], 'lt:bar'],
+            [['foo' => '1e-100000000', 'bar' => 2], 'lte:bar'],
         ];
     }
 
