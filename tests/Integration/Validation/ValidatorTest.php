@@ -141,6 +141,12 @@ class ValidatorTest extends DatabaseTestCase
 
         // Long candidate lists must stay within SQLite's bound-variable limit.
         $this->assertSame(['7', '8', 'abc'], DB::getQueryLog()[0]['bindings']);
+
+        DB::flushQueryLog();
+        $this->getValidator(['value' => [true, '1', '1', 1.0, '01', '8', 'abc']], ['value' => 'exists:profiles,meta->external_id'])->passes();
+
+        // With a boolean, the text of a stored zero or one binds once more, to leave its rows to the text group.
+        $this->assertSame(['1', '1', '1', '1', '01', '8', 'abc'], DB::getQueryLog()[0]['bindings']);
     }
 
     public function testUniqueWithCustomModelKey(): void

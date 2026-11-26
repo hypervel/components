@@ -49,18 +49,32 @@ class DatabasePresenceVerifier implements PresenceVerifierInterface
             return $this->addQueryConditions($builder, $query)->distinct()->count($column);
         }
 
-        // A database may extract a JSON boolean and a text value as the same value, so count
-        // each group in one statement, leaving rows matched by a requested boolean to that group.
+        // Count each group in one statement, so a row matched by both a requested boolean and a text value
+        // satisfies only one. SQLite's boolean comparison also matches stored integers, which a text value
+        // claims; elsewhere a JSON boolean that a text value matches stays with the boolean.
         $builder = $this->addQueryConditions($this->table($query), $query);
+        $texts = array_values(array_diff_key($values, $booleans));
+        $booleans = array_values($booleans);
 
-        $booleanMatches = (clone $builder)->whereIn($query->column, array_values($booleans))
-            ->distinct()
-            ->select($query->column);
+        $booleanMatches = (clone $builder)->whereIn($query->column, $booleans);
+        $textMatches = $this->addWhereIn(clone $builder, $query->column, $texts);
 
-        $textMatches = $this->addWhereIn(clone $builder, $query->column, array_values(array_diff_key($values, $booleans)))
-            ->whereNotIn($query->column, array_values($booleans))
-            ->distinct()
-            ->select($this->prepareColumn($builder, $query->column));
+        if ($builder->getGrammar() instanceof SQLiteGrammar) {
+            // Only the text SQLite extracts from a stored numeric zero or one competes with a native boolean.
+            $overlaps = array_values(array_intersect(['0', '1', '0.0', '1.0'], array_map(
+                $this->jsonText(...),
+                array_filter($texts, static fn (mixed $value): bool => is_string($value) || is_int($value) || is_float($value)),
+            )));
+
+            if ($overlaps !== []) {
+                $this->addWhereIn($booleanMatches, $query->column, $overlaps, not: true);
+            }
+        } else {
+            $textMatches->whereNotIn($query->column, $booleans);
+        }
+
+        $booleanMatches->distinct()->select($query->column);
+        $textMatches->distinct()->select($this->prepareColumn($builder, $query->column));
 
         return $booleanMatches->unionAll($textMatches)->count();
     }
@@ -160,6 +174,14 @@ class DatabasePresenceVerifier implements PresenceVerifierInterface
     }
 
     /**
+     * Get the text a value compares as against a SQLite JSON value.
+     */
+    protected function jsonText(int|float|string $value): string
+    {
+        return is_float($value) ? Number::toString($value) : (string) $value;
+    }
+
+    /**
      * Match SQLite JSON values by their text, as other databases extract them.
      *
      * Strings and integers compare with the extracted value so its index stays usable.
@@ -171,7 +193,7 @@ class DatabasePresenceVerifier implements PresenceVerifierInterface
         $decimals = [];
 
         foreach ($values as $value) {
-            $value = is_float($value) ? Number::toString($value) : (string) $value;
+            $value = $this->jsonText($value);
 
             // SQLite writes every finite real with a decimal point or exponent.
             if (is_numeric($value) && strpbrk($value, '.eE') !== false) {

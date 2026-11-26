@@ -257,6 +257,13 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
             [['1'], [true], false],
             [[true, 'true'], [true, 'true'], true],
             [[true], [true, '1'], false],
+            [[true, 1], [true, '1'], true],
+            [[1], [true, '1'], false],
+            [[1, 1], [true, '1'], false],
+            [[true, 1], [true, 'absent'], false],
+            // SQLite's native boolean comparison also matches a stored integer.
+            [[1, 'x'], [true, 'x'], DB::connection()->getDriverName() === 'sqlite'],
+            [[true, '1'], [false, '1'], false],
             [[7, '7'], [false, '7'], false],
         ] as [$flags, $candidates, $passes]) {
             DB::table('batch_test_users')->update(['payload' => null]);
@@ -289,14 +296,22 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
             $table->jsonb('payload')->nullable();
         });
         DB::table('batch_test_users')->where('external_id', 0)->update(['payload' => '{"amount":1.0}']);
+        $rule = new Exists('batch_test_users', 'payload->amount');
+
+        // MySQL 5.7 writes the stored 1.0 as 1, so the single lookup decides which candidate matches.
+        $failing = array_keys(array_filter(
+            ['items.0.amount' => '1', 'items.1.amount' => '1.0'],
+            fn (string $amount): bool => ! $this->makeOrdinaryValidator(['amount' => $amount], ['amount' => $rule])->passes(),
+        ));
 
         $validator = $this->makeValidator(
             ['items' => [['amount' => '1'], ['amount' => '1.0']]],
-            ['items.*.amount' => new Exists('batch_test_users', 'payload->amount')],
+            ['items.*.amount' => $rule],
         );
 
         $this->assertFalse($validator->passes());
-        $this->assertSame(['items.0.amount'], array_keys($validator->errors()->messages()));
+        $this->assertCount(1, $failing);
+        $this->assertSame($failing, array_keys($validator->errors()->messages()));
     }
 
     public function testJsonBooleanConditionsKeepBatchingAndCachedPlans(): void
