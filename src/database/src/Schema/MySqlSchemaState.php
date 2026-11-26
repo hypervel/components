@@ -223,19 +223,28 @@ class MySqlSchemaState extends SchemaState
     }
 
     /**
-     * Generate a basic connection string (--socket, --host, --port, --user, --password) for the database.
+     * Generate a basic connection string (--socket, --host, --port, --user) for the database.
      *
      * @param array{version: string, isMariaDb: bool} $versionInfo
      */
     protected function connectionString(array $versionInfo): string
     {
-        $value = ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}"';
+        // The client reads the password from MYSQL_PWD, keeping it out of the command-line arguments.
+        $value = ' --user="${:HYPERVEL_LOAD_USER}"';
 
         $config = $this->connection->getConfig();
 
-        $value .= $config['unix_socket'] ?? false
-            ? ' --socket="${:HYPERVEL_LOAD_SOCKET}"'
-            : ' --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"';
+        if ($config['unix_socket'] ?? false) {
+            // The explicit host and protocol keep a client option file from selecting TCP instead.
+            $value .= ' --host=localhost --protocol=SOCKET --socket="${:HYPERVEL_LOAD_SOCKET}"';
+        } else {
+            $value .= ' --host="${:HYPERVEL_LOAD_HOST}"';
+
+            // MySQL clients reject an empty port instead of using the default.
+            if (($config['port'] ?? '') !== '') {
+                $value .= ' --port="${:HYPERVEL_LOAD_PORT}"';
+            }
+        }
 
         $ssl = $this->sslOptions($config);
 
@@ -321,8 +330,8 @@ class MySqlSchemaState extends SchemaState
             'HYPERVEL_LOAD_SOCKET' => $config['unix_socket'] ?? '',
             'HYPERVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
             'HYPERVEL_LOAD_PORT' => $config['port'] ?? '',
-            'HYPERVEL_LOAD_USER' => $config['username'],
-            'HYPERVEL_LOAD_PASSWORD' => $config['password'] ?? '',
+            'HYPERVEL_LOAD_USER' => $config['username'] ?? '',
+            'MYSQL_PWD' => $config['password'] ?? '',
             'HYPERVEL_LOAD_DATABASE' => $config['database'],
             'HYPERVEL_LOAD_SSL_CA' => $ssl['ca'] ?? '',
             'HYPERVEL_LOAD_SSL_CERT' => $ssl['cert'] ?? '',

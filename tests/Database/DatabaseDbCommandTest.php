@@ -299,7 +299,7 @@ class DatabaseDbCommandTest extends TestCase
         $this->assertSame([
             '--host=write-host', '--port=3306', '--user=root', 'app',
         ], $command->commandArguments($connection));
-        $this->assertNull($command->commandEnvironment($connection));
+        $this->assertSame([], $command->commandEnvironment($connection));
     }
 
     #[DataProvider('mysqlDrivers')]
@@ -313,21 +313,35 @@ class DatabaseDbCommandTest extends TestCase
             'charset' => 'utf8mb4',
         ]);
 
+        // Like the connector, the client connects through the socket rather than the TCP host.
         $this->assertSame([
-            '--host=write-host', '--port=3306', '--user=root',
-            '--password=secret', '--socket=/tmp/mysql.sock',
-            '--default-character-set=utf8mb4', 'app',
+            '--host=localhost', '--protocol=SOCKET', '--socket=/tmp/mysql.sock',
+            '--user=root', '--default-character-set=utf8mb4', 'app',
         ], $command->commandArguments($connection));
+        $this->assertSame(['MYSQL_PWD' => 'secret'], $command->commandEnvironment($connection));
     }
 
     #[DataProvider('mysqlDrivers')]
     public function testMysqlClientsPreserveZeroPassword(string $driver): void
     {
+        $command = new DbCommand;
         $connection = $this->mysqlConfig(['driver' => $driver, 'password' => '0']);
 
         $this->assertSame([
-            '--host=write-host', '--port=3306', '--user=root', '--password=0', 'app',
-        ], (new DbCommand)->commandArguments($connection));
+            '--host=write-host', '--port=3306', '--user=root', 'app',
+        ], $command->commandArguments($connection));
+        $this->assertSame(['MYSQL_PWD' => '0'], $command->commandEnvironment($connection));
+    }
+
+    #[DataProvider('mysqlDrivers')]
+    public function testMysqlClientsOmitAbsentOptions(string $driver): void
+    {
+        $command = new DbCommand;
+        $connection = $this->mysqlConfig(['driver' => $driver]);
+        unset($connection['port'], $connection['username'], $connection['password']);
+
+        $this->assertSame(['--host=write-host', 'app'], $command->commandArguments($connection));
+        $this->assertSame([], $command->commandEnvironment($connection));
     }
 
     /**
@@ -370,6 +384,17 @@ class DatabaseDbCommandTest extends TestCase
         ], (new DbCommand)->commandEnvironment($connection));
     }
 
+    public function testPostgresAcceptsOmittedCredentials(): void
+    {
+        $connection = $this->mysqlConfig(['driver' => 'pgsql', 'port' => 5432]);
+        unset($connection['username'], $connection['password']);
+
+        $this->assertSame([
+            'PGHOST' => 'write-host',
+            'PGPORT' => 5432,
+        ], (new DbCommand)->commandEnvironment($connection));
+    }
+
     public function testPostgresOmitsEmptyEnvironmentVariables(): void
     {
         $command = new DbCommand;
@@ -398,16 +423,15 @@ class DatabaseDbCommandTest extends TestCase
         (new DbCommand)->getCommand(['driver' => 'custom']);
     }
 
-    public function testMissingBuiltInHostReturnsFailureWithTheExistingGuidance(): void
+    #[DataProvider('connectionsWithoutAnEndpoint')]
+    public function testMissingBuiltInHostReturnsFailureWithTheExistingGuidance(array $connection, array $options): void
     {
         $command = new DbCommand;
-        $application = $this->applicationWithConfig([
-            'mysql' => $this->mysqlConfig(['host' => []]),
-        ]);
+        $application = $this->applicationWithConfig(['mysql' => $connection]);
         $application->expects('make')->with(DatabaseCliManager::class)->returns(new DatabaseCliManager);
         $command->setHypervel($application->instance());
 
-        $input = $this->inputFor($command, []);
+        $input = $this->inputFor($command, $options);
         $output = new BufferedOutput;
         $style = new OutputStyle($input, $output);
         $command->setInput($input);
@@ -416,6 +440,22 @@ class DatabaseDbCommandTest extends TestCase
 
         $this->assertSame(DbCommand::FAILURE, $command->handle());
         $this->assertStringContainsString('No host specified for this database connection.', $output->fetch());
+    }
+
+    /**
+     * Provide connections whose selected configuration has no host to connect to.
+     */
+    public static function connectionsWithoutAnEndpoint(): array
+    {
+        return [
+            'unselected mysql split' => [
+                ['driver' => 'mysql', 'host' => [], 'database' => 'app', 'read' => ['host' => 'read-host'], 'write' => ['host' => 'write-host']],
+                [],
+            ],
+            // The connector rejects an empty host list; only an omitted host means a local server.
+            'empty postgres host list' => [['driver' => 'pgsql', 'host' => [], 'database' => 'app'], []],
+            'empty postgres read host list' => [['driver' => 'pgsql', 'database' => 'app', 'read' => ['host' => []]], ['--read' => true]],
+        ];
     }
 
     /**

@@ -92,6 +92,8 @@ When prohibited, `schema:dump` exits without dumping the schema or pruning migra
 
 For MySQL 26 or later, use MySQL's own command-line tools for schema dumps. MariaDB's dump client currently sends unsupported statements to these servers.
 
+On MySQL and MariaDB, the password is passed to the command-line client through the `MYSQL_PWD` environment variable, so a password in a client option file such as `~/.my.cnf` takes precedence.
+
 <a name="schema-dump-tls"></a>
 #### TLS Connections
 
@@ -233,6 +235,12 @@ If you would like Hypervel to load a schema dump from a custom path before runni
 php artisan migrate --schema-path=database/schema/testing-schema.sql
 ```
 
+To load the schema dump into an empty database without running any outstanding migrations, provide the `--schema-only` option to the `migrate` or `migrate:fresh` command. Since no migrations run, only the selected migration connection's schema dump is loaded:
+
+```shell
+php artisan migrate --schema-only
+```
+
 If you would like the `migrate` command to return a successful exit code when an error occurs, you may provide the `--graceful` option:
 
 ```shell
@@ -332,7 +340,7 @@ php artisan migrate:fresh
 php artisan migrate:fresh --seed
 ```
 
-Hypervel reads each migration's `$connection` property or `getConnection` method before making any changes. It resolves `migrations_connection` for those connections, creates supported databases that do not exist, and wipes every declared database that already exists. A reachable database is wiped even when it does not contain a migrations table.
+Hypervel reads each migration's `$connection` property or `getConnection` method before making any changes. It resolves `migrations_connection` for those connections, creates supported databases that do not exist, and wipes every declared database that already exists. A reachable database is wiped even when it does not contain a migrations table. With the `--schema-only` option, only the selected migration connection is wiped before its schema dump is loaded.
 
 Before making any changes, the command lists the connections that will be created and the connections that will be wiped. In production, declining the confirmation leaves every database unchanged.
 
@@ -347,7 +355,7 @@ A migration's connection should remain stable for that migration. A migration is
 Hypervel cannot discover a connection that is only selected by calling `Schema::connection('other')` inside the `up` method. Split cross-database work into separate migrations and declare the connection on each migration so `migrate:fresh` can reset every database before rebuilding it.
 
 > [!WARNING]
-> The `migrate:fresh` command will drop all database tables from every declared migration connection, regardless of their prefix. This command should be used with caution when developing on databases that are shared with other applications.
+> The `migrate:fresh` command will drop all database tables from every declared migration connection, or only the selected connection with `--schema-only`, regardless of their prefix. This command should be used with caution when developing on databases that are shared with other applications.
 
 <a name="tables"></a>
 ## Tables
