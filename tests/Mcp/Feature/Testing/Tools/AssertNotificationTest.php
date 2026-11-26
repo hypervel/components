@@ -25,7 +25,23 @@ class RestaurantT extends Server
         ReservationTool::class,
         SerializableNotificationTool::class,
         ReservationProgressTool::class,
+        UnorderedAndMetaProgressTool::class,
     ];
+}
+
+class UnorderedAndMetaProgressTool extends Tool
+{
+    /**
+     * Stream progress notifications with reordered keys and metadata.
+     */
+    public function handle(): Generator
+    {
+        yield Response::notification('notifications/progress', ['total' => 2, 'progress' => 1]);
+
+        yield Response::progress(2)->withMeta('trace', 'abc');
+
+        yield 'Your booking is confirmed!';
+    }
 }
 
 class ReservationProgressTool extends Tool
@@ -149,6 +165,15 @@ class AssertNotificationTest extends TestCase
 
         $response->assertNotificationCount(2)
             ->assertSentProgress(1, 2, 'Checking tables')
+            ->assertSentProgress(2);
+    }
+
+    public function testMayAssertProgressNotificationsWithDifferentKeyOrderOrMetadata(): void
+    {
+        $response = RestaurantT::tool(UnorderedAndMetaProgressTool::class);
+
+        $response->assertNotificationCount(2)
+            ->assertSentProgress(1, 2)
             ->assertSentProgress(2);
     }
 

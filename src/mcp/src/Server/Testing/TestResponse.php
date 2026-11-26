@@ -77,7 +77,7 @@ class TestResponse
 
         if (! is_null($data)) {
             Assert::assertSame(
-                $data,
+                $this->toJsonRepresentation($data),
                 $this->toJsonRepresentation($error['data'] ?? null),
                 'The response does not carry the expected error data.',
             );
@@ -442,11 +442,20 @@ class TestResponse
     public function assertSentProgress(int|float $progress, int|float|null $total = null, ?string $message = null): static
     {
         $expected = Arr::whereNotNull(['progress' => $progress, 'total' => $total, 'message' => $message]);
+        ksort($expected);
 
         foreach ($this->notifications as $notification) {
             $content = $notification->toArray();
 
-            if ($content['method'] === 'notifications/progress' && Arr::except($content['params'], 'progressToken') === $expected) {
+            if ($content['method'] !== 'notifications/progress') {
+                continue;
+            }
+
+            // Ignore transport-attached progress tokens, notification metadata, and JSON key order.
+            $actual = Arr::except($content['params'], ['progressToken', '_meta']);
+            ksort($actual);
+
+            if ($actual === $expected) {
                 Assert::assertTrue(true); // @phpstan-ignore staticMethod.alreadyNarrowedType (counts a passed assertion)
 
                 return $this;

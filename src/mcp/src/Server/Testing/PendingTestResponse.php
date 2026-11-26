@@ -52,7 +52,7 @@ class PendingTestResponse
             $request = new JsonRpcRequest(
                 uniqid(),
                 'tools/list',
-                $cursor !== null ? ['cursor' => $cursor] : [],
+                ['_meta' => $this->meta(), ...($cursor !== null ? ['cursor' => $cursor] : [])],
             );
 
             $response = $this->executeRequest($server, $request);
@@ -87,7 +87,7 @@ class PendingTestResponse
             $request = new JsonRpcRequest(
                 uniqid(),
                 'resources/list',
-                $cursor !== null ? ['cursor' => $cursor] : [],
+                ['_meta' => $this->meta(), ...($cursor !== null ? ['cursor' => $cursor] : [])],
             );
 
             $response = $this->executeRequest($server, $request);
@@ -134,7 +134,7 @@ class PendingTestResponse
             $request = new JsonRpcRequest(
                 uniqid(),
                 'prompts/list',
-                $cursor !== null ? ['cursor' => $cursor] : [],
+                ['_meta' => $this->meta(), ...($cursor !== null ? ['cursor' => $cursor] : [])],
             );
 
             $response = $this->executeRequest($server, $request);

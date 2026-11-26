@@ -47,7 +47,8 @@ class AssertErrorCodeTest extends TestCase
             'requiredCapabilities' => ['sampling' => (object) []],
         ]));
 
-        $response->assertErrorCode(-32021, ['requiredCapabilities' => ['sampling' => []]]);
+        $response->assertErrorCode(-32021, ['requiredCapabilities' => ['sampling' => []]])
+            ->assertErrorCode(-32021, ['requiredCapabilities' => ['sampling' => (object) []]]);
 
         $this->expectException(AssertionFailedError::class);
         $this->expectExceptionMessage('The response does not carry the expected error data.');

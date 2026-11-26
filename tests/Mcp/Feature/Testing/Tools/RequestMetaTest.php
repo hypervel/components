@@ -9,14 +9,108 @@ use Hypervel\Mcp\Request;
 use Hypervel\Mcp\Response;
 use Hypervel\Mcp\ResponseFactory;
 use Hypervel\Mcp\Server;
+use Hypervel\Mcp\Server\Prompt;
+use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
 use Hypervel\Tests\Mcp\TestCase;
 
 class RequestMetaServer extends Server
 {
+    public int $defaultPaginationLength = 1;
+
     protected array $tools = [
         CapabilityAwareTool::class,
+        SamplingOnlyTool::class,
     ];
+
+    protected array $resources = [
+        AlwaysRegisteredResource::class,
+        SamplingOnlyResource::class,
+    ];
+
+    protected array $prompts = [
+        AlwaysRegisteredPrompt::class,
+        SamplingOnlyPrompt::class,
+    ];
+}
+
+class SamplingOnlyTool extends Tool
+{
+    /**
+     * Register only when the client supports sampling.
+     */
+    public function shouldRegister(Request $request): bool
+    {
+        return $request->clientSupports('sampling');
+    }
+
+    /**
+     * Handle the tool call.
+     */
+    public function handle(): string
+    {
+        return 'ok';
+    }
+}
+
+class AlwaysRegisteredResource extends Resource
+{
+    /**
+     * Handle the resource read.
+     */
+    public function handle(): string
+    {
+        return 'always';
+    }
+}
+
+class SamplingOnlyResource extends Resource
+{
+    /**
+     * Register only when the client supports sampling.
+     */
+    public function shouldRegister(Request $request): bool
+    {
+        return $request->clientSupports('sampling');
+    }
+
+    /**
+     * Handle the resource read.
+     */
+    public function handle(): string
+    {
+        return 'sampling';
+    }
+}
+
+class AlwaysRegisteredPrompt extends Prompt
+{
+    /**
+     * Handle the prompt request.
+     */
+    public function handle(): string
+    {
+        return 'always';
+    }
+}
+
+class SamplingOnlyPrompt extends Prompt
+{
+    /**
+     * Register only when the client supports sampling.
+     */
+    public function shouldRegister(Request $request): bool
+    {
+        return $request->clientSupports('sampling');
+    }
+
+    /**
+     * Handle the prompt request.
+     */
+    public function handle(): string
+    {
+        return 'sampling';
+    }
 }
 
 class CapabilityAwareTool extends Tool
@@ -102,5 +196,24 @@ class RequestMetaTest extends TestCase
                 'capabilities' => ['extensions' => ['io.modelcontextprotocol/ui' => []]],
                 'hasProgressToken' => true,
             ]);
+    }
+
+    public function testSendsDeclaredClientCapabilitiesOnListRequestsAcrossPages(): void
+    {
+        RequestMetaServer::tools()->assertNotRegistered(SamplingOnlyTool::class);
+        RequestMetaServer::resources()->assertNotRegistered(SamplingOnlyResource::class);
+        RequestMetaServer::prompts()->assertNotRegistered(SamplingOnlyPrompt::class);
+
+        RequestMetaServer::withClientCapabilities(['sampling' => []])
+            ->tools()
+            ->assertRegistered(SamplingOnlyTool::class);
+
+        RequestMetaServer::withClientCapabilities(['sampling' => []])
+            ->resources()
+            ->assertRegistered(SamplingOnlyResource::class);
+
+        RequestMetaServer::withClientCapabilities(['sampling' => []])
+            ->prompts()
+            ->assertRegistered(SamplingOnlyPrompt::class);
     }
 }
