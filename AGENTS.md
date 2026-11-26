@@ -101,7 +101,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 1. Reproduce the bug with the smallest useful test.
 2. Trace the exact failing code path and identify the root cause before changing source.
 3. Compare the matching Laravel or package-upstream behavior when it defines the contract.
-4. Reach consensus with your peer agent on the root cause and fix through a second-opinion loop before implementing.
+4. Seek a second opinion before implementing a fix if it changes what callers are entitled to rely on, requires owner approval, or leaves a consequential design choice unresolved.
 5. Fix the underlying defect — never add a workaround for incorrect framework code.
 6. Add a regression test for the bug and run that test file immediately.
 7. Check types, API parity, coroutine isolation, and worker-lifetime state around the changed code.
@@ -407,15 +407,15 @@ See [Coroutine Cancellation](src/docs/coroutines.md#coroutine-cancellation) for 
 
 ## When to Stop and Report
 
-Resolve the technical issues below through evidence-based second-opinion loops with your peer agent, then proceed on consensus. Ask the owner only for unapproved public API departures or capability removals; database schema changes; meaningful performance regressions or weakened guarantees; consequential tradeoffs the requirements do not settle; unresolved peer disagreements; or actions requiring owner authorization.
+For bug fixes, follow step 4 under Framework bug fixes. Ask the owner only for unapproved public API departures or capability removals; changes to migrations or schemas that applications run, or to how existing data is stored; meaningful performance regressions or weakened guarantees; consequential tradeoffs the requirements do not settle; unresolved peer disagreements; or actions requiring owner authorization.
 
-- **Investigate anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Investigate and reach consensus on the findings and recommended action through a second-opinion loop with your peer agent before implementing. Do not dismiss concerns as theoretical without investigation. If no supported, realistic path or meaningful harm is found, do not present it as a defect or add machinery to address it.
+- **Investigate anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Investigate the cause and impact before acting. Do not dismiss concerns as theoretical without investigation. If no supported, realistic path or meaningful harm is found, do not present it as a defect or add machinery to address it.
 - **Do not defer work without owner authorization** — do not remove functionality or substitute stubs or TODOs for implementation unless the owner authorizes it. Adding an item to `docs/todo.md` should be rare and requires explicit owner approval for that item. Preserve existing TODO comments unless their underlying work is verified complete or the owner directs otherwise. If blocked, reach consensus on a complete solution through a second-opinion loop with your peer agent.
-- **Investigate source code bugs** — for bugs found in Hypervel or upstream code being ported, including through PHPStan or tests, reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing. Upstream bugs must be fixed, not ported as-is.
+- **Investigate source code bugs** — trace the root cause of bugs found in Hypervel or ported upstream code, including bugs exposed by PHPStan or tests. Upstream bugs must be fixed, not ported as-is.
 - **Trace upstream differences before calling them bugs** — a difference from Laravel or an upstream package is not proof that Hypervel is wrong, and matching upstream is not proof that Hypervel is correct. A verified Hypervel defect remains a defect when upstream has the same problem.
-- **Do not work around incorrect existing code to avoid churn** — if work exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over keeping the change small. For any non-trivial fix, reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing.
-- **Never weaken or drop tests to work around source issues** — if a test exposes source-side problems (wrong types, broken logic, missing classes/methods, signatures that diverge from Laravel, missing API parity, etc.), reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing. Never delete, skip, loosen assertions, or alter tests to make them pass against flawed source code. The test is the spec; the source gets fixed. For type errors specifically, "When tests expose source code type errors" under Writing Tests covers how to identify the correct type.
-- **Never dismiss issues as "out of scope" or "pre-existing"** — when any issue surfaces (bugs, unexplained divergences or API gaps, incorrect visibility, type inconsistencies, naming mismatches, etc.), investigate and reach consensus on the findings and solution through a second-opinion loop with your peer agent before implementing. Never use phrases like "out of scope", "pre-existing", "not part of this work", "separate concern", or "unrelated" to justify ignoring an issue. Only the owner may authorize leaving a confirmed issue unresolved.
+- **Do not work around incorrect existing code to avoid churn** — if work exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over keeping the change small.
+- **Never weaken or drop tests to work around source issues** — never delete, skip, loosen assertions, or alter tests to make them pass against flawed source code. The test is the spec; the source gets fixed. For type errors specifically, "When tests expose source code type errors" under Writing Tests covers how to identify the correct type.
+- **Never dismiss issues as "out of scope" or "pre-existing"** — when any issue surfaces (bugs, unexplained divergences or API gaps, incorrect visibility, type inconsistencies, naming mismatches, etc.), investigate it and fix any confirmed defect. Never use phrases like "out of scope", "pre-existing", "not part of this work", "separate concern", or "unrelated" to justify ignoring an issue. Only the owner may authorize leaving a confirmed issue unresolved.
 
 Worker-lifetime state has additional second-opinion requirements — static/singleton state changes, unsafe public mutators, static caching opportunities, and per-request state captured by auto-singletons — listed under Container and Coroutine and Worker-Lifetime State.
 
@@ -423,8 +423,8 @@ Worker-lifetime state has additional second-opinion requirements — static/sing
 
 - **Investigate tests broken by your changes before updating them.** When an implementation change causes a previously passing behavioral test to fail, treat the test as evidence of a contract or missed edge case. Trace what it protects through the tested code, callers, upstream source/tests, and relevant history. Before changing the test, reach consensus with your peer agent through a second-opinion loop that the behavior change is correct, including its compatibility and edge-case consequences.
 - **Easy fixes** (namespace typos, missing return types, a missed namespace update, etc.) — fix and continue.
-- **Non-trivial failures** (behavioral changes, test logic issues, unclear root causes) — investigate and reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing. Investigate all failures thoroughly — don't assume a failure is caused by your change without confirming it.
-- **Do not skip or remove tests except under the rules below.** Never comment out, skip, or avoid porting a test because the required functionality is missing. If Hypervel should support it, investigate the root cause and reach consensus on the fix through a second-opinion loop with your peer agent. Keep every applicable upstream test, even if redundant or seemingly unnecessary; exclusions require justified Hypervel architectural or API differences. Remove tests for the approved unsupported features listed under Porting Laravel Tests without asking. For any other exclusion or removal, reach consensus through a second-opinion loop on what the test covers and why removal is justified.
+- **Non-trivial failures** (behavioral changes, test logic issues, unclear root causes) — trace the failure to its cause before changing the code or test. Investigate all failures thoroughly — don't assume a failure is caused by your change without confirming it.
+- **Do not skip or remove tests except under the rules below.** Never comment out, skip, or avoid porting a test because the required functionality is missing. If Hypervel should support it, follow Framework bug fixes or Framework enhancements. If support is unclear, reach agreement with your peer first. Keep every applicable upstream test, even if redundant or seemingly unnecessary; exclusions require justified Hypervel architectural or API differences. Remove tests for the approved unsupported features listed under Porting Laravel Tests without asking. For any other exclusion or removal, reach consensus through a second-opinion loop on what the test covers and why removal is justified.
 
 ## Writing Tests
 
@@ -862,7 +862,7 @@ After porting is complete, run phpstan on the newly ported package and fix error
 
 #### 5. Complete verification
 
-Complete the verification workflow under Change Workflow. For failures, follow When to Stop and Report: make straightforward fixes directly; for non-trivial failures, reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing.
+Complete the verification workflow under Change Workflow. For failures, follow Handling failing tests.
 
 ### Provider and listener reminder
 
@@ -905,7 +905,7 @@ One entry per test file. Note the strategy:
 - **Copy and update** — no existing Hypervel test for this
 - **Merge** — Merge upstream tests into the existing Hypervel test file, preserving distinct Hypervel-specific coverage
 - **Integration** — needs external service, goes in `tests/Integration/{PackageName}/`
-- **Investigate** — exposes missing functionality, an unsupported feature, or an architectural difference. Reach consensus through a second-opinion loop with your peer agent on what the test covers, whether Hypervel should support it, and the appropriate fix or justified exclusion.
+- **Investigate** — exposes functionality Hypervel may not support, an unsupported feature, or an architectural difference. Reach consensus through a second-opinion loop with your peer agent on what the test covers, whether Hypervel should support it, and the appropriate fix or justified exclusion.
 
 #### 4. Port test files one at a time
 
@@ -927,7 +927,7 @@ Use this exact cadence for each test class:
 1. Port the test class.
 2. Run that test class immediately (`./vendor/bin/phpunit --no-progress path/to/TestClass.php`).
 3. Fix all straightforward failures.
-4. If any failure exposes a source code bug, missing functionality, or unclear behavioral difference, investigate and reach consensus on the root cause and fix through a second-opinion loop with your peer agent before implementing.
+4. If a failure exposes a source bug, or behavior missing from an API Hypervel already supports, follow Framework bug fixes. If it's unclear what Hypervel should support, reach agreement with your peer before proceeding.
 5. Once the test class is green, move to the next test class. Work serially on one test class at a time.
 
 #### 6. Complete verification
