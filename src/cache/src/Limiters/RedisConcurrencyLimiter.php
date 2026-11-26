@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Limiters;
 
+use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Redis\LuaScripts;
@@ -77,8 +78,11 @@ class RedisConcurrencyLimiter extends ConcurrencyLimiter
 
         /** @var RedisStore $store */
         $store = $this->store;
+        $lockConnection = $store->lockConnection();
 
-        return $store->lockConnection()->withConnection(function (RedisConnection $connection) use ($id, $store): false|Lock {
+        StoreContext::ensureNotQueuing($lockConnection);
+
+        return $lockConnection->withConnection(function (RedisConnection $connection) use ($id, $store): false|Lock {
             $packedOwner = $connection->pack([$id])[0];
 
             $result = $connection->eval(...array_merge(

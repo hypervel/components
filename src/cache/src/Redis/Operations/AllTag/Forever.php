@@ -69,7 +69,7 @@ class Forever
                 }
             });
 
-            return $results === null || ($results !== false && ! in_array(false, $results, true));
+            return $results !== false && ! in_array(false, $results, true);
         });
     }
 

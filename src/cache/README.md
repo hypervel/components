@@ -21,6 +21,8 @@ Hypervel also provides a `worker-array` cache store for deliberate worker-lifeti
 
 `Cache::memo()` stores its per-request memoized repository directly in coroutine context instead of Laravel's scoped container binding. Coroutine teardown provides the request reset boundary in Hypervel without dynamic container bindings.
 
+Redis cache operations, locks, and funnels throw a `LogicException` when their Redis connection is queuing a pipeline or transaction. In Laravel, their commands can join the caller's queue, where reads, results, and lock acquisition are wrong while queued writes still run. Make those cache calls outside the callback. See the [Redis cache documentation](https://hypervel.org/docs/cache#redis).
+
 Hypervel exposes refreshable locks through the `Hypervel\Contracts\Cache\RefreshableLock` capability interface and adds `getRemainingLifetime()` for drivers that can inspect TTLs. Laravel exposes `refresh()` directly on supported lock implementations without a typed capability contract.
 
 Calling `refresh()` with an explicit non-positive TTL throws `InvalidArgumentException` in Hypervel. Laravel's drivers disagree about what `refresh(0)` means, and Hypervel keeps lock TTLs as the crash-safety boundary instead of silently making a lock permanent.

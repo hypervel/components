@@ -151,7 +151,7 @@ class PutMany
             }
 
             return true;
-        }, needsReplies: true);
+        });
     }
 
     /**
@@ -258,6 +258,6 @@ class PutMany
             }
 
             return true;
-        }, needsReplies: true);
+        });
     }
 }

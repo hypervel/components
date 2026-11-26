@@ -228,6 +228,7 @@ class StoreContextTest extends TestCase
         $contextConnectionName ??= $expectedConnectionName;
 
         $redisProxy = Double::for(RedisProxy::class)->strict();
+        $redisProxy->allows('isQueueing')->returns(false);
         $redisProxy->allows('withConnection')
             ->resolves($withConnectionHandler);
         $redisProxy->allows('isCluster')

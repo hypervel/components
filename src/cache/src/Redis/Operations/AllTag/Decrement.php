@@ -70,7 +70,7 @@ class Decrement
 
             // First result is the DECRBY result
             return $results[0] ?? false;
-        }, needsReplies: true);
+        });
     }
 
     /**
@@ -94,6 +94,6 @@ class Decrement
             }
 
             return $newValue;
-        }, needsReplies: true);
+        });
     }
 }

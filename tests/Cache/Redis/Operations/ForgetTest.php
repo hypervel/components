@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations;
 
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use LogicException;
-use Redis;
 
 /**
  * Tests for the Forget operation.
@@ -53,16 +51,5 @@ class ForgetTest extends RedisCacheTestCase
 
         // Results are positional, as from the pipeline, whatever the caller's keys are.
         $this->assertSame([true, true], $store->forgetManyKeys([3 => 'foo', 7 => 'fizz']));
-    }
-
-    public function testAnyModeForgetRejectsAClusterTransactionBeforeQueuingCommands(): void
-    {
-        // Queuing SMEMBERS would hand back the client instead of the key's tags, so DEL would run without HDEL.
-        [$store, $client] = $this->createClusterStore(tagMode: 'any');
-        $client->expects('getMode')->returns(Redis::MULTI);
-
-        $this->expectException(LogicException::class);
-
-        $store->forgetManyKeys(['{topic}:tea']);
     }
 }

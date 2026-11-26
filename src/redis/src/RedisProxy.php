@@ -421,6 +421,19 @@ class RedisProxy implements ConnectionContract
     }
 
     /**
+     * Determine if the connection stored in coroutine context is queuing a pipeline or transaction.
+     *
+     * @internal
+     */
+    public function isQueueing(): bool
+    {
+        $connection = CoroutineContext::get($this->getContextKey());
+        $client = $connection instanceof RedisConnection ? $connection->client() : null;
+
+        return $client !== null && $client->getMode() !== Redis::ATOMIC;
+    }
+
+    /**
      * Release the connection stored in coroutine context.
      *
      * @internal

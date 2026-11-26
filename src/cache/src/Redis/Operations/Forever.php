@@ -58,10 +58,9 @@ class Forever
                 }
             });
 
-            // Writes that joined the caller's queue succeed, as a queued single write does.
             return array_combine(array_keys($values), is_array($results)
                 ? array_map(boolval(...), $results)
-                : array_fill(0, count($values), $results === null));
+                : array_fill(0, count($values), false));
         });
     }
 }

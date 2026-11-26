@@ -49,10 +49,9 @@ class Forget
                 }
             });
 
-            // Deletes that joined the caller's queue succeed, as a queued single delete does.
             return is_array($results)
                 ? array_map(boolval(...), $results)
-                : array_fill(0, count($keys), $results === null);
+                : array_fill(0, count($keys), false);
         });
     }
 }

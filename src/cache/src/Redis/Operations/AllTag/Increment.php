@@ -70,7 +70,7 @@ class Increment
 
             // First result is the INCRBY result
             return $results[0] ?? false;
-        }, needsReplies: true);
+        });
     }
 
     /**
@@ -94,6 +94,6 @@ class Increment
             }
 
             return $newValue;
-        }, needsReplies: true);
+        });
     }
 }

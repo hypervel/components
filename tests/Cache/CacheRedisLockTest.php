@@ -367,6 +367,7 @@ class CacheRedisLockTest extends TestCase
     protected function getLock(int $seconds = 10): array
     {
         $redis = Double::for(CacheLockRedisProxy::class)->strict();
+        $redis->allows('isQueueing')->returns(false);
 
         $lock = new RedisLock($redis, 'foo', $seconds);
 

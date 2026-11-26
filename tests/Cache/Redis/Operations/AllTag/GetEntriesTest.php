@@ -164,6 +164,7 @@ class GetEntriesTest extends RedisCacheTestCase
 
         $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
         $proxy = Double::for(RedisProxy::class)->strict();
+        $proxy->allows('isQueueing')->returns(false);
         $proxy->expects('withConnection')
             ->times(2)
             ->with(Argument::type('callable'), false)

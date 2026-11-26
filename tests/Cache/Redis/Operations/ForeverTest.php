@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations;
 
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Redis;
 use RedisException;
 
 /**
@@ -57,18 +56,6 @@ class ForeverTest extends RedisCacheTestCase
         $client->expects('exec')->returns([true, false]);
 
         $this->assertSame(['foo' => true, 'fizz' => false], $this->createStore($connection)->foreverMany(['foo' => 'bar', 'fizz' => 'buzz']));
-    }
-
-    public function testForeverManyJoinsAQueueTheCallerOwns(): void
-    {
-        $connection = $this->mockConnection();
-        $client = $connection->client();
-        $client->expects('getMode')->returns(Redis::PIPELINE);
-        $client->expects('set')->times(2)->returns($client);
-        $client->expects('pipeline')->never();
-        $client->expects('exec')->never();
-
-        $this->assertSame(['foo' => true, 'fizz' => true], $this->createStore($connection)->foreverMany(['foo' => 'bar', 'fizz' => 'buzz']));
     }
 
     public function testForeverManyInvalidatesTheConnectionWhenItsPipelineFails(): void

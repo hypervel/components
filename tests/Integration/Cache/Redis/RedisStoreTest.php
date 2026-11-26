@@ -13,6 +13,7 @@ use Hypervel\Cache\Redis\Operations\AllTag\Flush;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
@@ -24,6 +25,7 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use LogicException;
 use PHPUnit\Framework\Attributes\TestWith;
 use Redis;
 use RuntimeException;
@@ -564,6 +566,33 @@ class RedisStoreTest extends TestCase
         $this->assertSame(['forever foo', 'forever fizz', 'forget foo', 'forget fizz'], $repository->calls);
     }
 
+    public function testStoresThatOverrideForeverOrForgetStillSeeEachKey(): void
+    {
+        $store = new class($this->app->make(RedisFactory::class)) extends RedisStore {
+            public array $calls = [];
+
+            public function forever(string $key, mixed $value): bool
+            {
+                $this->calls[] = "forever {$key}";
+
+                return parent::forever($key, $value);
+            }
+
+            public function forget(string $key): bool
+            {
+                $this->calls[] = "forget {$key}";
+
+                return parent::forget($key);
+            }
+        };
+        $repository = new Repository($store);
+
+        $this->assertTrue($repository->putMany(['foo' => 'bar', 'fizz' => 'buzz']));
+        $this->assertTrue($repository->deleteMultiple(['foo', 'fizz']));
+
+        $this->assertSame(['forever foo', 'forever fizz', 'forget foo', 'forget fizz'], $store->calls);
+    }
+
     public function testObservedDeletesDispatchEachKeysEventsInOrder(): void
     {
         $store = Cache::store('redis');
@@ -589,28 +618,22 @@ class RedisStoreTest extends TestCase
         $this->assertNull($store->get('foo'));
     }
 
-    public function testCacheWritesJoinAPipelineOpenOnTheCacheConnection(): void
+    public function testCacheOperationsRejectATransactionOpenOnTheCacheConnection(): void
     {
-        if ($this->usingRedisCluster()) {
-            $this->markTestSkipped('Redis Cluster connections do not support pipelines.');
-        }
-
         $store = Cache::store('redis');
         $store->clear();
 
-        $results = $store->getStore()->connection()->pipeline(function (Redis $pipeline) use ($store): void {
-            $pipeline->echo('before');
-            $store->putMany(['foo' => 'bar', 'fizz' => 'buzz']);
-            $store->tags(['people'])->put('person-1', 'Sally', 60);
-            $store->deleteMultiple(['foo', 'missing']);
-            $pipeline->echo('after');
+        // The rejection is caught inside the callback so EXEC still runs anything that was queued.
+        $store->getStore()->connection()->transaction(function () use ($store): void {
+            try {
+                $store->put('foo', 'bar', 60);
+                $this->fail('The cache write was not rejected.');
+            } catch (LogicException $exception) {
+                $this->assertStringContainsString('queuing a pipeline or transaction', $exception->getMessage());
+            }
         });
 
-        // The caller's EXEC receives every reply, including those of the cache commands it ran.
-        $this->assertSame('before', $results[0]);
-        $this->assertSame('after', array_last($results));
-        $this->assertSame(['foo' => null, 'fizz' => 'buzz'], $store->many(['foo', 'fizz']));
-        $this->assertSame('Sally', $store->tags(['people'])->get('person-1'));
+        $this->assertNull($store->get('foo'));
     }
 
     #[WithConfig('cache.stores.failover.stores', ['redis', 'array'])]
@@ -738,6 +761,37 @@ class RedisStoreTest extends TestCase
         } finally {
             $store->forget($key);
         }
+    }
+
+    public function testLockOperationsRejectATransactionOpenOnTheLockConnection(): void
+    {
+        $store = $this->getStoreWithSeparateLockStorage();
+        $this->assertTrue($store->lock('held', 60)->acquire());
+
+        // Creating a lock or funnel runs no command, so it may happen before the transaction.
+        $lock = $store->lock('foo');
+        $funnel = $store->funnel('bar')->limit(1)->releaseAfter(60)->block(0);
+
+        // A lock on its own idle connection is unaffected by a transaction on the cache connection.
+        $store->getStore()->connection()->transaction(function () use ($store): void {
+            $this->assertTrue($store->lock('baz', 60)->get());
+        });
+
+        foreach (['lock' => $lock->get(...), 'funnel' => $funnel->acquire(...), 'lock flush' => $store->flushLocks(...)] as $name => $operation) {
+            // The rejection is caught inside the callback so EXEC still runs anything that was queued.
+            $store->getStore()->lockConnection()->transaction(function () use ($name, $operation): void {
+                try {
+                    $operation();
+                    $this->fail("The {$name} was not rejected.");
+                } catch (LogicException) {
+                }
+            });
+        }
+
+        // Nothing was queued: the forever lock and the funnel slot are free, and the held lock remains.
+        $this->assertTrue($store->lock('foo')->get());
+        $funnel->acquire()->release();
+        $this->assertFalse($store->lock('held', 60)->get());
     }
 
     public function testHasSeparateLockStoreReturnsTrueWhenLockConnectionDiffers(): void

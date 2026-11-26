@@ -100,7 +100,7 @@ class Add
             }
 
             return $membershipsSucceeded;
-        }, needsReplies: true);
+        });
     }
 
     /**

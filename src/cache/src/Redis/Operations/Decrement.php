@@ -27,6 +27,6 @@ class Decrement
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value) {
             return $connection->decrBy($this->context->prefix() . $key, $value);
-        }, needsReplies: true);
+        });
     }
 }

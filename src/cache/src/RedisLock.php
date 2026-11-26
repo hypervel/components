@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Redis\LuaScripts;
 use Hypervel\Redis\RedisConnection;
@@ -33,10 +34,10 @@ class RedisLock extends Lock implements RefreshableLock
     public function acquire(): bool
     {
         if ($this->seconds > 0) {
-            return $this->redis->set($this->name, $this->owner, 'EX', $this->seconds, 'NX') === true;
+            return $this->connection()->set($this->name, $this->owner, 'EX', $this->seconds, 'NX') === true;
         }
 
-        return $this->redis->setnx($this->name, $this->owner) === 1;
+        return $this->connection()->setnx($this->name, $this->owner) === 1;
     }
 
     /**
@@ -44,7 +45,7 @@ class RedisLock extends Lock implements RefreshableLock
      */
     public function release(): bool
     {
-        return $this->redis->withConnection(function (RedisConnection $connection) {
+        return $this->connection()->withConnection(function (RedisConnection $connection) {
             return (bool) $connection->eval(
                 LuaScripts::releaseLock(),
                 1,
@@ -59,7 +60,7 @@ class RedisLock extends Lock implements RefreshableLock
      */
     public function forceRelease(): void
     {
-        $this->redis->del($this->name);
+        $this->connection()->del($this->name);
     }
 
     /**
@@ -67,7 +68,7 @@ class RedisLock extends Lock implements RefreshableLock
      */
     protected function getCurrentOwner(): ?string
     {
-        return $this->redis->get($this->name);
+        return $this->connection()->get($this->name);
     }
 
     /**
@@ -87,7 +88,7 @@ class RedisLock extends Lock implements RefreshableLock
             throw new InvalidArgumentException('Refresh requires a positive TTL.');
         }
 
-        return $this->redis->withConnection(function (RedisConnection $connection) use ($seconds) {
+        return $this->connection()->withConnection(function (RedisConnection $connection) use ($seconds) {
             $packedOwner = $connection->pack([$this->owner])[0];
 
             // The owner is packed because RedisLock writes through set(), but
@@ -107,7 +108,7 @@ class RedisLock extends Lock implements RefreshableLock
      */
     public function getRemainingLifetime(): ?float
     {
-        $ttl = $this->redis->ttl($this->name);
+        $ttl = $this->connection()->ttl($this->name);
 
         // -2 = key doesn't exist, -1 = key has no expiry
         if ($ttl < 0) {
@@ -115,6 +116,16 @@ class RedisLock extends Lock implements RefreshableLock
         }
 
         return (float) $ttl;
+    }
+
+    /**
+     * Get the Redis connection for a lock command.
+     */
+    private function connection(): RedisProxy
+    {
+        StoreContext::ensureNotQueuing($this->redis);
+
+        return $this->redis;
     }
 
     /**

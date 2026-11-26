@@ -28,6 +28,7 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Attributes\BootOnly;
+use ReflectionMethod;
 use RuntimeException;
 
 class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
@@ -198,7 +199,7 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function foreverMany(array $values): array
     {
-        if (count($values) < 2 || $this->getContext()->isCluster()) {
+        if (count($values) < 2 || $this->getContext()->isCluster() || ! $this->usesOwnMethod('forever')) {
             $results = [];
 
             foreach ($values as $key => $value) {
@@ -264,7 +265,7 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
         $keys = array_values($keys);
 
         // Any-mode forgets also remove each key's tag entries.
-        if (count($keys) < 2 || $this->tagMode === TagMode::Any || $this->getContext()->isCluster()) {
+        if (count($keys) < 2 || $this->tagMode === TagMode::Any || $this->getContext()->isCluster() || ! $this->usesOwnMethod('forget')) {
             return array_map($this->forget(...), $keys);
         }
 
@@ -298,7 +299,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
             throw new RuntimeException('Flushing locks is only supported when the lock store is separate from the cache store.');
         }
 
-        $this->lockConnection()->flushdb();
+        $connection = $this->lockConnection();
+
+        StoreContext::ensureNotQueuing($connection);
+
+        $connection->flushdb();
 
         return true;
     }
@@ -520,6 +525,16 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
             serializableClasses: $this->serializableClasses,
             serializableClassPolicy: $this->serializableClassPolicy,
         );
+    }
+
+    /**
+     * Determine if the store's own implementation of the given method is used.
+     *
+     * Bulk writes and deletes use per-key calls when a subclass overrides the single-key method.
+     */
+    private function usesOwnMethod(string $method): bool
+    {
+        return static::class === self::class || (new ReflectionMethod($this, $method))->class === self::class;
     }
 
     /**

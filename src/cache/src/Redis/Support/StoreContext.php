@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Support;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
 use LogicException;
 use Redis;
@@ -137,52 +138,31 @@ class StoreContext
     /**
      * Execute callback with a held connection from the pool.
      *
-     * Delegates to Redis::withConnection() for context awareness (respects
-     * active pipeline/multi connections). Cache operations use raw phpredis
-     * behavior unless they explicitly request Laravel-style transforms.
-     *
-     * An operation that reads replies before it finishes passes $needsReplies, so it fails before
-     * queuing anything on a connection whose open pipeline or transaction belongs to the caller.
+     * Delegates to Redis::withConnection(), so a connection held in coroutine context
+     * is reused. Cache operations use raw phpredis behavior unless they explicitly
+     * request Laravel-style transforms.
      *
      * @template T
      * @param callable(RedisConnection): T $callback
      * @return T
      */
-    public function withConnection(callable $callback, bool $transform = false, bool $needsReplies = false): mixed
+    public function withConnection(callable $callback, bool $transform = false): mixed
     {
-        if ($needsReplies) {
-            $callback = function (RedisConnection $connection) use ($callback): mixed {
-                if ($this->isQueueing($connection)) {
-                    throw new LogicException(
-                        'This cache operation needs Redis replies, but its connection is queuing a pipeline or transaction.'
-                    );
-                }
+        $redis = $this->redis->connection($this->connectionName);
 
-                return $callback($connection);
-            };
-        }
+        static::ensureNotQueuing($redis);
 
-        return $this->redis
-            ->connection($this->connectionName)
-            ->withConnection($callback, transform: $transform);
+        return $redis->withConnection($callback, transform: $transform);
     }
 
     /**
-     * Run write commands in one pipeline, or add them to the caller's open pipeline or transaction.
-     *
-     * Returns null when the commands joined the caller's queue, whose owner runs them.
+     * Run write commands in one pipeline.
      *
      * @param callable(Redis): void $commands
-     * @return null|array<int, mixed>|false
+     * @return array<int, mixed>|false
      */
-    public function pipeline(RedisConnection $connection, callable $commands): array|false|null
+    public function pipeline(RedisConnection $connection, callable $commands): array|false
     {
-        if ($this->isQueueing($connection)) {
-            $commands($connection->client());
-
-            return null;
-        }
-
         try {
             $pipeline = $connection->pipeline();
             $commands($pipeline);
@@ -197,11 +177,22 @@ class StoreContext
     }
 
     /**
-     * Determine if the connection is queuing a pipeline or transaction.
+     * Ensure a cache operation does not run on a connection queuing a caller's pipeline or transaction.
+     *
+     * Commands queued there return no replies until the caller's EXEC, so reads, results
+     * and lock acquisition would be wrong while their writes still ran later.
+     *
+     * @internal
+     *
+     * @throws LogicException
      */
-    private function isQueueing(RedisConnection $connection): bool
+    public static function ensureNotQueuing(RedisProxy $redis): void
     {
-        return $connection->client()->getMode() !== Redis::ATOMIC;
+        if ($redis->isQueueing()) {
+            throw new LogicException(
+                'Redis cache operations cannot run while their connection is queuing a pipeline or transaction. Run them before or after it.'
+            );
+        }
     }
 
     /**

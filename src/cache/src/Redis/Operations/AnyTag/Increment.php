@@ -121,7 +121,7 @@ class Increment
             }
 
             return $newValue;
-        }, needsReplies: true);
+        });
     }
 
     /**
@@ -148,7 +148,7 @@ class Increment
             ];
 
             return $connection->evalWithShaCache($this->incrementWithTagsScript(), $keys, $args);
-        }, needsReplies: true);
+        });
     }
 
     /**
