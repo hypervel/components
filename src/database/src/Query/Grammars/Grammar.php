@@ -296,6 +296,22 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Get the query parameter for a value compared with the given columns.
+     */
+    protected function comparisonParameter(mixed $value, Expression|string ...$columns): string|int|float
+    {
+        return $this->parameter($value);
+    }
+
+    /**
+     * Get the query parameters for values compared with the given column.
+     */
+    protected function comparisonParameters(Expression|string $column, array $values): string
+    {
+        return $this->parameterize($values);
+    }
+
+    /**
      * Compile a raw where clause.
      */
     protected function whereRaw(Builder $query, array $where): string
@@ -308,7 +324,7 @@ class Grammar extends BaseGrammar
      */
     protected function whereBasic(Builder $query, array $where): string
     {
-        $value = $this->parameter($where['value']);
+        $value = $this->comparisonParameter($where['value'], $where['column']);
 
         $operator = str_replace('?', '??', $where['operator']);
 
@@ -355,7 +371,7 @@ class Grammar extends BaseGrammar
     protected function whereIn(Builder $query, array $where): string
     {
         if (! empty($where['values'])) {
-            return $this->wrap($where['column']) . ' in (' . $this->parameterize($where['values']) . ')';
+            return $this->wrap($where['column']) . ' in (' . $this->comparisonParameters($where['column'], $where['values']) . ')';
         }
 
         return '0 = 1';
@@ -367,7 +383,7 @@ class Grammar extends BaseGrammar
     protected function whereNotIn(Builder $query, array $where): string
     {
         if (! empty($where['values'])) {
-            return $this->wrap($where['column']) . ' not in (' . $this->parameterize($where['values']) . ')';
+            return $this->wrap($where['column']) . ' not in (' . $this->comparisonParameters($where['column'], $where['values']) . ')';
         }
 
         return '1 = 1';
@@ -444,7 +460,7 @@ class Grammar extends BaseGrammar
      */
     protected function whereNullSafeEquals(Builder $query, array $where): string
     {
-        return $this->wrap($where['column']) . ' is not distinct from ' . $this->parameter($where['value']);
+        return $this->wrap($where['column']) . ' is not distinct from ' . $this->comparisonParameter($where['value'], $where['column']);
     }
 
     /**
@@ -454,9 +470,9 @@ class Grammar extends BaseGrammar
     {
         $between = $where['not'] ? 'not between' : 'between';
 
-        $min = $this->parameter(is_array($where['values']) ? array_first($where['values']) : $where['values'][0]);
+        $min = $this->comparisonParameter(is_array($where['values']) ? array_first($where['values']) : $where['values'][0], $where['column']);
 
-        $max = $this->parameter(is_array($where['values']) ? array_last($where['values']) : $where['values'][1]);
+        $max = $this->comparisonParameter(is_array($where['values']) ? array_last($where['values']) : $where['values'][1], $where['column']);
 
         return $this->wrap($where['column']) . ' ' . $between . ' ' . $min . ' and ' . $max;
     }
@@ -482,11 +498,11 @@ class Grammar extends BaseGrammar
     {
         $between = $where['not'] ? 'not between' : 'between';
 
-        $min = $this->wrap(is_array($where['columns']) ? array_first($where['columns']) : $where['columns'][0]);
+        $min = is_array($where['columns']) ? array_first($where['columns']) : $where['columns'][0];
 
-        $max = $this->wrap(is_array($where['columns']) ? array_last($where['columns']) : $where['columns'][1]);
+        $max = is_array($where['columns']) ? array_last($where['columns']) : $where['columns'][1];
 
-        return $this->parameter($where['value']) . ' ' . $between . ' ' . $min . ' and ' . $max;
+        return $this->comparisonParameter($where['value'], $min, $max) . ' ' . $between . ' ' . $this->wrap($min) . ' and ' . $this->wrap($max);
     }
 
     /**
@@ -826,7 +842,7 @@ class Grammar extends BaseGrammar
     {
         $column = $this->wrap($having['column']);
 
-        $parameter = $this->parameter($having['value']);
+        $parameter = $this->comparisonParameter($having['value'], $having['column']);
 
         return $column . ' ' . $having['operator'] . ' ' . $parameter;
     }
@@ -840,9 +856,9 @@ class Grammar extends BaseGrammar
 
         $column = $this->wrap($having['column']);
 
-        $min = $this->parameter(head($having['values']));
+        $min = $this->comparisonParameter(head($having['values']), $having['column']);
 
-        $max = $this->parameter(last($having['values']));
+        $max = $this->comparisonParameter(last($having['values']), $having['column']);
 
         return $column . ' ' . $between . ' ' . $min . ' and ' . $max;
     }
@@ -935,7 +951,7 @@ class Grammar extends BaseGrammar
         $cases = [];
 
         foreach (array_values($order['values']) as $index => $value) {
-            $cases[] = 'when ' . $column . ' = ' . $this->parameter($value) . ' then ' . $index;
+            $cases[] = 'when ' . $column . ' = ' . $this->comparisonParameter($value, $order['column']) . ' then ' . $index;
         }
 
         return 'case ' . implode(' ', $cases) . ' else ' . count($order['values']) . ' end';

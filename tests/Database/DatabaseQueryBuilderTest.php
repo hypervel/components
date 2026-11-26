@@ -2466,28 +2466,28 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNull('items->id');
-        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is null OR json_type(json_extract(`items`, \'$."id"\')) = \'NULL\')', $builder->toSql());
+        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is null OR json_type(json_extract(`items`, \'$."id"\')) = json_type(\'null\'))', $builder->toSql());
     }
 
     public function testJsonWhereNotNullMysql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNotNull('items->id');
-        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is not null AND json_type(json_extract(`items`, \'$."id"\')) != \'NULL\')', $builder->toSql());
+        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is not null AND json_type(json_extract(`items`, \'$."id"\')) != json_type(\'null\'))', $builder->toSql());
     }
 
     public function testJsonWhereNullExpressionMysql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNull(new Raw('items->id'));
-        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is null OR json_type(json_extract(`items`, \'$."id"\')) = \'NULL\')', $builder->toSql());
+        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is null OR json_type(json_extract(`items`, \'$."id"\')) = json_type(\'null\'))', $builder->toSql());
     }
 
     public function testJsonWhereNotNullExpressionMysql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNotNull(new Raw('items->id'));
-        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is not null AND json_type(json_extract(`items`, \'$."id"\')) != \'NULL\')', $builder->toSql());
+        $this->assertSame('select * from `users` where (json_extract(`items`, \'$."id"\') is not null AND json_type(json_extract(`items`, \'$."id"\')) != json_type(\'null\'))', $builder->toSql());
     }
 
     public function testArrayWhereNulls(): void
@@ -6614,7 +6614,7 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->where('items->sku', '=', 'foo-bar');
-        $this->assertSame('select * from `users` where json_unquote(json_extract(`items`, \'$."sku"\')) = ?', $builder->toSql());
+        $this->assertSame('select * from `users` where json_unquote(json_extract(`items`, \'$."sku"\')) = json_unquote(json_quote(?))', $builder->toSql());
         $this->assertCount(1, $builder->getRawBindings()['where']);
         $this->assertSame('foo-bar', $builder->getRawBindings()['where'][0]);
     }
@@ -6630,7 +6630,7 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->where('items->price', '=', 1.5);
-        $this->assertSame('select * from `users` where json_unquote(json_extract(`items`, \'$."price"\')) = ?', $builder->toSql());
+        $this->assertSame('select * from `users` where json_unquote(json_extract(`items`, \'$."price"\')) = json_unquote(json_quote(?))', $builder->toSql());
     }
 
     public function testMySqlWrappingJsonWithBoolean(): void
@@ -6645,16 +6645,16 @@ class DatabaseQueryBuilderTest extends TestCase
     }
 
     #[DataProvider('jsonBooleanMembershipGrammars')]
-    public function testJsonBooleanMembership(string $factory, string $table, string $scalar, string $true, string $false): void
+    public function testJsonBooleanMembership(string $factory, string $table, string $scalar, string $true, string $false, string $placeholder = '?'): void
     {
         $builder = $this->{$factory}()->from('users')->whereIn('items->available', [true, 'x', false, true]);
-        $this->assertSame("select * from {$table} where ({$scalar} in (?) or {$true} or {$false})", $builder->toSql());
+        $this->assertSame("select * from {$table} where ({$scalar} in ({$placeholder}) or {$true} or {$false})", $builder->toSql());
         $this->assertSame(['x'], $builder->getBindings());
 
         $builder = $this->{$factory}()->from('users')
             ->whereNotIn('items->available', [true])
             ->orWhereIn('items->available', [false, 'x']);
-        $this->assertSame("select * from {$table} where not ({$true}) or ({$scalar} in (?) or {$false})", $builder->toSql());
+        $this->assertSame("select * from {$table} where not ({$true}) or ({$scalar} in ({$placeholder}) or {$false})", $builder->toSql());
         $this->assertSame(['x'], $builder->getBindings());
     }
 
@@ -6663,8 +6663,9 @@ class DatabaseQueryBuilderTest extends TestCase
         yield 'mysql' => [
             'getMySqlBuilder', '`users`',
             'json_unquote(json_extract(`items`, \'$."available"\'))',
-            '(json_unquote(json_extract(`items`, \'$."available"\')) = \'true\' and json_type(json_extract(`items`, \'$."available"\')) = \'BOOLEAN\')',
-            '(json_unquote(json_extract(`items`, \'$."available"\')) = \'false\' and json_type(json_extract(`items`, \'$."available"\')) = \'BOOLEAN\')',
+            '(json_unquote(json_extract(`items`, \'$."available"\')) = json_unquote(\'true\') and json_type(json_extract(`items`, \'$."available"\')) = json_type(\'true\'))',
+            '(json_unquote(json_extract(`items`, \'$."available"\')) = json_unquote(\'false\') and json_type(json_extract(`items`, \'$."available"\')) = json_type(\'true\'))',
+            'json_unquote(json_quote(?))',
         ];
         yield 'mariadb' => [
             'getMariaDbBuilder', '`users`',

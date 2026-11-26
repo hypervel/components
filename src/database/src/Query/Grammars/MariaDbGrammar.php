@@ -85,6 +85,16 @@ class MariaDbGrammar extends MySqlGrammar
     }
 
     /**
+     * Determine if text compared with the given column needs the collation of a JSON value.
+     */
+    #[Override]
+    protected function needsJsonValueCollation(Expression|string $column): bool
+    {
+        // MariaDB's JSON_VALUE results compare with text under its binary collations too.
+        return false;
+    }
+
+    /**
      * Wrap the given JSON selector.
      */
     protected function wrapJsonSelector(string $value): string

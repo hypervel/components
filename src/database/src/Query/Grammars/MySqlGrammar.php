@@ -4,14 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use DateTimeInterface;
+use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\IndexHint;
 use Hypervel\Database\Query\JoinLateralClause;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Override;
+use Stringable;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @property MySqlConnection $connection
@@ -46,6 +53,62 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Get the query parameter for a value compared with the given columns.
+     */
+    #[Override]
+    protected function comparisonParameter(mixed $value, Expression|string ...$columns): string|int|float
+    {
+        return array_any($columns, $this->needsJsonValueCollation(...))
+            ? $this->jsonComparisonParameter($value)
+            : parent::comparisonParameter($value, ...$columns);
+    }
+
+    /**
+     * Get the query parameters for values compared with the given column.
+     */
+    #[Override]
+    protected function comparisonParameters(Expression|string $column, array $values): string
+    {
+        return $this->needsJsonValueCollation($column)
+            ? implode(', ', array_map($this->jsonComparisonParameter(...), $values))
+            : parent::comparisonParameters($column, $values);
+    }
+
+    /**
+     * Determine if text compared with the given column needs the collation of a JSON value.
+     */
+    protected function needsJsonValueCollation(Expression|string $column): bool
+    {
+        return is_string($column) && $this->isJsonSelector($column);
+    }
+
+    /**
+     * Get the query parameter for a value compared with a JSON value.
+     */
+    private function jsonComparisonParameter(mixed $value): string|int|float
+    {
+        $parameter = $this->parameter($value);
+
+        // JSON values have the utf8mb4_bin collation, which MySQL cannot compare with text in another
+        // binary collation such as utf8mb4_0900_bin. Quoting the text as JSON gives it the same collation.
+        return $this->isBoundAsText($value) ? 'json_unquote(json_quote(' . $parameter . '))' : $parameter;
+    }
+
+    /**
+     * Determine if the given value is bound to the query as text.
+     */
+    private function isBoundAsText(mixed $value): bool
+    {
+        // Basic where and having clauses bind the first value of an array.
+        $value = enum_value(is_array($value) ? head(Arr::flatten($value)) : $value);
+
+        return is_string($value)
+            || is_float($value)
+            || $value instanceof DateTimeInterface
+            || ($value instanceof Stringable && ! $value instanceof BinaryParameter && ! $this->isExpression($value));
+    }
+
+    /**
      * Compile a "where binary" clause.
      */
     protected function whereBinary(Builder $query, array $where): string
@@ -74,7 +137,7 @@ class MySqlGrammar extends Grammar
      */
     protected function whereNullSafeEquals(Builder $query, array $where): string
     {
-        return $this->wrap($where['column']) . ' <=> ' . $this->parameter($where['value']);
+        return $this->wrap($where['column']) . ' <=> ' . $this->comparisonParameter($where['value'], $where['column']);
     }
 
     /**
@@ -87,7 +150,7 @@ class MySqlGrammar extends Grammar
         if ($this->isJsonSelector($columnValue)) {
             [$field, $path] = $this->wrapJsonFieldAndPath($columnValue);
 
-            return '(json_extract(' . $field . $path . ') is null OR json_type(json_extract(' . $field . $path . ')) = \'NULL\')';
+            return '(json_extract(' . $field . $path . ') is null OR json_type(json_extract(' . $field . $path . ')) = json_type(\'null\'))';
         }
 
         return parent::whereNull($query, $where);
@@ -103,10 +166,25 @@ class MySqlGrammar extends Grammar
         if ($this->isJsonSelector($columnValue)) {
             [$field, $path] = $this->wrapJsonFieldAndPath($columnValue);
 
-            return '(json_extract(' . $field . $path . ') is not null AND json_type(json_extract(' . $field . $path . ')) != \'NULL\')';
+            return '(json_extract(' . $field . $path . ') is not null AND json_type(json_extract(' . $field . $path . ')) != json_type(\'null\'))';
         }
 
         return parent::whereNotNull($query, $where);
+    }
+
+    /**
+     * Compile a where row values condition.
+     */
+    #[Override]
+    protected function whereRowValues(Builder $query, array $where): string
+    {
+        if (! array_any($where['columns'], $this->needsJsonValueCollation(...))) {
+            return parent::whereRowValues($query, $where);
+        }
+
+        $values = array_map($this->comparisonParameter(...), array_values($where['values']), array_values($where['columns']));
+
+        return '(' . $this->columnize($where['columns']) . ') ' . $where['operator'] . ' (' . implode(', ', $values) . ')';
     }
 
     /**
@@ -254,8 +332,8 @@ class MySqlGrammar extends Grammar
     protected function compileJsonBooleanInValue(string $column, bool $value): string
     {
         // Keep the indexed scalar expression; the type check excludes JSON strings and numbers.
-        return '(' . $this->wrap($column) . ' = ' . $this->quoteString($value ? 'true' : 'false')
-            . ' and json_type(' . $this->wrapJsonBooleanSelector($column) . ") = 'BOOLEAN')";
+        return '(' . $this->wrap($column) . ' = json_unquote(' . $this->quoteString($value ? 'true' : 'false') . ')'
+            . ' and json_type(' . $this->wrapJsonBooleanSelector($column) . ") = json_type('true'))";
     }
 
     /**
