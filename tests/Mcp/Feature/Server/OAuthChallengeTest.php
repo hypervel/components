@@ -113,6 +113,19 @@ class OAuthChallengeTest extends TestCase
             ->assertHeader('WWW-Authenticate', 'Bearer realm="mcp", resource_metadata="' . url('/.well-known/oauth-protected-resource/central-mcp') . '"');
     }
 
+    public function testChallengesWithThePrefixParametersSharedByTheMcpAndMetadataRoutes(): void
+    {
+        Route::prefix('{tenant}')->group(function (): void {
+            $this->app->make(Registrar::class)->oauthRoutes(registration: false);
+
+            Mcp::web('mcp', ExampleServer::class)->middleware(Authenticate::class);
+        });
+
+        $this->postJson('acme/mcp', [])
+            ->assertStatus(401)
+            ->assertHeader('WWW-Authenticate', 'Bearer realm="mcp", resource_metadata="' . url('/acme/.well-known/oauth-protected-resource/acme/mcp') . '"');
+    }
+
     public function testChallengesWithTheHostParametersOfTheRoute(): void
     {
         Route::domain('{tenant}.example.com')->group(function (): void {

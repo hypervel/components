@@ -103,8 +103,17 @@ class AddWwwAuthenticateHeader
 
         $metadataRoute->ensureCompiled();
 
-        // Bind host parameters directly to avoid cloning the shared route or writing unused CoroutineContext slots.
-        $parameters = (new RouteParameterBinder($metadataRoute))->parameters($request);
+        $route = $request->route();
+        $matchedParameters = $route instanceof Route ? $route->parameters() : [];
+
+        // Keep shared path parameters from the matched MCP route, then overlay host parameters bound for the metadata route.
+        $parameters = array_replace(
+            array_intersect_key(
+                $matchedParameters,
+                array_flip($metadataRoute->parameterNames()),
+            ),
+            (new RouteParameterBinder($metadataRoute))->parameters($request),
+        );
 
         return route('mcp.oauth.protected-resource.nested', [
             ...$parameters,

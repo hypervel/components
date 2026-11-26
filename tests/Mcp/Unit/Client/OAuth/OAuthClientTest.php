@@ -1656,6 +1656,44 @@ class OAuthClientTest extends TestCase
         $this->assertSame('mcp:read mcp:admin offline_access mcp:write', $query['scope']);
     }
 
+    public function testDropsPreviouslyRequestedScopesWhenTheResourceSwitchesAuthorizationServers(): void
+    {
+        Http::fake([
+            'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::sequence()
+                ->push(['authorization_servers' => ['https://auth-a.test']])
+                ->push(['authorization_servers' => ['https://auth-b.test']]),
+            'https://auth-a.test/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth-a.test',
+                'authorization_endpoint' => 'https://auth-a.test/authorize',
+                'code_challenge_methods_supported' => ['S256'],
+                'token_endpoint' => 'https://auth-a.test/token',
+            ]),
+            'https://auth-a.test/token' => Http::response(['access_token' => 'token', 'scope' => 'files:read']),
+            'https://auth-b.test/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth-b.test',
+                'authorization_endpoint' => 'https://auth-b.test/authorize',
+                'code_challenge_methods_supported' => ['S256'],
+                'token_endpoint' => 'https://auth-b.test/token',
+            ]),
+        ]);
+
+        $client = Client::web('https://mcp.test/mcp')->withOAuth(clientId: 'client-123', redirectUri: 'https://app.test/callback');
+
+        $client->oAuthClient(challengeScope: 'files:read')->redirect();
+
+        $state = array_values(Session::get('mcp.oauth'))[0]['state'];
+
+        RequestContext::set(Request::create('https://app.test/callback', 'GET', ['code' => 'auth-code', 'state' => $state]));
+
+        $client->oAuthClient()->exchangeCallback();
+
+        $target = $client->oAuthClient(challengeScope: 'mcp:use')->redirect()->getTargetUrl();
+
+        parse_str((string) parse_url($target, PHP_URL_QUERY), $query);
+
+        $this->assertSame('mcp:use', $query['scope']);
+    }
+
     public function testRegistersADynamicClientWithTheScopeItThenRequests(): void
     {
         Http::fake([

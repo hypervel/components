@@ -248,7 +248,11 @@ class OAuthClient
         $token->scope ??= $stored['scope'] ?? null;
 
         if (is_string($stored['scope'] ?? null) && filled($stored['scope'])) {
-            Session::put($this->requestedScopeSessionKey(), $stored['scope']);
+            // Pair remembered scopes with their issuer so switching authorization servers drops stale scopes.
+            Session::put($this->requestedScopeSessionKey(), [
+                'issuer' => is_string($stored['issuer'] ?? null) ? $stored['issuer'] : '',
+                'scope' => $stored['scope'],
+            ]);
         }
 
         return $token;
@@ -450,7 +454,12 @@ class OAuthClient
         if (filled($this->challengeScope)) {
             $requested = Session::get($this->requestedScopeSessionKey());
 
-            $scopes = [...$this->splitScope(is_string($requested) ? $requested : null), ...$scopes];
+            if (is_array($requested)
+                && is_string($requested['issuer'] ?? null)
+                && is_string($requested['scope'] ?? null)
+                && $requested['issuer'] === $this->discover()->server->issuer) {
+                $scopes = [...$this->splitScope($requested['scope']), ...$scopes];
+            }
         }
 
         // Only append offline_access when scopes are requested, preserving Hypervel's omitted-scope behavior.
