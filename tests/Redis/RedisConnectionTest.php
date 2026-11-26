@@ -286,6 +286,22 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals([0, ['key1', 'key2']], $result);
     }
 
+    public function testScanWithoutArgumentsUsesDefaults(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $cursor = 0;
+
+        $connection->getConnection()
+            ->shouldReceive('scan')
+            ->with(0, '*', 10)
+            ->once()
+            ->andReturn(['key1', 'key2']);
+
+        $result = $connection->scan($cursor);
+
+        $this->assertEquals([0, ['key1', 'key2']], $result);
+    }
+
     public function testScanWithEmptyResult(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
