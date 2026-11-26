@@ -87,10 +87,12 @@ class TwoFactorAuthenticatableTest extends TestCase
             'two_factor_recovery_codes' => null,
         ]);
 
+        $this->assertFalse($user->fresh()->hasRecoveryCodes());
         $this->assertSame([], $user->fresh()->recoveryCodes());
 
         $user->forceFill(['two_factor_recovery_codes' => ''])->save();
 
+        $this->assertFalse($user->fresh()->hasRecoveryCodes());
         $this->assertSame([], $user->fresh()->recoveryCodes());
     }
 

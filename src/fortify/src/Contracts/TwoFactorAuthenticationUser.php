@@ -12,6 +12,11 @@ interface TwoFactorAuthenticationUser
     public function hasEnabledTwoFactorAuthentication(): bool;
 
     /**
+     * Determine if the user's two factor authentication has recovery codes.
+     */
+    public function hasRecoveryCodes(): bool;
+
+    /**
      * Get the two factor authentication recovery codes.
      *
      * @return array<int, string>
