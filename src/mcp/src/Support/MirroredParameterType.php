@@ -44,54 +44,9 @@ enum MirroredParameterType: string
 
         return match (true) {
             $expected === null => false,
-            $this === self::Integer => $this->normalizeInteger($header) === $expected,
+            $this === self::Integer => is_numeric($header) && (float) $header === (float) $expected,
             default => $header === $expected,
         };
-    }
-
-    /**
-     * Normalize a decimal or scientific integer representation without floating-point rounding.
-     */
-    private function normalizeInteger(string $header): ?string
-    {
-        if (preg_match('/\A([+-])?(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:[eE]([+-])?(\d+))?\z/', $header, $matches) !== 1) {
-            return null;
-        }
-
-        $sign = $matches[1];
-        $integerPart = $matches[2];
-        $fractionPart = ($matches[3] ?? '') !== '' ? $matches[3] : ($matches[4] ?? '');
-        $exponentSign = $matches[5] ?? '';
-        $exponentDigits = $matches[6] ?? '';
-
-        $digits = ltrim($integerPart . $fractionPart, '0');
-
-        if ($digits === '') {
-            return '0';
-        }
-
-        $significant = rtrim($digits, '0');
-        $trailingZeros = strlen($digits) - strlen($significant);
-
-        $exponent = 0;
-
-        if ($exponentDigits !== '') {
-            $trimmedExponent = ltrim($exponentDigits, '0');
-
-            if (strlen($trimmedExponent) > 9) {
-                return null;
-            }
-
-            $exponent = (int) ($exponentSign . ($trimmedExponent === '' ? '0' : $trimmedExponent));
-        }
-
-        $powerOfTen = $exponent - strlen($fractionPart) + $trailingZeros;
-
-        if ($powerOfTen < 0 || strlen($significant) + $powerOfTen > 16) {
-            return null;
-        }
-
-        return ($sign === '-' ? '-' : '') . $significant . str_repeat('0', $powerOfTen);
     }
 
     /**

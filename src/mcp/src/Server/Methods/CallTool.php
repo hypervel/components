@@ -52,8 +52,7 @@ class CallTool implements Errable, Method
                 )
             );
 
-        // Legacy clients omit mirrored headers, matching ValidateMcpHeaders's exemption.
-        if (! $request->isLegacy() && $context->headers instanceof HeaderBag) {
+        if ($context->headers instanceof HeaderBag) {
             $this->validateMirroredHeaders($tool, $request, $context->headers);
         }
 
@@ -77,7 +76,8 @@ class CallTool implements Errable, Method
             $mismatch = match (true) {
                 $value === null && $header === '' => null,
                 $value === null => "The [{$parameter->header()}] header is present but the request body has no [{$parameter->path}] argument.",
-                $header === '' => "The [{$parameter->header()}] header is required.",
+                // Legacy clients never send mirrored headers, but any header that is present must still match the body.
+                $header === '' => $request->isLegacy() ? null : "The [{$parameter->header()}] header is required.",
                 ! HeaderValue::isSafe($header) => "The [{$parameter->header()}] header value contains invalid characters.",
                 $parameter->stringify($value) === null => "The [{$parameter->path}] argument is not a valid [{$parameter->type->value}].",
                 ! $parameter->matches($header, $value) => "The [{$parameter->header()}] header value does not match the request body value at [{$parameter->path}].",

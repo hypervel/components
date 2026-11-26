@@ -362,6 +362,35 @@ class ValidateMcpHeadersTest extends TestCase
         ])->assertStatus(200);
     }
 
+    public function testRejectsALegacyRequestWhosePresentMethodOrNameHeaderContradictsTheBody(): void
+    {
+        $message = callToolMessage();
+        unset($message['params']['_meta']);
+
+        $response = $this->postJson('test-mcp', $message, [
+            'MCP-Protocol-Version' => '2025-11-25',
+            'Mcp-Name' => 'some-other-tool',
+        ]);
+
+        $response->assertStatus(400);
+
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => "Header mismatch: The [Mcp-Name] header value [some-other-tool] does not match the request body value [{$message['params']['name']}].",
+        ], $response->json('error'));
+
+        $methodResponse = $this->postJson('test-mcp', $message, [
+            'Mcp-Method' => 'tools/list',
+        ]);
+
+        $methodResponse->assertStatus(400);
+
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => 'Header mismatch: The [Mcp-Method] header value [tools/list] does not match the request body value [tools/call].',
+        ], $methodResponse->json('error'));
+    }
+
     #[DataProvider('legacyVersions')]
     public function testServesToolsAfterTheLegacyInitializeHandshake(string $version, bool $withHeader): void
     {
