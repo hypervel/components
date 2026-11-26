@@ -45,7 +45,8 @@ class StdioTransport implements Transport
      */
     public function run(): void
     {
-        // Blocking reads keep partial lines intact without polling.
+        // Blocking reads keep partial lines intact without polling; Laravel's Windows
+        // inputStream() workaround is omitted because Hypervel requires Swoole/POSIX.
         stream_set_blocking(STDIN, true);
 
         while (($line = fgets(STDIN)) !== false) {
