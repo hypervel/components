@@ -67,6 +67,42 @@ class SynchronizedOutputTest extends TestCase
         $this->assertSame(1, substr_count($output->fetch(), "\e[?2026h\e[?2026l"));
     }
 
+    public function testEndsTheSynchronizedUpdateWhenItsClosingWriteFails(): void
+    {
+        Prompt::fake(['J']);
+
+        $failure = new RuntimeException('unable to write output');
+        $output = new class(decorated: true) extends BufferedConsoleOutput {
+            public ?RuntimeException $failure = null;
+
+            protected function doWrite(string $message, bool $newline): void
+            {
+                if ($message === "\e[?2026l" && $this->failure !== null) {
+                    [$failure, $this->failure] = [$this->failure, null];
+
+                    throw $failure;
+                }
+
+                parent::doWrite($message, $newline);
+            }
+        };
+        $output->failure = $failure;
+        Prompt::setOutput($output);
+
+        try {
+            text(label: 'What is your name?');
+
+            $this->fail('Expected the redraw to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $written = $output->fetch();
+
+        $this->assertSame(1, substr_count($written, "\e[?2026h"));
+        $this->assertSame(1, substr_count($written, "\e[?2026l"));
+    }
+
     public function testDoesNotWrapTheFirstRender(): void
     {
         Prompt::fake([Key::ENTER]);

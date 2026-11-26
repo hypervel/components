@@ -502,15 +502,15 @@ abstract class Prompt
         $previousFrameHeight = count(explode(PHP_EOL, $this->prevFrame));
         $renderableLines = array_slice(explode(PHP_EOL, $frame), abs(min(0, $terminalHeight - $previousFrameHeight)));
 
-        $this->beginSynchronizedUpdate();
-
         try {
+            $this->beginSynchronizedUpdate();
             $this->moveCursorToColumn(1);
             $this->moveCursorUp(min($terminalHeight, $previousFrameHeight) - 1);
             $this->eraseDown();
             $this->writeFrame(implode(PHP_EOL, $renderableLines));
+            $this->endSynchronizedUpdate();
         } catch (Throwable $exception) {
-            // The terminal would otherwise keep buffering output after a failed redraw.
+            // The terminal would otherwise keep buffering output after a failed redraw, including a failed closing write.
             try {
                 $this->endSynchronizedUpdate();
             } catch (Throwable $cleanupFailure) {
@@ -519,8 +519,6 @@ abstract class Prompt
 
             throw $exception;
         }
-
-        $this->endSynchronizedUpdate();
 
         $this->prevFrame = $frame;
     }
