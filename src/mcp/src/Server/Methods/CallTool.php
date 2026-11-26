@@ -52,7 +52,8 @@ class CallTool implements Errable, Method
                 )
             );
 
-        if ($context->headers instanceof HeaderBag) {
+        // Legacy clients omit mirrored headers, matching ValidateMcpHeaders's exemption.
+        if (! $request->isLegacy() && $context->headers instanceof HeaderBag) {
             $this->validateMirroredHeaders($tool, $request, $context->headers);
         }
 
