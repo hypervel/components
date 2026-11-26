@@ -636,6 +636,28 @@ class RedisStoreTest extends TestCase
         $this->assertNull($store->get('foo'));
     }
 
+    public function testCacheOperationsRecoverAfterACaughtTransactionFailureInAPinnedScope(): void
+    {
+        $store = Cache::store('redis');
+        $store->clear();
+        $redis = $store->getStore()->connection();
+        $failure = new RuntimeException('The transaction failed.');
+
+        $redis->withPinnedConnection(function () use ($redis, $store, $failure): void {
+            try {
+                $redis->transaction(fn () => throw $failure);
+                $this->fail('The transaction failure was not thrown.');
+            } catch (RuntimeException $caught) {
+                $this->assertSame($failure, $caught);
+            }
+
+            // The failed transaction invalidated the pinned connection, which reconnects instead of counting as queuing.
+            $this->assertTrue($store->put('foo', 'bar', 60));
+        });
+
+        $this->assertSame('bar', $store->get('foo'));
+    }
+
     #[WithConfig('cache.stores.failover.stores', ['redis', 'array'])]
     public function testACounterRejectsAPipelineOpenOnTheCacheConnectionBeforeQueuingIt(): void
     {
