@@ -10,6 +10,8 @@ use Hypervel\WebSocketServer\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
+use function Hypervel\Support\throw_with_previous;
+
 class WebSocketKernel extends WebSocketServer
 {
     /**
@@ -20,19 +22,14 @@ class WebSocketKernel extends WebSocketServer
      */
     protected function handleException(Throwable $throwable): Response
     {
-        // Keep the original in flight while it is handled, so a failure in
-        // reporting or rendering carries it as that failure's previous. The
-        // return suppresses it once a response exists.
         try {
-            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-            throw $throwable;
-        } finally {
             $handler = $this->container->make(ExceptionHandlerContract::class);
 
             $handler->report($throwable);
 
-            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
             return $handler->render(RequestContext::get(), $throwable);
+        } catch (Throwable $failure) {
+            throw_with_previous($failure, $throwable);
         }
     }
 }

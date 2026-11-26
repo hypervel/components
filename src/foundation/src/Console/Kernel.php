@@ -44,6 +44,8 @@ use Symfony\Component\Finder\Finder;
 use Throwable;
 use WeakMap;
 
+use function Hypervel\Support\throw_with_previous;
+
 class Kernel implements KernelContract
 {
     use InteractsWithTime;
@@ -189,20 +191,15 @@ class Kernel implements KernelContract
                 throw $e;
             }
 
-            // Keep the original in flight while it is handled, so a failure in
-            // reporting or rendering carries it as that failure's previous. The
-            // return suppresses it once the command status is produced.
             try {
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-                throw $e;
-            } finally {
                 $this->reportException($e);
 
                 $this->renderException($output, $e);
-
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-                return 1;
+            } catch (Throwable $failure) {
+                throw_with_previous($failure, $e);
             }
+
+            return 1;
         }
     }
 

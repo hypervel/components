@@ -16,8 +16,10 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
+#[IgnoreDeprecations]
 class Ably2BroadcasterTest extends TestCase
 {
     use VerifiesDoubles;

@@ -26,6 +26,8 @@ use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
+use function Hypervel\Support\throw_with_previous;
+
 class Kernel implements KernelContract
 {
     use InteractsWithTime;
@@ -183,17 +185,12 @@ class Kernel implements KernelContract
                 throw $e;
             }
 
-            // Keep the original in flight while it is handled, so a failure in
-            // reporting or rendering carries it as that failure's previous. The
-            // return suppresses it once a response exists.
             try {
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-                throw $e;
-            } finally {
                 $this->reportException($e);
 
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return $this->renderException($request, $e);
+            } catch (Throwable $failure) {
+                throw_with_previous($failure, $e);
             }
         }
     }

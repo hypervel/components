@@ -26,6 +26,8 @@ use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
+use function Hypervel\Support\throw_with_previous;
+
 /**
  * Isolated HTTP request handler for the Reverb WebSocket server port.
  *
@@ -94,32 +96,28 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                 throw $request === null ? $throwable : $this->requestCanceled($request, null, null, $throwable);
             }
 
-            // Keep the original in flight while it is handled and emitted, so
-            // any failure at that boundary carries the root cause as previous.
-            // The return suppresses it once the response has been emitted.
             try {
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-                throw $throwable;
-            } finally {
-                try {
-                    $handler = $this->container->make(ExceptionHandler::class);
-                    $handler->report($throwable);
-                    $response = $request !== null
-                        ? $handler->render($request, $throwable)
-                        : new Response('Internal Server Error', 500);
-                } catch (Throwable $failure) {
-                    if ($request !== null && Coroutine::causedByCancellation($failure)) {
-                        $failure = $this->requestCanceled($request, null, $throwable, $failure);
-                    }
-
-                    throw $failure;
+                $handler = $this->container->make(ExceptionHandler::class);
+                $handler->report($throwable);
+                $response = $request !== null
+                    ? $handler->render($request, $throwable)
+                    : new Response('Internal Server Error', 500);
+            } catch (Throwable $failure) {
+                if ($request !== null && Coroutine::causedByCancellation($failure)) {
+                    $failure = $this->requestCanceled($request, null, $throwable, $failure);
                 }
 
-                $this->sendResponse($request, $response, $swooleResponse, $swooleRequest->server['server_protocol'], $throwable);
-
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-                return;
+                throw_with_previous($failure, $throwable);
             }
+
+            try {
+                $this->sendResponse($request, $response, $swooleResponse, $swooleRequest->server['server_protocol'], $throwable);
+            } catch (Throwable $failure) {
+                // sendResponse() has already announced a transport cancellation.
+                throw_with_previous($failure, $throwable);
+            }
+
+            return;
         }
 
         $this->sendResponse($request, $response, $swooleResponse, $swooleRequest->server['server_protocol']);

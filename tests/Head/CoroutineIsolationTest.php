@@ -123,7 +123,7 @@ class CoroutineIsolationTest extends TestCase
             $schemas = $state->data()->get(Schemas::class);
             $stored = (new ReflectionProperty(Schemas::class, 'schemas'))->getValue($schemas);
             $copiedSchema = reset($stored);
-            $identityMatches = array_key_first($stored) === spl_object_hash($copiedSchema);
+            $identityMatches = array_key_first($stored) === spl_object_id($copiedSchema);
             $copiedSchema->headline($name);
             $schemas->schema($copiedSchema);
 

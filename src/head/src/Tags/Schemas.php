@@ -18,7 +18,7 @@ class Schemas extends GroupedTagBuilder
     /**
      * Create the schema collection.
      *
-     * @param array<string, SchemaData|SchemaObject> $schemas
+     * @param array<int|string, SchemaData|SchemaObject> $schemas
      */
     public function __construct(protected array $schemas = [])
     {
@@ -73,7 +73,7 @@ class Schemas extends GroupedTagBuilder
      */
     public function schema(SchemaObject|array $schema): static
     {
-        $this->schemas[$schema instanceof SchemaObject ? spl_object_hash($schema) : hash('xxh128', json_encode($schema, JSON_THROW_ON_ERROR))] = $schema;
+        $this->schemas[$schema instanceof SchemaObject ? spl_object_id($schema) : hash('xxh128', json_encode($schema, JSON_THROW_ON_ERROR))] = $schema;
 
         return $this;
     }
@@ -148,7 +148,7 @@ class Schemas extends GroupedTagBuilder
             if ($schema instanceof SchemaObject) {
                 $schema = clone $schema;
                 // Original identities can be reused after their objects are released.
-                $key = spl_object_hash($schema);
+                $key = spl_object_id($schema);
             }
 
             $schemas[$key] = $schema;

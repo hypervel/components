@@ -1669,9 +1669,9 @@ class TestResponse implements ArrayAccess
 
                 $sessionErrors = $this->session()->get('errors');
 
-                if ($hasErrors && is_a($sessionErrors, ViewErrorBag::class)) {
+                if ($hasErrors && $sessionErrors instanceof ViewErrorBag) {
                     foreach ($sessionErrors->getBags() as $bag => $messages) {
-                        if (is_a($messages, MessageBag::class)) {
+                        if ($messages instanceof MessageBag) {
                             $errors[$bag] = $messages->all();
                         }
                     }

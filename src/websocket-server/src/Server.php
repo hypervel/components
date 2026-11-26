@@ -54,6 +54,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
+use function Hypervel\Support\throw_with_previous;
+
 class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterface, OnMessageInterface
 {
     protected HandshakeHandler $handshakeHandler;
@@ -484,17 +486,12 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
      */
     protected function handleException(Throwable $throwable): Response
     {
-        // Keep the original in flight while it is handled, so a failure in
-        // resolution or handling carries it as that failure's previous. The
-        // return suppresses it once a response exists.
         try {
-            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-            throw $throwable;
-        } finally {
             $handler = $this->container->make(WebSocketExceptionHandler::class);
 
-            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
             return $handler->handle($throwable, new Response);
+        } catch (Throwable $failure) {
+            throw_with_previous($failure, $throwable);
         }
     }
 
