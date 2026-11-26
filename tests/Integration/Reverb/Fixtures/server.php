@@ -133,6 +133,7 @@ $config->set('reverb.apps.apps.1', array_replace($baseApplication, [
     'activity_timeout' => 30,
     'max_message_size' => 1_000_000,
     'max_connections' => 1,
+    'max_channels_per_connection' => 3,
     'accept_client_events_from' => 'members',
     'rate_limiting' => $disabledRateLimiting,
     'webhooks' => $disabledWebhooks,

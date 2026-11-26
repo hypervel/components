@@ -24,6 +24,13 @@ abstract class Connection
     protected bool $usesControlFrames = false;
 
     /**
+     * The names of the channels the connection is subscribed to.
+     *
+     * @var array<string, true>
+     */
+    protected array $channels = [];
+
+    /**
      * Whether the Pusher connection handshake completed.
      */
     protected bool $established = false;
@@ -145,6 +152,31 @@ abstract class Connection
         $this->pong();
 
         return $this;
+    }
+
+    /**
+     * Record that the connection subscribed to the given channel.
+     */
+    public function addChannel(string $channel): void
+    {
+        $this->channels[$channel] = true;
+    }
+
+    /**
+     * Record that the connection unsubscribed from the given channel.
+     */
+    public function removeChannel(string $channel): void
+    {
+        unset($this->channels[$channel]);
+    }
+
+    /**
+     * Determine whether the connection may subscribe to the given channel without exceeding its channel limit.
+     */
+    public function canSubscribeTo(string $channel): bool
+    {
+        return isset($this->channels[$channel])
+            || count($this->channels) < $this->app()->maxChannelsPerConnection();
     }
 
     /**

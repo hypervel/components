@@ -192,6 +192,11 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->assertSame('pusher:error', $data['event']);
         $this->assertStringContainsString('4009', $data['data']);
 
+        $result = $this->signedServerRequest('channels/private-test-channel?info=subscription_count');
+        $this->assertSame(200, $result['status']);
+        $body = json_decode($result['body'], associative: true);
+        $this->assertFalse($body['occupied']);
+
         $this->disconnect($client);
     }
 
@@ -293,6 +298,67 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->assertStringContainsString('4009', $data['data']);
 
         $this->disconnect($client);
+    }
+
+    public function testLimitsTheNumberOfChannelsAConnectionCanSubscribeTo(): void
+    {
+        // App 2 (654321) has max_channels_per_connection=3
+        ['client' => $client, 'socketId' => $socketId] = $this->connect('reverb-key-2');
+
+        try {
+            for ($i = 0; $i < 3; ++$i) {
+                $response = $this->subscribe($client, $socketId, "test-channel-{$i}");
+                $this->assertStringContainsString('subscription_succeeded', $response);
+            }
+
+            $response = $this->subscribe($client, $socketId, 'test-channel-3');
+            $this->assertSame(
+                '{"event":"pusher:subscription_error","data":"{\"type\":\"LimitReached\",\"error\":\"Connection is over channel quota\",\"status\":4300}","channel":"test-channel-3"}',
+                $response,
+            );
+
+            $result = $this->signedServerRequest('channels/test-channel-3?info=subscription_count', '654321', 'reverb-key-2', 'reverb-secret-2');
+            $this->assertSame(200, $result['status']);
+            $body = json_decode($result['body'], associative: true);
+            $this->assertFalse($body['occupied']);
+
+            $response = $this->subscribe($client, $socketId, 'test-channel-0');
+            $this->assertStringContainsString('subscription_succeeded', $response);
+
+            $client->push(json_encode([
+                'event' => 'pusher:unsubscribe',
+                'data' => ['channel' => 'test-channel-0'],
+            ]));
+
+            $response = $this->subscribe($client, $socketId, 'test-channel-3');
+            $this->assertStringContainsString('subscription_succeeded', $response);
+        } finally {
+            $this->disconnect($client);
+            usleep(100_000);
+        }
+    }
+
+    public function testLimitsTheLengthOfChannelNames(): void
+    {
+        ['client' => $client, 'socketId' => $socketId] = $this->connect();
+
+        try {
+            $validName = str_repeat('a', 164);
+            $this->assertStringContainsString('subscription_succeeded', $this->subscribe($client, $socketId, $validName));
+
+            $tooLongName = str_repeat('b', 165);
+            $this->assertSame(
+                '{"event":"pusher:subscription_error","data":"{\"type\":\"InvalidChannelName\",\"error\":\"Channel name is too long\",\"status\":4300}","channel":"' . $tooLongName . '"}',
+                $this->subscribe($client, $socketId, $tooLongName),
+            );
+
+            $result = $this->signedServerRequest("channels/{$tooLongName}?info=subscription_count");
+            $this->assertSame(200, $result['status']);
+            $body = json_decode($result['body'], associative: true);
+            $this->assertFalse($body['occupied']);
+        } finally {
+            $this->disconnect($client);
+        }
     }
 
     // ── Broadcasting ───────────────────────────────────────────────────

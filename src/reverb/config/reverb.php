@@ -146,6 +146,7 @@ return [
                 'activity_timeout' => (int) env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_connections' => $maxConnections === null ? null : (int) $maxConnections,
                 'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
+                'max_channels_per_connection' => (int) env('REVERB_APP_MAX_CHANNELS_PER_CONNECTION', 1000),
                 'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
                 'rate_limiting' => [
                     'enabled' => (bool) env('REVERB_APP_RATE_LIMITING_ENABLED', false),

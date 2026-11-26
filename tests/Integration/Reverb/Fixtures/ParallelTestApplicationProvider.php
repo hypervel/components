@@ -83,6 +83,7 @@ final class ParallelTestApplicationProvider implements ApplicationProvider
             acceptClientEventsFrom: $base->acceptClientEventsFrom(),
             rateLimiting: $base->rateLimiting(),
             options: $base->options(),
+            maxChannelsPerConnection: $base->maxChannelsPerConnection(),
             webhooks: $base->webhooks(),
         );
     }

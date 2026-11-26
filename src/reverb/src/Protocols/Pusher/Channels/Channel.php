@@ -119,6 +119,7 @@ class Channel
             // Shared membership is already published, so the local manager's
             // add contract must commit valid decoded data without throwing.
             $this->connections->add($connection, $attributes);
+            $connection->addChannel($this->name);
 
             return $result;
         } finally {
@@ -226,6 +227,7 @@ class Channel
             );
 
             $this->connections->remove($connection);
+            $connection->removeChannel($this->name);
 
             return $result;
         } finally {

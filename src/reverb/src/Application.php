@@ -17,6 +17,11 @@ class Application
     public const string DEFAULT_ACCEPT_CLIENT_EVENTS_FROM = 'members';
 
     /**
+     * The default maximum number of channels a single connection may subscribe to.
+     */
+    public const int DEFAULT_MAX_CHANNELS_PER_CONNECTION = 1000;
+
+    /**
      * Create a new application instance.
      */
     public function __construct(
@@ -31,6 +36,7 @@ class Application
         protected string $acceptClientEventsFrom = self::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM,
         protected ?array $rateLimiting = null,
         protected array $options = [],
+        protected int $maxChannelsPerConnection = self::DEFAULT_MAX_CHANNELS_PER_CONNECTION,
         protected array $webhooks = [],
     ) {
         if ($this->rateLimiting !== null) {
@@ -147,6 +153,14 @@ class Application
     public function hasMaxConnectionLimit(): bool
     {
         return $this->maxConnections !== null;
+    }
+
+    /**
+     * Get the maximum number of channels a single connection may subscribe to.
+     */
+    public function maxChannelsPerConnection(): int
+    {
+        return $this->maxChannelsPerConnection;
     }
 
     /**
