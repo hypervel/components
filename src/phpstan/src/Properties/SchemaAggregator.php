@@ -67,7 +67,7 @@ use function strtolower;
  * @phpstan-type BuilderVariables array{builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  * @phpstan-type Scope array{class: PhpParser\Node\Stmt\Class_, declaring: ?string, connection: ?ConnectionConfig, table: ?TableScope, builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  *
- * @see https://github.com/psalm/laravel-psalm-plugin/blob/master/src/SchemaAggregator.php
+ * @see https://github.com/psalm/psalm-plugin-laravel/blob/master/src/Handlers/Eloquent/Schema/SchemaAggregator.php
  */
 class SchemaAggregator
 {

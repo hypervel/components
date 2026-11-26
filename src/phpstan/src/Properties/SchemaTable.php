@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Properties;
 
-/** @see https://github.com/psalm/laravel-psalm-plugin/blob/master/src/SchemaTable.php */
+/** @see https://github.com/psalm/psalm-plugin-laravel/blob/master/src/Handlers/Eloquent/Schema/SchemaTable.php */
 class SchemaTable
 {
     /** @var array<string, SchemaColumn> */
