@@ -44,6 +44,9 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
     protected const string LOCK_PREFIX = 'l:';
 
+    // Bound PHP memory inside withAllRowLocks so a large table flush cannot OOM and strand the stripes.
+    protected const int FLUSH_BATCH_SIZE = 100_000;
+
     protected SwooleTable $table;
 
     /**
@@ -374,18 +377,32 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
     protected function flushMatchingKeys(Closure $matches): bool
     {
         return $this->state->withAllRowLocks(function () use ($matches): bool {
-            $keys = [];
+            do {
+                $keys = [];
+                $reachedLimit = false;
 
-            foreach ($this->table as $key => $record) {
-                if ($matches($key)) {
+                // Walk keys without current() so row payloads stay out of PHP memory,
+                // and delete in bounded batches so iteration cannot skip colliding rows or OOM.
+                for ($this->table->rewind(); $this->table->valid(); $this->table->next()) {
+                    $key = (string) $this->table->key();
+
+                    if (! $matches($key)) {
+                        continue;
+                    }
+
                     $keys[] = $key;
-                }
-            }
 
-            // Removing the current row during iteration can skip the next row in its collision chain.
-            foreach ($keys as $key) {
-                $this->rawForget($key);
-            }
+                    if (count($keys) >= static::FLUSH_BATCH_SIZE) {
+                        $reachedLimit = true;
+
+                        break;
+                    }
+                }
+
+                foreach ($keys as $key) {
+                    $this->rawForget($key);
+                }
+            } while ($reachedLimit);
 
             return true;
         });
