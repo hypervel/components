@@ -809,6 +809,22 @@ class Worker
     }
 
     /**
+     * Wait for the running jobs to finish before the process is killed.
+     */
+    protected function waitForRunningJobs(?WorkerOptions $options): void
+    {
+        while ($this->hasActiveCoroutines()) {
+            $this->sleep(1);
+
+            // The timeout monitor is blocked for as long as we wait here, so we have to
+            // expire the jobs that pass their own timeout or a stuck one never ends.
+            if ($options) {
+                $this->terminateTimeoutJobs($options);
+            }
+        }
+    }
+
+    /**
      * Kill the process.
      *
      * @return never
@@ -817,11 +833,7 @@ class Worker
     {
         $this->events->dispatch(new WorkerStopping($status, $options));
 
-        // If there are any active coroutines, we will need to wait for
-        // them to finish before we can exit.
-        while ($this->hasActiveCoroutines()) {
-            $this->sleep(1);
-        }
+        $this->waitForRunningJobs($options);
 
         if (extension_loaded('posix')) {
             posix_kill(getmypid(), SIGKILL);

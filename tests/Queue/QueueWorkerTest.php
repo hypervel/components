@@ -538,6 +538,43 @@ class QueueWorkerTest extends TestCase
         $release->push(true);
     }
 
+    public function testWorkerExpiresOtherRunningJobsWhileWaitingToBeKilled()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $workerOptions = new WorkerOptions();
+        $workerOptions->stopWhenEmpty = true;
+        $workerOptions->concurrency = 3;
+
+        $release = new Channel(2);
+        $job = fn (int $timeout) => new class(fn () => $release->pop(10), $timeout) extends WorkerFakeJob {
+            public function __construct($callback, private int $seconds)
+            {
+                parent::__construct($callback);
+            }
+
+            public function timeout(): int
+            {
+                return $this->seconds;
+            }
+        };
+
+        // The first job is past its timeout on the monitor's first tick, the second
+        // only later, while the worker is already waiting to be killed.
+        $worker = new KillRecordingWorker(...$this->workerDependencies('default', ['queue' => [$job(0), $job(2)]]));
+
+        $worker->daemon('default', 'queue', $workerOptions);
+
+        $this->waitUntil(fn () => $worker->killed > 0);
+
+        $this->assertSame(1, $worker->killed);
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobTimedOut::class))->twice();
+
+        $release->push(true);
+        $release->push(true);
+    }
+
     public function testReusedWorkerKeepsMonitoringTheJobsOfAnEarlierRun()
     {
         // An exit coordinator resumed by an earlier test would end every timer immediately.
@@ -657,8 +694,16 @@ class KillRecordingWorker extends InsomniacWorker
 {
     public int $killed = 0;
 
+    public function sleep(float|int $seconds): void
+    {
+        // Yield, so the jobs this worker waits for can make progress.
+        Coroutine::sleep(0.01);
+    }
+
     public function kill(int $status = 0, ?WorkerOptions $options = null): void
     {
+        $this->waitForRunningJobs($options);
+
         ++$this->killed;
     }
 }
