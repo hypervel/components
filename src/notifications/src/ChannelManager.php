@@ -16,12 +16,14 @@ use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use UnitEnum;
 
 class ChannelManager extends Manager implements DispatcherContract, FactoryContract
 {
+    use Conditionable;
     use Macroable;
     use ResolvesQueueRoutes;
 

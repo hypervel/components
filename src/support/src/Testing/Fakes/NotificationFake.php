@@ -14,6 +14,7 @@ use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -22,6 +23,7 @@ use WeakMap;
 
 class NotificationFake implements Fake, NotificationDispatcher, NotificationFactory
 {
+    use Conditionable;
     use Macroable;
     use MatchesProperties;
     use ReflectsClosures;
