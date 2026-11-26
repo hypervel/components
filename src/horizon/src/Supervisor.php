@@ -250,6 +250,12 @@ class Supervisor implements Pausable, Restartable, Terminable
 
             $this->processPendingCommands();
 
+            // Terminating removes this supervisor's record from storage, so we must not
+            // persist it again on the way out of the loop.
+            if ($this->shouldExitLoop) {
+                return;
+            }
+
             // If the supervisor is working, we will perform any needed scaling operations and
             // monitor all of these underlying worker processes to make sure they are still
             // processing queued jobs. If they have died, we will restart them each here.
