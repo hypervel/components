@@ -19,6 +19,7 @@ use Hypervel\Inertia\Ssr\DisablesSsr;
 use Hypervel\Inertia\Ssr\ExcludesSsrPaths;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Support\Header;
+use Hypervel\Inertia\Support\RequestAttribute;
 use Hypervel\Inertia\Support\SessionKey;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
@@ -514,12 +515,20 @@ class ResponseFactory
     public function forgetFlashed(BackedEnum|UnitEnum|string|array $keys, ?HttpRequest $request = null): self
     {
         $request ??= request();
+        $keys = array_map(enum_value(...), Arr::wrap($keys));
+
+        // Also forget keys already pulled for this render so a version-change reload cannot restore them.
+        if (is_array($pulled = $request->attributes->get(RequestAttribute::PULLED_FLASH_DATA)) && $pulled !== []) {
+            Arr::forget($pulled, $keys);
+
+            $request->attributes->set(RequestAttribute::PULLED_FLASH_DATA, $pulled);
+        }
 
         if (! $flashed = $this->getFlashed($request)) {
             return $this;
         }
 
-        Arr::forget($flashed, array_map(enum_value(...), Arr::wrap($keys)));
+        Arr::forget($flashed, $keys);
 
         // We will replace the flashed data without flashing it again, so the data
         // that is left still ages out after the request it was flashed for.

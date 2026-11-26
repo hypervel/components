@@ -167,11 +167,9 @@ class Middleware
 
         $response = $next($request);
 
-        $isRedirect = $response->isRedirect();
-
         // The client follows a location response with a full page visit, so we will
         // keep the flash data for that visit, just like we do for redirects.
-        if ($isRedirect || $this->isLocationResponse($response)) {
+        if ($response->isRedirect() || $this->isLocationResponse($response)) {
             $this->reflash($request);
         }
 
@@ -192,7 +190,8 @@ class Middleware
         if ($response->isOk() && $response->getContent() === '') {
             $response = $this->onEmptyResponse($request, $response);
 
-            if ($response->isRedirect()) {
+            // Re-check the final response, since onEmptyResponse() may return a redirect or location response.
+            if ($response->isRedirect() || $this->isLocationResponse($response)) {
                 $this->reflash($request);
             }
         }
@@ -204,7 +203,8 @@ class Middleware
             $response->setStatusCode(303);
         }
 
-        if ($isRedirect && $this->redirectHasFragment($response) && ! $request->prefetch()) {
+        // Check the final response so redirects returned by onEmptyResponse() also receive fragment handling.
+        if ($response->isRedirect() && $this->redirectHasFragment($response) && ! $request->prefetch()) {
             $response = $this->onRedirectWithFragment($request, $response);
         }
 
