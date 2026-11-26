@@ -55,14 +55,12 @@ parameters:
     # Framework traits provided for userland - not used internally but intentionally available
     - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
 
-    # Schema definitions use Fluent's dynamic properties; Fluent and ForeignIdColumnDefinition also expose dynamic methods.
+    # Schema definitions use Fluent's dynamic properties.
     - '#Access to an undefined property Hypervel\\Support\\Fluent::\$#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ColumnDefinition::\$#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\IndexDefinition::\$#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignKeyDefinition::\$#'
-    - '#Call to an undefined method Hypervel\\Support\\Fluent::#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
-    - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
 
     # SoftDeletes trait methods - optionally mixed in, can't be statically verified
     - '#Call to an undefined method .*::(getDeletedAtColumn|getQualifiedDeletedAtColumn|withTrashed|withoutTrashed|onlyTrashed|forceDelete|restore|trashed|isForceDeleting)\(\)#'

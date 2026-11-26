@@ -2,21 +2,39 @@
 
 declare(strict_types=1);
 
+use App\MacroableWithOwnCall;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Auth\SessionGuard;
+use Hypervel\Cache\Repository as CacheRepository;
+use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Http\Client\Factory as HttpClientFactory;
+use Hypervel\Http\Client\Response as HttpClientResponse;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Mail\Mailable;
+use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Routing\ResponseFactory;
+use Hypervel\Routing\Router;
+use Hypervel\Routing\RouteRegistrar;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Storage;
+use Hypervel\Support\Fluent;
 use Hypervel\Support\Optional;
 use Hypervel\Support\Str;
+use Hypervel\Testing\TestComponent;
+use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\PHPStan\Fixtures\Macros\InvokableMacro;
 use Hypervel\Tests\PHPStan\Fixtures\Macros\MacroHost;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\BoundExportManager;
@@ -30,6 +48,7 @@ use Hypervel\Tests\PHPStan\Fixtures\Managers\TabbedCsvDriver;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\WrappedCreatorManager;
 use Hypervel\Tests\PHPStan\Fixtures\Rules\ScopedAtBootModel;
 use Hypervel\Tests\PHPStan\Rules\Queue\Data\RoutedJob;
+use Hypervel\View\View;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\Local\LocalFilesystemAdapter as LocalFlysystemAdapter;
 use NoModelMakeHypervel\BootListenedModel;
@@ -37,6 +56,23 @@ use NoUnnecessaryCollectionCallHypervel\RetrievedListenedMember;
 
 Builder::macro('globalCustomMacro', static function (string $arg = 'foobar', int $b = 5): string {
     return $arg;
+});
+
+Builder::macro('macroOnRelation', function (): string {
+    return 'aa';
+});
+
+Relation::macro('macroOnRelation', function (): int {
+    return 5;
+});
+
+// https://github.com/larastan/larastan/issues/2657
+Builder::macro('latestFirst', function (string $column): Builder {
+    return $this->orderBy($column, 'desc');
+});
+
+Relation::macro('latestFirst', function (string $column): Relation {
+    return $this->orderBy($column, 'desc');
 });
 
 Builder::macro('getColumns', static function (): string {
@@ -55,16 +91,16 @@ QueryBuilder::macro('whereQueryMacro', static function (): string {
     return 'macro';
 });
 
-Route::macro('facadeMacro', static function (): int {
-    return 5;
+Route::macro('facadeMacro', function (): ?string {
+    return $this->currentRouteName();
 });
 
-SessionGuard::macro('sessionGuardMacro', static function (): int {
-    return 5;
+SessionGuard::macro('sessionGuardMacro', function () {
+    return $this->getName();
 });
 
-RequestGuard::macro('requestGuardMacro', static function (): int {
-    return 5;
+RequestGuard::macro('requestGuardMacro', function (): bool {
+    return $this->check();
 });
 
 // Hypervel: a guard macro reaches AuthManager's calls only when every configured guard registers it.
@@ -72,12 +108,147 @@ SessionGuard::macro('guardMacro', static fn (): int => 5);
 RequestGuard::macro('guardMacro', static fn (): int => 5);
 
 Str::macro('trimMacro', 'trim');
+Str::macro('probeLen', 'strlen');
+Str::macro('probeCount', 'str_word_count');
 Str::macro('asciiAliasMacro', Str::class . '::ascii');
 
 Cache::macro('rememberIf', static fn ($cond, $key, $ttl, $callback): mixed => $cond ? Cache::remember($key, $ttl, $callback) : $callback());
 
-// Hypervel: shares a held object's method name in the Optional fixture, where the macro must win.
-Optional::macro('optionalMacro', static fn (): int => 1);
+// Macro types inferred from closure bodies.
+Collection::macro('probeUntyped', function () {
+    return 'literal';
+});
+Collection::macro('probeNativeNarrowed', function (): Collection {
+    return collect([1, 2, 3])->map(fn (int $i) => (string) $i);
+});
+Collection::macro('probeThisGeneric', function () {
+    return $this->take(2);
+});
+Collection::macro('probeThisFirst', fn () => $this->first());
+Collection::macro('probeThisKeys', fn () => $this->keys());
+Collection::macro('probeStatic', fn () => new static);
+Collection::macro('probeParam', fn (int $n, $x) => [$n, $x]);
+Collection::macro('probeRecursive', fn (int $n) => $n > 0 ? $this->probeRecursive($n - 1) : 'done');
+Collection::macro('probeCallsOther', fn () => $this->probeThisGeneric()->probeThisFirst());
+$probeCaptured = ['a' => 1];
+Collection::macro('probeUse', function () use ($probeCaptured) {
+    return $probeCaptured;
+});
+// Two closures on one line cannot be told apart, so each uses its declared signature.
+foreach (['probeSameLineA' => fn () => 1, 'probeSameLineB' => fn () => 'b'] as $name => $macro) {
+    Collection::macro($name, $macro);
+}
+Collection::macro('probeFirstClass', strlen(...));
+// Hypervel: the outer closure shares the registered closure's lines, so its declared signature is used.
+Collection::macro('probeNested', (fn () => fn () => 123)());
+require_once __DIR__ . '/Fixtures/Macros/namespaced-macros.php';
+Builder::macro('probeBuilderThis', function () {
+    return $this->where('id', 1);
+});
+Builder::macro('probeBuilderFirst', fn () => $this->first());
+Str::macro('probeStr', fn (string $s) => Str::of($s)->upper());
+
+Collection::macro('probeTypedThis', function (): Collection {
+    return $this->take(2);
+});
+Collection::macro('probeTypedArray', function (): array {
+    return $this->all();
+});
+Collection::macro('probeTypedMixed', fn (): mixed => $this->first());
+Builder::macro('probeTypedBuilder', function (): Builder {
+    return $this->where('id', 1);
+});
+Builder::macro('probeTypedModel', fn (): ?Model => $this->first());
+
+MacroableWithOwnCall::macro('ownCallMacro', function (): int {
+    return 5;
+});
+
+// Classes that use Macroable but define their own __call.
+CacheRepository::macro('cacheRepositoryMacro', function () {
+    return $this->getStore();
+});
+
+Schedule::macro('scheduleMacro', function (): array {
+    return $this->events();
+});
+
+DatabaseManager::macro('databaseManagerMacro', function (): string {
+    return $this->getDefaultConnection();
+});
+
+EloquentFactory::macro('eloquentFactoryMacro', function () {
+    return $this->count(3);
+});
+
+Relation::macro('relationMacro', function () {
+    return $this->getRelated();
+});
+
+QueryBuilder::macro('queryBuilderMacro', function () {
+    return $this->where('active', true);
+});
+
+FilesystemAdapter::macro('filesystemAdapterMacro', function () {
+    return $this->path('exports');
+});
+
+HttpClientFactory::macro('httpClientFactoryMacro', function () {
+    return $this->withHeaders(['Accept' => 'application/json']);
+});
+
+HttpClientResponse::macro('httpClientResponseMacro', function () {
+    return $this->collect('data');
+});
+
+RedirectResponse::macro('redirectResponseMacro', function () {
+    return $this->with('status', 'saved');
+});
+
+JsonResource::macro('jsonResourceMacro', function () {
+    return $this->additional(['meta' => ['version' => 1]]);
+});
+
+Mailable::macro('mailableMacro', function () {
+    return $this->subject('Welcome');
+});
+
+ProcessFactory::macro('processFactoryMacro', function () {
+    return $this->newPendingProcess()->timeout(30);
+});
+
+RedisConnection::macro('redisConnectionMacro', function (): ?string {
+    return $this->getName();
+});
+
+Router::macro('routerMacro', function () {
+    return $this->getRoutes();
+});
+
+Fluent::macro('fluentMacro', function (): array {
+    return $this->toArray();
+});
+
+TestComponent::macro('testComponentMacro', function () {
+    return $this->assertSee('Welcome');
+});
+
+TestResponse::macro('testResponseMacro', function () {
+    return $this->assertStatus(422);
+});
+
+View::macro('viewMacro', function () {
+    return $this->with('title', 'Dashboard');
+});
+
+RouteRegistrar::macro('routeRegistrarMacro', function () {
+    return $this->prefix('admin');
+});
+
+// Hypervel: also shares a held object's method name in the Optional fixture, where the macro must win.
+Optional::macro('optionalMacro', function (): bool {
+    return $this->offsetExists('id');
+});
 
 // Hypervel: Macroable also accepts invokable objects, and passes every macro its argument values.
 MacroHost::macro('invokableMacro', new InvokableMacro);

@@ -63,8 +63,8 @@ function test(?Bar $maybeBar, Bar|string $barOrString, mixed $mixed): void
     assertType('1', $value);
 
     // Hypervel: an Optional macro runs before the held object's method of the same name, whatever the value.
-    assertType('int', optional(new Bar)->optionalMacro());
-    assertType('int', optional(null)->optionalMacro());
+    assertType('bool', optional(new Bar)->optionalMacro());
+    assertType('bool', optional(null)->optionalMacro());
 }
 
 /**

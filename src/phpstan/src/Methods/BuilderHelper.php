@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\PHPStan\Reflection\AttributeClassNameResolver;
 use Hypervel\PHPStan\Reflection\SourceFiles;
+use Hypervel\Support\Str;
 use LogicException;
 use PHPStan\Analyser\DeclarationDependencyTracker;
 use PHPStan\Analyser\OutOfClassScope;
@@ -29,9 +30,13 @@ use function array_keys;
 use function count;
 use function in_array;
 use function is_string;
+use function preg_split;
 use function sprintf;
 use function strcasecmp;
 use function strtolower;
+use function substr;
+
+use const PREG_SPLIT_DELIM_CAPTURE;
 
 /**
  * Resolve the builders and queries that Eloquent models forward their calls to, as the runtime does.
@@ -79,6 +84,27 @@ class BuilderHelper
         }
 
         return in_array(strtolower($methodName), $this->passthru[$className], strict: true);
+    }
+
+    /**
+     * Return the columns a dynamic where, such as whereNameAndEmail(), names, split like Query\Builder::dynamicWhere().
+     *
+     * The builder reads one value for each column.
+     *
+     * @return list<string>
+     */
+    public function dynamicWhereColumns(string $methodName): array
+    {
+        $segments = preg_split('/(And|Or)(?=[A-Z])/', substr($methodName, 5), -1, PREG_SPLIT_DELIM_CAPTURE) ?: [];
+        $columns = [];
+
+        foreach ($segments as $segment) {
+            if ($segment !== 'And' && $segment !== 'Or') {
+                $columns[] = Str::snake($segment);
+            }
+        }
+
+        return $columns;
     }
 
     /**

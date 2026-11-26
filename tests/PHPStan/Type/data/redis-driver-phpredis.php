@@ -59,11 +59,11 @@ function commandCasing(PhpRedisConnection $held): void
     assertType('bool|Redis', $held->pipeline());
 
     // The bootstrap registers zrank as a macro, which replaces the zRank command for that exact name.
-    assertType('string', $held->zrank('z', 'member'));
+    assertType("'macro'", $held->zrank('z', 'member'));
     assertType('int|Redis|RedisCluster|false', $held->ZRANK('z', 'member'));
 
     // Macro names are not case-folded.
-    assertType('int', $held->customCommand());
+    assertType('1', $held->customCommand());
     assertType('*ERROR*', $held->customcommand());
 }
 
@@ -86,5 +86,5 @@ function unloadedConnections(OwnRegistryConnection $own, InheritedRegistryConnec
     assertType('int|Redis|RedisCluster|false', $own->zrank('z', 'member'));
 
     // The loaded parent's registry still supplies its macro.
-    assertType('string', $inherited->zrank('z', 'member'));
+    assertType("'macro'", $inherited->zrank('z', 'member'));
 }

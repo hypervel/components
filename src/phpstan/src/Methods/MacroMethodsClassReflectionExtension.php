@@ -22,6 +22,7 @@ use PHPStan\Reflection\MethodsClassReflectionExtension;
 use PHPStan\Reflection\MissingMethodFromReflectionException;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\ShouldNotHappenException;
+use PHPStan\Type\ClosureType;
 use PHPStan\Type\ClosureTypeFactory;
 use PHPStan\Type\Type;
 use ReflectionException;
@@ -57,6 +58,7 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
     public function __construct(
         private ReflectionProvider $reflectionProvider,
         private ClosureTypeFactory $closureTypeFactory,
+        private MacroClosureBodyResolver $closureBodyResolver,
         private WithHeadExtension $withHeadExtension,
         private AuthGuardHelper $authGuardHelper,
         private RuntimeInputs $runtimeInputs,
@@ -72,10 +74,10 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
             return false;
         }
 
-        // Hypervel: Head's withHead() signature and an @method tag on the class or the macro's host type the
-        // macro more precisely than its callable, whose declared signature is all the analysis reads, such as
-        // Request::validate()'s array and the Eloquent builder's $this returns. MacroThrowTypeExtension adds the
-        // macro's exceptions. A mixin does not count, because the macro runs before a call reaches the mixin.
+        // Hypervel: Head's withHead() signature and an @method tag on the class or the macro's host declare
+        // the macro's type, such as Request::validate()'s array and the Eloquent builder's $this returns, and
+        // take precedence over the type its callable gives. MacroThrowTypeExtension adds the macro's exceptions.
+        // A mixin does not count, because the macro runs before a call reaches the mixin.
         return ! $this->withHeadExtension->hasMethod($classReflection, $methodName)
             && ! $this->hasMethodTag($classReflection, $methodName);
     }
@@ -92,6 +94,14 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
         $method = $this->findMacro($classReflection, $methodName);
 
         return $method;
+    }
+
+    /**
+     * Determine whether a macro is registered for the class's method, whatever declares its type.
+     */
+    public function hasMacro(ClassReflection $classReflection, string $methodName): bool
+    {
+        return $this->findMacro($classReflection, $methodName) !== null;
     }
 
     /**
@@ -183,7 +193,7 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
                         $methodReflection = new Macro(
                             $macroClassReflection,
                             $methodName,
-                            $this->closureTypeFactory->fromClosureObject(Closure::fromCallable($macroDefinition)),
+                            $this->closureType(Closure::fromCallable($macroDefinition), $classReflection, $macroClassReflection, $methodName),
                         );
 
                         $methodReflection->setIsStatic(true);
@@ -208,7 +218,7 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
                     $methodReflection = new Macro(
                         $macroClassReflection,
                         $methodName,
-                        $this->closureTypeFactory->fromClosureObject($macroDefinition),
+                        $this->closureType($macroDefinition, $classReflection, $macroClassReflection, $methodName),
                     );
 
                     $methodReflection->setIsStatic(true);
@@ -219,6 +229,15 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
         }
 
         return $methodReflection;
+    }
+
+    /**
+     * Get the type of a macro closure, inferred from its body when it can be.
+     */
+    private function closureType(Closure $closure, ClassReflection $classReflection, ClassReflection $macroClassReflection, string $methodName): ClosureType
+    {
+        return $this->closureBodyResolver->resolve($closure, $classReflection, $macroClassReflection, $methodName)
+            ?? $this->closureTypeFactory->fromClosureObject($closure);
     }
 
     /**

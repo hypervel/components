@@ -13,6 +13,11 @@ use Hypervel\View\Component;
 use Hypervel\View\View;
 use Stringable;
 
+/**
+ * @template TComponent of Component = Component
+ *
+ * @mixin TComponent
+ */
 class TestComponent implements Stringable
 {
     use Macroable {
@@ -21,6 +26,8 @@ class TestComponent implements Stringable
 
     /**
      * The original component.
+     *
+     * @var TComponent
      */
     public Component $component;
 
@@ -31,6 +38,8 @@ class TestComponent implements Stringable
 
     /**
      * Create a new test component instance.
+     *
+     * @param TComponent $component
      */
     public function __construct(Component $component, View $view)
     {

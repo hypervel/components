@@ -9,6 +9,7 @@ use Hypervel\Auth\AuthManager;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Http\Request;
+use Hypervel\PHPStan\Methods\MacroClosureBodyResolver;
 use Hypervel\PHPStan\Methods\MacroMethodsClassReflectionExtension;
 use Hypervel\PHPStan\Methods\WithHeadExtension;
 use Hypervel\PHPStan\ReturnTypes\AuthGuardHelper;
@@ -41,6 +42,7 @@ class MacroMethodsClassReflectionExtensionTest extends PHPStanTestCase
         $this->reflectionExtension = new MacroMethodsClassReflectionExtension(
             $this->reflectionProvider,
             self::getContainer()->getByType(ClosureTypeFactory::class),
+            self::getContainer()->getByType(MacroClosureBodyResolver::class),
             self::getContainer()->getByType(WithHeadExtension::class),
             self::getContainer()->getByType(AuthGuardHelper::class),
             self::getContainer()->getByType(RuntimeInputs::class),
@@ -117,7 +119,7 @@ class MacroMethodsClassReflectionExtensionTest extends PHPStanTestCase
         // AuthManager has no __callStatic(), unlike the facade.
         $this->assertFalse($method->isStatic());
         $this->assertTrue($extension->getMethod($facade, 'guardMacro')->isStatic());
-        $this->assertSame('int|string', $method->getVariants()[0]->getReturnType()->describe(VerbosityLevel::precise()));
+        $this->assertSame('5|string', $method->getVariants()[0]->getReturnType()->describe(VerbosityLevel::precise()));
 
         // NativeCallGuard has no requestGuardMacro().
         $this->assertFalse($extension->hasMethod($manager, 'requestGuardMacro'));
@@ -159,6 +161,7 @@ class MacroMethodsClassReflectionExtensionTest extends PHPStanTestCase
         return new MacroMethodsClassReflectionExtension(
             $this->reflectionProvider,
             $closureTypeFactory,
+            self::getContainer()->getByType(MacroClosureBodyResolver::class),
             self::getContainer()->getByType(WithHeadExtension::class),
             $guards,
             $runtimeInputs,

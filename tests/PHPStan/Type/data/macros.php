@@ -4,20 +4,40 @@ declare(strict_types=1);
 
 namespace Macros;
 
+use App\MacroableWithOwnCall;
 use App\Post;
 use App\PostBuilder;
 use App\User;
+use Hypervel\Cache\Repository as CacheRepository;
+use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Http\Client\Factory as HttpClientFactory;
+use Hypervel\Http\Client\Response as HttpClientResponse;
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Mail\Mailable;
+use Hypervel\Process\Factory as ProcessFactory;
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Request as RequestFacade;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Fluent;
+use Hypervel\Support\Optional;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Testing\TestComponent;
+use Hypervel\Testing\TestResponse;
+use Hypervel\View\View;
 use Hypervel\Tests\PHPStan\Fixtures\Macros\MacroHost;
 use Hypervel\Validation\ValidationException;
 use PHPStan\TrinaryLogic;
@@ -52,7 +72,7 @@ function test(): void
     assertType('App\PostBuilder<App\Post>', Post::query()->globalCustomDatabaseQueryMacro(b: 99));
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', User::first()->accounts()->globalCustomDatabaseQueryMacro(b: 99));
 
-    assertType('int', Route::facadeMacro());
+    assertType('string|null', Route::facadeMacro());
     // Hypervel: this app's untyped passport guard leaves the current guard unknown, so no guard macro is
     // available through Auth. auth-guards.php covers typed guards.
     assertType('*ERROR*', Auth::sessionGuardMacro());
@@ -78,6 +98,61 @@ function test(): void
     Foo::macro('foo', function () {
         assertType(Foo::class, $this);
     });
+
+    assertType('5', User::accounts()->macroOnRelation());
+    assertType("'aa'", User::query()->macroOnRelation());
+}
+
+/** Classes that use Macroable but define their own __call. */
+function testClassesOverridingMacroableCall(
+    CacheRepository $cacheRepository,
+    Schedule $schedule,
+    DatabaseManager $databaseManager,
+    EloquentFactory $eloquentFactory,
+    Relation $relation,
+    QueryBuilder $queryBuilder,
+    FilesystemAdapter $filesystemAdapter,
+    HttpClientFactory $httpClientFactory,
+    HttpClientResponse $httpClientResponse,
+    RedirectResponse $redirectResponse,
+    JsonResource $jsonResource,
+    Mailable $mailable,
+    ProcessFactory $processFactory,
+    RedisConnection $redisConnection,
+    Router $router,
+    Fluent $fluent,
+    Optional $optional,
+    TestComponent $testComponent,
+    TestResponse $testResponse,
+    View $view,
+): void {
+    assertType('Hypervel\Contracts\Cache\Store', $cacheRepository->cacheRepositoryMacro());
+    // Hypervel: Schedule::events() returns a list.
+    assertType('list<Hypervel\Console\Scheduling\Event>', $schedule->scheduleMacro());
+    assertType('string', $databaseManager->databaseManagerMacro());
+    assertType('Hypervel\Database\Eloquent\Factories\Factory', $eloquentFactory->eloquentFactoryMacro());
+    assertType('Hypervel\Database\Eloquent\Model', $relation->relationMacro());
+    assertType('Hypervel\Database\Query\Builder', $queryBuilder->queryBuilderMacro());
+    assertType('string', $filesystemAdapter->filesystemAdapterMacro());
+    // Hypervel: PendingRequest is generic over whether it sends asynchronously.
+    assertType('Hypervel\Http\Client\PendingRequest<false>', $httpClientFactory->httpClientFactoryMacro());
+    assertType('Hypervel\Support\Collection', $httpClientResponse->httpClientResponseMacro());
+    assertType('Hypervel\Http\RedirectResponse', $redirectResponse->redirectResponseMacro());
+    assertType('Hypervel\Http\Resources\Json\JsonResource', $jsonResource->jsonResourceMacro());
+    assertType('Hypervel\Mail\Mailable', $mailable->mailableMacro());
+    assertType('Hypervel\Process\PendingProcess', $processFactory->processFactoryMacro());
+    assertType('string|null', $redisConnection->redisConnectionMacro());
+    assertType('Hypervel\Routing\RouteCollectionInterface', $router->routerMacro());
+    assertType('array<mixed>', $fluent->fluentMacro());
+    assertType('bool', $optional->optionalMacro());
+    assertType('Hypervel\Testing\TestComponent', $testComponent->testComponentMacro());
+    assertType('Hypervel\Testing\TestResponse', $testResponse->testResponseMacro());
+    assertType('Hypervel\View\View', $view->viewMacro());
+
+    assertType('5', (new MacroableWithOwnCall)->ownCallMacro());
+
+    assertType('Database\Factories\UserFactory', User::factory()->eloquentFactoryMacro());
+    assertType('App\Account', (new User)->accounts()->relationMacro());
 }
 
 class Foo

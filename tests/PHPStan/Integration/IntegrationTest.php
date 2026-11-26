@@ -605,6 +605,25 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
+        // Hypervel: a dynamic where reads one value by position for each column it names, and a dynamic with*()
+        // reads one value by position.
+        yield [
+            __DIR__ . '/data/dynamic-method-arguments.php',
+            [
+                13 => ['Method Hypervel\Database\Query\Builder<int,stdClass,string>::whereName() invoked with 0 parameters, 1 required.'],
+                14 => ['Method Hypervel\Database\Query\Builder<int,stdClass,string>::whereNameAndEmail() invoked with 1 parameter, 2 required.'],
+                15 => ['Method Hypervel\Database\Query\Builder<int,stdClass,string>::whereName() invoked with 2 parameters, 1 required.'],
+                16 => ['Unknown parameter $value in call to method Hypervel\Database\Query\Builder<int,stdClass,string>::whereNameAndEmail().'],
+                19 => ['Method Hypervel\Database\Eloquent\Builder<App\User>::whereNameOrEmail() invoked with 1 parameter, 2 required.'],
+                20 => ['Static method App\User::whereEmail() invoked with 0 parameters, 1 required.'],
+                23 => ['Method Hypervel\Mail\Mailable::withFoo() invoked with 0 parameters, 1 required.'],
+                24 => [
+                    'Missing parameter $ (mixed) in call to method Hypervel\Mail\Mailable::withFoo().',
+                    'Unknown parameter $value in call to method Hypervel\Mail\Mailable::withFoo().',
+                ],
+            ],
+        ];
+
         // Hypervel: optional() passes its callback only values that are not null.
         yield [__DIR__ . '/data/optional-callbacks.php'];
 

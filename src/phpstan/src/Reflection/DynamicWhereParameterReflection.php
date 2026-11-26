@@ -12,11 +12,21 @@ use PHPStan\Type\Type;
 class DynamicWhereParameterReflection implements ParameterReflection
 {
     /**
+     * Create a new dynamic method parameter reflection.
+     *
+     * Hypervel: upstream's value is always named and optional, but a dynamic where or with*() reads each value
+     * by its position, so its parameters are required and unnamed, as PHPStan names a callable type's parameters.
+     */
+    public function __construct(private string $name = '', private bool $optional = false)
+    {
+    }
+
+    /**
      * Return the parameter name.
      */
     public function getName(): string
     {
-        return 'value';
+        return $this->name;
     }
 
     /**
@@ -24,7 +34,7 @@ class DynamicWhereParameterReflection implements ParameterReflection
      */
     public function isOptional(): bool
     {
-        return true;
+        return $this->optional;
     }
 
     /**

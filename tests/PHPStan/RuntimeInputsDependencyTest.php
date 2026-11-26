@@ -31,6 +31,11 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
     private const string PARAMETERS = "typeAliases:\n    RenderView: 'Closure(view-string): void'\nparallel:\n    jobSize: 1\n    maximumNumberOfProcesses: 2";
 
     /**
+     * The global type alias and one process, which analyzes the files in path order.
+     */
+    private const string SINGLE_PROCESS_PARAMETERS = "typeAliases:\n    RenderView: 'Closure(view-string): void'\nparallel:\n    maximumNumberOfProcesses: 1";
+
+    /**
      * The diagnostics of the unedited boot inputs.
      */
     private const array BOOT_DIAGNOSTICS = [
@@ -131,6 +136,109 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:46 argument.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
     }
 
+    public function testMacroBodyDependenciesReanalyzeTheirConsumers(): void
+    {
+        // A macro without a return type is typed from its body, which reads code the boot never loads. The Str
+        // macros resolve first, in MacroBodyDirectUsage, and the Collection macros then call them. The second
+        // consumer reuses the inferred type, so only declared dependencies can reanalyze it.
+        $applicationPath = $this->copyApplication();
+
+        file_put_contents($applicationPath . '/app/MacroBodyHelper.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace RuntimeInputs;
+
+            class MacroBodyHelper
+            {
+                public static function value(): int
+                {
+                    return 1;
+                }
+            }
+            PHP);
+        file_put_contents($applicationPath . '/app/macro-body-functions.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace RuntimeInputs;
+
+            function macro_body_value(): int
+            {
+                return 1;
+            }
+            PHP);
+        file_put_contents($applicationPath . '/app/MacroBodyDirectUsage.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace RuntimeInputs;
+
+            use Hypervel\Support\Str;
+
+            class MacroBodyDirectUsage
+            {
+                public function values(): array
+                {
+                    return [Str::helperValue(), Str::functionValue()];
+                }
+            }
+            PHP);
+
+        foreach (['MacroBodyUsage', 'MacroBodyUsageTwo'] as $class) {
+            file_put_contents($applicationPath . "/app/{$class}.php", <<<PHP
+                <?php
+
+                declare(strict_types=1);
+
+                namespace RuntimeInputs;
+
+                use Hypervel\\Support\\Collection;
+
+                class {$class}
+                {
+                    public function helperValue(): int
+                    {
+                        return (new Collection)->strHelperValue();
+                    }
+
+                    public function functionValue(): int
+                    {
+                        return (new Collection)->strFunctionValue();
+                    }
+                }
+                PHP);
+        }
+
+        $this->edit(
+            $applicationPath . '/app/Providers/FixtureServiceProvider.php',
+            "Str::macro('fixtureMacro', fn (): int => 1);",
+            <<<'PHP'
+                Str::macro('fixtureMacro', fn (): int => 1);
+                        Str::macro('helperValue', fn () => \RuntimeInputs\MacroBodyHelper::value());
+                        Str::macro('functionValue', fn () => \RuntimeInputs\macro_body_value());
+                        \Hypervel\Support\Collection::macro('strHelperValue', fn () => Str::helperValue());
+                        \Hypervel\Support\Collection::macro('strFunctionValue', fn () => Str::functionValue());
+                PHP,
+        );
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS));
+
+        // The return type of a class the Str macro's body calls.
+        $this->edit($applicationPath . '/app/MacroBodyHelper.php', "value(): int\n    {\n        return 1;", "value(): string\n    {\n        return '';");
+        $helperDiagnostics = [...self::BOOT_DIAGNOSTICS, 'MacroBodyUsage.php:13 return.type', 'MacroBodyUsageTwo.php:13 return.type'];
+        $this->assertDiagnostics($helperDiagnostics, $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS));
+
+        // The return type of a function the Str macro's body calls.
+        $this->edit($applicationPath . '/app/macro-body-functions.php', "macro_body_value(): int\n{\n    return 1;", "macro_body_value(): string\n{\n    return '';");
+        $this->assertDiagnostics(
+            [...$helperDiagnostics, 'MacroBodyUsage.php:18 return.type', 'MacroBodyUsageTwo.php:18 return.type'],
+            $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS),
+        );
+    }
+
     public function testDynamicRelationRegistrationsReanalyzeTheirConsumers(): void
     {
         $applicationPath = $this->copyApplication();
@@ -176,15 +284,14 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         // the first edit's reanalysis drops what the cold run gave files that never read those facts (Comment.php,
         // through Model), so the count is taken on the second edit.
         $applicationPath = $this->copyApplication();
-        $parameters = "typeAliases:\n    RenderView: 'Closure(view-string): void'\nparallel:\n    maximumNumberOfProcesses: 1";
 
-        $this->analyse($applicationPath, parameters: $parameters);
-        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: $parameters));
+        $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS));
 
         $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 1', 'fn (): int => 2');
-        $this->analyse($applicationPath, parameters: $parameters);
+        $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS);
         $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 2', 'fn (): int => 3');
-        $process = $this->analyse($applicationPath, parameters: $parameters);
+        $process = $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS);
         $this->assertSame(1, preg_match('/Result cache restored\. (\d+) files? will be reanalysed\./', $process->getErrorOutput(), $matches));
 
         // The lookup reaches the macro extension, but a class that is not Macroable can gain no macro from the boot.
@@ -203,10 +310,10 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
                 }
             }
             PHP);
-        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: $parameters));
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS));
 
         $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 3', 'fn (): int => 4');
-        $this->assertReanalyzed((int) $matches[1], $this->analyse($applicationPath, parameters: $parameters));
+        $this->assertReanalyzed((int) $matches[1], $this->analyse($applicationPath, parameters: self::SINGLE_PROCESS_PARAMETERS));
     }
 
     public function testEnvironmentChangesReanalyzeTheirConsumers(): void
