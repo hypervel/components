@@ -23,8 +23,6 @@ use PHPStan\Type\Type;
  */
 class EloquentBuilderMethodReflection implements MethodReflection
 {
-    private Type $returnType;
-
     /**
      * Create an Eloquent builder method reflection.
      *
@@ -34,10 +32,7 @@ class EloquentBuilderMethodReflection implements MethodReflection
         private string $methodName,
         private ClassReflection $classReflection,
         private array $parameters,
-        ?Type $returnType = null,
-        private bool $isVariadic = false,
     ) {
-        $this->returnType = $returnType ?? new ObjectType(Builder::class);
     }
 
     /**
@@ -100,8 +95,8 @@ class EloquentBuilderMethodReflection implements MethodReflection
                 TemplateTypeMap::createEmpty(),
                 null,
                 $this->parameters,
-                $this->isVariadic,
-                $this->returnType,
+                false,
+                new ObjectType(Builder::class),
             ),
         ];
     }

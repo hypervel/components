@@ -9,6 +9,8 @@ use Hypervel\Prompts\Callout;
 use Hypervel\Prompts\Clear;
 use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\DataTablePrompt;
+use Hypervel\Prompts\DatePickerPrompt;
+use Hypervel\Prompts\DateTimePickerPrompt;
 use Hypervel\Prompts\Grid;
 use Hypervel\Prompts\MultiSearchPrompt;
 use Hypervel\Prompts\MultiSelectPrompt;
@@ -32,6 +34,7 @@ use Hypervel\Prompts\Themes\Default\CalloutRenderer;
 use Hypervel\Prompts\Themes\Default\ClearRenderer;
 use Hypervel\Prompts\Themes\Default\ConfirmPromptRenderer;
 use Hypervel\Prompts\Themes\Default\DataTableRenderer;
+use Hypervel\Prompts\Themes\Default\DatePickerPromptRenderer;
 use Hypervel\Prompts\Themes\Default\GridRenderer;
 use Hypervel\Prompts\Themes\Default\MultiSearchPromptRenderer;
 use Hypervel\Prompts\Themes\Default\MultiSelectPromptRenderer;
@@ -49,7 +52,9 @@ use Hypervel\Prompts\Themes\Default\TableRenderer;
 use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Prompts\Themes\Default\TextareaPromptRenderer;
 use Hypervel\Prompts\Themes\Default\TextPromptRenderer;
+use Hypervel\Prompts\Themes\Default\TimePickerPromptRenderer;
 use Hypervel\Prompts\Themes\Default\TitleRenderer;
+use Hypervel\Prompts\TimePickerPrompt;
 use Hypervel\Prompts\Title;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
@@ -92,6 +97,9 @@ trait Themes
             Task::class => TaskRenderer::class,
             DataTablePrompt::class => DataTableRenderer::class,
             Callout::class => CalloutRenderer::class,
+            DatePickerPrompt::class => DatePickerPromptRenderer::class,
+            DateTimePickerPrompt::class => DatePickerPromptRenderer::class,
+            TimePickerPrompt::class => TimePickerPromptRenderer::class,
         ],
     ];
 

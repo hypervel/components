@@ -176,7 +176,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
             return str_starts_with($methodName, 'where')
                 ? new ForwardedFluentMethodReflection(
                     $classReflection,
-                    new EloquentBuilderMethodReflection($methodName, $classReflection, [new DynamicWhereParameterReflection], isVariadic: true),
+                    new EloquentBuilderMethodReflection($methodName, $classReflection, array_fill(0, count($this->builderHelper->dynamicWhereColumns($methodName)), new DynamicWhereParameterReflection)),
                 )
                 : null;
         }

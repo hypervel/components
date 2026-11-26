@@ -528,7 +528,7 @@ class PostgresGrammar extends Grammar
             $sql .= $command->initiallyImmediate ? ' initially immediate' : ' initially deferred';
         }
 
-        if (! is_null($command->notValid)) {
+        if ($command->notValid) {
             $sql .= ' not valid';
         }
 

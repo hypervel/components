@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use DateTimeImmutable;
+use DateTimeInterface;
 use Hypervel\Prompts\Elements\ElementContract;
 use Hypervel\Prompts\Support\Logger;
 use Hypervel\Support\Collection;
@@ -356,6 +358,70 @@ if (! function_exists('\Hypervel\Prompts\task')) {
     function task(string $label, Closure $callback, ?int $limit = null, bool $keepSummary = false, ?string $subLabel = null): mixed
     {
         return (new Task($label, $limit ?? 10, $keepSummary, $subLabel))->run($callback);
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\datepicker')) {
+    /**
+     * Prompt the user for a date.
+     *
+     * @return ($transform is null ? null|DateTimeImmutable : mixed)
+     */
+    function datepicker(
+        string $label,
+        DateTimeInterface|string|null $default = null,
+        DateTimeInterface|string|null $min = null,
+        DateTimeInterface|string|null $max = null,
+        bool|string $required = false,
+        mixed $validate = null,
+        ?string $hint = null,
+        ?Closure $transform = null,
+    ): mixed {
+        return (new DatePickerPrompt(...get_defined_vars()))->prompt();
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\datetimepicker')) {
+    /**
+     * Prompt the user for a date and time.
+     *
+     * @return ($transform is null ? null|DateTimeImmutable : mixed)
+     */
+    function datetimepicker(
+        string $label,
+        DateTimeInterface|string|null $default = null,
+        DateTimeInterface|string|null $min = null,
+        DateTimeInterface|string|null $max = null,
+        bool|string $required = false,
+        mixed $validate = null,
+        ?string $hint = null,
+        ?Closure $transform = null,
+        bool $withSeconds = false,
+        bool $use12Hours = false,
+    ): mixed {
+        return (new DateTimePickerPrompt(...get_defined_vars()))->prompt();
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\timepicker')) {
+    /**
+     * Prompt the user for a time.
+     *
+     * @return ($transform is null ? null|DateTimeImmutable : mixed)
+     */
+    function timepicker(
+        string $label,
+        DateTimeInterface|string|null $default = null,
+        DateTimeInterface|string|null $min = null,
+        DateTimeInterface|string|null $max = null,
+        bool|string $required = false,
+        mixed $validate = null,
+        ?string $hint = null,
+        ?Closure $transform = null,
+        bool $withSeconds = false,
+        bool $use12Hours = false,
+    ): mixed {
+        return (new TimePickerPrompt(...get_defined_vars()))->prompt();
     }
 }
 

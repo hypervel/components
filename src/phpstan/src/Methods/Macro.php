@@ -13,9 +13,11 @@ use PHPStan\Reflection\FunctionVariant;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\TrinaryLogic;
 use PHPStan\Type\ClosureType;
+use PHPStan\Type\Generic\TemplateType;
 use PHPStan\Type\Generic\TemplateTypeMap;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
+use PHPStan\Type\TypeTraverser;
 
 use function array_key_exists;
 
@@ -141,8 +143,34 @@ class Macro implements MethodReflection
         $parameters = ProxiedParameterReflection::fromTargetParameters($this->closureType->getParameters());
 
         return [
-            new FunctionVariant(TemplateTypeMap::createEmpty(), null, $parameters, $this->closureType->isVariadic(), $this->closureType->getReturnType()),
+            new FunctionVariant(TemplateTypeMap::createEmpty(), null, $parameters, $this->closureType->isVariadic(), $this->toClassTemplates($this->closureType->getReturnType())),
         ];
+    }
+
+    /**
+     * Replace the class's template types in a body-inferred type with the templates the class declares.
+     *
+     * A body analysed inside the class sees its templates as argument types, which PHPStan does
+     * not substitute at a call, so the receiver's bindings would not apply.
+     */
+    private function toClassTemplates(Type $type): Type
+    {
+        return TypeTraverser::map($type, function (Type $type, callable $traverse): Type {
+            if (! $type instanceof TemplateType || ! $type->isArgument()) {
+                return $traverse($type);
+            }
+
+            $scope = $type->getScope();
+
+            if ($scope->getClassName() === null || $scope->getFunctionName() !== null) {
+                return $type;
+            }
+
+            return $this->classReflection
+                ->getAncestorWithClassName($scope->getClassName())
+                ?->getTemplateTypeMap()
+                ->getType($type->getName()) ?? $type;
+        });
     }
 
     /**

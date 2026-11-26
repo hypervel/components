@@ -1446,6 +1446,13 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter table "users" add constraint "users_parent_id_foreign" foreign key ("parent_id") references "parents" ("id") on delete cascade deferrable not valid', $statements[0]);
+
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->foreign('parent_id')->references('id')->on('parents')->notValid(false);
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "users" add constraint "users_parent_id_foreign" foreign key ("parent_id") references "parents" ("id")', $statements[0]);
     }
 
     public function testAddingGeometry(): void

@@ -256,7 +256,7 @@ function testHypervelArguments(array $closures, array $arguments): void
  */
 function testBoundHelpers(ResponseFactory $factory, ?string $path, ?string $message, array $arguments, array $strings): void
 {
-    assertType('string', response()->caps('foo'));
+    assertType('uppercase-string', response()->caps('foo'));
     // A contract value does not gain the macros of its current binding.
     assertType('*ERROR*', $factory->caps('foo'));
 

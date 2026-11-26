@@ -551,6 +551,21 @@ class NotificationChannelManagerTest extends TestCase
         $events->assertDispatchedOnce(NotificationSent::class);
     }
 
+    public function testConditionableTraitMethods(): void
+    {
+        $manager = new ChannelManager($this->getContainer());
+
+        $this->assertSame('mail', $manager->deliversVia());
+
+        $manager->when(true, fn (ChannelManager $manager) => $manager->deliverVia('slack'));
+
+        $this->assertSame('slack', $manager->deliversVia());
+
+        $manager->unless(false, fn (ChannelManager $manager) => $manager->deliverVia('database'));
+
+        $this->assertSame('database', $manager->deliversVia());
+    }
+
     /**
      * Create the notification container.
      */

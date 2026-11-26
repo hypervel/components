@@ -27,11 +27,13 @@ use LogicException;
  * @method $this invisible() Specify that the column should be invisible to "SELECT *" (MySQL)
  * @method $this lock(('default'|'exclusive'|'none'|'shared') $value) Specify the DDL lock mode for the column operation (MySQL)
  * @method $this nullable(bool $value = true) Allow NULL values to be inserted into the column
+ * @method $this onUpdate(Expression|string $expression) Set the value the column takes when the row is updated (MySQL)
  * @method $this primary(bool $value = true) Add a primary index
  * @method $this spatialIndex(bool|string $indexName = null) Add a spatial index
  * @method $this vectorIndex(bool|string $indexName = null) Add a vector index
  * @method $this startingValue(int $startingValue) Set the starting value of an auto-incrementing field (MySQL/PostgreSQL)
  * @method $this storedAs(null|Expression|string $expression) Create a stored generated column (MySQL/PostgreSQL/SQLite)
+ * @method $this storedAsJson(string $path) Create a stored generated column from a JSON path (MySQL/SQLite)
  * @method $this type(string $type) Specify a type for the column
  * @method $this unique(bool|string $indexName = null) Add a unique index
  * @method $this unsigned(bool $value = true) Set the INTEGER column as UNSIGNED if value is true (MySQL)
@@ -39,6 +41,7 @@ use LogicException;
  * @method $this useCurrent() Set the TIMESTAMP column to use CURRENT_TIMESTAMP as default value
  * @method $this useCurrentOnUpdate() Set the TIMESTAMP column to use CURRENT_TIMESTAMP when updating (MySQL)
  * @method $this virtualAs(null|Expression|string $expression) Create a virtual generated column (MySQL/PostgreSQL/SQLite)
+ * @method $this virtualAsJson(string $path) Create a virtual generated column from a JSON path (MySQL/SQLite)
  */
 class ColumnDefinition extends Fluent
 {

@@ -10,6 +10,7 @@ use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testing\TestComponent;
 use Hypervel\Testing\TestView;
+use Hypervel\View\Component;
 use Hypervel\View\View;
 use RuntimeException;
 use Throwable;
@@ -74,6 +75,11 @@ trait InteractsWithViews
 
     /**
      * Render the given view component.
+     *
+     * @template TComponent of Component
+     *
+     * @param class-string<TComponent> $componentClass
+     * @return TestComponent<TComponent>
      */
     protected function component(string $componentClass, Arrayable|array $data = []): TestComponent
     {

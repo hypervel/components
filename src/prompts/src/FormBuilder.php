@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use DateTimeInterface;
 use Hypervel\Prompts\Exceptions\FormRevertedException;
 use Hypervel\Support\Collection;
 
@@ -185,6 +186,30 @@ class FormBuilder
     }
 
     /**
+     * Prompt the user for a date.
+     */
+    public function datepicker(string $label, DateTimeInterface|string|null $default = null, DateTimeInterface|string|null $min = null, DateTimeInterface|string|null $max = null, bool|string $required = false, mixed $validate = null, ?string $hint = null, ?Closure $transform = null, ?string $name = null): self
+    {
+        return $this->runPrompt(datepicker(...), get_defined_vars());
+    }
+
+    /**
+     * Prompt the user for a date and time.
+     */
+    public function datetimepicker(string $label, DateTimeInterface|string|null $default = null, DateTimeInterface|string|null $min = null, DateTimeInterface|string|null $max = null, bool|string $required = false, mixed $validate = null, ?string $hint = null, ?Closure $transform = null, bool $withSeconds = false, ?string $name = null, bool $use12Hours = false): self
+    {
+        return $this->runPrompt(datetimepicker(...), get_defined_vars());
+    }
+
+    /**
+     * Prompt the user for a time.
+     */
+    public function timepicker(string $label, DateTimeInterface|string|null $default = null, DateTimeInterface|string|null $min = null, DateTimeInterface|string|null $max = null, bool|string $required = false, mixed $validate = null, ?string $hint = null, ?Closure $transform = null, bool $withSeconds = false, ?string $name = null, bool $use12Hours = false): self
+    {
+        return $this->runPrompt(timepicker(...), get_defined_vars());
+    }
+
+    /**
      * Render a spinner while the given callback is executing.
      *
      * @param Closure(): mixed $callback
@@ -282,6 +307,10 @@ class FormBuilder
      */
     protected function runPrompt(callable $prompt, array $arguments, bool $ignoreWhenReverting = false): self
     {
+        if (($arguments['transform'] ?? null) !== null && array_key_exists('default', $arguments)) {
+            return $this->runTransformedPrompt($prompt, $arguments, $ignoreWhenReverting);
+        }
+
         return $this->add(function (array $responses, mixed $previousResponse) use ($prompt, $arguments) {
             unset($arguments['name']);
 
@@ -290,6 +319,55 @@ class FormBuilder
             }
 
             return $prompt(...$arguments);
+        }, name: $arguments['name'], ignoreWhenReverting: $ignoreWhenReverting);
+    }
+
+    /**
+     * Execute the given transformed prompt, editing the answer behind its response when the step is reverted.
+     *
+     * A transformed response may not be a valid default, so a reverted step reuses the answer that
+     * produced it. A response with no answer behind it, such as from a cancel handler or a direct
+     * fallback, is reused instead, as in runPrompt(), except by the pickers.
+     *
+     * @param array<mixed> $arguments
+     */
+    protected function runTransformedPrompt(callable $prompt, array $arguments, bool $ignoreWhenReverting): self
+    {
+        $answered = false;
+        $answer = null;
+
+        return $this->add(function (array $responses, mixed $previousResponse) use ($prompt, $arguments, &$answered, &$answer) {
+            unset($arguments['name']);
+
+            if ($answered) {
+                $arguments['default'] = $answer;
+            } elseif ($previousResponse !== null && ! in_array($prompt, [datepicker(...), datetimepicker(...), timepicker(...)])) {
+                // A transformed picker may return any application value, so it reopens with its configured default.
+                // Loose comparison matches the first-class callables of the same function.
+                $arguments['default'] = $previousResponse;
+            }
+
+            $transform = $arguments['transform'];
+            $transformed = null;
+
+            $arguments['transform'] = function (mixed $value) use ($transform, &$transformed): mixed {
+                $transformed = [$value, $transform($value)];
+
+                return $transformed[1];
+            };
+
+            Prompt::trackCancellation($arguments['transform']);
+
+            try {
+                $response = $prompt(...$arguments);
+            } finally {
+                $canceled = Prompt::forgetCancellation($arguments['transform']);
+            }
+
+            $answered = ! $canceled && $transformed !== null && $transformed[1] === $response;
+            $answer = $answered ? $transformed[0] : null;
+
+            return $response;
         }, name: $arguments['name'], ignoreWhenReverting: $ignoreWhenReverting);
     }
 }

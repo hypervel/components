@@ -314,6 +314,19 @@ class SupportTestingNotificationFakeTest extends TestCase
             return $notification->value === 'hello-serialized-unserialized';
         });
     }
+
+    public function testConditionableTraitMethods(): void
+    {
+        $this->assertNull($this->fake->locale);
+
+        $this->fake->when(true, fn (NotificationFake $fake) => $fake->locale('en_US'));
+
+        $this->assertSame('en_US', $this->fake->locale);
+
+        $this->fake->unless(false, fn (NotificationFake $fake) => $fake->locale('en_AU'));
+
+        $this->assertSame('en_AU', $this->fake->locale);
+    }
 }
 
 class NotificationWithFalsyShouldSendStub extends Notification

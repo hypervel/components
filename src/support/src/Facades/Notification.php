@@ -31,6 +31,8 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static void send(mixed $notifiables, mixed $notification)
  * @method static void sendNow(mixed $notifiables, mixed $notification, array|null $channels = null)
  * @method static \Hypervel\Notifications\ChannelManager setContainer(\Hypervel\Contracts\Container\Container $container)
+ * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static void assertCount(int $expectedCount)
  * @method static void assertNothingSent()
  * @method static void assertNothingSentTo(mixed $notifiable)

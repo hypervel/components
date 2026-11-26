@@ -1,0 +1,247 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Prompts\Concerns;
+
+use DateTimeImmutable;
+use InvalidArgumentException;
+
+trait InteractsWithTime
+{
+    /**
+     * The selected hour, from 0 to 23.
+     */
+    public int $hour;
+
+    /**
+     * The selected minute.
+     */
+    public int $minute;
+
+    /**
+     * The selected second.
+     */
+    public int $second;
+
+    /**
+     * Get the focusable time segments, in order.
+     *
+     * @return list<string>
+     */
+    protected function timeSegments(): array
+    {
+        return [
+            'hour', 'minute',
+            ...($this->withSeconds ? ['second'] : []),
+            ...($this->use12Hours ? ['period'] : []),
+        ];
+    }
+
+    /**
+     * Get the display value of each time segment, keyed by segment name.
+     *
+     * @return array<string, string>
+     */
+    protected function timeSegmentValues(): array
+    {
+        $segments = [
+            'hour' => $this->segmentDisplay('hour', sprintf('%02d', $this->use12Hours ? ($this->hour % 12 ?: 12) : $this->hour)),
+            'minute' => $this->segmentDisplay('minute', sprintf('%02d', $this->minute)),
+        ];
+
+        if ($this->withSeconds) {
+            $segments['second'] = $this->segmentDisplay('second', sprintf('%02d', $this->second));
+        }
+
+        if ($this->use12Hours) {
+            $segments['period'] = $this->segmentDisplay('period', $this->hour < 12 ? 'AM' : 'PM');
+        }
+
+        return $segments;
+    }
+
+    /**
+     * Join the given time segment values for display.
+     *
+     * @param array<string, string> $segments
+     */
+    public function formatTimeSegments(array $segments): string
+    {
+        $period = $segments['period'] ?? null;
+        unset($segments['period']);
+
+        return implode(':', $segments) . ($period === null ? '' : ' ' . $period);
+    }
+
+    /**
+     * Get the segment input for a typed character, or null when it is not accepted.
+     */
+    protected function segmentInput(string $char): ?string
+    {
+        if ($this->focused === 'period') {
+            return match (strtolower($char)) {
+                'a' => 'AM',
+                'p' => 'PM',
+                'm' => in_array($this->segmentBuffer, ['A', 'P'], true) ? 'M' : null,
+                default => null,
+            };
+        }
+
+        return ctype_digit($char) ? $char : null;
+    }
+
+    /**
+     * Build the value with the edited time segment applied, or null when it is invalid.
+     */
+    protected function timeCandidate(?DateTimeImmutable $date): ?DateTimeImmutable
+    {
+        $hour = $this->focused === 'hour' ? (int) $this->segmentBuffer : $this->hour;
+        $minute = $this->focused === 'minute' ? (int) $this->segmentBuffer : $this->minute;
+        $second = $this->focused === 'second' ? (int) $this->segmentBuffer : $this->second;
+
+        if ($this->use12Hours && $this->focused === 'hour') {
+            if ($hour < 1 || $hour > 12) {
+                return null;
+            }
+
+            $hour = $hour % 12 + ($this->hour >= 12 ? 12 : 0);
+        }
+
+        if ($this->focused === 'period') {
+            if (! in_array($this->segmentBuffer, ['AM', 'PM'], true)) {
+                return null;
+            }
+
+            $hour = $hour % 12 + ($this->segmentBuffer === 'PM' ? 12 : 0);
+        }
+
+        if ($hour > 23 || $minute > 59 || $second > 59) {
+            return null;
+        }
+
+        return $date === null ? null : $this->timeAt($date, $hour, $minute, $second);
+    }
+
+    /**
+     * Parse a value in the displayed format onto the selected instant.
+     */
+    protected function parseDisplayed(string $value): ?DateTimeImmutable
+    {
+        if (($date = parent::parseDisplayed($value)) === null) {
+            return null;
+        }
+
+        // Parsing picks one occurrence of a time that daylight saving repeats, while setting
+        // the clock on the selection keeps the occurrence being edited, as typing does.
+        return $this->timeAt(
+            $this->date->setDate((int) $date->format('Y'), (int) $date->format('n'), (int) $date->format('j')),
+            (int) $date->format('G'),
+            (int) $date->format('i'),
+            (int) $date->format('s'),
+        );
+    }
+
+    /**
+     * Set the time on the given date, or null when it falls in a daylight saving gap.
+     */
+    protected function timeAt(DateTimeImmutable $date, int $hour, int $minute, int $second): ?DateTimeImmutable
+    {
+        $candidate = $date->setTime($hour, $minute, $second);
+        $expected = $date->format('Y-m-d') . ' ' . sprintf('%02d:%02d:%02d', $hour, $minute, $second);
+
+        return $candidate->format('Y-m-d H:i:s') === $expected ? $candidate : null;
+    }
+
+    /**
+     * Step the focused time segment, keeping the result within range.
+     */
+    protected function stepTime(int $step): void
+    {
+        if (! $this->commitSegment()) {
+            return;
+        }
+
+        $this->stepTimeSegment($step);
+
+        $candidate = $this->timeAt($this->date, $this->hour, $this->minute, $this->second);
+
+        if ($candidate === null) {
+            $this->syncTime();
+            $this->state = 'error';
+            $this->error = 'Invalid time.';
+
+            return;
+        }
+
+        try {
+            $this->goTo($candidate);
+        } catch (InvalidArgumentException $e) {
+            $this->syncTime();
+            $this->state = 'error';
+            $this->error = $e->getMessage();
+        }
+    }
+
+    /**
+     * Select the given value and update the time segments.
+     */
+    protected function select(DateTimeImmutable $date): void
+    {
+        parent::select($date);
+
+        $this->syncTime();
+    }
+
+    /**
+     * Get the value to start on when there is no default.
+     */
+    protected function initialDate(): DateTimeImmutable
+    {
+        return $this->truncateTime(new DateTimeImmutable('now'));
+    }
+
+    /**
+     * Step the focused time segment, wrapping within its range.
+     */
+    protected function stepTimeSegment(int $step): void
+    {
+        match ($this->focused) {
+            'hour' => $this->hour = $this->use12Hours
+                ? ($this->hour % 12 + $step + 12) % 12 + ($this->hour >= 12 ? 12 : 0)
+                : ($this->hour + $step + 24) % 24,
+            'minute' => $this->minute = ($this->minute + $step + 60) % 60,
+            'second' => $this->second = ($this->second + $step + 60) % 60,
+            'period' => $this->hour = ($this->hour + 12) % 24,
+            default => null,
+        };
+    }
+
+    /**
+     * Update the time segments from the selected value.
+     */
+    protected function syncTime(): void
+    {
+        $this->hour = (int) $this->date->format('G');
+        $this->minute = (int) $this->date->format('i');
+        $this->second = (int) $this->date->format('s');
+    }
+
+    /**
+     * Truncate the time to the prompt's precision.
+     */
+    protected function truncateTime(DateTimeImmutable $date): DateTimeImmutable
+    {
+        return $this->withSeconds
+            ? $date->setTime((int) $date->format('G'), (int) $date->format('i'), (int) $date->format('s'))
+            : $date->setTime((int) $date->format('G'), (int) $date->format('i'));
+    }
+
+    /**
+     * Get the format used when displaying times.
+     */
+    protected function timeFormat(): string
+    {
+        return ($this->use12Hours ? 'h:i' : 'H:i') . ($this->withSeconds ? ':s' : '') . ($this->use12Hours ? ' A' : '');
+    }
+}

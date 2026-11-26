@@ -16,6 +16,7 @@ use RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
+use WeakMap;
 
 abstract class Prompt
 {
@@ -121,6 +122,13 @@ abstract class Prompt
     protected static ?Closure $revertUsing = null;
 
     /**
+     * The transforms of form steps whose answers have not been replaced by a cancel handler.
+     *
+     * @var null|WeakMap<Closure, true>
+     */
+    private static ?WeakMap $answeringTransforms = null;
+
+    /**
      * The output instance.
      */
     protected static ?OutputInterface $output = null;
@@ -197,6 +205,10 @@ abstract class Prompt
                 if ($continue === false || $key === Key::CTRL_C) {
                     if ($key === Key::CTRL_C) {
                         if (isset(static::$cancelUsing)) {
+                            if ($this->transform !== null) {
+                                self::$answeringTransforms?->offsetUnset($this->transform);
+                            }
+
                             return Result::from((static::$cancelUsing)());
                         }
                         static::terminal()->exit();
@@ -333,6 +345,26 @@ abstract class Prompt
     }
 
     /**
+     * Begin a synchronized update, so the terminal draws the redrawn frame at once.
+     */
+    protected function beginSynchronizedUpdate(): void
+    {
+        if (static::canControlTerminal()) {
+            static::writeDirectly("\e[?2026h");
+        }
+    }
+
+    /**
+     * End a synchronized update.
+     */
+    protected function endSynchronizedUpdate(): void
+    {
+        if (static::canControlTerminal()) {
+            static::writeDirectly("\e[?2026l");
+        }
+    }
+
+    /**
      * Get the terminal instance.
      */
     public static function terminal(): Terminal
@@ -420,6 +452,31 @@ abstract class Prompt
     }
 
     /**
+     * Track whether a cancel handler replaces the answer of a form step with the given transform.
+     *
+     * @internal
+     */
+    public static function trackCancellation(Closure $transform): void
+    {
+        self::$answeringTransforms ??= new WeakMap;
+        self::$answeringTransforms[$transform] = true;
+    }
+
+    /**
+     * Stop tracking the given transform, returning whether a cancel handler replaced its answer.
+     *
+     * @internal
+     */
+    public static function forgetCancellation(Closure $transform): bool
+    {
+        $canceled = ! isset(self::$answeringTransforms[$transform]);
+
+        self::$answeringTransforms?->offsetUnset($transform);
+
+        return $canceled;
+    }
+
+    /**
      * Render the prompt.
      */
     protected function render(): void
@@ -445,10 +502,23 @@ abstract class Prompt
         $previousFrameHeight = count(explode(PHP_EOL, $this->prevFrame));
         $renderableLines = array_slice(explode(PHP_EOL, $frame), abs(min(0, $terminalHeight - $previousFrameHeight)));
 
-        $this->moveCursorToColumn(1);
-        $this->moveCursorUp(min($terminalHeight, $previousFrameHeight) - 1);
-        $this->eraseDown();
-        $this->writeFrame(implode(PHP_EOL, $renderableLines));
+        try {
+            $this->beginSynchronizedUpdate();
+            $this->moveCursorToColumn(1);
+            $this->moveCursorUp(min($terminalHeight, $previousFrameHeight) - 1);
+            $this->eraseDown();
+            $this->writeFrame(implode(PHP_EOL, $renderableLines));
+            $this->endSynchronizedUpdate();
+        } catch (Throwable $exception) {
+            // The terminal would otherwise keep buffering output after a failed redraw, including a failed closing write.
+            try {
+                $this->endSynchronizedUpdate();
+            } catch (Throwable $cleanupFailure) {
+                throw Coroutine::preferCancellation($exception, $cleanupFailure);
+            }
+
+            throw $exception;
+        }
 
         $this->prevFrame = $frame;
     }
@@ -619,6 +689,7 @@ abstract class Prompt
         static::$cancelUsing = null;
         static::$validateUsing = null;
         static::$revertUsing = null;
+        self::$answeringTransforms = null;
         static::$output = null;
         static::$terminal = null;
 

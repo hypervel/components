@@ -6,6 +6,10 @@ namespace Hypervel\Database\Schema;
 
 use Hypervel\Support\Stringable;
 
+/**
+ * @method $this referencesModelColumn(?string $column) Specify the referenced column constrained() uses by default
+ * @method $this table(string $table) Specify the referenced table constrained() uses by default
+ */
 class ForeignIdColumnDefinition extends ColumnDefinition
 {
     /**

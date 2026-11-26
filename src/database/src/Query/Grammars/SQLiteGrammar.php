@@ -211,9 +211,19 @@ class SQLiteGrammar extends Grammar
      */
     protected function compileJsonContainsKey(string $column): string
     {
+        return $this->compileJsonType($column) . ' is not null';
+    }
+
+    /**
+     * Compile the JSON type of the given JSON path.
+     *
+     * @internal
+     */
+    public function compileJsonType(string $column): string
+    {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'json_type(' . $field . $path . ') is not null';
+        return 'json_type(' . $field . $path . ')';
     }
 
     /**

@@ -70,6 +70,7 @@
     - [Starting Queries](#starting-queries)
     - [Schema Dumps](#schema-dumps)
     - [Migration Column Types](#migration-column-types)
+    - [Schema Modifiers](#schema-modifiers)
     - [Dispatching Jobs and Events](#dispatching-jobs-and-events)
     - [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions)
     - [Models in Queued Jobs](#models-in-queued-jobs)
@@ -241,7 +242,7 @@ PHPStan boots your application to discover its services, authentication guards, 
 
 A service resolved using `app(Repository::class)` has the type of its container binding. Helpers such as `response()` and `url()` also return their bound implementations, so those classes' methods and registered macros are available. A value typed as an interface exposes only that interface's methods, even when the bound class has additional methods or macros. Use the concrete type when your code requires them.
 
-Declare parameter and return types on macro closures and register them during application boot so PHPStan can check their calls. A class's `@method` tag takes precedence over a macro's signature. Macros registered later, such as in a controller action, are not discovered.
+Register macros during application boot and declare their closures' parameter types so PHPStan can check their calls. When a macro closure has no return type, PHPStan can infer it from the closure's body. A class's `@method` tag takes precedence over a macro's signature. Macros registered later, such as in a controller action, are not discovered.
 
 Calls forwarded to a manager's configured default driver use the return type of its `create...Driver()` method or `extend()` callback, unless the manager declares the method or a `@mixin` for its drivers. Declare these return types so PHPStan can check the calls without creating the driver.
 
@@ -850,6 +851,7 @@ The following sections explain the diagnostics and their remedies. Use this tabl
 | [Starting Queries](#starting-queries) | `hypervel.noImplicitQueryBuilderCall` |
 | [Schema Dumps](#schema-dumps) | `hypervel.schemaDump` |
 | [Migration Column Types](#migration-column-types) | `hypervel.migrationColumnType` |
+| [Schema Modifiers](#schema-modifiers) | `method.notFound` |
 | [Dispatching Jobs and Events](#dispatching-jobs-and-events) | `new.noConstructor`, `argument.type` and the other argument identifiers |
 | [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) | `hypervel.dispatchInTransactionAfterCommit` |
 | [Models in Queued Jobs](#models-in-queued-jobs) | `hypervel.jobSerializesModels` |
@@ -1611,6 +1613,18 @@ Schema::create('flights', function (Blueprint $table) {
 Use `text` for opaque values that are only read back whole. Prefer a string column with a PHP enum cast over a database `enum`, which requires a migration to add values. Instead of `set`, store values in a `jsonb` column cast using `AsEnumCollection`, or in a related table.
 
 The `checkMigrationColumnTypes` parameter enables reports for `json`, `enum` and `set` columns. It is disabled by default, since existing migrations should not be edited.
+
+<a name="schema-modifiers"></a>
+### Schema Modifiers
+
+A misspelled modifier on a column, index or foreign key definition is reported as an undefined method. These definitions accept any method as an attribute, but the schema grammars ignore attributes they do not know, so the modifier would silently do nothing:
+
+```php
+// Call to an undefined method Hypervel\Database\Schema\ColumnDefinition::nulable().
+$table->string('nickname')->nulable();
+```
+
+Declared modifiers and registered macros are not reported. These reports start at rule level 2. Setting PHPStan's `reportMagicMethods` parameter to `false` disables them, along with its other reports of undefined magic methods.
 
 <a name="dispatching-jobs-and-events"></a>
 ### Dispatching Jobs and Events

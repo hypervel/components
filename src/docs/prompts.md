@@ -15,6 +15,7 @@
     - [Multi-search](#multisearch)
     - [Pause](#pause)
     - [Autocomplete](#autocomplete)
+    - [Date and Time Pickers](#date-and-time-pickers)
 - [Transforming Input Before Validation](#transforming-input-before-validation)
 - [Forms](#forms)
 - [Informational Messages](#informational-messages)
@@ -1038,6 +1039,64 @@ $name = autocomplete(
 ```
 
 The closure will receive the value that has been entered and may return an error message, or `null` if the validation passes.
+
+<a name="date-and-time-pickers"></a>
+### Date and Time Pickers
+
+The `datepicker`, `datetimepicker`, and `timepicker` functions prompt the user for a date, a date and time, or a time of day, and return a `DateTimeImmutable` instance. The user may type the value, or move between its segments using the left and right arrow keys or `Tab` and change the focused segment using the up and down arrow keys:
+
+```php
+use function Hypervel\Prompts\datepicker;
+use function Hypervel\Prompts\datetimepicker;
+use function Hypervel\Prompts\timepicker;
+
+$date = datepicker('When should the deploy run?');
+
+$startsAt = datetimepicker('When should the maintenance window start?');
+
+$time = timepicker('What time should the report be sent?');
+```
+
+The date picker returns the date at the start of the day. Without a default, it starts on today, while the other pickers start on the current time. When input isn't interactive, a picker returns its default, so an optional picker without one returns `null`.
+
+You may also include a default value, an informational hint, and the earliest and latest values the user may choose. Each value may be a `DateTimeInterface` instance or a date string:
+
+```php
+$date = datepicker(
+    label: 'When should the deploy run?',
+    default: 'tomorrow',
+    min: 'today',
+    max: '+30 days',
+    hint: 'Deploys may be scheduled up to 30 days ahead.'
+);
+```
+
+The time picker compares `min` and `max` by time of day only, so the limits apply on any date.
+
+The `datetimepicker` and `timepicker` functions also accept a `withSeconds` argument to add a seconds segment, and a `use12Hours` argument to display a 12-hour clock with an AM / PM segment:
+
+```php
+$time = timepicker(
+    label: 'What time should the report be sent?',
+    withSeconds: true,
+    use12Hours: true,
+);
+```
+
+<a name="date-and-time-pickers-validation"></a>
+#### Required Values and Validation
+
+Like the other prompts, the pickers accept `required`, `validate`, and `transform` arguments. A validation closure receives the selected `DateTimeImmutable` instance, or the transformed value when a `transform` closure is given:
+
+```php
+$date = datepicker(
+    label: 'When should the deploy run?',
+    required: true,
+    validate: fn (DateTimeImmutable $date) => $date->format('N') >= 6
+        ? 'The deploy cannot run on a weekend.'
+        : null
+);
+```
 
 <a name="transforming-input-before-validation"></a>
 ## Transforming Input Before Validation

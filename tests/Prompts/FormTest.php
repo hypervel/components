@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use DateTimeImmutable;
+use Hypervel\Prompts\DatePickerPrompt;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\TextPrompt;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -276,6 +279,93 @@ class FormTest extends TestCase
         $this->assertSame('Jess', $responses[0]);
     }
 
+    public function testRevertingAStepWhoseTransformChangesTheTypeEditsTheAcceptedAnswer(): void
+    {
+        Prompt::fake([
+            Key::ENTER,
+            Key::CTRL_U,
+            Key::SHIFT_TAB, Key::UP, Key::ENTER,
+            Key::CTRL_U,
+            Key::ENTER,
+            Key::ENTER,
+        ]);
+
+        $responses = form()
+            ->datepicker(
+                'When should the deploy run?',
+                default: '2026-07-24',
+                transform: fn (DateTimeImmutable $date) => $date->format('d') === '25' ? null : $date->getTimestamp(),
+            )
+            ->confirm('Are you sure?')
+            ->submit();
+
+        // The second revert edits July 25, though its transformed response is null.
+        $this->assertSame([null, true], $responses);
+    }
+
+    public function testRevertingATransformedFallbackStepEditsItsAnswerOrReopensWithItsDefault(): void
+    {
+        $defaults = [];
+        DatePickerPrompt::fallbackUsing(function (DatePickerPrompt $prompt) use (&$defaults): mixed {
+            $defaults[] = $prompt->default?->format('Y-m-d');
+
+            // The first response is returned directly, the next ones through the transform.
+            return count($defaults) === 1
+                ? strtotime('2026-07-25')
+                : ($prompt->transform)(new DateTimeImmutable('2026-07-26'));
+        });
+        Prompt::fallbackWhen(true);
+        Prompt::fake([Key::CTRL_U, Key::CTRL_U, Key::ENTER]);
+
+        $responses = form()
+            ->datepicker('When should the deploy run?', default: '2026-07-24', transform: fn (DateTimeImmutable $date) => $date->getTimestamp())
+            ->confirm('Are you sure?')
+            ->submit();
+
+        $this->assertSame(['2026-07-24', '2026-07-24', '2026-07-26'], $defaults);
+        $this->assertSame([strtotime('2026-07-26'), true], $responses);
+    }
+
+    public function testRevertingATransformedTextStepEditsADirectFallbackResponse(): void
+    {
+        $defaults = [];
+        TextPrompt::fallbackUsing(function (TextPrompt $prompt) use (&$defaults): string {
+            $defaults[] = $prompt->default;
+
+            return 'alice@example.com';
+        });
+        Prompt::fallbackWhen(true);
+        Prompt::fake([Key::CTRL_U, Key::ENTER]);
+
+        $responses = form()
+            ->text('What is your email?', default: 'old@example.com', transform: trim(...))
+            ->confirm('Are you sure?')
+            ->submit();
+
+        $this->assertSame(['old@example.com', 'alice@example.com'], $defaults);
+        $this->assertSame(['alice@example.com', true], $responses);
+    }
+
+    public function testRevertingACanceledStepEditsTheCancelResponseRatherThanRejectedInput(): void
+    {
+        Prompt::cancelUsing(fn (): string => '');
+        Prompt::fake([
+            ...str_split('draft'), Key::ENTER,
+            Key::CTRL_C,
+            Key::CTRL_U,
+            ...str_split('alice@example.com'), Key::ENTER,
+            Key::ENTER,
+        ]);
+
+        // The rejected input and the cancel handler both produce an empty response.
+        $responses = form()
+            ->text('What is your email?', required: true, transform: fn (string $email): string => filter_var($email, FILTER_VALIDATE_EMAIL) ?: '')
+            ->confirm('Are you sure?')
+            ->submit();
+
+        $this->assertSame(['alice@example.com', true], $responses);
+    }
+
     public function testStopStepsAtTheMomentOfReverting(): void
     {
         Prompt::fake([
@@ -362,5 +452,64 @@ class FormTest extends TestCase
             null,
             true,
         ], $responses);
+    }
+
+    public function testSupportsTimepickerAnd12HourDatetimeSteps(): void
+    {
+        Prompt::fake(['09:45:12 PM', Key::ENTER, Key::SHIFT_TAB, 'a', Key::ENTER]);
+
+        $responses = form()
+            ->timepicker('Start time', default: '14:30', withSeconds: true, use12Hours: true, name: 'start')
+            ->datetimepicker('Release', default: '2026-07-24 14:30', use12Hours: true, name: 'release')
+            ->submit();
+
+        $this->assertSame('21:45:12', $responses['start']->format('H:i:s'));
+        $this->assertSame('2026-07-24 02:30', $responses['release']->format('Y-m-d H:i'));
+    }
+
+    public function testReusesThePreviousTimeResponseWhenReverting(): void
+    {
+        Prompt::fake(['09:45', Key::ENTER, Key::CTRL_U, Key::ENTER, Key::ENTER]);
+
+        $responses = form()
+            ->timepicker('Start time', default: '14:30')
+            ->confirm('Continue?')
+            ->submit();
+
+        $this->assertSame('09:45', $responses[0]->format('H:i'));
+    }
+
+    public function testSupportsDatepickerAndDatetimepickerSteps(): void
+    {
+        Prompt::fake([
+            Key::ENTER,
+            Key::TAB, Key::TAB, Key::TAB, Key::UP, Key::ENTER,
+        ]);
+
+        $responses = form()
+            ->datepicker('When should the deploy run?', default: '2026-07-24', name: 'date')
+            ->datetimepicker('When should the maintenance window start?', default: '2026-07-24 14:30', name: 'window')
+            ->submit();
+
+        $this->assertSame('2026-07-24', $responses['date']->format('Y-m-d'));
+        $this->assertSame('2026-07-24 15:30', $responses['window']->format('Y-m-d H:i'));
+    }
+
+    public function testReusesThePreviousDateResponseAsTheDefaultWhenReverting(): void
+    {
+        Prompt::fake([
+            Key::ENTER,
+            Key::CTRL_U,
+            Key::SHIFT_TAB, Key::UP, Key::ENTER,
+            Key::ENTER,
+        ]);
+
+        $responses = form()
+            ->datepicker('When should the deploy run?', default: '2026-07-24')
+            ->datetimepicker('When should the maintenance window start?', default: '2026-07-24 14:30')
+            ->submit();
+
+        $this->assertSame('2026-07-25', $responses[0]->format('Y-m-d'));
+        $this->assertSame('2026-07-24 14:30', $responses[1]->format('Y-m-d H:i'));
     }
 }

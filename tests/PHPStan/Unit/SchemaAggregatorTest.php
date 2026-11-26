@@ -220,6 +220,43 @@ class SchemaAggregatorTest extends PHPStanTestCase
     }
 
     #[Test]
+    public function itReadsTheNullabilityOfTimeZoneYearAndSoftDeleteColumns(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('events', function (Blueprint $table) {
+                $table->timestampTz('starts_at');
+                $table->timeTz('opens_at');
+                $table->year('founded_in');
+                $table->timestampTz('published_at')->nullable();
+                $table->softDeletesDatetime();
+            });
+        PHP);
+
+        $this->assertSame([
+            'starts_at' => ['string', false],
+            'opens_at' => ['string', false],
+            'founded_in' => ['int', false],
+            'published_at' => ['string', true],
+            'deleted_at' => ['string', true],
+        ], $this->columns($aggregator, 'events'));
+    }
+
+    #[Test]
+    public function itReadsTheColumnsOfDatetimes(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('events', function (Blueprint $table) {
+                $table->datetimes();
+            });
+        PHP);
+
+        $this->assertSame([
+            'created_at' => ['string', true],
+            'updated_at' => ['string', true],
+        ], $this->columns($aggregator, 'events'));
+    }
+
+    #[Test]
     public function itResolvesColumnNameConstants(): void
     {
         $aggregator = $this->aggregate(<<<'PHP'

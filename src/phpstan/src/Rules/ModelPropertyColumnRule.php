@@ -14,7 +14,6 @@ use Hypervel\PHPStan\Properties\ModelPropertyHelper;
 use Hypervel\PHPStan\Reflection\EloquentBuilderMethodReflection;
 use Hypervel\PHPStan\Reflection\ForwardedMethodReflection;
 use Hypervel\PHPStan\Types\ModelProperty\GenericModelPropertyType;
-use Hypervel\Support\Str;
 use PhpParser\Node;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\MethodCall;
@@ -38,12 +37,8 @@ use PHPStan\Type\VerbosityLevel;
 
 use function count;
 use function in_array;
-use function preg_split;
 use function sprintf;
 use function str_starts_with;
-use function substr;
-
-use const PREG_SPLIT_DELIM_CAPTURE;
 
 /**
  * Check the column arguments of the pagination methods and pluck(), and the columns a dynamic where names,
@@ -200,13 +195,8 @@ class ModelPropertyColumnRule implements Rule
             return [];
         }
 
-        // Split like Query\Builder::dynamicWhere(); each segment names a column.
-        $segments = preg_split('/(And|Or)(?=[A-Z])/', substr($methodName, 5), -1, PREG_SPLIT_DELIM_CAPTURE);
-
-        foreach ($segments === false ? [] : $segments as $segment) {
-            $column = Str::snake($segment);
-
-            if ($segment === 'And' || $segment === 'Or' || $this->modelPropertyHelper->acceptsPropertyName($modelType, $column)->yes()) {
+        foreach ($this->builderHelper->dynamicWhereColumns($methodName) as $column) {
+            if ($this->modelPropertyHelper->acceptsPropertyName($modelType, $column)->yes()) {
                 continue;
             }
 

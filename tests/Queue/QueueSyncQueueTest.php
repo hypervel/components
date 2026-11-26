@@ -157,6 +157,27 @@ class QueueSyncQueueTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__sync.test'][1]);
     }
 
+    public function testPushResolvesEnumQueueNames(): void
+    {
+        unset($_SERVER['__sync.test']);
+
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $sync->setContainer($this->getContainer());
+
+        $queues = [];
+
+        SyncQueue::createPayloadUsing(function (string $connection, ?string $queue) use (&$queues): array {
+            $queues[] = $queue;
+
+            return [];
+        });
+
+        $sync->push(SyncQueueTestHandler::class, ['foo' => 'bar'], SyncQueueName::High);
+
+        $this->assertSame(['high'], $queues);
+    }
+
     public function testPushRawExecutesPayloadInstantly(): void
     {
         unset($_SERVER['__sync.test']);
@@ -651,6 +672,11 @@ class QueueSyncQueueTest extends TestCase
 
         return $container;
     }
+}
+
+enum SyncQueueName: string
+{
+    case High = 'high';
 }
 
 class SyncQueueTestEntity implements QueueableEntity

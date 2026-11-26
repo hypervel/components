@@ -78,14 +78,14 @@ function test(string $name, ?string $maybeName, array $names, array $someNames, 
     assertType(Authenticatable::class . '|null', Auth::user());
 
     // A guard macro is only callable through AuthManager when every configured guard registers it.
-    assertType('int', Auth::guardMacro());
-    assertType('int', auth()->guardMacro());
+    assertType('5', Auth::guardMacro());
+    assertType('5', auth()->guardMacro());
     // A manager the container does not bind forwards to guards of its own.
     assertType('*ERROR*', $apiAuthManager->guardMacro());
     assertType('*ERROR*', Auth::sessionGuardMacro());
     assertType('*ERROR*', auth()->sessionGuardMacro());
 
     // A custom facade over the auth binding forwards to the current guard too.
-    assertType('int', CustomAuth::guardMacro());
+    assertType('5', CustomAuth::guardMacro());
     assertType('*ERROR*', CustomAuth::sessionGuardMacro());
 }

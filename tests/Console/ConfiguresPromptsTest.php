@@ -5,18 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console;
 
 use Closure;
+use DateTimeImmutable;
+use DateTimeZone;
 use Hypervel\Console\Command;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Application as FoundationApplication;
+use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
+use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
@@ -31,6 +35,8 @@ use Symfony\Component\Console\Output\NullOutput;
 use function Hypervel\Prompts\autocomplete;
 use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\datatable;
+use function Hypervel\Prompts\datepicker;
+use function Hypervel\Prompts\datetimepicker;
 use function Hypervel\Prompts\multisearch;
 use function Hypervel\Prompts\multiselect;
 use function Hypervel\Prompts\number;
@@ -40,6 +46,7 @@ use function Hypervel\Prompts\select;
 use function Hypervel\Prompts\suggest;
 use function Hypervel\Prompts\text;
 use function Hypervel\Prompts\textarea;
+use function Hypervel\Prompts\timepicker;
 
 class ConfiguresPromptsTest extends TestCase
 {
@@ -202,6 +209,21 @@ class ConfiguresPromptsTest extends TestCase
                     $components->expects('choice')->with('Test', ['a'], null)->returns('a');
                 },
                 'a!',
+            ],
+            'datepicker' => [
+                fn () => datepicker('Test', default: '2026-07-24', transform: fn (DateTimeImmutable $value): string => $value->format('Y-m-d')),
+                fn ($components) => $components->expects('ask')->with('Test', '2026-07-24')->returns('2026-07-25'),
+                '2026-07-25',
+            ],
+            'datetimepicker' => [
+                fn () => datetimepicker('Test', default: '2026-07-24 14:30', transform: fn (DateTimeImmutable $value): string => $value->format('Y-m-d H:i')),
+                fn ($components) => $components->expects('ask')->with('Test', '2026-07-24 14:30')->returns('2026-07-25 09:15'),
+                '2026-07-25 09:15',
+            ],
+            'timepicker' => [
+                fn () => timepicker('Test', default: '14:30', transform: fn (DateTimeImmutable $value): string => $value->format('H:i')),
+                fn ($components) => $components->expects('ask')->with('Test', '14:30')->returns('09:15'),
+                '09:15',
             ],
             'multisearch' => [
                 fn () => multisearch('Test', fn (): array => ['a'], transform: fn (array $values): array => [...$values, 'b']),
@@ -404,6 +426,132 @@ class ConfiguresPromptsTest extends TestCase
             'false value' => [true, false, 'Required.'],
             'empty array' => [true, [], 'Required.'],
         ];
+    }
+
+    public function testPickerFallbackKeepsTheSelectedDateAndTimezone(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $result = $this->runPrompt(
+            fn () => timepicker('Test', default: new DateTimeImmutable('2026-01-12 14:30', new DateTimeZone('America/New_York'))),
+            fn ($components) => $components->expects('ask')->with('Test', '14:30')->returns('10:30'),
+        );
+
+        $this->assertSame('2026-01-12 10:30 America/New_York', $result->format('Y-m-d H:i e'));
+    }
+
+    public function testPickerFallbackReturnsTheDisplayedSelectionWhenAccepted(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $result = $this->runPrompt(
+            fn () => datepicker('Test', default: '2026-07-24', min: '2026-08-01'),
+            fn ($components) => $components->expects('ask')->with('Test', '2026-08-01')->returns('2026-08-01'),
+        );
+
+        $this->assertSame('2026-08-01', $result->format('Y-m-d'));
+    }
+
+    #[DataProvider('invalidPickerFallbackAnswerDataProvider')]
+    public function testPickerFallbackRejectsInvalidAnswers(Closure $prompt, string $displayed, string $answer, string $error): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $status = $this->runCommand(
+            $this->makePromptCommand($prompt),
+            function ($components) use ($displayed, $answer, $error): void {
+                $components->expects('ask')->with('Test', $displayed)->returns($answer);
+                $components->expects('error')->with($error);
+            },
+            runningUnitTests: true,
+        );
+
+        $this->assertSame(Command::FAILURE, $status);
+    }
+
+    public static function invalidPickerFallbackAnswerDataProvider(): array
+    {
+        return [
+            'overflowing date' => [fn () => datepicker('Test', default: '2026-02-01'), '2026-02-01', '2026-02-30', 'Date [2026-02-30] is not valid.'],
+            'year zero' => [fn () => datepicker('Test', default: '2026-02-01'), '2026-02-01', '0000-01-01', 'Date [0000-01-01] is not valid.'],
+            'null byte' => [fn () => datepicker('Test', default: '2026-02-01'), '2026-02-01', "2026-02-02\0", "Date [2026-02-02\0] is not valid."],
+            'outside the range' => [fn () => datepicker('Test', default: '2026-07-24', max: '2026-07-25'), '2026-07-24', '2026-07-30', 'Must be on or before 2026-07-25.'],
+            'skipped by daylight saving' => [
+                fn () => timepicker('Test', default: new DateTimeImmutable('2026-03-08 01:30', new DateTimeZone('America/New_York'))),
+                '01:30',
+                '02:30',
+                'Time [02:30] is not valid.',
+            ],
+        ];
+    }
+
+    #[DataProvider('nonInteractivePickerFallbackDataProvider')]
+    public function testNonInteractivePickerFallbackValidatesTheDefault(Closure $prompt, string $error): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $this->expectException(NonInteractiveValidationException::class);
+        $this->expectExceptionMessage($error);
+
+        $this->runCommand(
+            $this->makePromptCommand($prompt),
+            fn ($components) => $components->expects('error')->with($error),
+            interactive: false,
+        );
+    }
+
+    public static function nonInteractivePickerFallbackDataProvider(): array
+    {
+        return [
+            'missing required default' => [fn () => datepicker('Test', required: true), 'Required.'],
+            'default outside the range' => [fn () => datepicker('Test', default: '2026-07-24', min: '2026-08-01'), 'Must be on or after 2026-08-01.'],
+            'default whose clamp target falls in a daylight saving gap' => [fn () => self::gapTimepicker(), 'Must be on or before 02:30.'],
+        ];
+    }
+
+    public function testNonInteractivePickerFallbackValidatesAnUnrepresentableStartWhileRunningTests(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        // Tests run prompts interactively, but this fallback follows its non-interactive input.
+        $status = $this->runCommand(
+            $this->makePromptCommand(fn () => self::gapTimepicker()),
+            fn ($components) => $components->expects('error')->with('Must be on or before 02:30.'),
+            runningUnitTests: true,
+            interactive: false,
+        );
+
+        $this->assertSame(Command::FAILURE, $status);
+    }
+
+    public function testInteractivePickerFallbackRejectsAnUnrepresentableStartBeforeAsking(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('cannot be represented');
+
+        // The strict components double fails if the fallback asks.
+        $this->runCommand($this->makePromptCommand(fn () => self::gapTimepicker()), function (): void {});
+    }
+
+    public function testNonInteractiveFallbackFailsInsteadOfRetryingTheSameDefault(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $command = $this->makePromptCommand(fn () => text('Name?', required: true));
+
+        $this->expectException(NonInteractiveValidationException::class);
+        $this->expectExceptionMessage('Required.');
+
+        $this->runCommand(
+            $command,
+            function ($components): void {
+                $components->expects('ask')->with('Name?', null)->returns(null);
+                $components->expects('error')->with('Required.');
+            },
+            interactive: false,
+        );
     }
 
     public function testFalseRequiredFlagAllowsFalseFallbackAnswers(): void
@@ -650,6 +798,15 @@ class ConfiguresPromptsTest extends TestCase
         return $command->answer;
     }
 
+    /**
+     * Ask for a time whose max is a clock time that doesn't exist on the default's date.
+     */
+    private static function gapTimepicker(): ?DateTimeImmutable
+    {
+        // Daylight saving skips 02:00 to 03:00 in New York on 2026-03-08.
+        return timepicker('Test', default: new DateTimeImmutable('2026-03-08 04:30', new DateTimeZone('America/New_York')), max: '02:30');
+    }
+
     protected function makePromptCommand(Closure $prompt): object
     {
         return new class($prompt) extends Command {
@@ -670,12 +827,13 @@ class ConfiguresPromptsTest extends TestCase
     /**
      * Run the command with the expected fallback interactions.
      */
-    protected function runCommand(Command $command, Closure $expectations, bool $runningUnitTests = false): int
+    protected function runCommand(Command $command, Closure $expectations, bool $runningUnitTests = false, bool $interactive = true): int
     {
         $application = Double::for(Application::class, override: true)->strict();
         $command->setHypervel($application->instance());
 
         $input = new ArrayInput([]);
+        $input->setInteractive($interactive);
         $output = new NullOutput;
         $outputStyle = new OutputStyle($input, $output);
         $application->expects('make')->with(OutputStyle::class, Argument::remaining())->returns($outputStyle);
