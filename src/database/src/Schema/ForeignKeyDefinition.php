@@ -11,6 +11,7 @@ use Hypervel\Support\Fluent;
  * @method $this initiallyImmediate(bool $value = true) Set the default time to check the constraint (PostgreSQL)
  * @method $this inplace(bool $value = true) Specify that algorithm=inplace should be used for the foreign key operation, which requires foreign key checks to be disabled (MySQL)
  * @method $this lock(('default'|'exclusive'|'none'|'shared') $value) Specify the DDL lock mode for the foreign key operation (MySQL)
+ * @method $this notValid(bool $value = true) Add the foreign key without checking existing rows (PostgreSQL)
  * @method $this on(string $table) Specify the referenced table
  * @method $this onDelete(string $action) Add an ON DELETE action
  * @method $this onUpdate(string $action) Add an ON UPDATE action
