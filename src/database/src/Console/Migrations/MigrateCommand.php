@@ -204,6 +204,11 @@ class MigrateCommand extends BaseCommand implements Isolatable
         // any further. If not, we will just continue with the standard migration
         // operation as normal without errors.
         if (! is_file($path = $this->schemaPath($connection))) {
+            // A schema-only run has nothing else to build the database from.
+            if ($this->option('schema-only')) {
+                throw new RuntimeException("Schema dump [{$path}] does not exist.");
+            }
+
             return;
         }
 
@@ -235,14 +240,6 @@ class MigrateCommand extends BaseCommand implements Isolatable
      */
     protected function schemaPath(Connection $connection): string
     {
-        if ($this->option('schema-path')) {
-            return $this->option('schema-path');
-        }
-
-        if (file_exists($path = database_path('schema/' . $connection->getName() . '-schema.dump'))) {
-            return $path;
-        }
-
-        return database_path('schema/' . $connection->getName() . '-schema.sql');
+        return $this->option('schema-path') ?: $this->defaultSchemaPath($this->option('database'));
     }
 }

@@ -200,6 +200,71 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $this->runCommand($command, ['--schema-only' => true]);
     }
 
+    public function testSchemaOnlyLoadsTheDumpWithoutRunningMigrations(): void
+    {
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
+        $app->useDatabasePath(__DIR__);
+        $migrator = Double::for(Migrator::class)->strict();
+        $dispatcher = new EventFake(new EventsDispatcher);
+        $command = new MigrateCommand($migrator, $dispatcher);
+        $command->setHypervel($app);
+        $this->expectMigrationPreflight($migrator, discoveredPaths: []);
+        $migrator->expects('hasRunAnyMigrations')->returns(false);
+        $connection = Double::for(Connection::class)->strict();
+        $migrator->expects('resolveConnection')->returns($connection);
+        $connection->expects('getName')->returns('mysql');
+        $migrator->expects('deleteRepository');
+        $schemaState = Double::for(SchemaState::class)->strict();
+        $connection->expects('getSchemaState')->returns($schemaState);
+        $schemaState->expects('handleOutputUsing')->returns($schemaState);
+        $schemaState->expects('load')->with(__DIR__ . '/Fixtures/schema.sql');
+        $migrator->expects('run')->never();
+
+        $this->runCommand($command, ['--schema-only' => true, '--schema-path' => __DIR__ . '/Fixtures/schema.sql']);
+
+        $dispatcher->assertDispatchedOnce(SchemaLoaded::class);
+    }
+
+    public function testStoredSchemaIsFoundUnderTheNameSchemaDumpWrites(): void
+    {
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__ . '/Fixtures']);
+        $app->useDatabasePath(__DIR__ . '/Fixtures');
+        $migrator = Double::for(Migrator::class)->strict();
+        $command = new MigrateCommand($migrator, new EventsDispatcher);
+        $command->setHypervel($app);
+        $this->expectMigrationPreflight($migrator, 'alternate', discoveredPaths: []);
+        $migrator->expects('hasRunAnyMigrations')->returns(false);
+        // A migration resolver may return another endpoint's connection, but schema:dump names the dump after the requested one.
+        $connection = Double::for(Connection::class)->strict();
+        $migrator->expects('resolveConnection')->with('alternate')->returns($connection);
+        $migrator->expects('deleteRepository');
+        $schemaState = Double::for(SchemaState::class)->strict();
+        $connection->expects('getSchemaState')->returns($schemaState);
+        $schemaState->expects('handleOutputUsing')->returns($schemaState);
+        $schemaState->expects('load')->with(__DIR__ . '/Fixtures/schema/alternate-schema.sql');
+
+        $this->runCommand($command, ['--database' => 'alternate', '--schema-only' => true]);
+    }
+
+    public function testSchemaOnlyFailsWhenTheDumpIsMissing(): void
+    {
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
+        $app->useDatabasePath(__DIR__);
+        $migrator = Double::for(Migrator::class)->strict();
+        $command = new MigrateCommand($migrator, new EventsDispatcher);
+        $command->setHypervel($app);
+        $this->expectMigrationPreflight($migrator, discoveredPaths: []);
+        $migrator->expects('hasRunAnyMigrations')->returns(false);
+        $migrator->expects('resolveConnection')->returns(Double::for(Connection::class)->strict());
+        $migrator->expects('deleteRepository')->never();
+        $migrator->expects('run')->never();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Schema dump [' . __DIR__ . '/Fixtures/missing.sql] does not exist.');
+
+        $this->runCommand($command, ['--schema-only' => true, '--schema-path' => __DIR__ . '/Fixtures/missing.sql']);
+    }
+
     public function testGracefulReturnsSuccessWhenRunMigrationsThrows(): void
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);

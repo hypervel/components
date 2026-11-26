@@ -62,6 +62,20 @@ class FreshCommand extends BaseCommand
         $paths = $this->getMigrationPaths();
         // A schema-only refresh loads one dump and runs no migrations, so only that connection is rebuilt.
         $connections = $this->migrator->getMigrationConnections($this->option('schema-only') ? [] : $paths, $database);
+
+        $schemaPath = $this->input->getOption('schema-path');
+
+        if ($this->option('schema-only')) {
+            // Check the dump before any database is created or wiped. Migrate then loads this exact file.
+            $schemaPath = $schemaPath ?: $this->defaultSchemaPath($database);
+
+            if (! is_file($schemaPath)) {
+                $this->components->error("Schema dump [{$schemaPath}] does not exist.");
+
+                return self::FAILURE;
+            }
+        }
+
         $missingDatabases = $this->inspectMigrationConnections($connections);
         $preExistingConnections = array_values(array_diff($connections, array_keys($missingDatabases)));
 
@@ -102,7 +116,7 @@ class FreshCommand extends BaseCommand
             '--database' => $database,
             '--path' => $this->input->getOption('path'),
             '--realpath' => $this->input->getOption('realpath'),
-            '--schema-path' => $this->input->getOption('schema-path'),
+            '--schema-path' => $schemaPath,
             '--schema-only' => $this->option('schema-only'),
             '--force' => true,
             '--step' => $this->option('step'),

@@ -66,7 +66,7 @@ To dump the schema without including rows from the migrations table, use the `--
 php artisan schema:dump --without-migration-data
 ```
 
-When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. If the connection defines a [`migrations_connection`](#setting-the-migration-connection), the schema is dumped from that connection and named after it, since that is the connection the file is loaded into. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
+When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. If the connection defines a [`migrations_connection`](#setting-the-migration-connection), the schema is dumped from that connection and named after it, since that is the connection the file is loaded into. The `migrate` command looks for the schema file under this same name, even if `Migrator::resolveConnectionsUsing` loads it through a differently named connection. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
 
 If your application's tests use a different database connection than the one you typically use during local development, you should ensure you have dumped a schema file using that database connection so that your tests are able to build your database. You may wish to do this after dumping the database connection you typically use during local development:
 
@@ -235,7 +235,7 @@ If you would like Hypervel to load a schema dump from a custom path before runni
 php artisan migrate --schema-path=database/schema/testing-schema.sql
 ```
 
-To load the schema dump into an empty database without running any outstanding migrations, provide the `--schema-only` option to the `migrate` or `migrate:fresh` command. Since no migrations run, only the selected migration connection's schema dump is loaded:
+To load the schema dump into an empty database without running any outstanding migrations, provide the `--schema-only` option to the `migrate` or `migrate:fresh` command. Since no migrations run, only the selected migration connection's schema dump is loaded, and the command fails if that dump does not exist:
 
 ```shell
 php artisan migrate --schema-only
@@ -340,7 +340,7 @@ php artisan migrate:fresh
 php artisan migrate:fresh --seed
 ```
 
-Hypervel reads each migration's `$connection` property or `getConnection` method before making any changes. It resolves `migrations_connection` for those connections, creates supported databases that do not exist, and wipes every declared database that already exists. A reachable database is wiped even when it does not contain a migrations table. With the `--schema-only` option, only the selected migration connection is wiped before its schema dump is loaded.
+Hypervel reads each migration's `$connection` property or `getConnection` method before making any changes. It resolves `migrations_connection` for those connections, creates supported databases that do not exist, and wipes every declared database that already exists. A reachable database is wiped even when it does not contain a migrations table. With the `--schema-only` option, only the selected migration connection is wiped before its schema dump is loaded. If that dump does not exist, the command stops before creating or wiping any database.
 
 Before making any changes, the command lists the connections that will be created and the connections that will be wiped. In production, declining the confirmation leaves every database unchanged.
 

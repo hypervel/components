@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
@@ -87,6 +90,31 @@ class SchemaStateTest extends SqliteTestCase
         $this->assertFileNotContains([
             'INSERT INTO "migrations"',
         ], 'database/schema/sqlite-schema.sql');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testMigrateLoadsTheDumpWhenAMigrationResolverReturnsAnotherConnectionName(): void
+    {
+        if ($this->usesSqliteInMemoryDatabaseConnection()) {
+            $this->markTestSkipped('Test cannot be run using :in-memory: database connection');
+        }
+
+        $connection = DB::connection();
+        $name = $connection->getName();
+        config(["database.connections.{$name}-unpooled" => config("database.connections.{$name}")]);
+
+        // Like an unpooled endpoint resolver, migrations run through another name for the same database.
+        Migrator::resolveConnectionsUsing(
+            fn (ConnectionResolverInterface $resolver, ?string $requested): Connection => $resolver->connection($requested === $name ? "{$name}-unpooled" : $requested)
+        );
+
+        $connection->statement('CREATE TABLE users (id integer primary key autoincrement not null, email varchar not null);');
+        $this->artisan('schema:dump')->assertExitCode(0);
+        $connection->getSchemaBuilder()->dropAllTables();
+
+        $this->artisan('migrate', ['--schema-only' => true])->assertExitCode(0);
+
+        $this->assertTrue($connection->getSchemaBuilder()->hasTable('users'));
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
