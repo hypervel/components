@@ -8,10 +8,28 @@ use Closure;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
+use Hypervel\Routing\RouteParameterBinder;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\HttpFoundation\Response;
 
 class AddWwwAuthenticateHeader
 {
+    /** @var null|(Closure(Request): ?string) */
+    protected static ?Closure $resourceMetadataUrlResolver = null;
+
+    /**
+     * Specify the callback used to resolve the OAuth resource metadata URL.
+     *
+     * The callback persists in a static property and affects every MCP authentication challenge on the worker.
+     *
+     * @param null|(Closure(Request): ?string) $callback
+     */
+    #[BootOnly]
+    public static function resolveResourceMetadataUrlUsing(?Closure $callback): void
+    {
+        static::$resourceMetadataUrlResolver = $callback;
+    }
+
     /**
      * Handle an incoming request.
      *
@@ -24,24 +42,19 @@ class AddWwwAuthenticateHeader
             return $response;
         }
 
-        $metadataUrl = $this->resourceMetadataUrl($request);
-        if ($metadataUrl !== null) {
-            $response->headers->set(
-                'WWW-Authenticate',
-                'Bearer realm="mcp", resource_metadata="' . addcslashes($metadataUrl, '\"') . '"'
-            );
-
+        $middleware = $this->mcpMiddleware($request);
+        if ($middleware === null) {
             return $response;
         }
 
-        if ($this->mcpMiddleware($request) === null) {
-            return $response;
-        }
+        $metadataUrl = $this->resolveMetadataUrl($request, $middleware);
 
-        // Sanctum does not use OAuth discovery.
         $response->headers->set(
             'WWW-Authenticate',
-            'Bearer realm="mcp", error="invalid_token"'
+            $metadataUrl === null
+                // Sanctum-only routes and apps without OAuth metadata routes have no discovery URL.
+                ? 'Bearer realm="mcp", error="invalid_token"'
+                : 'Bearer realm="mcp", resource_metadata="' . addcslashes($metadataUrl, '\"') . '"'
         );
 
         return $response;
@@ -49,20 +62,54 @@ class AddWwwAuthenticateHeader
 
     /**
      * Get the discovery URL for a route protected by MCP OAuth middleware.
+     *
+     * Kept public because hypervel/passport calls this to build OAuth challenges.
      */
     public function resourceMetadataUrl(Request $request): ?string
     {
         $middleware = $this->mcpMiddleware($request);
 
-        if ($middleware === null || ! app('router')->has('mcp.oauth.protected-resource.nested')
-            || $this->usesOnlySanctum($middleware)) {
+        if ($middleware === null) {
             return null;
         }
 
-        $metadataRoute = app('router')->getRoutes()->getByName('mcp.oauth.protected-resource.nested');
-        $parameters = array_intersect_key($request->route()->parameters(), array_flip($metadataRoute->parameterNames()));
+        return $this->resolveMetadataUrl($request, $middleware);
+    }
 
-        return route('mcp.oauth.protected-resource.nested', [...$parameters, 'path' => $request->path()]);
+    /**
+     * Resolve the discovery URL for an MCP route's effective middleware.
+     *
+     * @param array<int, Closure|string> $middleware
+     */
+    protected function resolveMetadataUrl(Request $request, array $middleware): ?string
+    {
+        if ($this->usesOnlySanctum($middleware)) {
+            return null;
+        }
+
+        if (static::$resourceMetadataUrlResolver instanceof Closure) {
+            $url = (static::$resourceMetadataUrlResolver)($request);
+
+            if (is_string($url) && $url !== '') {
+                return $url;
+            }
+        }
+
+        $metadataRoute = app('router')->getRoutes()->getByName('mcp.oauth.protected-resource.nested');
+
+        if (! $metadataRoute instanceof Route) {
+            return null;
+        }
+
+        $metadataRoute->ensureCompiled();
+
+        // Bind host parameters directly to avoid cloning the shared route or writing unused CoroutineContext slots.
+        $parameters = (new RouteParameterBinder($metadataRoute))->parameters($request);
+
+        return route('mcp.oauth.protected-resource.nested', [
+            ...$parameters,
+            'path' => $request->path(),
+        ]);
     }
 
     /**
@@ -110,5 +157,13 @@ class AddWwwAuthenticateHeader
 
             return $config->nullableString("auth.guards.{$guard}.driver", null) === 'sanctum';
         });
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$resourceMetadataUrlResolver = null;
     }
 }

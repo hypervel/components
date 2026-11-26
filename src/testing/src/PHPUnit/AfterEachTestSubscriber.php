@@ -453,6 +453,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     protected function flushMcpState(): void
     {
         $this->callIfExists(\Hypervel\Mcp\Server::class, 'flushState');
+        $this->callIfExists(\Hypervel\Mcp\Server\Middleware\AddWwwAuthenticateHeader::class, 'flushState');
         $this->callIfExists(\Hypervel\Mcp\Server\Primitive::class, 'flushState');
         $this->callIfExists(\Hypervel\Mcp\Request::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Mcp\Response::class, 'flushMacros');
