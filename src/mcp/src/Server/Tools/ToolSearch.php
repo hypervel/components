@@ -13,6 +13,7 @@ use Hypervel\Mcp\Server\Tool;
 use Hypervel\Mcp\Server\ToolInvoker;
 use Hypervel\Mcp\Transport\JsonRpcRequest;
 use Hypervel\Mcp\Transport\JsonRpcResponse;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use JsonException;
@@ -180,8 +181,10 @@ class ToolSearch
     {
         $params = ['name' => $name, 'arguments' => (object) $arguments];
 
-        if ($parentRequest->meta() !== null) {
-            $params['_meta'] = $parentRequest->meta();
+        $meta = Arr::except($parentRequest->meta() ?? [], 'progressToken');
+
+        if ($meta !== []) {
+            $params['_meta'] = $meta;
         }
 
         $request = new JsonRpcRequest(

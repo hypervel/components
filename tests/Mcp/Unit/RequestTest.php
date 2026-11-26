@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mcp\Unit;
 
 use Hypervel\Foundation\Auth\User;
+use Hypervel\Mcp\Enums\MetaKey;
 use Hypervel\Mcp\Request;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Testbench\TestCase;
@@ -267,5 +268,18 @@ class RequestTest extends TestCase
         $this->assertTrue($request->isObject('empty'));
         $this->assertFalse($request->isObject('list'));
         $this->assertFalse($request->isObject('scalar'));
+    }
+
+    public function testReportsBooleanClientCapabilitiesAsDeclared(): void
+    {
+        $request = new Request(meta: [
+            MetaKey::CLIENT_CAPABILITIES->value => ['roots' => ['listChanged' => true], 'sampling' => ['enabled' => false]],
+        ]);
+
+        $this->assertTrue($request->clientSupports('roots.listChanged'));
+        $this->assertFalse($request->clientSupports('sampling.enabled'));
+        $this->assertTrue($request->clientSupports('roots'));
+        $this->assertFalse($request->clientSupports('elicitation'));
+        $this->assertFalse((new Request)->clientSupports('roots'));
     }
 }

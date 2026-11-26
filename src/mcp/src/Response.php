@@ -16,6 +16,7 @@ use Hypervel\Mcp\Server\Content\StructuredContentText;
 use Hypervel\Mcp\Server\Content\Text;
 use Hypervel\Mcp\Server\Contracts\Content;
 use Hypervel\Mcp\Server\Resource as McpResource;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -46,6 +47,18 @@ class Response
     public static function notification(string $method, array $params = []): static
     {
         return new static(new Notification($method, $params));
+    }
+
+    /**
+     * Create a progress notification response.
+     */
+    public static function progress(int|float $progress, int|float|null $total = null, ?string $message = null): static
+    {
+        return static::notification('notifications/progress', Arr::whereNotNull([
+            'progress' => $progress,
+            'total' => $total,
+            'message' => $message,
+        ]));
     }
 
     /**

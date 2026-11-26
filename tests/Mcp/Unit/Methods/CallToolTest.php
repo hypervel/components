@@ -1047,4 +1047,89 @@ class CallToolTest extends TestCase
     {
         return ['array' => [['x']], 'int' => [1], 'empty array' => [[]], 'bool' => [false]];
     }
+
+    /**
+     * @param null|array<string, mixed> $meta
+     * @param array<int, array<string, mixed>> $expected
+     */
+    #[DataProvider('progressTokens')]
+    public function testSendsProgressNotificationsWithTheRequestProgressToken(?array $meta, array $expected): void
+    {
+        $tool = new class extends Tool {
+            protected string $description = 'Progress tool';
+
+            /**
+             * Stream progress updates and a final text response.
+             */
+            public function handle(Request $request): Generator
+            {
+                yield Response::progress(1, total: 2, message: 'Halfway');
+
+                yield Response::progress(2.5);
+
+                yield Response::notification('notifications/progress', ['progressToken' => 'forged', 'progress' => 3]);
+
+                yield Response::text('Done');
+            }
+        };
+
+        $this->instance($tool::class, $tool);
+
+        $request = JsonRpcRequest::from([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => $tool->name(),
+                'arguments' => [],
+                ...$meta === null ? [] : ['_meta' => $meta],
+            ],
+        ]);
+
+        $context = new ServerContext(
+            supportedProtocolVersions: ['2025-03-26'],
+            serverCapabilities: [],
+            implementation: new Implementation('Test Server', '1.0.0'),
+            instructions: 'Test instructions',
+            maxPaginationLength: 50,
+            defaultPaginationLength: 10,
+            tools: [$tool::class],
+            resources: [],
+            prompts: [],
+        );
+
+        CoroutineContext::set(Request::class, $request->toRequest());
+
+        $messages = array_map(
+            fn (JsonRpcResponse $response): array => $response->toArray(),
+            iterator_to_array((new CallTool)->handle($request, $context)),
+        );
+
+        $this->assertSame($expected, array_slice($messages, 0, -1));
+        $this->assertSame([['type' => 'text', 'text' => 'Done']], end($messages)['result']['content']);
+    }
+
+    /**
+     * Provide valid, missing, and invalid progress tokens.
+     *
+     * @return array<string, array{null|array<string, mixed>, array<int, array<string, mixed>>}>
+     */
+    public static function progressTokens(): array
+    {
+        return [
+            'string token' => [['progressToken' => 'abc'], [
+                ['jsonrpc' => '2.0', 'method' => 'notifications/progress', 'params' => ['progressToken' => 'abc', 'progress' => 1, 'total' => 2, 'message' => 'Halfway']],
+                ['jsonrpc' => '2.0', 'method' => 'notifications/progress', 'params' => ['progressToken' => 'abc', 'progress' => 2.5]],
+                ['jsonrpc' => '2.0', 'method' => 'notifications/progress', 'params' => ['progressToken' => 'abc', 'progress' => 3]],
+            ]],
+            'integer token' => [['progressToken' => 0], [
+                ['jsonrpc' => '2.0', 'method' => 'notifications/progress', 'params' => ['progressToken' => 0, 'progress' => 1, 'total' => 2, 'message' => 'Halfway']],
+                ['jsonrpc' => '2.0', 'method' => 'notifications/progress', 'params' => ['progressToken' => 0, 'progress' => 2.5]],
+                ['jsonrpc' => '2.0', 'method' => 'notifications/progress', 'params' => ['progressToken' => 0, 'progress' => 3]],
+            ]],
+            'no token' => [null, []],
+            'boolean token' => [['progressToken' => true], []],
+            'array token' => [['progressToken' => ['abc']], []],
+        ];
+    }
 }

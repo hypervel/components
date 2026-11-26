@@ -327,6 +327,49 @@ class ToolSearchTest extends TestCase
         $this->assertTrue(json_decode($responses[2]['result']['content'][0]['text'], true)['ok']);
     }
 
+    public function testDoesNotForwardNestedProgressNotifications(): void
+    {
+        $progressTool = new class extends Tool {
+            protected string $name = 'test_tool_with_progress';
+
+            /**
+             * Emit progress notifications before finishing.
+             */
+            public function handle(): Generator
+            {
+                yield Response::progress(0, total: 100);
+                yield Response::progress(100, total: 100);
+                yield Response::text('Progress tool completed.');
+            }
+        };
+
+        $context = toolSearchContext([$progressTool]);
+        $executeTools = toolFromContext($context, 'execute_tools');
+        $request = JsonRpcRequest::from([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => $executeTools->name(),
+                'arguments' => ['calls' => [
+                    ['name' => 'test_tool_with_progress'],
+                    ['name' => 'test_tool_with_progress'],
+                ]],
+                '_meta' => ['progressToken' => 'abc'],
+            ],
+        ]);
+
+        $responses = RequestContext::run($request->toRequest(), static function () use ($request, $context): array {
+            return array_map(
+                fn (JsonRpcResponse $response): array => $response->toArray(),
+                iterator_to_array((new CallTool)->handle($request, $context)),
+            );
+        });
+
+        $this->assertCount(1, $responses);
+        $this->assertTrue(json_decode($responses[0]['result']['content'][0]['text'], true)['ok']);
+    }
+
     public function testEnforcesTheConfiguredCallAndOutputLimits(): void
     {
         config(['mcp.tool_search.max_tool_calls' => 1, 'mcp.tool_search.max_output_bytes' => 256]);

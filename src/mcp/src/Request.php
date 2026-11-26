@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Mcp\Enums\MetaKey;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\InteractsWithData;
@@ -135,6 +136,16 @@ class Request implements Arrayable, Transient
     public function uri(): ?string
     {
         return $this->uri;
+    }
+
+    /**
+     * Determine whether the client declared support for the given capability.
+     */
+    public function clientSupports(string $capability): bool
+    {
+        $declared = data_get($this->meta[MetaKey::CLIENT_CAPABILITIES->value] ?? [], $capability);
+
+        return is_bool($declared) ? $declared : is_array($declared);
     }
 
     /**

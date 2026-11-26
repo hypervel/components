@@ -22,22 +22,16 @@ class ProgressTool extends Tool
      */
     public function handle(Request $request): Generator
     {
-        $token = $request->meta()['progressToken'] ?? null;
+        yield Response::progress(0, total: 100);
 
-        foreach ([0, 50, 100] as $progress) {
-            if ($progress > 0) {
-                usleep(50000);
-            }
+        usleep(50_000);
 
-            if ($token !== null) {
-                yield Response::notification('notifications/progress', [
-                    'progressToken' => $token,
-                    'progress' => $progress,
-                    'total' => 100,
-                ]);
-            }
-        }
+        yield Response::progress(50, total: 100);
 
-        yield Response::text('Completed the progress task.');
+        usleep(50_000);
+
+        yield Response::progress(100, total: 100);
+
+        yield Response::text('Progress tool completed.');
     }
 }
