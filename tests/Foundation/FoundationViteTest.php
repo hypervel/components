@@ -1858,6 +1858,95 @@ class FoundationViteTest extends TestCase
         $this->assertSame('', ViteFacade::toHtml());
     }
 
+    public function testResolveImportsVisitsSharedChunksOnlyOnce(): void
+    {
+        $manifest = $this->sharedChunksManifest();
+
+        $vite = new class extends Vite {
+            public function exposedResolveImports(array $manifest, array $chunk): array
+            {
+                return $this->resolveImports($manifest, $chunk);
+            }
+        };
+
+        $this->assertSame(
+            ['_a.js', '_shared.js', '_leaf.js', '_b.js'],
+            $vite->exposedResolveImports($manifest, $manifest['resources/js/app.js'])
+        );
+    }
+
+    public function testItRendersSharedChunksOnlyOnce(): void
+    {
+        $buildDir = Str::random();
+        $this->makeViteManifest($this->sharedChunksManifest(), $buildDir);
+
+        $html = app(Vite::class)->usePrefetchStrategy('aggressive')(['resources/js/app.js'], $buildDir)->toHtml();
+
+        $expectedAssets = Js::from([
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Show.versioned.js"),
+        ]);
+        $this->assertSame(<<<HTML
+        <link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/shared.versioned.css" /><link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/leaf.versioned.css" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/app.versioned.js" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/a.versioned.js" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/shared.versioned.js" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/leaf.versioned.js" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/b.versioned.js" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/shared.versioned.css" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/leaf.versioned.css" /><script type="module" src="https://example.com/{$buildDir}/assets/app.versioned.js"></script>
+        <script>
+             window.addEventListener('load', () => window.setTimeout(() => {
+                const makeLink = (asset) => {
+                    const link = document.createElement('link')
+
+                    Object.keys(asset).forEach((attribute) => {
+                        link.setAttribute(attribute, asset[attribute])
+                    })
+
+                    return link
+                }
+
+                const fragment = new DocumentFragment;
+                {$expectedAssets}.forEach((asset) => fragment.append(makeLink(asset)))
+                document.head.append(fragment)
+             }))
+        </script>
+        HTML, $html);
+    }
+
+    protected function sharedChunksManifest(): array
+    {
+        return [
+            'resources/js/app.js' => [
+                'src' => 'resources/js/app.js',
+                'file' => 'assets/app.versioned.js',
+                'imports' => ['_a.js', '_b.js'],
+                'dynamicImports' => ['resources/js/Pages/Show.vue'],
+                'isEntry' => true,
+            ],
+            'resources/js/Pages/Show.vue' => [
+                'src' => 'resources/js/Pages/Show.vue',
+                'file' => 'assets/Show.versioned.js',
+                'imports' => ['_a.js', '_shared.js'],
+                'isDynamicEntry' => true,
+            ],
+            '_a.js' => [
+                'file' => 'assets/a.versioned.js',
+                'imports' => ['_shared.js'],
+            ],
+            '_b.js' => [
+                'file' => 'assets/b.versioned.js',
+                'imports' => ['_shared.js'],
+            ],
+            '_shared.js' => [
+                'file' => 'assets/shared.versioned.js',
+                'imports' => ['_leaf.js'],
+                'css' => ['assets/shared.versioned.css'],
+            ],
+            '_leaf.js' => [
+                'file' => 'assets/leaf.versioned.js',
+                'css' => ['assets/leaf.versioned.css'],
+            ],
+            'resources/css/shared.css' => [
+                'src' => 'resources/css/shared.css',
+                'file' => 'assets/shared.versioned.css',
+            ],
+        ];
+    }
+
     protected function makeViteManifest($contents = null, $path = 'build')
     {
         if (! file_exists(public_path($path))) {
