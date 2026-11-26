@@ -11956,6 +11956,25 @@ class ValidationValidatorTest extends TestCase
         return $data;
     }
 
+    #[DataProvider('numericFieldComparisonsWithNonNumericReferences')]
+    public function testNumericFieldComparisonsRejectNonNumericReferences(array $data, string $rules): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), $data, ['lhs' => $rules]);
+
+        $this->assertFalse($validator->passes());
+    }
+
+    public static function numericFieldComparisonsWithNonNumericReferences(): iterable
+    {
+        // Each case would pass if the number were compared with the reference's character count.
+        yield 'gt' => [['lhs' => '15', 'rhs' => 'string'], 'numeric|gt:rhs'];
+        yield 'gte' => [['lhs' => '15', 'rhs' => 'string'], 'numeric|gte:rhs'];
+        yield 'lt' => [['lhs' => '1', 'rhs' => 'string'], 'numeric|lt:rhs'];
+        yield 'lte' => [['lhs' => '1', 'rhs' => 'string'], 'numeric|lte:rhs'];
+        yield 'numeric-looking value without a numeric rule' => [['lhs' => '15', 'rhs' => 'string'], 'gt:rhs'];
+        yield 'reference padded with a vertical tab' => [['lhs' => '5', 'rhs' => "\v100"], 'numeric|gt:rhs'];
+    }
+
     #[DataProvider('outsideRangeExponents')]
     public function testItLimitsLengthOfScientificNotationExponent(string $value): void
     {

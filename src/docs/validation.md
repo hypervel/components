@@ -2390,7 +2390,7 @@ The field under validation must not be empty when it is present.
 <a name="rule-gt"></a>
 #### gt:_field_
 
-The field under validation must be greater than the given _field_ or _value_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule.
+The field under validation must be greater than the given _field_ or _value_. The two fields must be of the same type, so a field compared as a number fails when the other field is not numeric. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule.
 
 If the input also has a field named like a numeric value, such as `10`, the rule cannot tell them apart and fails. To always compare against the value itself, add the `literal` option:
 
@@ -2401,7 +2401,7 @@ If the input also has a field named like a numeric value, such as `10`, the rule
 <a name="rule-gte"></a>
 #### gte:_field_
 
-The field under validation must be greater than or equal to the given _field_ or _value_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
+The field under validation must be greater than or equal to the given _field_ or _value_. The two fields must be of the same type, so a field compared as a number fails when the other field is not numeric. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
 
 <a name="rule-hex-color"></a>
 #### hex_color
@@ -2480,7 +2480,7 @@ You may use the `strict` parameter to only consider the field valid if its type 
 ```
 
 > [!WARNING]
-> This validation rule does not verify that the input is of the "integer" variable type, only that the input is of a type accepted by PHP's `FILTER_VALIDATE_INT` rule. If you need to validate the input as being a number please use this rule in combination with [the `numeric` validation rule](#rule-numeric).
+> This validation rule does not verify that the input is of the "integer" variable type, only that the input is of a type accepted by PHP's `FILTER_VALIDATE_INT` rule and is not a string containing a vertical tab. If you need to validate the input as being a number please use this rule in combination with [the `numeric` validation rule](#rule-numeric).
 
 <a name="rule-ip"></a>
 #### ip
@@ -2513,12 +2513,12 @@ The field under validation must be a valid JSON string.
 <a name="rule-lt"></a>
 #### lt:_field_
 
-The field under validation must be less than the given _field_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
+The field under validation must be less than the given _field_. The two fields must be of the same type, so a field compared as a number fails when the other field is not numeric. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
 
 <a name="rule-lte"></a>
 #### lte:_field_
 
-The field under validation must be less than or equal to the given _field_. The two fields must be of the same type. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
+The field under validation must be less than or equal to the given _field_. The two fields must be of the same type, so a field compared as a number fails when the other field is not numeric. Strings, numerics, arrays, and files are evaluated using the same conventions as the [size](#rule-size) rule. The `literal` option compares against the given value, as described for [gt](#rule-gt).
 
 <a name="rule-lowercase"></a>
 #### lowercase

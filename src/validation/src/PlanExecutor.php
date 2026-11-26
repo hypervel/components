@@ -259,7 +259,8 @@ trait PlanExecutor
         return match ($check->type) {
             CheckType::TypeString => is_string($value),
             CheckType::TypeNumeric => $this->isNumeric($value),
-            CheckType::TypeInteger => filter_var(is_float($value) ? Number::toString($value) : $value, FILTER_VALIDATE_INT) !== false,
+            CheckType::TypeInteger => filter_var(is_float($value) ? Number::toString($value) : $value, FILTER_VALIDATE_INT) !== false
+                && (! is_string($value) || $this->isNumeric($value)),
             CheckType::TypeIntegerStrict => is_int($value),
             CheckType::TypeBoolean => in_array($value, [true, false, 0, 1, '0', '1'], true),
             CheckType::TypeArray => is_array($value),

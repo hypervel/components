@@ -1568,7 +1568,12 @@ trait ValidatesAttributes
             return false;
         }
 
-        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value) && $this->isNumeric($comparedToValue)) {
+        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value)) {
+            // Unlike upstream, a number is never compared with the other field's character count.
+            if (! $this->isNumeric($comparedToValue)) {
+                return false;
+            }
+
             try {
                 // Either field can contain scientific notation that expands beyond the allowed range.
                 return BigNumber::of(Number::toString($this->ensureExponentWithinAllowedRange($attribute, $this->trim($value))))
@@ -1614,7 +1619,12 @@ trait ValidatesAttributes
             return false;
         }
 
-        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value) && $this->isNumeric($comparedToValue)) {
+        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value)) {
+            // Unlike upstream, a number is never compared with the other field's character count.
+            if (! $this->isNumeric($comparedToValue)) {
+                return false;
+            }
+
             try {
                 // Either field can contain scientific notation that expands beyond the allowed range.
                 return BigNumber::of(Number::toString($this->ensureExponentWithinAllowedRange($attribute, $this->trim($value))))
@@ -1660,7 +1670,12 @@ trait ValidatesAttributes
             return false;
         }
 
-        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value) && $this->isNumeric($comparedToValue)) {
+        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value)) {
+            // Unlike upstream, a number is never compared with the other field's character count.
+            if (! $this->isNumeric($comparedToValue)) {
+                return false;
+            }
+
             try {
                 // Either field can contain scientific notation that expands beyond the allowed range.
                 return BigNumber::of(Number::toString($this->ensureExponentWithinAllowedRange($attribute, $this->trim($value))))
@@ -1706,7 +1721,12 @@ trait ValidatesAttributes
             return false;
         }
 
-        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value) && $this->isNumeric($comparedToValue)) {
+        if ($this->hasRule($attribute, $this->numericRules) && $this->isNumeric($value)) {
+            // Unlike upstream, a number is never compared with the other field's character count.
+            if (! $this->isNumeric($comparedToValue)) {
+                return false;
+            }
+
             try {
                 // Either field can contain scientific notation that expands beyond the allowed range.
                 return BigNumber::of(Number::toString($this->ensureExponentWithinAllowedRange($attribute, $this->trim($value))))
@@ -1867,7 +1887,10 @@ trait ValidatesAttributes
             return is_int($value);
         }
 
-        return filter_var(is_float($value) ? Number::toString($value) : $value, FILTER_VALIDATE_INT) !== false;
+        // Unlike upstream, reject the vertical tab filter_var() trims: numeric sizes measure such a string by its length,
+        // so it would pass bounds such as max:10 and still cast to a larger integer.
+        return filter_var(is_float($value) ? Number::toString($value) : $value, FILTER_VALIDATE_INT) !== false
+            && (! is_string($value) || $this->isNumeric($value));
     }
 
     /**
