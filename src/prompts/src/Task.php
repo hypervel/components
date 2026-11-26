@@ -466,6 +466,15 @@ class Task extends Prompt
         $reapFailure = $this->reapRenderer($rendererFailure === null, $rendererAcknowledged);
         $rendererFailure ??= $reapFailure;
 
+        if ($rendererFailure !== null) {
+            // A failed renderer may have stopped mid-frame, leaving a synchronized update open.
+            try {
+                $this->endSynchronizedUpdate();
+            } catch (Throwable $exception) {
+                $rendererFailure = Coroutine::preferCancellation($rendererFailure, $exception);
+            }
+        }
+
         $rendererFailure = $this->restoreProcessState($rendererFailure);
 
         if ($callbackFailure !== null) {
@@ -854,10 +863,17 @@ class Task extends Prompt
     public function __destruct()
     {
         try {
+            $rendererRunning = $this->pid !== null && $this->pid > 0;
+
             $this->closeSocket();
             $this->terminateRenderer();
             $this->reapRenderer(requireSuccess: false);
             $this->restoreSignalState();
+
+            if ($rendererRunning) {
+                // The killed renderer may have stopped mid-frame, leaving a synchronized update open.
+                $this->endSynchronizedUpdate();
+            }
         } catch (Throwable) {
             // Destructors are a best-effort fallback for an interrupted operation.
         } finally {

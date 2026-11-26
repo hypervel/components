@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Console\Concerns;
 
 use Closure;
+use DateTimeImmutable;
 use Hypervel\Console\PromptValidationException;
 use Hypervel\Prompts\AutoCompletePrompt;
 use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\DataTablePrompt;
+use Hypervel\Prompts\DatePickerPrompt;
+use Hypervel\Prompts\DateTimePickerPrompt;
+use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\MultiSearchPrompt;
 use Hypervel\Prompts\MultiSelectPrompt;
 use Hypervel\Prompts\NumberPrompt;
@@ -20,8 +24,11 @@ use Hypervel\Prompts\SelectPrompt;
 use Hypervel\Prompts\SuggestPrompt;
 use Hypervel\Prompts\TextareaPrompt;
 use Hypervel\Prompts\TextPrompt;
+use Hypervel\Prompts\TimeBasedPrompt;
+use Hypervel\Prompts\TimePickerPrompt;
 use Hypervel\Support\Collection;
 use Hypervel\Validation\Validator;
+use InvalidArgumentException;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Input\InputInterface;
@@ -116,6 +123,12 @@ trait ConfiguresPrompts
             fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
+        DatePickerPrompt::fallbackUsing(fn (DatePickerPrompt $prompt) => $this->timeBasedFallback($prompt));
+
+        DateTimePickerPrompt::fallbackUsing(fn (DateTimePickerPrompt $prompt) => $this->timeBasedFallback($prompt));
+
+        TimePickerPrompt::fallbackUsing(fn (TimePickerPrompt $prompt) => $this->timeBasedFallback($prompt));
+
         SuggestPrompt::fallbackUsing(fn (SuggestPrompt $prompt) => $this->promptUntilValid(
             fn () => $this->transformFallbackAnswer(
                 $prompt,
@@ -181,6 +194,7 @@ trait ConfiguresPrompts
      * @return PResult
      *
      * @throws PromptValidationException
+     * @throws NonInteractiveValidationException
      */
     protected function promptUntilValid($prompt, $required, $validate)
     {
@@ -188,16 +202,9 @@ trait ConfiguresPrompts
             $result = $prompt();
 
             // Keep this empty set synchronized with Prompt::isInvalidWhenRequired().
-            if ($required !== false && ($result === '' || $result === [] || $result === false || $result === null)) {
-                $this->components->error(is_string($required) && $required !== '' ? $required : 'Required.');
-
-                if ($this->hypervel->runningUnitTests()) {
-                    throw new PromptValidationException;
-                }
-                continue;
-            }
-
-            $error = is_callable($validate) ? $validate($result) : $this->validatePrompt($result, $validate);
+            $error = $required !== false && ($result === '' || $result === [] || $result === false || $result === null)
+                ? (is_string($required) && $required !== '' ? $required : 'Required.')
+                : (is_callable($validate) ? $validate($result) : $this->validatePrompt($result, $validate));
 
             if (is_string($error) && $error !== '') {
                 $this->components->error($error);
@@ -205,6 +212,12 @@ trait ConfiguresPrompts
                 if ($this->hypervel->runningUnitTests()) {
                     throw new PromptValidationException;
                 }
+
+                // Non-interactive input returns the same default on every attempt.
+                if (! $this->input->isInteractive()) {
+                    throw new NonInteractiveValidationException($error);
+                }
+
                 continue;
             }
 
@@ -231,6 +244,14 @@ trait ConfiguresPrompts
             return $intrinsicError;
         }
 
+        return $this->validateFallbackRules($prompt, $value);
+    }
+
+    /**
+     * Validate a fallback answer against the prompt's validation rules.
+     */
+    private function validateFallbackRules(Prompt $prompt, mixed $value): ?string
+    {
         $error = is_callable($prompt->validate)
             ? ($prompt->validate)($value)
             : $this->validatePrompt($value, $prompt->validate);
@@ -312,6 +333,46 @@ trait ConfiguresPrompts
     protected function validationAttributes(): array
     {
         return [];
+    }
+
+    /**
+     * Date and time picker fallback.
+     */
+    private function timeBasedFallback(TimeBasedPrompt $prompt): mixed
+    {
+        $displayed = $prompt->formattedValue();
+        $value = null;
+
+        $this->promptUntilValid(
+            // Without interaction, use the picker's own default, which may be missing or out of range.
+            fn (): DateTimeImmutable|string|null => $this->input->isInteractive()
+                ? $this->components->ask($prompt->label, $displayed)
+                : $prompt->default,
+            false,
+            function (DateTimeImmutable|string|null $answer) use ($prompt, $displayed, &$value): ?string {
+                try {
+                    // Accepting the displayed choice keeps the selected date and timezone.
+                    $date = match (true) {
+                        $answer === null => null,
+                        $answer === $displayed => $prompt->date,
+                        default => $prompt->parse($answer),
+                    };
+                } catch (InvalidArgumentException $e) {
+                    return $e->getMessage();
+                }
+
+                $value = $this->transformFallbackAnswer($prompt, $date);
+
+                // Like the picker itself, only a missing value fails a required picker.
+                if ($prompt->required !== false && $value === null) {
+                    return is_string($prompt->required) && $prompt->required !== '' ? $prompt->required : 'Required.';
+                }
+
+                return $this->validateFallbackRules($prompt, $value);
+            },
+        );
+
+        return $value;
     }
 
     /**

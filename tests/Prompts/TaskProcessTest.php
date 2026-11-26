@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Task;
@@ -188,6 +189,18 @@ class TaskProcessTest extends TestCase
         pcntl_async_signals(false);
         pcntl_signal(SIGINT, $previousHandler);
 
+        // Ending the failed renderer's synchronized update fails too.
+        Prompt::setOutput(new class(decorated: true) extends BufferedConsoleOutput {
+            protected function doWrite(string $message, bool $newline): void
+            {
+                if ($message === "\e[?2026l") {
+                    throw new RuntimeException('unable to end the synchronized update');
+                }
+
+                parent::doWrite($message, $newline);
+            }
+        });
+
         $task = new TaskChildFailureFixture(label: 'Running');
 
         try {
@@ -246,6 +259,7 @@ class TaskProcessTest extends TestCase
             $this->assertSame('The prompt renderer process failed.', $exception->getMessage());
         }
 
+        $this->assertStringContainsString("\e[?2026l", Prompt::content());
         $this->assertTrue($callbackRan);
         $this->assertNotNull($task->forkedPid);
         $this->assertSame(-1, pcntl_waitpid($task->forkedPid, $status, WNOHANG));
@@ -356,6 +370,7 @@ class TaskProcessTest extends TestCase
 
         unset($task);
 
+        $this->assertStringContainsString("\e[?2026l", Prompt::content());
         $this->assertSame(-1, pcntl_waitpid($pid, $status, WNOHANG));
         $this->assertSame($previousHandler, pcntl_signal_get_handler(SIGINT));
         $this->assertFalse(pcntl_async_signals());
