@@ -257,6 +257,61 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertSame(2, $state->getUserSubscriptionCount('app', 'presence', 'user-0'));
     }
 
+    #[DataProvider('warningModes')]
+    public function testPresenceAllocationFailureRollsBackChannelUnderCustomErrorHandler(string $displayErrors): void
+    {
+        $state = $this->createState(64, 64);
+        $table = $state->table();
+        $capacity = $this->fillTable($table);
+
+        // Free one conflict slice while keeping every root bucket occupied so the channel row allocates and the user row fails.
+        for ($index = 0; $index < 10_000; ++$index) {
+            $fillerKey = "filler:{$index}";
+
+            if (! $table->del($fillerKey)) {
+                continue;
+            }
+
+            if ($table->stats()['available_slice_num'] === 1) {
+                break;
+            }
+
+            @$table->set($fillerKey, []);
+        }
+
+        $this->assertSame(1, $table->stats()['available_slice_num']);
+
+        $handlerCalls = 0;
+        $handler = static function () use (&$handlerCalls): bool {
+            ++$handlerCalls;
+            swoole_clear_error();
+
+            return false;
+        };
+
+        $previousDisplayErrors = ini_set('swoole.display_errors', $displayErrors);
+        set_error_handler($handler);
+        $exception = null;
+        $handlerAfterFailure = null;
+
+        try {
+            $state->subscribe('app', 'presence-rollback', 'user-1');
+        } catch (RuntimeException $caught) {
+            $exception = $caught;
+            $handlerAfterFailure = get_error_handler();
+        } finally {
+            restore_error_handler();
+            ini_set('swoole.display_errors', $previousDisplayErrors);
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $exception);
+        $this->assertStringContainsString('swoole_shared_state.rows', $exception->getMessage());
+        $this->assertSame($handler, $handlerAfterFailure);
+        $this->assertSame(0, $handlerCalls);
+        $this->assertSame($capacity - 1, $table->count());
+        $this->assertSame(0, $state->getSubscriptionCount('app', 'presence-rollback'));
+    }
+
     // ── Subscription count ────────────────────────────────────────────
 
     public function testSubscribeReturnsCorrectSubscriptionCount(): void
@@ -458,13 +513,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
     public function testFullWebhookTableReportsThrottleAndSmoothingFailures(string $displayErrors): void
     {
         $state = $this->createState(1024, 4);
-        $table = $state->lockTable();
-        $capacity = $table->getSize() + $table->stats()['total_slice_num'];
-
-        for ($index = 0; $table->count() < $capacity && $index < 10_000; ++$index) {
-            @$table->set("filler:{$index}", []);
-        }
-        $this->assertSame($capacity, $table->count());
+        $this->fillTable($state->lockTable());
 
         foreach (['m', 'h', 'p'] as $prefix) {
             Log::shouldReceive('error')->once()->withArgs(
@@ -482,6 +531,42 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         } finally {
             ini_set('swoole.display_errors', $previous);
         }
+    }
+
+    #[DataProvider('warningModes')]
+    public function testFullWebhookTableIgnoresCustomErrorHandlerOnThrottleInsert(string $displayErrors): void
+    {
+        $state = $this->createState(1024, 4);
+        $this->fillTable($state->lockTable());
+
+        Log::shouldReceive('error')->once()->withArgs(
+            fn (string $message): bool => str_contains($message, 'swoole_shared_state.lock_rows')
+                && str_contains($message, 'key [m'),
+        );
+
+        $handlerCalls = 0;
+        $handler = static function () use (&$handlerCalls): bool {
+            if (++$handlerCalls > 1) {
+                throw new RuntimeException('Throttle lock retried a full table after a custom error handler cleared swoole_last_error().');
+            }
+
+            swoole_clear_error();
+
+            return false;
+        };
+
+        $previousDisplayErrors = ini_set('swoole.display_errors', $displayErrors);
+        set_error_handler($handler);
+
+        try {
+            $this->assertFalse($state->tryCacheMissLock('app', 'channel'));
+            $this->assertSame($handler, get_error_handler());
+        } finally {
+            restore_error_handler();
+            ini_set('swoole.display_errors', $previousDisplayErrors);
+        }
+
+        $this->assertSame(0, $handlerCalls);
     }
 
     /**
@@ -547,6 +632,22 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->trackSwooleTable($table, $lockTable);
 
         return new $class($table, $lockTable, new StripedLock);
+    }
+
+    /**
+     * Fill all buckets and conflict slices of the given table and return its capacity.
+     */
+    private function fillTable(Table $table): int
+    {
+        $capacity = $table->getSize() + $table->stats()['total_slice_num'];
+
+        for ($index = 0; $table->count() < $capacity && $index < 10_000; ++$index) {
+            @$table->set("filler:{$index}", []);
+        }
+
+        $this->assertSame($capacity, $table->count());
+
+        return $capacity;
     }
 }
 

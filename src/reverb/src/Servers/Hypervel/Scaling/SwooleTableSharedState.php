@@ -370,10 +370,16 @@ class SwooleTableSharedState implements SharedState
     protected function addRow(Table $table, string $key, array $values): ?bool
     {
         // Both failures return false, but only exhaustion sets the native error.
+        // Intercept the allocation warning locally so an outer error handler cannot overwrite swoole_last_error().
         swoole_clear_error();
+        set_error_handler(static fn (): bool => true);
 
-        if (@$table->add($key, $values)) {
-            return true;
+        try {
+            if ($table->add($key, $values)) {
+                return true;
+            }
+        } finally {
+            restore_error_handler();
         }
 
         return swoole_last_error() === SWOOLE_ERROR_PHP_RUNTIME_NOTICE ? null : false;

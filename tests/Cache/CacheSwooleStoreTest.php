@@ -12,6 +12,7 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\SwooleStore;
+use Hypervel\Cache\SwooleTable;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
 use Hypervel\Container\Container;
@@ -32,6 +33,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use RuntimeException;
 use stdClass;
+use Swoole\Table;
 use TypeError;
 
 class CacheSwooleStoreTest extends TestCase
@@ -545,6 +547,103 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertSame('bar', $store->get('foo'));
         $this->assertSame('value', $store->get('interval'));
         $this->assertTrue($store->lock('lock-0', 60, 'owner-2')->acquire());
+    }
+
+    public function testFlushAndFlushLocksDeleteCollidingRowsInBoundedBatches(): void
+    {
+        $table = new class(128, 1.0) extends SwooleTable {
+            public int $rewinds = 0;
+
+            public int $currentCalls = 0;
+
+            public int $deletesInCurrentPass = 0;
+
+            public int $maxDeletesPerPass = 0;
+
+            /**
+             * Record each iteration pass while delegating rewind.
+             */
+            public function rewind(): void
+            {
+                ++$this->rewinds;
+                $this->deletesInCurrentPass = 0;
+                parent::rewind();
+            }
+
+            /**
+             * Record row-value reads during iteration.
+             */
+            public function current(): mixed
+            {
+                ++$this->currentCalls;
+
+                return parent::current();
+            }
+
+            /**
+             * Record deletions within the active pass.
+             */
+            public function del(string $key): bool
+            {
+                $deleted = parent::del($key);
+
+                if ($deleted) {
+                    ++$this->deletesInCurrentPass;
+                    $this->maxDeletesPerPass = max($this->maxDeletesPerPass, $this->deletesInCurrentPass);
+                }
+
+                return $deleted;
+            }
+        };
+        $table->column('value', Table::TYPE_STRING, 1024);
+        $table->column('expiration', Table::TYPE_FLOAT);
+        $table->column('last_used_at', Table::TYPE_FLOAT);
+        $table->column('used_count', Table::TYPE_INT);
+        $table->create();
+        $this->trackSwooleTable($table);
+
+        $state = new SwooleTableState($table, 12345);
+        $store = new class($state, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05) extends SwooleStore {
+            protected const int FLUSH_BATCH_SIZE = 10;
+        };
+
+        $store->interval('interval', fn () => 'value', 1);
+        $this->assertTrue($store->lock('kept-lock', 60, 'owner-1')->acquire());
+        $expectedAfterFlush = $table->count();
+
+        for ($index = 0; $index < 105; ++$index) {
+            $this->assertTrue($store->forever("user-{$index}", $index));
+        }
+
+        $this->assertTrue($store->flush());
+        $this->assertSame($expectedAfterFlush, $table->count());
+        $this->assertSame(11, $table->rewinds);
+        $this->assertSame(10, $table->maxDeletesPerPass);
+        $this->assertSame(0, $table->currentCalls);
+        $this->assertSame('value', $store->get('interval'));
+        $this->assertSame('owner-1', $store->getLockOwner('kept-lock'));
+
+        $table->rewinds = 0;
+        $table->maxDeletesPerPass = 0;
+
+        for ($index = 0; $index < 10; ++$index) {
+            $this->assertTrue($store->forever("surviving-{$index}", $index));
+        }
+        $expectedAfterFlushLocks = $table->count() - 1;
+
+        for ($index = 0; $index < 99; ++$index) {
+            $this->assertTrue($store->lock("lock-{$index}", 60, 'owner-1')->acquire());
+        }
+
+        // 100 lock rows total (including kept-lock) exercises an exact batch-size multiple.
+        $this->assertTrue($store->flushLocks());
+        $this->assertSame($expectedAfterFlushLocks, $table->count());
+        $this->assertSame(11, $table->rewinds);
+        $this->assertSame(10, $table->maxDeletesPerPass);
+        $this->assertSame(0, $table->currentCalls);
+        $this->assertSame(0, $store->get('surviving-0'));
+        $this->assertSame('value', $store->get('interval'));
+        $this->assertNull($store->getLockOwner('kept-lock'));
     }
 
     public function testExpiredAtWithMicrosecond(): void
