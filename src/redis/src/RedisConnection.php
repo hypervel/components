@@ -514,7 +514,7 @@ class RedisConnection extends HyperfRedisConnection
 
     protected function getScanOptions(array $arguments): array
     {
-        return is_array($arguments[0] ?? [])
+        return is_array($arguments[0] ?? null)
             ? $arguments[0]
             : [
                 'match' => $arguments[0] ?? '*',
