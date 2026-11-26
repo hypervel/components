@@ -29,6 +29,7 @@ class MigrateCommand extends BaseCommand implements Isolatable
                 {--path=* : The path(s) to the migrations files to be executed}
                 {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
                 {--schema-path= : The path to a schema dump file}
+                {--schema-only : Only load the schema dump without running any migrations}
                 {--pretend : Dump the SQL queries that would be run}
                 {--seed : Indicates if the seed task should be re-run}
                 {--seeder= : The class name of the root seeder}
@@ -90,8 +91,9 @@ class MigrateCommand extends BaseCommand implements Isolatable
     protected function runMigrations(): void
     {
         $paths = $this->getMigrationPaths();
+        // A schema-only run loads one dump and runs no migrations, so only that connection is prepared.
         $connections = $this->migrator->getMigrationConnections(
-            $paths,
+            $this->option('schema-only') ? [] : $paths,
             $this->option('database'),
         );
         $missingDatabases = $this->inspectMigrationConnections($connections);
@@ -114,11 +116,13 @@ class MigrateCommand extends BaseCommand implements Isolatable
             // Next, we will check to see if a path option has been defined. If it has
             // we will use the path relative to the root of this installation folder
             // so that migrations may be run for any path within the applications.
-            $this->migrator->setOutput($this->output)
-                ->run($paths, [
-                    'pretend' => $this->option('pretend'),
-                    'step' => $this->option('step'),
-                ]);
+            if (! $this->option('schema-only')) {
+                $this->migrator->setOutput($this->output)
+                    ->run($paths, [
+                        'pretend' => $this->option('pretend'),
+                        'step' => $this->option('step'),
+                    ]);
+            }
 
             // Finally, if the "seed" option has been given, we will re-run the database
             // seed task to re-populate the database, which is convenient when adding
@@ -200,6 +204,11 @@ class MigrateCommand extends BaseCommand implements Isolatable
         // any further. If not, we will just continue with the standard migration
         // operation as normal without errors.
         if (! is_file($path = $this->schemaPath($connection))) {
+            // A schema-only run has nothing else to build the database from.
+            if ($this->option('schema-only')) {
+                throw new RuntimeException("Schema dump [{$path}] does not exist.");
+            }
+
             return;
         }
 
@@ -231,14 +240,6 @@ class MigrateCommand extends BaseCommand implements Isolatable
      */
     protected function schemaPath(Connection $connection): string
     {
-        if ($this->option('schema-path')) {
-            return $this->option('schema-path');
-        }
-
-        if (file_exists($path = database_path('schema/' . $connection->getName() . '-schema.dump'))) {
-            return $path;
-        }
-
-        return database_path('schema/' . $connection->getName() . '-schema.sql');
+        return $this->option('schema-path') ?: $this->defaultSchemaPath($this->option('database'));
     }
 }

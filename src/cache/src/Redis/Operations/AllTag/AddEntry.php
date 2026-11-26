@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Adds a cache key reference to all tag sorted sets.
@@ -67,21 +68,20 @@ class AddEntry
     {
         $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen): void {
             $prefix = $this->context->prefix();
-            $pipeline = $connection->pipeline();
 
-            foreach ($tagIds as $tagId) {
-                $prefixedTagKey = $prefix . $tagId;
+            $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $key, $score, $tagIds, $updateWhen): void {
+                foreach ($tagIds as $tagId) {
+                    $prefixedTagKey = $prefix . $tagId;
 
-                if ($updateWhen) {
-                    // ZADD with flag (NX, XX, GT, LT) - options must be array
-                    $pipeline->zadd($prefixedTagKey, [$updateWhen], $score, $key);
-                } else {
-                    // Standard ZADD
-                    $pipeline->zadd($prefixedTagKey, $score, $key);
+                    if ($updateWhen) {
+                        // ZADD with flag (NX, XX, GT, LT) - options must be array
+                        $pipeline->zadd($prefixedTagKey, [$updateWhen], $score, $key);
+                    } else {
+                        // Standard ZADD
+                        $pipeline->zadd($prefixedTagKey, $score, $key);
+                    }
                 }
-            }
-
-            $pipeline->exec();
+            });
         });
     }
 

@@ -1191,6 +1191,8 @@ php artisan db mysql --read
 
 The `--read` and `--write` options understand list-style read / write configuration and host arrays. The command selects the first record for the requested side, applies that record's URL if present, and selects its first host. URL values override matching connection options, while omitted values remain inherited. A base connection with a host array also uses its first host when neither option is given.
 
+For MySQL and MariaDB, the command passes the password through the `MYSQL_PWD` environment variable, so a password in a client option file such as `~/.my.cnf` takes precedence.
+
 <a name="custom-database-clients"></a>
 ### Custom Database Clients
 

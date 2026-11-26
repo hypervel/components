@@ -1,0 +1,1 @@
+-- Schema dump fixture for the migrate:fresh schema-only tests.

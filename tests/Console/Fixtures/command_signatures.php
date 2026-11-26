@@ -425,6 +425,17 @@ return [
                 'description' => 'The path to a schema dump file',
             ],
             [
+                'name' => 'schema-only',
+                'shortcut' => null,
+                'negatable' => false,
+                'valueRequired' => false,
+                'valueOptional' => false,
+                'isArray' => false,
+                'acceptValue' => false,
+                'default' => false,
+                'description' => 'Only load the schema dump without running any migrations',
+            ],
+            [
                 'name' => 'seed',
                 'shortcut' => null,
                 'negatable' => false,
@@ -477,7 +488,7 @@ return [
     ],
     \Hypervel\Database\Console\Migrations\MigrateCommand::class => [
         'name' => 'migrate',
-        'dispatcherOptionOffset' => 10,
+        'dispatcherOptionOffset' => 11,
         'options' => [
             [
                 'name' => 'database',
@@ -533,6 +544,17 @@ return [
                 'acceptValue' => true,
                 'default' => null,
                 'description' => 'The path to a schema dump file',
+            ],
+            [
+                'name' => 'schema-only',
+                'shortcut' => null,
+                'negatable' => false,
+                'valueRequired' => false,
+                'valueOptional' => false,
+                'isArray' => false,
+                'acceptValue' => false,
+                'default' => false,
+                'description' => 'Only load the schema dump without running any migrations',
             ],
             [
                 'name' => 'pretend',

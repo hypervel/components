@@ -9,9 +9,13 @@ use Hypervel\Head\Enums\OfferAvailability;
 use Hypervel\Head\Exceptions\InvalidSchema;
 use Hypervel\Head\Facades\Head;
 use Hypervel\Head\Facades\Schema;
+use Hypervel\Head\HeadData;
+use Hypervel\Head\Rendering\ResolvedHead;
 use Hypervel\Head\Schema\Article;
 use Hypervel\Head\Schema\GenericSchemaObject;
 use Hypervel\Head\Schema\SchemaObject;
+use Hypervel\Head\TagRegistry;
+use Hypervel\Head\Tags\Schemas;
 use Hypervel\Tests\Head\Fixtures\JobPosting;
 use Hypervel\Tests\Head\TestCase;
 use JMac\Testing\Double;
@@ -212,6 +216,16 @@ class SchemaTest extends TestCase
         $this->assertSame('Article', (new Article)->toArray()['@type']);
         $this->assertSame('NewsArticle', (new Article('NewsArticle'))->toArray()['@type']);
         $this->assertSame('Article', (new Article)->toArray()['@type']);
+    }
+
+    public function testNumberedSchemasSurviveAddingSchemaObjects(): void
+    {
+        $article = Schema::article()->headline('Added');
+        $schemas = (new Schemas([spl_object_id($article) => ['@type' => 'Thing', 'name' => 'Numbered']]))->schema($article);
+
+        $rendered = $schemas->toHeadArray(new ResolvedHead(new HeadData, $this->app->make(TagRegistry::class)));
+
+        $this->assertSame(['Numbered', 'Added'], [$rendered[0]['name'], $rendered[1]['headline']]);
     }
 
     #[DataProvider('invalidSchemas')]

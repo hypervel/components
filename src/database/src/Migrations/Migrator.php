@@ -865,7 +865,9 @@ class Migrator
      * Set a connection resolver callback.
      *
      * The callback persists in a static property for the worker lifetime
-     * and runs on every migration's connection resolution.
+     * and runs on every migration's connection resolution. It must return a
+     * connection to the same database, such as another endpoint, because the
+     * migration repository and migrate:fresh's wipe use the named connection.
      *
      * @param Closure(Resolver, ?string): Connection $callback
      */

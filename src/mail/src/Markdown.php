@@ -117,10 +117,7 @@ class Markdown
                     return $render();
                 }
 
-                return EncodedHtmlString::withEncoding(
-                    fn ($value) => strtr((string) $value, static::ENCODED_CHARACTERS),
-                    $render
-                );
+                return EncodedHtmlString::withEncoding(static::encode(...), $render);
             }
         );
 
@@ -168,8 +165,8 @@ class Markdown
         }
 
         $contents = EncodedHtmlString::withEncoding(
-            function ($value) {
-                $html = strtr((string) $value, static::ENCODED_CHARACTERS);
+            function ($value, $doubleEncode) {
+                $html = static::encode($value, $doubleEncode);
 
                 return static::converter([
                     'html_input' => 'escape',
@@ -179,6 +176,24 @@ class Markdown
         );
 
         return new HtmlString(strtr($contents, static::DECODED_CHARACTERS));
+    }
+
+    /**
+     * Encode an interpolated value for secured Markdown.
+     */
+    protected static function encode(mixed $value, bool $doubleEncode = true): string
+    {
+        if ($doubleEncode) {
+            return strtr((string) $value, static::ENCODED_CHARACTERS);
+        }
+
+        // Existing entities are kept, so only a literal ampersand is encoded.
+        $html = EncodedHtmlString::convert(
+            strtr((string) $value, array_diff_key(static::ENCODED_CHARACTERS, ['&' => true])),
+            doubleEncode: false,
+        );
+
+        return str_replace('&amp;', static::ENCODED_CHARACTERS['&'], $html);
     }
 
     /**

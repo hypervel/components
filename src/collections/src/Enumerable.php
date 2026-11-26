@@ -277,10 +277,12 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback if the given "value" is (or resolves to) truthy.
      *
+     * @template TWhenParameter
      * @template TWhenReturnType = never
      *
-     * @param null|(callable($this): (null|TWhenReturnType|void)) $callback
-     * @param null|(callable($this): (null|TWhenReturnType|void)) $default
+     * @param (Closure($this): TWhenParameter)|TWhenParameter $value
+     * @param null|(callable($this, TWhenParameter): (null|TWhenReturnType|void)) $callback
+     * @param null|(callable($this, TWhenParameter): (null|TWhenReturnType|void)) $default
      * @return $this|TWhenReturnType
      */
     public function when(mixed $value, ?callable $callback = null, ?callable $default = null): mixed;
@@ -310,10 +312,12 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback if the given "value" is (or resolves to) falsy.
      *
+     * @template TUnlessParameter
      * @template TUnlessReturnType = never
      *
-     * @param (callable($this): (null|TUnlessReturnType|void)) $callback
-     * @param null|(callable($this): (null|TUnlessReturnType|void)) $default
+     * @param (Closure($this): TUnlessParameter)|TUnlessParameter $value
+     * @param (callable($this, TUnlessParameter): (null|TUnlessReturnType|void)) $callback
+     * @param null|(callable($this, TUnlessParameter): (null|TUnlessReturnType|void)) $default
      * @return $this|TUnlessReturnType
      */
     public function unless(mixed $value, callable $callback, ?callable $default = null): mixed;

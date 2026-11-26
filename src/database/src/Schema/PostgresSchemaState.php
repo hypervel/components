@@ -93,8 +93,8 @@ class PostgresSchemaState extends SchemaState
         $variables = [
             'HYPERVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
             'HYPERVEL_LOAD_PORT' => $config['port'] ?? '',
-            'HYPERVEL_LOAD_USER' => $config['username'],
-            'PGPASSWORD' => $config['password'],
+            'HYPERVEL_LOAD_USER' => $config['username'] ?? '',
+            'PGPASSWORD' => $config['password'] ?? '',
         ];
 
         if (! empty($config['sslmode'])) {

@@ -119,6 +119,84 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $this->assertSame(0, $this->runCommand($command, ['--database' => 'sqlite']));
     }
 
+    public function testSchemaOnlyWipesOnlyTheConnectionThatLoadsTheDump(): void
+    {
+        $app = $this->makeApplication();
+        $command = $this->getMockBuilder(FreshCommand::class)
+            ->onlyMethods(['call', 'callSilent'])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
+            ->getMock();
+        $command->setHypervel($app);
+        // No migration file is read, so a database declared only by migrations is neither wiped nor created.
+        $this->expectPreExistingMigrationTargets($migrator, ['sqlite'], discoveredPaths: []);
+        $command->expects($this->once())->method('callSilent')->with('db:wipe', [
+            '--database' => 'sqlite',
+            '--force' => true,
+        ])->willReturn(0);
+        $command->expects($this->once())->method('call')->with('migrate', [
+            '--database' => 'sqlite',
+            '--schema-path' => __DIR__ . '/Fixtures/schema.sql',
+            '--schema-only' => true,
+            '--force' => true,
+        ])->willReturn(0);
+
+        $this->assertSame(0, $this->runCommand($command, [
+            '--database' => 'sqlite',
+            '--schema-path' => __DIR__ . '/Fixtures/schema.sql',
+            '--schema-only' => true,
+        ]));
+    }
+
+    public function testSchemaOnlyLoadsTheDumpNamedAfterTheMigrationConnection(): void
+    {
+        $app = $this->makeApplication();
+        $app->useDatabasePath(__DIR__ . '/Fixtures');
+        $command = $this->getMockBuilder(FreshCommand::class)
+            ->onlyMethods(['call', 'callSilent'])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
+            ->getMock();
+        $command->setHypervel($app);
+        // As schema:dump does, the dump is named after the requested connection without its role, whatever connection a migration resolver returns.
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('getMigrationConnections')->with([], 'alternate::write')->returns(['alternate::write']);
+        $migrator->expects('usingConnection')->resolves(fn ($name, $callback) => $callback());
+        $migrator->expects('repositoryExists')->returns(true);
+        $migrator->expects('resolveConnection')->never();
+        $command->expects($this->once())->method('callSilent')->with('db:wipe', [
+            '--database' => 'alternate::write',
+            '--force' => true,
+        ])->willReturn(0);
+        $command->expects($this->once())->method('call')->with('migrate', [
+            '--database' => 'alternate::write',
+            '--schema-path' => __DIR__ . '/Fixtures/schema/alternate-schema.sql',
+            '--schema-only' => true,
+            '--force' => true,
+        ])->willReturn(0);
+
+        $this->assertSame(0, $this->runCommand($command, ['--database' => 'alternate::write', '--schema-only' => true]));
+    }
+
+    public function testSchemaOnlyChangesNoDatabaseWhenTheDumpIsMissing(): void
+    {
+        $app = $this->makeApplication();
+        $app->useDatabasePath(__DIR__ . '/Fixtures');
+        $command = $this->getMockBuilder(FreshCommand::class)
+            ->onlyMethods(['call', 'callSilent'])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
+            ->getMock();
+        $command->setHypervel($app);
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('getMigrationConnections')->with([], 'other')->returns(['other']);
+        $migrator->expects('usingConnection')->never();
+        $migrator->expects('repositoryExists')->never();
+        $command->expects($this->never())->method('callSilent');
+        $command->expects($this->never())->method('call');
+        $output = new BufferedOutput;
+
+        $this->assertSame(1, $this->runCommand($command, ['--database' => 'other', '--schema-only' => true], $output));
+        $this->assertMatchesRegularExpression('/other-schema\.sql\] does not exist\./', $output->fetch());
+    }
+
     public function testMissingTargetIsCreatedAndVerifiedButNeverWiped(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'hypervel-sqlite-');
@@ -446,8 +524,9 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         ?string $database = 'sqlite',
         bool $repositoryExists = true,
         array $registeredPaths = [],
+        ?array $discoveredPaths = null,
     ): void {
-        $paths = [...$registeredPaths, __DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
+        $paths = $discoveredPaths ?? [...$registeredPaths, __DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
 
         $migrator->expects('paths')->returns($registeredPaths);
         $migrator->expects('getMigrationConnections')->with($paths, $database)->returns($connections);

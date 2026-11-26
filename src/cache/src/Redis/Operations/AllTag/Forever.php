@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Store an item in the cache indefinitely with all tag tracking.
@@ -56,19 +57,17 @@ class Forever
             $prefix = $this->context->prefix();
             $serialized = $this->serialization->serialize($connection, $value);
 
-            $pipeline = $connection->pipeline();
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $key, $serialized, $tagIds): void {
+                // Publish the value first so Prune cannot discard fresh memberships.
+                // Unlike SET NX, unconditional SET needs no
+                // conditional membership publication; keep both writes in one pipeline.
+                $pipeline->set($prefix . $key, $serialized);
 
-            // Publish the value first so Prune cannot discard fresh memberships.
-            // Unlike SET NX, unconditional SET needs no
-            // conditional membership publication; keep both writes in one pipeline.
-            $pipeline->set($prefix . $key, $serialized);
-
-            // ZADD to each tag's sorted set with score -1 (forever)
-            foreach ($tagIds as $tagId) {
-                $pipeline->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
-            }
-
-            $results = $pipeline->exec();
+                // ZADD to each tag's sorted set with score -1 (forever)
+                foreach ($tagIds as $tagId) {
+                    $pipeline->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
+                }
+            });
 
             return $results !== false && ! in_array(false, $results, true);
         });

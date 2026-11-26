@@ -94,6 +94,18 @@ class DatabasePostgresSchemaStateTest extends TestCase
         ]));
     }
 
+    public function testBaseVariablesAcceptOmittedCredentials(): void
+    {
+        $schemaState = new PostgresSchemaState(Double::for(PostgresConnection::class)->strict());
+
+        $variables = (new ReflectionMethod($schemaState, 'baseVariables'))->invoke($schemaState, [
+            'host' => '127.0.0.1',
+            'database' => 'hypervel',
+        ]);
+
+        $this->assertSame(['', ''], [$variables['HYPERVEL_LOAD_USER'], $variables['PGPASSWORD']]);
+    }
+
     public function testDumpPassesSchemaPathToProcessEnvironment(): void
     {
         $path = 'database/schema/pg $name "quoted".sql';

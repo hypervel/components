@@ -76,6 +76,12 @@ function assertEnumerableTypes(Enumerable $enumerable): void
     $enumerable->tap(function (Enumerable $items): void {
         assertType('array<string, int>', $items->all());
     });
+    $enumerable->when('Taylor', function (Enumerable $items, string $name): void {
+        assertType("'Taylor'", $name);
+    });
+    $enumerable->unless(fn () => 0, function (Enumerable $items, int $value): void {
+        assertType('0', $value);
+    });
     assertType('Hypervel\Support\Enumerable<int, int>', $enumerable->flatMap(fn (int $value) => new LazyCollection([$value])));
 
     assertType('Hypervel\Support\Enumerable<(int|string), int>', $enumerable->keyBy(static fn () => Digit::One));

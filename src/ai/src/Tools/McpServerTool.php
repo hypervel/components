@@ -121,7 +121,7 @@ class McpServerTool implements Approvable, Tool
      */
     protected function convertResponse(mixed $response): string
     {
-        if (is_a($response, self::MCP_RESPONSE_FACTORY)) {
+        if ($response instanceof (self::MCP_RESPONSE_FACTORY)) {
             $structured = $response->getStructuredContent();
 
             if (is_array($structured) && $structured !== []) {
@@ -147,8 +147,8 @@ class McpServerTool implements Approvable, Tool
     protected function normalize(array $items): array
     {
         return collect($items)->flatMap(fn (mixed $item): array => match (true) {
-            is_a($item, self::MCP_RESPONSE) => [$item],
-            is_a($item, self::MCP_RESPONSE_FACTORY) => $item->responses()->all(),
+            $item instanceof (self::MCP_RESPONSE) => [$item],
+            $item instanceof (self::MCP_RESPONSE_FACTORY) => $item->responses()->all(),
             is_string($item) => [(self::MCP_RESPONSE)::text($item)],
             is_array($item) => $this->normalize($item),
             default => [],

@@ -97,7 +97,7 @@ trait SerializesAndRestoresModelIdentifiers
             return $collection->loadMissing($value->relations ?? []);
         }
 
-        $collection = $collection->keyBy->getKey();
+        $collection = $collection->keyBy->getQueueableId();
 
         /** @var class-string<EloquentCollection<int, Model>> $collectionClass */
         $collectionClass = get_class($collection);

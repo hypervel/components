@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Context\NonCopyableContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\InvokableComponentVariable;
+use Swoole\Coroutine\Channel;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -75,6 +78,44 @@ class SupportEncodedHtmlStringTest extends TestCase
         $this->assertSame(['a:before', 'a:after'], $results['a']);
         $this->assertSame(['b:before', 'b:after'], $results['b']);
         $this->assertSame('boot:final', (new EncodedHtmlString('final'))->toHtml());
+    }
+
+    public function testForkedCoroutineKeepsItsInheritedEncoderAfterTheScopeEnds(): void
+    {
+        $resume = new Channel(1);
+        $result = new Channel(1);
+
+        EncodedHtmlString::withEncoding(fn ($value) => "scope:{$value}", function () use ($resume, $result): void {
+            Coroutine::fork(static function () use ($resume, $result): void {
+                $resume->pop(1.0);
+                $result->push([e('Tea'), (new EncodedHtmlString('Tea'))->toHtml()]);
+            });
+        });
+
+        $this->assertSame('Tea &amp; cake', e('Tea & cake'));
+
+        $resume->push(true);
+
+        $this->assertSame(['scope:Tea', 'scope:Tea'], $result->pop(1.0));
+    }
+
+    public function testForkedCoroutineHonorsTheEncoderCopyPolicy(): void
+    {
+        $encoder = new class implements NonCopyableContext {
+            public function __invoke(mixed $value): string
+            {
+                return "scope:{$value}";
+            }
+        };
+        $result = new Channel(1);
+
+        EncodedHtmlString::withEncoding($encoder, function () use ($result): void {
+            Coroutine::fork(static function () use ($result): void {
+                $result->push(e('Tea & cake'));
+            });
+        });
+
+        $this->assertSame('Tea &amp; cake', $result->pop(1.0));
     }
 
     public function testBootEncoderAcceptsEveryCallableShapeAndCanBeReset(): void

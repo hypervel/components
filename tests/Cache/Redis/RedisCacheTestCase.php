@@ -75,6 +75,7 @@ abstract class RedisCacheTestCase extends TestCase
         string $connectionName = 'default'
     ): RedisFactory&DoubleInterface {
         $redisProxy = Double::for(RedisProxy::class)->strict();
+        $redisProxy->allows('isQueueing')->returns(false);
         $redisProxy->allows('withConnection')
             ->resolves(static fn (callable $callback, bool $transform = true): mixed => $callback($connection->shouldTransform($transform)));
         $redisProxy->allows('isCluster')->returns($connection->isCluster());

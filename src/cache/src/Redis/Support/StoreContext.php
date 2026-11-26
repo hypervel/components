@@ -7,8 +7,11 @@ namespace Hypervel\Cache\Redis\Support;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
+use LogicException;
 use Redis;
+use Throwable;
 
 /**
  * Mode-aware context for Redis cache operations.
@@ -67,6 +70,10 @@ class StoreContext
 
     /**
      * Get the tag membership score for a cache lifetime.
+     *
+     * When values and tag memberships are written in separate commands, calculate
+     * the score after issuing the value writes so a slow batch cannot shorten
+     * tag membership.
      */
     public function expirationScore(int $seconds): int
     {
@@ -135,9 +142,9 @@ class StoreContext
     /**
      * Execute callback with a held connection from the pool.
      *
-     * Delegates to Redis::withConnection() for context awareness (respects
-     * active pipeline/multi connections). Cache operations use raw phpredis
-     * behavior unless they explicitly request Laravel-style transforms.
+     * Delegates to Redis::withConnection(), so a connection held in coroutine context
+     * is reused. Cache operations use raw phpredis behavior unless they explicitly
+     * request Laravel-style transforms.
      *
      * @template T
      * @param callable(RedisConnection): T $callback
@@ -145,9 +152,51 @@ class StoreContext
      */
     public function withConnection(callable $callback, bool $transform = false): mixed
     {
-        return $this->redis
-            ->connection($this->connectionName)
-            ->withConnection($callback, transform: $transform);
+        $redis = $this->redis->connection($this->connectionName);
+
+        static::ensureNotQueuing($redis);
+
+        return $redis->withConnection($callback, transform: $transform);
+    }
+
+    /**
+     * Run write commands in one pipeline.
+     *
+     * @param callable(Redis): void $commands
+     * @return array<int, mixed>|false
+     */
+    public function pipeline(RedisConnection $connection, callable $commands): array|false
+    {
+        try {
+            $pipeline = $connection->pipeline();
+            $commands($pipeline);
+
+            return $pipeline->exec();
+        } catch (Throwable $exception) {
+            // A failed pipeline can leave queued commands or unread replies on a connection a caller may still hold.
+            $connection->invalidate();
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Ensure a cache operation does not run on a connection queuing a caller's pipeline or transaction.
+     *
+     * Commands queued there return no replies until the caller's EXEC, so reads, results
+     * and lock acquisition would be wrong while their writes still ran later.
+     *
+     * @internal
+     *
+     * @throws LogicException
+     */
+    public static function ensureNotQueuing(RedisProxy $redis): void
+    {
+        if ($redis->isQueueing()) {
+            throw new LogicException(
+                'Redis cache operations cannot run while their connection is queuing a pipeline or transaction. Run them before or after it.'
+            );
+        }
     }
 
     /**

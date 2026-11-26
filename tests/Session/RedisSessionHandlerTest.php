@@ -1124,6 +1124,7 @@ class RedisSessionHandlerTest extends TestCase
             $client->expects('getOption')->with(Redis::OPT_COMPRESSION)->returns(Redis::COMPRESSION_NONE);
             $client->allows('clearLastError');
             $client->allows('getLastError')->returns(null);
+            $client->allows('getMode')->returns(Redis::ATOMIC);
 
             $connection = ($cluster ? new PhpRedisClusterConnectionStub : new PhpRedisConnectionStub)
                 ->setActiveConnection($client);

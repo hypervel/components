@@ -180,12 +180,6 @@ $router->get('/context', function (Request $request): string {
 
     return (string) $request->query('value');
 });
-$router->get('/pipeline/first', function (): string {
-    usleep(20_000);
-
-    return 'first response';
-});
-$router->get('/pipeline/second', fn (): string => 'second response');
 $router->get('/cookies', function (): Response {
     $response = new Response('cookies');
     $response->headers->setCookie(

@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Operations;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Store an item in the cache indefinitely (no expiration).
@@ -32,6 +33,34 @@ class Forever
                 $this->context->prefix() . $key,
                 $this->serialization->serialize($connection, $value)
             );
+        });
+    }
+
+    /**
+     * Store multiple items in the cache indefinitely in one pipeline.
+     *
+     * @param array<array-key, mixed> $values
+     * @return array<array-key, bool>
+     */
+    public function executeMany(array $values): array
+    {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($values): array {
+            $prefix = $this->context->prefix();
+            $entries = [];
+
+            foreach ($values as $key => $value) {
+                $entries[$prefix . $key] = $this->serialization->serialize($connection, $value);
+            }
+
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($entries): void {
+                foreach ($entries as $key => $value) {
+                    $pipeline->set((string) $key, $value);
+                }
+            });
+
+            return array_combine(array_keys($values), is_array($results)
+                ? array_map(boolval(...), $results)
+                : array_fill(0, count($values), false));
         });
     }
 }

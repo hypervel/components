@@ -42,7 +42,16 @@ class DbCommand extends Command
         if ($configuration === null) {
             $command = $this->getCommand($connection);
 
-            if (! isset($connection['host']) && $connection['driver'] !== 'sqlite') {
+            // MySQL sockets and PostgreSQL without a host key connect locally, as the connector does. An empty
+            // host list or an unselected read / write split has no endpoint.
+            $declaresHost = array_key_exists('host', $connection) || isset($connection['read']) || isset($connection['write']);
+            $requiresHost = match ($connection['driver']) {
+                'sqlite' => false,
+                'mysql', 'mariadb' => empty($connection['unix_socket']) || $declaresHost,
+                default => $declaresHost,
+            };
+
+            if ($requiresHost && ! isset($connection['host'])) {
                 $this->components->error('No host specified for this database connection.');
                 $this->line('  Use the <options=bold>[--read]</> and <options=bold>[--write]</> options to specify a read or write connection.');
                 $this->newLine();
@@ -187,17 +196,19 @@ class DbCommand extends Command
      */
     protected function getMysqlArguments(array $connection): array
     {
-        $optionalArguments = [
-            'password' => '--password=' . $connection['password'],
-            'unix_socket' => '--socket=' . ($connection['unix_socket'] ?? ''),
-            'charset' => '--default-character-set=' . ($connection['charset'] ?? ''),
-        ];
+        // Like the connector, a configured socket replaces the TCP host and port. The explicit host
+        // and protocol keep a client option file from selecting TCP instead.
+        $transport = empty($connection['unix_socket'])
+            ? $this->getOptionalArguments([
+                'host' => '--host=' . ($connection['host'] ?? ''),
+                'port' => '--port=' . ($connection['port'] ?? ''),
+            ], $connection)
+            : ['--host=localhost', '--protocol=SOCKET', '--socket=' . $connection['unix_socket']];
 
-        return array_merge([
-            '--host=' . $connection['host'],
-            '--port=' . $connection['port'],
-            '--user=' . $connection['username'],
-        ], $this->getOptionalArguments($optionalArguments, $connection), [$connection['database']]);
+        return array_merge($transport, $this->getOptionalArguments([
+            'username' => '--user=' . ($connection['username'] ?? ''),
+            'charset' => '--default-character-set=' . ($connection['charset'] ?? ''),
+        ], $connection), [$connection['database']]);
     }
 
     /**
@@ -225,15 +236,33 @@ class DbCommand extends Command
     }
 
     /**
+     * Get the environment variables for the MySQL CLI.
+     */
+    protected function getMysqlEnvironment(array $connection): ?array
+    {
+        return array_merge(...$this->getOptionalArguments([
+            'password' => ['MYSQL_PWD' => $connection['password'] ?? ''],
+        ], $connection));
+    }
+
+    /**
+     * Get the environment variables for the MariaDB CLI.
+     */
+    protected function getMariaDbEnvironment(array $connection): ?array
+    {
+        return $this->getMysqlEnvironment($connection);
+    }
+
+    /**
      * Get the environment variables for the Postgres CLI.
      */
     protected function getPgsqlEnvironment(array $connection): ?array
     {
         return array_merge(...$this->getOptionalArguments([
-            'username' => ['PGUSER' => $connection['username']],
-            'host' => ['PGHOST' => $connection['host']],
-            'port' => ['PGPORT' => $connection['port']],
-            'password' => ['PGPASSWORD' => $connection['password']],
+            'username' => ['PGUSER' => $connection['username'] ?? ''],
+            'host' => ['PGHOST' => $connection['host'] ?? ''],
+            'port' => ['PGPORT' => $connection['port'] ?? ''],
+            'password' => ['PGPASSWORD' => $connection['password'] ?? ''],
         ], $connection));
     }
 

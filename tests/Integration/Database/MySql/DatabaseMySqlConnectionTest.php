@@ -36,6 +36,10 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
             $config->array('database.connections.mysql'),
             ['modes' => ['NO_BACKSLASH_ESCAPES']],
         ));
+        $config->set('database.connections.mysql_0900_bin', array_replace(
+            $config->array('database.connections.mysql'),
+            ['collation' => 'utf8mb4_0900_bin'],
+        ));
     }
 
     protected function afterRefreshingDatabase(): void
@@ -108,6 +112,18 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
         $this->assertSame(! $expected, DB::table(self::TABLE)->whereNotNull(self::JSON_COL . '->' . $key)->exists());
     }
 
+    #[DataProvider('jsonWhereNullDataProvider')]
+    #[RequiresDatabase('mysql', '>=8.0.17')]
+    public function testJsonWhereNullWithBinaryConnectionCollation(bool $expected, string $key, array $value = ['value' => 123]): void
+    {
+        DB::table(self::TABLE)->insert([self::JSON_COL => json_encode($value)]);
+
+        $connection = DB::connection('mysql_0900_bin');
+
+        $this->assertSame($expected, $connection->table(self::TABLE)->whereNull(self::JSON_COL . '->' . $key)->exists());
+        $this->assertSame(! $expected, $connection->table(self::TABLE)->whereNotNull(self::JSON_COL . '->' . $key)->exists());
+    }
+
     /**
      * Provide JSON null comparisons.
      *
@@ -133,6 +149,23 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
             'nested array index exists and "null"' => [false, 'nested->value[1]', ['nested' => ['value' => [0, 'null']]]],
             'nested array index exists and not null' => [false, 'nested->value[1]', ['nested' => ['value' => [0, false]]]],
         ];
+    }
+
+    #[RequiresDatabase('mysql', '>=8.0.17')]
+    public function testJsonComparisonsWithBinaryConnectionCollation(): void
+    {
+        DB::table(self::TABLE)->insert([self::JSON_COL => json_encode(['name' => 'Taylor', 'active' => true, 'rank' => 5])]);
+
+        $query = fn () => DB::connection('mysql_0900_bin')->table(self::TABLE);
+
+        $this->assertTrue($query()->where(self::JSON_COL . '->name', 'Taylor')->exists());
+        $this->assertFalse($query()->where(self::JSON_COL . '->name', 'taylor')->exists());
+        $this->assertTrue($query()->whereLike(self::JSON_COL . '->name', 'Tay%')->exists());
+        $this->assertTrue($query()->whereIn(self::JSON_COL . '->name', ['Otwell', 'Taylor'])->exists());
+        $this->assertTrue($query()->whereRowValues([self::JSON_COL . '->name'], '=', ['Taylor'])->exists());
+        $this->assertTrue($query()->whereIn(self::JSON_COL . '->active', [true])->exists());
+        $this->assertFalse($query()->whereIn(self::JSON_COL . '->active', [false])->exists());
+        $this->assertTrue($query()->whereBetween(self::JSON_COL . '->rank', [['1', 10]])->exists());
     }
 
     public function testJsonPathUpdate(): void

@@ -16,6 +16,7 @@ use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Process\Process;
@@ -103,6 +104,36 @@ class DatabaseDbCommandLaunchTest extends TestCase
         $this->assertSame(0, $command->handle());
         $this->assertSame(1, $calls);
         $this->assertSame('connected', $output->fetch());
+    }
+
+    #[DataProvider('localConnections')]
+    public function testLocalConnectionsLaunchWithoutAHost(array $connection, array $arguments, array $environment): void
+    {
+        $command = new DbCommand;
+        $output = $this->prepareCommand($command, new DatabaseCliManager, $connection);
+        $this->expectProcess($arguments, $environment);
+
+        $this->assertSame(0, $command->handle());
+        $this->assertSame('connected', $output->fetch());
+    }
+
+    /**
+     * Provide connections that reach a local server without a host.
+     */
+    public static function localConnections(): array
+    {
+        return [
+            'mysql socket' => [
+                ['driver' => 'mysql', 'unix_socket' => '/tmp/mysql.sock', 'username' => 'root', 'database' => 'app'],
+                ['mysql', '--host=localhost', '--protocol=SOCKET', '--socket=/tmp/mysql.sock', '--user=root', 'app'],
+                [],
+            ],
+            'postgres socket' => [
+                ['driver' => 'pgsql', 'username' => 'app', 'database' => 'app'],
+                ['psql', 'app'],
+                ['PGUSER' => 'app'],
+            ],
+        ];
     }
 
     /**

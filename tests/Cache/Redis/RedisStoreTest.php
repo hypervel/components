@@ -87,10 +87,12 @@ class RedisStoreTest extends RedisCacheTestCase
         $connection2->client()->expects('get')->with('prefix:foo')->returns(serialize('value2'));
 
         $redisProxy1 = Double::for(RedisProxy::class)->strict();
+        $redisProxy1->allows('isQueueing')->returns(false);
         $redisProxy1->expects('withConnection')
             ->resolves(fn (callable $callback) => $callback($connection1->shouldTransform(false)));
 
         $redisProxy2 = Double::for(RedisProxy::class)->strict();
+        $redisProxy2->allows('isQueueing')->returns(false);
         $redisProxy2->expects('withConnection')
             ->resolves(fn (callable $callback) => $callback($connection2->shouldTransform(false)));
 

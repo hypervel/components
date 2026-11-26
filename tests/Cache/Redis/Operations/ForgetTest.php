@@ -29,4 +29,27 @@ class ForgetTest extends RedisCacheTestCase
         $redis = $this->createStore($connection);
         $this->assertFalse($redis->forget('nonexistent'));
     }
+
+    public function testForgetManyKeysDeletesEveryKeyInOnePipeline(): void
+    {
+        $connection = $this->mockConnection();
+        $client = $connection->client();
+        $client->expects('pipeline')->returns($client)->ordered();
+        $client->expects('del')->with('prefix:foo')->returns($client)->ordered();
+        $client->expects('del')->with('prefix:missing')->returns($client)->ordered();
+        $client->expects('exec')->returns([1, 0])->ordered();
+
+        // Like forget(), a key that did not exist reports false.
+        $this->assertSame([true, false], $this->createStore($connection)->forgetManyKeys(['foo', 'missing']));
+    }
+
+    public function testForgetManyKeysDeletesEachKeySeparatelyInClusterMode(): void
+    {
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('del')->with('prefix:foo')->returns(1)->ordered();
+        $client->expects('del')->with('prefix:fizz')->returns(1)->ordered();
+
+        // Results are positional, as from the pipeline, whatever the caller's keys are.
+        $this->assertSame([true, true], $store->forgetManyKeys([3 => 'foo', 7 => 'fizz']));
+    }
 }

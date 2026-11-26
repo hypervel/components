@@ -43,12 +43,12 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
     public static function provider(): Generator
     {
         yield 'default' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl=off', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --ssl=off', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '127.0.0.1',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
@@ -61,12 +61,12 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'ssl_ca' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl --ssl-verify-server-cert', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl --ssl-verify-server-cert', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => 'ssl.ca',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
@@ -81,12 +81,12 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'ssl_cert_and_key' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}" --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}" --ssl --ssl-verify-server-cert', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}" --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}" --ssl --ssl-verify-server-cert', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => 'ssl.ca',
                 'HYPERVEL_LOAD_SSL_CERT' => '/path/to/client-cert.pem',
@@ -103,12 +103,12 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'no_ssl' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl=off', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --ssl=off', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
@@ -123,12 +123,12 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'unix socket' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --socket="${:HYPERVEL_LOAD_SOCKET}" --ssl=off', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host=localhost --protocol=SOCKET --socket="${:HYPERVEL_LOAD_SOCKET}" --ssl=off', [
                 'HYPERVEL_LOAD_SOCKET' => '/tmp/mysql.sock',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
                 'HYPERVEL_LOAD_SSL_CERT' => '',

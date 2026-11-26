@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Store multiple items in the cache with all tag tracking.
@@ -59,7 +60,6 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -70,27 +70,27 @@ class PutMany
 
             $namespacedKeys = array_keys($preparedEntries);
 
-            $pipeline = $connection->pipeline();
-
-            // Publish values first so Prune cannot discard fresh memberships.
-            // Unlike SET NX, unconditional SETEX needs no
-            // conditional membership publication; keep these writes in one pipeline.
-            foreach ($preparedEntries as $namespacedKey => $serialized) {
-                $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
-            }
-
-            // Batch ZADD: one command per tag with all cache keys as members
-            // ZADD format: key, score1, member1, score2, member2, ...
-            foreach ($tagIds as $tagId) {
-                $zaddArguments = [];
-                foreach ($namespacedKeys as $key) {
-                    $zaddArguments[] = $score;
-                    $zaddArguments[] = $key;
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $preparedEntries, $seconds, $tagIds, $namespacedKeys): void {
+                // Publish values first so Prune cannot discard fresh memberships.
+                // Unlike SET NX, unconditional SETEX needs no
+                // conditional membership publication; keep these writes in one pipeline.
+                foreach ($preparedEntries as $namespacedKey => $serialized) {
+                    $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
                 }
-                $pipeline->zadd($prefix . $tagId, ...$zaddArguments);
-            }
 
-            $results = $pipeline->exec();
+                $score = $this->context->expirationScore($seconds);
+
+                // Batch ZADD: one command per tag with all cache keys as members
+                // ZADD format: key, score1, member1, score2, member2, ...
+                foreach ($tagIds as $tagId) {
+                    $zaddArguments = [];
+                    foreach ($namespacedKeys as $key) {
+                        $zaddArguments[] = $score;
+                        $zaddArguments[] = $key;
+                    }
+                    $pipeline->zadd($prefix . $tagId, ...$zaddArguments);
+                }
+            });
 
             return $results !== false && ! in_array(false, $results, true);
         });
@@ -107,7 +107,6 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -132,6 +131,8 @@ class PutMany
             if ($namespacedKeys === []) {
                 return false;
             }
+
+            $score = $this->context->expirationScore($seconds);
 
             // Batch ZADD: one command per tag with all cache keys as members
             // Each tag's sorted set is in one slot, so variadic ZADD works in cluster

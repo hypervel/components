@@ -123,27 +123,25 @@ class CoroutineIsolationTest extends TestCase
             $schemas = $state->data()->get(Schemas::class);
             $stored = (new ReflectionProperty(Schemas::class, 'schemas'))->getValue($schemas);
             $copiedSchema = reset($stored);
-            $identityMatches = array_key_first($stored) === spl_object_hash($copiedSchema);
             $copiedSchema->headline($name);
             $schemas->schema($copiedSchema);
 
             Head::title($name)->status($status);
             usleep(5000);
 
-            return [Head::toArray(), $inheritedStatus, $state->status(), $identityMatches];
+            return [Head::toArray(), $inheritedStatus, $state->status()];
         };
 
         [$first, $second] = parallel([$copy('First', 500), $copy('Second', 403)], copyContext: true);
 
         foreach ([['First', 500, $first], ['Second', 403, $second]] as [$name, $status, $result]) {
-            [$data, $inheritedStatus, $currentStatus, $identityMatches] = $result;
+            [$data, $inheritedStatus, $currentStatus] = $result;
             $this->assertSame(404, $inheritedStatus);
             $this->assertSame($status, $currentStatus);
             $this->assertSame($name, $data['title']);
             $this->assertSame([['key' => 'source', 'content' => $name]], $data['meta']);
             $this->assertCount(1, $data['schemas']);
             $this->assertSame($name, $data['schemas'][0]['headline']);
-            $this->assertTrue($identityMatches);
         }
 
         $parent = Head::toArray();

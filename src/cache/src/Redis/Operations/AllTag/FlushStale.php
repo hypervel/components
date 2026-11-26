@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 use function Hypervel\Support\now;
 
@@ -64,17 +65,15 @@ class FlushStale
             $prefix = $this->context->prefix();
             $timestamp = (string) now()->getTimestamp();
 
-            $pipeline = $connection->pipeline();
-
-            foreach ($tagIds as $tagId) {
-                $pipeline->zRemRangeByScore(
-                    $prefix . $tagId,
-                    '0',
-                    $timestamp
-                );
-            }
-
-            $pipeline->exec();
+            $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $tagIds, $timestamp): void {
+                foreach ($tagIds as $tagId) {
+                    $pipeline->zRemRangeByScore(
+                        $prefix . $tagId,
+                        '0',
+                        $timestamp
+                    );
+                }
+            });
         });
     }
 

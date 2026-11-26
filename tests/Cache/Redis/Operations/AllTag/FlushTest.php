@@ -153,6 +153,7 @@ class FlushTest extends RedisCacheTestCase
 
         $active = false;
         $proxy = Double::for(RedisProxy::class)->strict();
+        $proxy->allows('isQueueing')->returns(false);
         $proxy->expects('isCluster')->returns(false);
         $proxy->expects('withConnection')
             ->times(3)

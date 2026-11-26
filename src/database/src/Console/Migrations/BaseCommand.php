@@ -6,6 +6,7 @@ namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Console\Command;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
 use Hypervel\Support\Collection;
@@ -59,6 +60,26 @@ abstract class BaseCommand extends Command
     protected function getMigrationPath(): string
     {
         return $this->hypervel->databasePath() . DIRECTORY_SEPARATOR . 'migrations';
+    }
+
+    /**
+     * Get the default path to the stored schema for the given migration connection.
+     */
+    protected function defaultSchemaPath(?string $database): string
+    {
+        $name = Migrator::resolveMigrationConnectionName($database);
+
+        // A booted application always resolves a migration connection name.
+        assert($name !== null);
+
+        // Use the name schema:dump writes, even when a migration resolver returns a differently named connection.
+        $connection = ConnectionName::parse($name)->base;
+
+        if (file_exists($path = database_path('schema/' . $connection . '-schema.dump'))) {
+            return $path;
+        }
+
+        return database_path('schema/' . $connection . '-schema.sql');
     }
 
     /**

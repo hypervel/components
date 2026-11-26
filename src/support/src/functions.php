@@ -12,6 +12,7 @@ use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
 use Symfony\Component\Process\PhpExecutableFinder;
+use Throwable;
 use UnitEnum;
 
 /**
@@ -74,6 +75,23 @@ function parse_boolean(mixed $value): ?bool
     }
 
     return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+}
+
+/**
+ * Throw a failure with the exception it interrupted appended to its previous chain.
+ *
+ * @internal
+ */
+function throw_with_previous(Throwable $failure, Throwable $previous): never
+{
+    // PHP appends the exception in flight to the chain of one thrown from a finally block.
+    try {
+        /* @phpstan-ignore finally.exitPoint (the in-flight exception becomes the failure's previous) */
+        throw $previous;
+    } finally {
+        /* @phpstan-ignore finally.exitPoint (the in-flight exception becomes the failure's previous) */
+        throw $failure;
+    }
 }
 
 // Time functions...

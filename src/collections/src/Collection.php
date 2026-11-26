@@ -7,12 +7,14 @@ namespace Hypervel\Support;
 use ArrayAccess;
 use ArrayIterator;
 use Closure;
+use Collator;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Traits\EnumeratesValues;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\TransformsToResourceCollection;
+use IntlException;
 use InvalidArgumentException;
 use Override;
 use SortDirection;
@@ -1610,8 +1612,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     protected function sortByMany(array $comparisons = [], int $options = SORT_REGULAR): static
     {
         $items = $this->items;
+        $collator = null;
 
-        uasort($items, function ($a, $b) use ($comparisons, $options) {
+        uasort($items, function ($a, $b) use ($comparisons, $options, &$collator) {
             foreach ($comparisons as $comparison) {
                 $comparison = Arr::wrap($comparison);
 
@@ -1642,12 +1645,21 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                         } else {
                             $result = strcasecmp((string) $values[0], (string) $values[1]);
                         }
+                    } elseif ($options === 5 && PHP_VERSION_ID >= 80600) {
+                        // PHP 8.6 deprecates SORT_LOCALE_STRING and strcoll() in favor of ICU collation.
+                        $collator ??= new Collator('');
+                        $result = $collator->compare((string) $values[0], (string) $values[1]);
+
+                        if ($result === false) {
+                            throw new IntlException($collator->getErrorMessage(), $collator->getErrorCode());
+                        }
                     } else {
                         $result = match ($options) {
                             SORT_NUMERIC => (float) $values[0] <=> (float) $values[1],
                             SORT_STRING => strcmp((string) $values[0], (string) $values[1]),
                             SORT_NATURAL => strnatcmp((string) $values[0], (string) $values[1]),
-                            SORT_LOCALE_STRING => strcoll((string) $values[0], (string) $values[1]),
+                            // SORT_LOCALE_STRING, matched by value because PHP 8.6 deprecates the constant.
+                            5 => strcoll((string) $values[0], (string) $values[1]),
                             default => $values[0] <=> $values[1],
                         };
                     }

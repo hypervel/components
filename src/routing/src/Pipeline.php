@@ -10,6 +10,8 @@ use Hypervel\Http\Request;
 use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Throwable;
 
+use function Hypervel\Support\throw_with_previous;
+
 /**
  * This extended pipeline catches any exceptions that occur during each slice.
  *
@@ -39,13 +41,7 @@ class Pipeline extends BasePipeline
             throw $e;
         }
 
-        // Keep the original in flight while it is handled, so a failure in
-        // reporting or rendering carries it as that failure's previous. The
-        // return suppresses it once a response exists.
         try {
-            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-            throw $e;
-        } finally {
             $handler = $this->container->make(ExceptionHandler::class);
 
             $handler->report($e);
@@ -56,8 +52,9 @@ class Pipeline extends BasePipeline
                 $response->withException($e);
             }
 
-            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
             return $this->handleCarry($response);
+        } catch (Throwable $failure) {
+            throw_with_previous($failure, $e);
         }
     }
 }

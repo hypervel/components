@@ -48,6 +48,7 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use ReflectionMethod;
 use Throwable;
 use UnitEnum;
 
@@ -68,6 +69,11 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      * The cache key prefix used to track when a flexible cache value was last refreshed.
      */
     public const string FLEXIBLE_CREATED_KEY_PREFIX = 'hypervel:cache:flexible:created:';
+
+    /**
+     * The number of keys removed together by a batched deleteMultiple() call.
+     */
+    private const int FORGET_BATCH_SIZE = 1000;
 
     /**
      * The cache store implementation.
@@ -870,6 +876,16 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     }
 
     /**
+     * Determine if this repository keeps the repository's own implementation of the given method.
+     *
+     * Items are only written or removed together when no subclass needs to see each one.
+     */
+    protected function usesOwnMethod(string $method): bool
+    {
+        return (new ReflectionMethod($this, $method))->class === self::class;
+    }
+
+    /**
      * Delete multiple items from the cache by key.
      *
      * @param iterable<string|UnitEnum> $keys
@@ -878,13 +894,34 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     {
         $result = true;
 
+        // Batched deletes dispatch no per-key events, so observed deletes keep the single-key path,
+        // as do stores whose bulk method is only magic or not public.
+        if (! method_exists($this->store, 'forgetManyKeys')
+            || ! (new ReflectionMethod($this->store, 'forgetManyKeys'))->isPublic()
+            || ! $this->usesOwnMethod('forget')
+            || $this->hasListenersForAny(ForgettingKey::class, KeyForgotten::class, KeyForgetFailed::class)) {
+            foreach ($keys as $key) {
+                if (! $this->forget($key)) {
+                    $result = false;
+                }
+            }
+
+            return $result;
+        }
+
+        $batch = [];
+
+        // Bounded batches keep a generator's keys streaming instead of holding them all.
         foreach ($keys as $key) {
-            if (! $this->forget($key)) {
-                $result = false;
+            $batch[] = $this->itemKey($key instanceof UnitEnum ? (string) enum_value($key) : $key);
+
+            if (count($batch) === self::FORGET_BATCH_SIZE) {
+                $result = ! in_array(false, $this->store->forgetManyKeys($batch), true) && $result;
+                $batch = [];
             }
         }
 
-        return $result;
+        return ($batch === [] || ! in_array(false, $this->store->forgetManyKeys($batch), true)) && $result;
     }
 
     /**
@@ -1182,6 +1219,22 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      */
     protected function putManyForever(array $values): bool
     {
+        // Batched writes dispatch no per-key events, so observed writes keep the single-key path,
+        // as do stores whose bulk method is only magic or not public.
+        if (count($values) > 1
+            && method_exists($this->store, 'foreverMany')
+            && (new ReflectionMethod($this->store, 'foreverMany'))->isPublic()
+            && $this->usesOwnMethod('forever')
+            && ! $this->hasListenersForAny(WritingKey::class, KeyWritten::class, KeyWriteFailed::class)) {
+            $items = [];
+
+            foreach ($values as $key => $value) {
+                $items[$this->itemKey((string) $key)] = $value;
+            }
+
+            return ! in_array(false, $this->store->foreverMany($items), true);
+        }
+
         $result = true;
 
         foreach ($values as $key => $value) {
@@ -1241,6 +1294,22 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     protected function event(object $event): void
     {
         $this->events?->dispatch($event);
+    }
+
+    /**
+     * Determine if any of the given events has listeners.
+     *
+     * @param class-string ...$events
+     */
+    private function hasListenersForAny(string ...$events): bool
+    {
+        foreach ($events as $event) {
+            if ($this->events?->hasListeners($event)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

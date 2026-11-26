@@ -175,6 +175,8 @@ You may run the `cache:redis-doctor` command to verify your Redis cache configur
 php artisan cache:redis-doctor
 ```
 
+Cache operations, locks, and funnels need replies from Redis as they run, so they cannot use a Redis connection while it is queuing a pipeline or transaction. Calling them inside a `pipeline` or `transaction` callback on the connection they use throws a `LogicException`, so make those calls before or after the pipeline.
+
 <a name="storage"></a>
 #### Storage
 

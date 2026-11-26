@@ -22,4 +22,8 @@ Open
 [Destination](https://{{ $host }}.good.test)
 
 {{ $number }}
+
+{!! e($link) !!}
+
+{!! e($entities, false) !!}
 </x-mail::message>

@@ -9,9 +9,11 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
+use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\Env;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\HigherOrderTapProxy;
+use Hypervel\Support\HtmlEncoderMarker;
 use Hypervel\Support\Once;
 use Hypervel\Support\Onceable;
 use Hypervel\Support\Optional;
@@ -129,7 +131,12 @@ if (! function_exists('e')) {
             $value = $value->value;
         }
 
-        return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', $doubleEncode);
+        // Skip the encoder lookup on Blade's hot path while no encoder exists.
+        if (HtmlEncoderMarker::$live === 0) {
+            return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', $doubleEncode);
+        }
+
+        return EncodedHtmlString::encode($value ?? '', $doubleEncode);
     }
 }
 

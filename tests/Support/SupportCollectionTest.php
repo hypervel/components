@@ -30,12 +30,16 @@ use Hypervel\Tests\Support\Fixtures\TestJsonSerializeWithScalarValueObject;
 use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
 use Hypervel\Tests\Support\Fixtures\TestTraversableAndJsonSerializableObject;
 use Hypervel\Tests\TestCase;
+use IntlException;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
 use JsonSerializable;
+use Locale;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresPhp;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use ReflectionClass;
 use SortDirection;
 use stdClass;
@@ -45,6 +49,8 @@ use TypeError;
 use UnexpectedValueException;
 use ValueError;
 use WeakMap;
+
+use function Hypervel\Testbench\php_version_compare;
 
 class SupportCollectionTest extends TestCase
 {
@@ -2312,6 +2318,7 @@ class SupportCollectionTest extends TestCase
     #[DataProvider('collectionClassProvider')]
     public function testSortByMany($collection): void
     {
+        $sortLocaleString = php_version_compare('8.6', '>=') ? 5 : SORT_LOCALE_STRING;
         $defaultLocale = setlocale(LC_ALL, '0');
 
         $data = new $collection([['item' => '1'], ['item' => '10'], ['item' => 5], ['item' => 20]]);
@@ -2319,23 +2326,23 @@ class SupportCollectionTest extends TestCase
 
         sort($expected);
         $data = $data->sortBy(['item']);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         rsort($expected);
         $data = $data->sortBy([['item', 'desc']]);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         rsort($expected);
         $data = $data->sortBy([['item', false]]);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         sort($expected);
         $data = $data->sortBy([['item', SortDirection::Ascending]]);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         rsort($expected);
         $data = $data->sortBy([['item', SortDirection::Descending]]);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         $multiSortData = new $collection([
             ['group' => 'b', 'score' => 1],
@@ -2356,72 +2363,125 @@ class SupportCollectionTest extends TestCase
 
         sort($expected, SORT_STRING);
         $data = $data->sortBy(['item'], SORT_STRING);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         rsort($expected, SORT_STRING);
         $data = $data->sortBy([['item', 'desc']], SORT_STRING);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         sort($expected, SORT_NUMERIC);
         $data = $data->sortBy(['item'], SORT_NUMERIC);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         rsort($expected, SORT_NUMERIC);
         $data = $data->sortBy([['item', 'desc']], SORT_NUMERIC);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         $data = new $collection([['item' => 'img1'], ['item' => 'img101'], ['item' => 'img10'], ['item' => 'img11']]);
         $expected = $data->pluck('item')->toArray();
 
         sort($expected, SORT_NUMERIC);
         $data = $data->sortBy(['item'], SORT_NUMERIC);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         sort($expected);
         $data = $data->sortBy(['item']);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         sort($expected, SORT_NATURAL);
         $data = $data->sortBy(['item'], SORT_NATURAL);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         $data = new $collection([['item' => 'img1'], ['item' => 'Img101'], ['item' => 'img10'], ['item' => 'Img11']]);
         $expected = $data->pluck('item')->toArray();
 
         sort($expected);
         $data = $data->sortBy(['item']);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         sort($expected, SORT_NATURAL | SORT_FLAG_CASE);
         $data = $data->sortBy(['item'], SORT_NATURAL | SORT_FLAG_CASE);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         sort($expected, SORT_FLAG_CASE | SORT_STRING);
         $data = $data->sortBy(['item'], SORT_FLAG_CASE | SORT_STRING);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
         sort($expected, SORT_FLAG_CASE | SORT_NUMERIC);
         $data = $data->sortBy(['item'], SORT_FLAG_CASE | SORT_NUMERIC);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        $this->assertEquals($expected, $data->pluck('item')->toArray());
 
-        $data = new $collection([['item' => 'Österreich'], ['item' => 'Oesterreich'], ['item' => 'Zeta']]);
-        $expected = $data->pluck('item')->toArray();
+        // PHP 8.6 sorts locale strings with the default ICU locale instead of the libc locale.
+        $defaultIcuLocale = php_version_compare('8.6', '>=') ? Locale::getDefault() : null;
 
-        sort($expected);
-        $data = $data->sortBy(['item']);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+        try {
+            setlocale(LC_ALL, 'en_US');
 
-        sort($expected, SORT_LOCALE_STRING);
-        $data = $data->sortBy(['item'], SORT_LOCALE_STRING);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+            $data = new $collection([['item' => 'Österreich'], ['item' => 'Oesterreich'], ['item' => 'Zeta']]);
+            $expected = $data->pluck('item')->toArray();
 
-        setlocale(LC_ALL, 'de_DE');
+            sort($expected);
+            $data = $data->sortBy(['item']);
+            $this->assertSame($expected, $data->pluck('item')->toArray());
 
-        sort($expected, SORT_LOCALE_STRING);
-        $data = $data->sortBy(['item'], SORT_LOCALE_STRING);
-        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+            if ($defaultIcuLocale !== null) {
+                Locale::setDefault('en_US');
+                usort($expected, [collator_create('en_US'), 'compare']);
+            } else {
+                sort($expected, SORT_LOCALE_STRING);
+            }
 
-        setlocale(LC_ALL, $defaultLocale);
+            $data = $data->sortBy(['item'], $sortLocaleString);
+            $this->assertSame($expected, $data->pluck('item')->toArray());
+
+            setlocale(LC_ALL, 'de_DE');
+
+            if ($defaultIcuLocale !== null) {
+                Locale::setDefault('de_DE');
+                usort($expected, [collator_create('de_DE'), 'compare']);
+            } else {
+                sort($expected, SORT_LOCALE_STRING);
+            }
+
+            $data = $data->sortBy(['item'], $sortLocaleString);
+            $this->assertSame($expected, $data->pluck('item')->toArray());
+        } finally {
+            setlocale(LC_ALL, $defaultLocale);
+
+            if ($defaultIcuLocale !== null) {
+                Locale::setDefault($defaultIcuLocale);
+            }
+        }
+    }
+
+    #[RequiresPhp('>= 8.6.0')]
+    #[RequiresPhpExtension('intl')]
+    public function testSortByManyComparesLocaleStringsWithTheDefaultIcuLocale(): void
+    {
+        $defaultLocale = Locale::getDefault();
+        $defaultCollationLocale = setlocale(LC_COLLATE, '0');
+
+        try {
+            // Swedish orders "ä" after "z"; the C collation locale must not affect the ICU order.
+            Locale::setDefault('sv_SE');
+            setlocale(LC_COLLATE, 'C');
+
+            $data = (new Collection([['item' => 'ä'], ['item' => 'z'], ['item' => 'a']]))->sortBy(['item'], 5);
+
+            $this->assertSame(['a', 'z', 'ä'], $data->pluck('item')->all());
+        } finally {
+            Locale::setDefault($defaultLocale);
+            setlocale(LC_COLLATE, $defaultCollationLocale);
+        }
+    }
+
+    #[RequiresPhp('>= 8.6.0')]
+    #[RequiresPhpExtension('intl')]
+    public function testSortByManyRejectsLocaleStringsTheCollatorCannotCompare(): void
+    {
+        $this->expectException(IntlException::class);
+
+        (new Collection([['item' => "\xFF"], ['item' => 'a']]))->sortBy(['item'], 5);
     }
 
     #[DataProvider('collectionClassProvider')]

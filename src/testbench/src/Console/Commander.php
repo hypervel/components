@@ -31,6 +31,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 use function Hypervel\Filesystem\join_paths;
+use function Hypervel\Support\throw_with_previous;
 use function Hypervel\Testbench\is_symlink;
 use function Hypervel\Testbench\package_path;
 
@@ -323,20 +324,15 @@ class Commander
         }
 
         if ($this->app instanceof HypervelApplication) {
-            // Keep the original in flight while it is handled, so a failure in
-            // resolution, reporting, or rendering carries it as that failure's
-            // previous. The return suppresses it once the status is produced.
             try {
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-                throw $error;
-            } finally {
                 $handler = $this->app->make(ExceptionHandler::class);
                 $handler->report($error);
                 $handler->renderForConsole($output, $error);
-
-                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
-                return 1;
+            } catch (Throwable $failure) {
+                throw_with_previous($failure, $error);
             }
+
+            return 1;
         }
 
         (new SymfonyApplication)->renderThrowable($error, $output);

@@ -113,12 +113,12 @@ class DatabaseMySqlSchemaStateTest extends TestCase
     public static function provider(): Generator
     {
         yield 'default' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}"', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '127.0.0.1',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
@@ -131,18 +131,19 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         ];
 
         yield 'integer port' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '127.0.0.1',
                 'HYPERVEL_LOAD_PORT' => '3306',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => 'secret',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
                 'HYPERVEL_LOAD_SSL_KEY' => '',
             ], [
                 'username' => 'root',
+                'password' => 'secret',
                 'host' => '127.0.0.1',
                 'port' => 3306,
                 'database' => 'forge',
@@ -150,12 +151,12 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         ];
 
         yield 'ssl_ca' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-mode=VERIFY_IDENTITY', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-mode=VERIFY_IDENTITY', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => 'ssl.ca',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
@@ -170,12 +171,12 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         ];
 
         yield 'ssl_cert_and_key' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}" --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}" --ssl-mode=VERIFY_IDENTITY', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}" --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}" --ssl-mode=VERIFY_IDENTITY', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => 'ssl.ca',
                 'HYPERVEL_LOAD_SSL_CERT' => '/path/to/client-cert.pem',
@@ -192,12 +193,12 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         ];
 
         yield 'no_ssl' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-mode=DISABLED', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}" --ssl-mode=DISABLED', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
@@ -212,12 +213,12 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         ];
 
         yield 'unix socket' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --socket="${:HYPERVEL_LOAD_SOCKET}"', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --host=localhost --protocol=SOCKET --socket="${:HYPERVEL_LOAD_SOCKET}"', [
                 'HYPERVEL_LOAD_SOCKET' => '/tmp/mysql.sock',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
                 'HYPERVEL_LOAD_USER' => 'root',
-                'HYPERVEL_LOAD_PASSWORD' => '',
+                'MYSQL_PWD' => '',
                 'HYPERVEL_LOAD_DATABASE' => 'forge',
                 'HYPERVEL_LOAD_SSL_CA' => '',
                 'HYPERVEL_LOAD_SSL_CERT' => '',
@@ -228,6 +229,15 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'unix_socket' => '/tmp/mysql.sock',
             ],
         ];
+    }
+
+    public function testBaseVariablesAcceptAnOmittedUsername(): void
+    {
+        $state = new MySqlSchemaState($this->createStub(MySqlConnection::class));
+
+        $variables = (new ReflectionMethod($state, 'baseVariables'))->invoke($state, ['host' => '127.0.0.1', 'database' => 'forge']);
+
+        $this->assertSame('', $variables['HYPERVEL_LOAD_USER']);
     }
 
     #[DataProvider('tlsOptions')]
@@ -241,7 +251,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         $command = (new ReflectionMethod($state, 'connectionString'))->invoke($state, $version);
         $actualVariables = (new ReflectionMethod($state, 'baseVariables'))->invoke($state, $config);
 
-        $this->assertSame(' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"' . $arguments, $command);
+        $this->assertSame(' --user="${:HYPERVEL_LOAD_USER}" --host="${:HYPERVEL_LOAD_HOST}"' . $arguments, $command);
         foreach ($variables as $name => $value) {
             $this->assertSame($value, $actualVariables[$name]);
         }

@@ -138,7 +138,8 @@ class PutManyTest extends RedisCacheTestCase
     {
         [$store, $client] = $this->createClusterStore();
 
-        $expectedScore = 1061;
+        // The last value's TTL starts three seconds later, so memberships are scored after the writes.
+        $expectedScore = 1064;
 
         $client->expects('setex')
             ->with('prefix:ns:foo', 60, serialize('bar'))
@@ -147,7 +148,11 @@ class PutManyTest extends RedisCacheTestCase
 
         $client->expects('setex')
             ->with('prefix:ns:baz', 60, serialize('qux'))
-            ->returns(true)
+            ->resolves(function (): bool {
+                CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1003.900000'));
+
+                return true;
+            })
             ->ordered();
 
         $client->expects('zadd')

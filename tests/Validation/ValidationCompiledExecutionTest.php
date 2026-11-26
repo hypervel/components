@@ -280,6 +280,7 @@ class ValidationCompiledExecutionTest extends TestCase
         yield 'decimal places retained' => [$number, ['decimal:15'], true];
         yield 'decimal places not rounded' => [$number, ['decimal:13'], false];
         yield 'NAN is not an integer' => [NAN, ['integer'], false];
+        yield 'vertical tab padded integer cannot pass a size bound' => ["\v999", ['integer', 'max:10'], false];
         yield 'infinite digits rejected' => [INF, ['digits:3'], false];
         yield 'NAN decimal rejected' => [NAN, ['decimal:0'], false];
         yield 'digit input is not trimmed' => ["123\0", ['digits:3'], false];

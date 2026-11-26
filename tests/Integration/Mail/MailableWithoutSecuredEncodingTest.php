@@ -130,6 +130,8 @@ TABLE, false);
             'url' => 'https://hypervel.org',
             'host' => 'safe',
             'number' => 42,
+            'link' => 'ordinary link',
+            'entities' => 'ordinary entities',
         ])->toHtml();
 
         $this->assertSame('literal \[ and \] and \\\ and &#91; and &lt;', (new Crawler($html))->filter('code')->first()->text());

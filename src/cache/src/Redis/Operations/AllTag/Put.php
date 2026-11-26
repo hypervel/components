@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Store an item in the cache with all tag tracking.
@@ -58,22 +59,21 @@ class Put
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
-            $pipeline = $connection->pipeline();
+            $results = $this->context->pipeline($connection, function (Redis $pipeline) use ($prefix, $key, $seconds, $serialized, $tagIds): void {
+                // Publish the value first so Prune cannot discard fresh memberships.
+                // Unlike SET NX, unconditional SETEX needs no
+                // conditional membership publication; keep both writes in one pipeline.
+                $pipeline->setex($prefix . $key, $seconds, $serialized);
 
-            // Publish the value first so Prune cannot discard fresh memberships.
-            // Unlike SET NX, unconditional SETEX needs no
-            // conditional membership publication; keep both writes in one pipeline.
-            $pipeline->setex($prefix . $key, $seconds, $serialized);
+                $score = $this->context->expirationScore($seconds);
 
-            // ZADD to each tag's sorted set
-            foreach ($tagIds as $tagId) {
-                $pipeline->zadd($prefix . $tagId, $score, $key);
-            }
-
-            $results = $pipeline->exec();
+                // ZADD to each tag's sorted set
+                foreach ($tagIds as $tagId) {
+                    $pipeline->zadd($prefix . $tagId, $score, $key);
+                }
+            });
 
             return $results !== false && ! in_array(false, $results, true);
         });
@@ -89,7 +89,6 @@ class Put
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
             // Publish the value before its memberships so concurrent pruning
@@ -98,6 +97,7 @@ class Put
                 return false;
             }
 
+            $score = $this->context->expirationScore($seconds);
             $membershipsSucceeded = true;
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
