@@ -245,14 +245,16 @@ class Worker
 
             $this->monitorLocked = true;
 
-            $this->terminateTimeoutJobs($options);
+            try {
+                $this->terminateTimeoutJobs($options);
 
-            if ($this->hasTimeoutJobs()) {
-                $this->shouldQuit = true;
-                $this->kill(static::EXIT_SUCCESS, $options);
+                if ($this->hasTimeoutJobs()) {
+                    $this->shouldQuit = true;
+                    $this->kill(static::EXIT_SUCCESS, $options);
+                }
+            } finally {
+                $this->monitorLocked = false;
             }
-
-            $this->monitorLocked = false;
 
             // A stopped daemon keeps enforcing timeouts until its last job has finished.
             // After that the monitor must end, or its coroutine keeps the process alive.
@@ -282,7 +284,14 @@ class Worker
             if ($job['expires_at'] <= $currentTime) {
                 $this->timeoutJobIds[] = $jobId;
                 unset($this->runningJobs[$jobId]);
-                $this->handleTimeoutJob($job['job'], $options);
+
+                // A failing listener must not keep the other timed out jobs from being
+                // handled, nor keep the worker from being killed afterwards.
+                try {
+                    $this->handleTimeoutJob($job['job'], $options);
+                } catch (Throwable $e) {
+                    $this->exceptions->report($e);
+                }
             }
         }
     }

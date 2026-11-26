@@ -331,7 +331,9 @@ class WorkCommand extends Command
 
     protected function getLatestStartedAt(): ?float
     {
-        return Context::get('__queue.worker.latest_started_at');
+        // A timed out job is failed from the worker's monitor coroutine, which never
+        // recorded a start time, so we fall back to the current time there.
+        return Context::get('__queue.worker.latest_started_at') ?? microtime(true);
     }
 
     protected function setLatestStartedAt(?float $latestStartedAt): void
