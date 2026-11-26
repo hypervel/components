@@ -246,6 +246,59 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         }
     }
 
+    public function testMixedJsonBooleanAndTextCandidatesCountEachRowOnce(): void
+    {
+        Schema::table('batch_test_users', function (Blueprint $table): void {
+            $table->jsonb('payload')->nullable();
+        });
+
+        foreach ([
+            [[true, '1'], [true, '1'], true],
+            [['1'], [true], false],
+            [[true, 'true'], [true, 'true'], true],
+            [[true], [true, '1'], false],
+            [[7, '7'], [false, '7'], false],
+        ] as [$flags, $candidates, $passes]) {
+            DB::table('batch_test_users')->update(['payload' => null]);
+
+            foreach ($flags as $index => $flag) {
+                DB::table('batch_test_users')->where('external_id', $index)->update([
+                    'payload' => json_encode(['flag' => $flag], JSON_THROW_ON_ERROR),
+                ]);
+            }
+
+            $validator = $this->makeValidator(
+                ['flags' => $candidates],
+                ['flags' => ['array', new Exists('batch_test_users', 'payload->flag')]],
+            );
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            try {
+                $this->assertSame($passes, $validator->passes(), json_encode([$flags, $candidates], JSON_THROW_ON_ERROR));
+                $this->assertCount(1, DB::getQueryLog());
+            } finally {
+                DB::disableQueryLog();
+            }
+        }
+    }
+
+    public function testBatchedJsonDecimalCandidatesMatchTheComparedText(): void
+    {
+        Schema::table('batch_test_users', function (Blueprint $table): void {
+            $table->jsonb('payload')->nullable();
+        });
+        DB::table('batch_test_users')->where('external_id', 0)->update(['payload' => '{"amount":1.0}']);
+
+        $validator = $this->makeValidator(
+            ['items' => [['amount' => '1'], ['amount' => '1.0']]],
+            ['items.*.amount' => new Exists('batch_test_users', 'payload->amount')],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['items.0.amount'], array_keys($validator->errors()->messages()));
+    }
+
     public function testJsonBooleanConditionsKeepBatchingAndCachedPlans(): void
     {
         Schema::table('batch_test_users', function (Blueprint $table): void {
@@ -393,6 +446,28 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
                 );
 
                 $this->assertSame($ruleClass === Exists::class, $validator->passes());
+            }
+        }
+    }
+
+    public function testIntegerMembershipConditionsCompareStringColumnsAsStrings(): void
+    {
+        $data = ['email' => 'user1@example.com'];
+
+        foreach ([
+            [Exists::class, 'whereIn', false],
+            [Exists::class, 'whereNotIn', true],
+            [Unique::class, 'whereIn', true],
+            [Unique::class, 'whereNotIn', false],
+        ] as [$ruleClass, $method, $passes]) {
+            // MySQL compares a string column with an integer as a number, so 'Case' would equal 0.
+            $rule = (new $ruleClass('batch_test_users', 'email'))->{$method}('lookup_value', [0]);
+            $delegated = new class(new Translator(new ArrayLoader, 'en'), $data, ['email' => $rule]) extends Validator {
+            };
+            $delegated->setPresenceVerifier($this->app->make('validation.presence'));
+
+            foreach ([$this->makeValidator($data, ['email' => $rule]), $delegated] as $validator) {
+                $this->assertSame($passes, $validator->passes(), $ruleClass . '::' . $method);
             }
         }
     }
