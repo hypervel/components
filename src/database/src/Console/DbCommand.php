@@ -44,10 +44,11 @@ class DbCommand extends Command
 
             // MySQL sockets and PostgreSQL without a host key connect locally, as the connector does. An empty
             // host list or an unselected read / write split has no endpoint.
+            $declaresHost = array_key_exists('host', $connection) || isset($connection['read']) || isset($connection['write']);
             $requiresHost = match ($connection['driver']) {
                 'sqlite' => false,
-                'mysql', 'mariadb' => empty($connection['unix_socket']) || array_key_exists('host', $connection),
-                default => array_key_exists('host', $connection) || isset($connection['read']) || isset($connection['write']),
+                'mysql', 'mariadb' => empty($connection['unix_socket']) || $declaresHost,
+                default => $declaresHost,
             };
 
             if ($requiresHost && ! isset($connection['host'])) {
