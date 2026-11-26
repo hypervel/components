@@ -27,7 +27,8 @@
         "hypervel/core": "^0.3",
         "hypervel/console": "^0.3",
         "hypervel/event": "^0.3",
-        "hypervel/queue": "^0.3"
+        "hypervel/queue": "^0.3",
+        "hypervel/redis": "^0.3"
     },
     "autoload": {
         "psr-4": {
