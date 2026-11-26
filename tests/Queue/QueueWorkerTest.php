@@ -8,8 +8,13 @@ use DateInterval;
 use DateTimeInterface;
 use Exception;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Coordinator\Constants;
+use Hyperf\Coordinator\CoordinatorManager;
+use Hyperf\Coordinator\Timer;
+use Hyperf\Coroutine\Coroutine;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hyperf\Engine\Channel;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Queue\Contracts\Job;
@@ -430,6 +435,83 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($customJob->fired);
 
         Worker::popUsing('myworker', null);
+    }
+
+    public function testDaemonStopsMonitoringTimeoutJobsWhenItThrows()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $worker = $this->getWorker('default', ['queue' => []], function () {
+            throw new RuntimeException('maintenance check failed');
+        });
+
+        $timers = Timer::stats()['num'];
+
+        try {
+            $worker->daemon('default', 'queue', new WorkerOptions());
+
+            $this->fail('The daemon should have thrown.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('maintenance check failed', $e->getMessage());
+        }
+
+        $this->assertSame($timers + 1, Timer::stats()['num']);
+
+        // The monitor only ends on its next tick.
+        $this->waitUntil(fn () => Timer::stats()['num'] === $timers);
+
+        $this->assertSame($timers, Timer::stats()['num']);
+    }
+
+    public function testDaemonKeepsMonitoringTimeoutJobsUntilRunningJobsFinish()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $workerOptions = new WorkerOptions();
+        $workerOptions->stopWhenEmpty = true;
+        $workerOptions->concurrency = 2;
+
+        $release = new Channel(1);
+        $finished = false;
+        $worker = $this->getWorker('default', ['queue' => [
+            new WorkerFakeJob(function () use ($release, &$finished) {
+                $release->pop(10);
+                $finished = true;
+            }),
+        ]]);
+
+        $timers = Timer::stats()['num'];
+        $rounds = Timer::stats()['round'];
+
+        // The queue is empty after the first pop, so the daemon stops while the job is still running.
+        $worker->daemon('default', 'queue', $workerOptions);
+
+        // Let the monitor complete a tick while the job is still running.
+        $this->waitUntil(fn () => Timer::stats()['round'] > $rounds);
+
+        $this->assertFalse($finished);
+        $this->assertSame($timers + 1, Timer::stats()['num']);
+
+        $release->push(true);
+
+        $this->waitUntil(fn () => Timer::stats()['num'] === $timers);
+
+        $this->assertTrue($finished);
+        $this->assertSame($timers, Timer::stats()['num']);
+    }
+
+    /**
+     * Wait for the given condition without depending on timer precision.
+     */
+    private function waitUntil(callable $condition, float $timeout = 5.0): void
+    {
+        $deadline = microtime(true) + $timeout;
+
+        while (! $condition() && microtime(true) < $deadline) {
+            Coroutine::sleep(0.02);
+        }
     }
 
     /**
