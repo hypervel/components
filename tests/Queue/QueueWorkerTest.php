@@ -538,6 +538,43 @@ class QueueWorkerTest extends TestCase
         $release->push(true);
     }
 
+    public function testReusedWorkerKeepsMonitoringTheJobsOfAnEarlierRun()
+    {
+        // An exit coordinator resumed by an earlier test would end every timer immediately.
+        CoordinatorManager::clear(Constants::WORKER_EXIT);
+
+        $release = new Channel(1);
+        $finished = false;
+        $worker = $this->getWorker('default', ['queue' => [
+            new WorkerFakeJob(function () use ($release, &$finished) {
+                $release->pop(10);
+                $finished = true;
+            }),
+        ]]);
+
+        $timers = Timer::stats()['num'];
+        $rounds = Timer::stats()['round'];
+
+        // The first run stops after taking one job, which is still running.
+        $worker->daemon('default', 'queue', $this->workerOptions(['maxJobs' => 1, 'concurrency' => 2]));
+
+        // The second run finds the queue empty and stops right away.
+        $worker->daemon('default', 'queue', $this->workerOptions(['stopWhenEmpty' => true, 'concurrency' => 2]));
+
+        // Let the monitor complete a tick, or end, while the job is still running.
+        $this->waitUntil(fn () => Timer::stats()['round'] > $rounds || Timer::stats()['num'] === $timers);
+
+        $this->assertFalse($finished);
+        $this->assertSame($timers + 1, Timer::stats()['num']);
+
+        $release->push(true);
+
+        $this->waitUntil(fn () => Timer::stats()['num'] === $timers);
+
+        $this->assertTrue($finished);
+        $this->assertSame($timers, Timer::stats()['num']);
+    }
+
     /**
      * Wait for the given condition without depending on timer precision.
      */

@@ -87,9 +87,9 @@ class Worker
     protected int $monitorId = 0;
 
     /**
-     * The runner for the jobs of the current daemon.
+     * The number of jobs handed to a daemon that have not finished yet.
      */
-    protected ?Concurrent $concurrent = null;
+    protected int $jobsInFlight = 0;
 
     /**
      * Indicates if the daemon has stopped taking new jobs.
@@ -153,7 +153,7 @@ class Worker
         [$startTime, $jobsProcessed] = [hrtime(true) / 1e9, 0];
 
         $waiter = new Waiter();
-        $this->concurrent = $concurrent = new Concurrent($options->concurrency);
+        $concurrent = new Concurrent($options->concurrency);
         $this->stopped = false;
 
         // Before we begin processing, we will setup the monitor to check for timeout jobs
@@ -193,7 +193,17 @@ class Worker
                 ));
                 if ($job) {
                     ++$jobsProcessed;
-                    $concurrent->create(fn () => $this->runJob($job, $connectionName, $options));
+
+                    // The count belongs to the worker rather than to this daemon run, so a
+                    // reused worker keeps monitoring the jobs of an earlier run as well.
+                    ++$this->jobsInFlight;
+                    $concurrent->create(function () use ($job, $connectionName, $options) {
+                        try {
+                            $this->runJob($job, $connectionName, $options);
+                        } finally {
+                            --$this->jobsInFlight;
+                        }
+                    });
 
                     if ($options->rest > 0) {
                         $this->sleep($options->rest);
@@ -271,7 +281,7 @@ class Worker
      */
     protected function hasJobsInFlight(): bool
     {
-        return ($this->concurrent?->getRunningCoroutineCount() ?? 0) > 0;
+        return $this->jobsInFlight > 0;
     }
 
     /**
