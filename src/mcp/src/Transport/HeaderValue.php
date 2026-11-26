@@ -12,6 +12,8 @@ class HeaderValue implements Stringable
 
     protected const string BASE64_SUFFIX = '?=';
 
+    protected const string BASE64_PATTERN = '/\A(?:[A-Za-z0-9+\/]{4})*(?:[A-Za-z0-9+\/]{2}==|[A-Za-z0-9+\/]{3}=)?\z/';
+
     /**
      * Create a header value.
      */
@@ -28,13 +30,19 @@ class HeaderValue implements Stringable
             return new static($header);
         }
 
-        $decoded = base64_decode(substr(
-            $header,
-            strlen(self::BASE64_PREFIX),
-            -strlen(self::BASE64_SUFFIX),
-        ), true);
+        $encoded = substr($header, strlen(self::BASE64_PREFIX), -strlen(self::BASE64_SUFFIX));
+
+        $decoded = preg_match(self::BASE64_PATTERN, $encoded) === 1 ? base64_decode($encoded, true) : false;
 
         return new static($decoded === false ? $header : $decoded);
+    }
+
+    /**
+     * Determine whether the value contains only safe HTTP header characters.
+     */
+    public static function isSafe(string $value): bool
+    {
+        return preg_match('/\A[\x20-\x7E\x09]*\z/', $value) === 1;
     }
 
     /**

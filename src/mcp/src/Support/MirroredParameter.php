@@ -46,6 +46,14 @@ class MirroredParameter
     }
 
     /**
+     * Determine whether the header value matches the given body value.
+     */
+    public function matches(string $header, mixed $value): bool
+    {
+        return $this->type->matches($header, $value);
+    }
+
+    /**
      * Get the validated header value for the supplied arguments.
      *
      * @param array<string, mixed> $arguments

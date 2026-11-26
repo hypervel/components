@@ -75,4 +75,36 @@ class HeaderValueTest extends TestCase
         $this->assertTrue(HeaderValue::fromHeader('=?base64?SGVsbG8sIOS4lueVjA==?=')->matches('Hello, 世界'));
         $this->assertFalse(HeaderValue::fromHeader('get_weather')->matches('some-other-tool'));
     }
+
+    public function testKeepsASentinelWrappingUnpaddedBase64AsItArrived(): void
+    {
+        $this->assertSame('=?base64?SGVsbG8?=', HeaderValue::fromHeader('=?base64?SGVsbG8?=')->value);
+    }
+
+    public function testKeepsASentinelWrappingBase64WithWhitespaceAsItArrived(): void
+    {
+        $this->assertSame('=?base64?S G V s bG8=?=', HeaderValue::fromHeader('=?base64?S G V s bG8=?=')->value);
+    }
+
+    #[DataProvider('headerSafetyValues')]
+    public function testOnlyTreatsVisibleAsciiSpaceAndTabAsSafe(string $value, bool $safe): void
+    {
+        $this->assertSame($safe, HeaderValue::isSafe($value));
+    }
+
+    /**
+     * Provide header values for safety checks.
+     *
+     * @return array<int, array{string, bool}>
+     */
+    public static function headerSafetyValues(): array
+    {
+        return [
+            ['us-west1', true],
+            ['us west' . chr(9) . '1', true],
+            ['Hello, 世界', false],
+            ['a' . chr(10) . 'b', false],
+            [chr(255), false],
+        ];
+    }
 }

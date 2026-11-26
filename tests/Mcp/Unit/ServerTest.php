@@ -26,6 +26,7 @@ use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use stdClass;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -59,6 +60,8 @@ class ServerTest extends TestCase
         $this->assertSame('Hypervel MCP Server', $response['result']['serverInfo']['name']);
         $this->assertArrayHasKey('capabilities', $response['result']);
         $this->assertArrayHasKey('instructions', $response['result']);
+        $this->assertArrayNotHasKey('resultType', $response['result']);
+        $this->assertArrayNotHasKey('_meta', $response['result']);
 
         ($transport->handler)(json_encode(['jsonrpc' => '2.0', 'method' => 'notifications/initialized']));
 
@@ -78,6 +81,8 @@ class ServerTest extends TestCase
         $response = json_decode((string) $transport->sent[2], true);
 
         $this->assertSame('Hello, John Doe!', $response['result']['content'][0]['text']);
+        $this->assertArrayNotHasKey('resultType', $response['result']);
+        $this->assertArrayNotHasKey('_meta', $response['result']);
     }
 
     /**
@@ -556,7 +561,23 @@ class ServerTest extends TestCase
 
         $this->assertSame(789, $response['id']);
         $this->assertArrayNotHasKey('error', $response);
-        $this->assertIsArray($response['result']);
+        $this->assertEquals(new stdClass, json_decode((string) $transport->sent[0])->result);
+    }
+
+    public function testAnswersALegacyRequestWithoutTheModernResultFields(): void
+    {
+        $transport = new ArrayTransport;
+        $server = new ExampleServer($transport);
+
+        $server->start();
+
+        ($transport->handler)(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list', 'params' => []]));
+
+        $result = json_decode((string) $transport->sent[0], true)['result'];
+
+        $this->assertNotEmpty($result['tools']);
+        $this->assertArrayNotHasKey('resultType', $result);
+        $this->assertArrayNotHasKey('_meta', $result);
     }
 
     public function testLetsAddMethodOverrideTheBuiltInInitializeHandler(): void
@@ -650,6 +671,26 @@ class ServerTest extends TestCase
         $messages = array_map(fn (string $message): mixed => json_decode($message, true), $transport->sent);
 
         $this->assertEquals(expectedStreamingToolResponse(), $messages);
+    }
+
+    public function testStreamsALegacyToolCallWithoutTheModernResultFields(): void
+    {
+        $transport = new ArrayTransport;
+        $server = new ExampleServer($transport);
+
+        $server->start();
+
+        $message = callStreamingToolMessage();
+        unset($message['params']['_meta']);
+
+        ($transport->handler)(json_encode($message));
+
+        $result = json_decode((string) end($transport->sent), true)['result'];
+
+        $this->assertCount(3, $transport->sent);
+        $this->assertSame('Finished streaming 2 messages.', $result['content'][0]['text']);
+        $this->assertArrayNotHasKey('resultType', $result);
+        $this->assertArrayNotHasKey('_meta', $result);
     }
 
     public function testHandlesCapabilityWithNonArrayExistingValue(): void

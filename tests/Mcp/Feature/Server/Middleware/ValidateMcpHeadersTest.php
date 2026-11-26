@@ -215,8 +215,10 @@ class ValidateMcpHeadersTest extends TestCase
         $response->assertStatus(400);
 
         $this->assertSame($message['id'], $response->json('id'));
-        $this->assertSame(-32020, $response->json('error.code'));
-        $this->assertStringContainsString('header value [=?base64?/w==?=]', $response->json('error.message'));
+        $this->assertEquals([
+            'code' => -32020,
+            'message' => "Header mismatch: The [{$header}] header value contains invalid characters.",
+        ], $response->json('error'));
     }
 
     public function testQuotesANonAsciiNameHeaderDecodedInTheMismatchMessage(): void
