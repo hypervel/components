@@ -18,7 +18,9 @@ use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\DependencyInjection\Container;
 use PHPStan\Parser\Parser;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\TrinaryLogic;
 use PHPStan\Type\ClosureType;
+use PHPStan\Type\MixedType;
 use ReflectionFunction;
 use Throwable;
 
@@ -160,9 +162,17 @@ class MacroClosureBodyResolver
             }
         }
 
+        $scope = $scope->enterClass($classReflection);
+
+        // The closure's captured variables are defined where it is written, which this scope lacks, so they are unknown values.
+        foreach (array_keys($reflection->getClosureUsedVariables()) as $name) {
+            // @phpstan-ignore phpstanApi.method (Declares a captured variable, as entering the closure from its parent would.)
+            $scope = $scope->assignVariable($name, new MixedType, new MixedType, TrinaryLogic::createYes());
+        }
+
         // Only an expression result carries both the closure's type and what its body reads, from one walk.
         // @phpstan-ignore phpstanApi.method (Processes the closure node outside the running analysis.), phpstanApi.constructor (The storage the on-demand walk requires.)
-        $result = $this->container->getByType(NodeScopeResolver::class)->processExprOnDemand($closureNode, $scope->enterClass($classReflection), new ExpressionResultStorage);
+        $result = $this->container->getByType(NodeScopeResolver::class)->processExprOnDemand($closureNode, $scope, new ExpressionResultStorage);
         // @phpstan-ignore phpstanApi.method (The closure type from the same walk as its dependencies.)
         $type = $result->getType();
 

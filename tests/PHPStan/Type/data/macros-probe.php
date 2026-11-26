@@ -26,6 +26,7 @@ function test(Collection $users, Builder $q): void
     assertType('mixed', $users->probeRecursive(3));
     assertType('App\User|null', $users->probeCallsOther());
     assertType('mixed', $users->probeUse());
+    assertType('array{mixed, bool, string}', $users->probeArrowCapture('a'));
     assertType('mixed', $users->probeSameLineA());
     // Hypervel: the registered closure is nested in another on its lines, so its declared signature is used.
     assertType('mixed', $users->probeNested());

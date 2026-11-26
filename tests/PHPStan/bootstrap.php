@@ -134,6 +134,9 @@ $probeCaptured = ['a' => 1];
 Collection::macro('probeUse', function () use ($probeCaptured) {
     return $probeCaptured;
 });
+// Hypervel: the variables an arrow function captures are unknown values, not undefined ones.
+$probeArrowCaptured = 'prefix';
+Collection::macro('probeArrowCapture', fn (string $suffix) => [$probeArrowCaptured, isset($probeArrowCaptured), $suffix]);
 // Two closures on one line cannot be told apart, so each uses its declared signature.
 foreach (['probeSameLineA' => fn () => 1, 'probeSameLineB' => fn () => 'b'] as $name => $macro) {
     Collection::macro($name, $macro);
