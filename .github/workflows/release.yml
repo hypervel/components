@@ -57,10 +57,8 @@ jobs:
       - name: Check if branch and version match
         id: guard
         run: |
-          MAJOR_VERSION="${NUMERIC_VERSION%%.*}"
-          BRANCH_MAJOR_VERSION="${BRANCH%%.*}"
-
-          if [ "$MAJOR_VERSION" != "$BRANCH_MAJOR_VERSION" ]; then
+          # Release branches are named after the minor version, such as 0.4.
+          if [ "$BRANCH" != "$(echo "$NUMERIC_VERSION" | cut -d. -f1,2)" ]; then
             echo "Mismatched versions! Aborting."
             VERSION_MISMATCH='true';
           else
