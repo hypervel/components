@@ -20,6 +20,11 @@ function test(Blueprint $table, Fluent $fluent, ColumnDefinition|IndexDefinition
     $table->string('email')->nullable()->unique();
     $table->index('email')->algorithm('btree');
     $table->foreignId('owner_id')->table('users')->constrained()->cascadeOnDelete();
+    $table->string('label')->virtualAsJson('options->label');
+    $table->string('code')->storedAsJson('options->code');
+    $table->timestamp('touched_at')->onUpdate('CURRENT_TIMESTAMP');
+    $table->foreign('parent_id')->references('id')->on('parents')->notValid();
+    $table->vectorIndex('embedding')->operatorClass('vector_l2_ops');
     $table->string('title')->fluentMacro();
     $fluent->anything();
     $attributes->anything();

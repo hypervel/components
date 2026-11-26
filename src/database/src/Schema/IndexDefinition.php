@@ -16,6 +16,7 @@ use LogicException;
  * @method $this lock(('default'|'exclusive'|'none'|'shared') $value) Specify the DDL lock mode for the index operation (MySQL)
  * @method $this nullsNotDistinct(bool $value = true) Specify that the null values should not be treated as distinct (PostgreSQL)
  * @method $this online(bool $value = true) Specify that index creation should not lock the table (PostgreSQL)
+ * @method $this operatorClass(string $operatorClass) Specify the operator class of a spatial or vector index (PostgreSQL), or the options of a vector index (MariaDB)
  */
 class IndexDefinition extends Fluent
 {

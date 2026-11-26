@@ -28,7 +28,7 @@ class SchemaModifierExistenceRuleTest extends RuleTestCase
             ['Call to an undefined method Hypervel\Database\Schema\ForeignKeyDefinition::onDelet().', 16, $tip],
             ['Call to an undefined method Hypervel\Database\Schema\ForeignIdColumnDefinition::tabel().', 17, $tip],
             ['Call to an undefined method Hypervel\Database\Schema\ColumnDefinition|Hypervel\Database\Schema\IndexDefinition::nulable().', 18, $tip],
-            ['Call to an undefined method Hypervel\Database\Schema\ColumnDefinition::extensionFlag().', 32, $tip],
+            ['Call to an undefined method Hypervel\Database\Schema\ColumnDefinition::extensionFlag().', 37, $tip],
         ]);
     }
 
