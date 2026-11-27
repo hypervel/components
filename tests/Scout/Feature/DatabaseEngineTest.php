@@ -338,6 +338,63 @@ class DatabaseEngineTest extends ScoutTestCase
         })->get();
     }
 
+    public function testItSearchesModelsWithoutPrimaryKeyUsingCustomScoutKey(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected ?string $primaryKey = null;
+
+            public bool $incrementing = false;
+
+            protected array $guarded = [];
+
+            /**
+             * Get the value used to index the model.
+             */
+            public function getScoutKey(): mixed
+            {
+                return $this->intermediate_id;
+            }
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => 42, 'title' => 'Keyless row']);
+
+        $this->assertSame([42], $model::search('')->get()->pluck('intermediate_id')->all());
+        $this->assertSame([42], $model::search('42')->get()->pluck('intermediate_id')->all());
+        $this->assertSame([42], $model::search('Keyless')->get()->pluck('intermediate_id')->all());
+        $this->assertSame([42], $model::search('Keyless')->keys()->all());
+    }
+
     public function testItCanRetrieveResults(): void
     {
         $taylor = SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
@@ -780,6 +837,57 @@ class DatabaseEngineTest extends ScoutTestCase
 
         $this->assertContains($model1->id, $ids->all());
         $this->assertContains($model2->id, $ids->all());
+    }
+
+    public function testMapIdsReturnsCustomScoutKeys(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the value used to index the model.
+             */
+            public function getScoutKey(): mixed
+            {
+                return $this->intermediate_id;
+            }
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => 100, 'title' => 'Custom Scout key']);
+        $model::create(['intermediate_id' => 200, 'title' => 'Custom Scout key']);
+
+        $this->assertSame([200, 100], $model::search('Custom')->keys()->all());
     }
 
     public function testMapReturnsResults(): void

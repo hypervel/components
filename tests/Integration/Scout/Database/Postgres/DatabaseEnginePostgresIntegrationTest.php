@@ -161,6 +161,17 @@ class DatabaseEnginePostgresIntegrationTest extends ScoutTestCase
         $this->assertCount(1, $numericResults);
         $this->assertSame(42, $numericResults->first()->id);
     }
+
+    public function testKeylessModelOrdersPostgresFullTextRelevanceTiesByScoutKey(): void
+    {
+        PostgresKeylessFullTextModel::create(['intermediate_id' => 10, 'title' => 'Shared phrase']);
+        PostgresKeylessFullTextModel::create(['intermediate_id' => 20, 'title' => 'Shared phrase']);
+
+        $results = PostgresKeylessFullTextModel::search('Shared')->get();
+
+        $this->assertSame([20, 10], $results->pluck('intermediate_id')->all());
+        $this->assertSame([20, 10], PostgresKeylessFullTextModel::search('Shared')->keys()->all());
+    }
 }
 
 class PostgresIntegerKeyFullTextModel extends SearchableModel
@@ -256,6 +267,55 @@ class PostgresQualifiedIntegerKeyModel extends SearchableModel
     {
         return [
             'searchable_models.id' => $this->id,
+            'title' => $this->title,
+        ];
+    }
+}
+
+class PostgresKeylessFullTextModel extends Model
+{
+    use Searchable;
+
+    protected ?string $table = 'scout_through_models';
+
+    protected ?string $primaryKey = null;
+
+    public bool $incrementing = false;
+
+    protected array $guarded = [];
+
+    /**
+     * Get the value used to index the model.
+     */
+    public function getScoutKey(): mixed
+    {
+        return $this->intermediate_id;
+    }
+
+    /**
+     * Get the key name used to index the model.
+     */
+    public function getScoutKeyName(): string
+    {
+        return 'intermediate_id';
+    }
+
+    /**
+     * Get the key type used to query the model.
+     */
+    public function getScoutKeyType(): string
+    {
+        return 'int';
+    }
+
+    /**
+     * Get the indexable data array for the model.
+     */
+    #[SearchUsingFullText(columns: ['title'])]
+    public function toSearchableArray(): array
+    {
+        return [
+            'intermediate_id' => $this->intermediate_id,
             'title' => $this->title,
         ];
     }

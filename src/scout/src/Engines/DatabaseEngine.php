@@ -519,7 +519,10 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         })->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
             $this->orderByRelevance($builder, $query);
 
-            $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
+            $query->orderBy(
+                $builder->model->qualifyColumn($builder->model->getKeyName() ?? $builder->model->getScoutKeyName()),
+                'desc'
+            );
         });
     }
 
@@ -700,9 +703,10 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     protected function integerKeyColumns(Builder $builder): array
     {
         $columns = [];
+        $primaryKey = $builder->model->getKeyName();
 
-        if (in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
-            $columns[] = $builder->model->getQualifiedKeyName();
+        if ($primaryKey !== null && in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
+            $columns[] = $builder->model->qualifyColumn($primaryKey);
         }
 
         if (in_array($builder->model->getScoutKeyType(), ['int', 'integer'], true)) {
@@ -769,12 +773,18 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     public function mapIds(mixed $results): Collection
     {
-        /** @var EloquentCollection<int, Model> $collection */
+        /** @var EloquentCollection<int, Model&SearchableInterface> $collection */
         $collection = $results['results'];
 
-        return $collection->isNotEmpty()
-            ? collect($collection->modelKeys())
-            : collect();
+        if ($collection->isEmpty()) {
+            return collect();
+        }
+
+        /** @var Model&SearchableInterface $first */
+        $first = $collection->first();
+
+        // Unlike upstream's modelKeys(), pluck the Scout key to match the other engines and support keyless models.
+        return $collection->pluck($first->getScoutKeyName());
     }
 
     /**
