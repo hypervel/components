@@ -1008,32 +1008,50 @@ trait ValidatesAttributes
         [, $groupsToCompare] = $this->getDistinctValueGroups($value, $mode);
 
         foreach ($groupsToCompare as $group) {
-            if (str_starts_with($group, 'equal-to:')) {
+            if (str_starts_with($group, 'equal-to:') && ! isset($groups[$group])) {
+                $candidates = static::class === Validator::class ? $values : $this->admittedDistinctValues($values, $mode);
+
                 // Objects can change between comparisons, and whole arrays share one group identity.
                 if (is_object($value) || (is_array($value) && $value !== [])) {
-                    yield from $values;
+                    yield from $candidates;
 
                     continue;
                 }
 
-                if (! isset($groups[$group])) {
-                    $matches = [];
+                $matches = [];
+                $immutableMatches = 0;
 
-                    foreach ($values as $key => $item) {
-                        if ($item == $value) {
-                            $matches[$key] = $item;
+                foreach ($candidates as $key => $item) {
+                    // Keep objects live: their comparison with the scalar may change.
+                    if (is_object($item)) {
+                        $matches[$key] = $item;
+                    } elseif ($item == $value) {
+                        $matches[$key] = $item;
 
-                            if (count($matches) === 2) {
-                                break;
-                            }
+                        if (++$immutableMatches === 2) {
+                            break;
                         }
                     }
-
-                    $groups[$group] = $matches;
                 }
+
+                $groups[$group] = $matches;
             }
 
             yield from $groups[$group] ?? [];
+        }
+    }
+
+    /**
+     * Skip values a custom grouping hook excludes from every comparison.
+     */
+    private function admittedDistinctValues(array $values, string $mode): Generator
+    {
+        foreach ($values as $key => $value) {
+            [$groups] = $this->getDistinctValueGroups($value, $mode);
+
+            if ($groups !== []) {
+                yield $key => $value;
+            }
         }
     }
 

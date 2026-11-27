@@ -486,9 +486,9 @@ class Validator implements ValidatorContract
     public function passes(): bool
     {
         $this->messages = new MessageBag;
-        [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
-        $this->distinctValueCounts = [];
-        $this->distinctValueGroups = [];
+        $this->failedRules = [];
+        $this->excludeAttributes = [];
+        $this->clearDistinctValues();
         $this->originalPresenceVerifier = null;
         $this->parsedTables = [];
 
@@ -1721,6 +1721,7 @@ class Validator implements ValidatorContract
         $this->data = $this->parseData($data);
 
         $this->setRules($this->initialRules);
+        $this->clearDistinctValues();
 
         return $this;
     }
@@ -1739,6 +1740,17 @@ class Validator implements ValidatorContract
     public function setValue(string $attribute, mixed $value): void
     {
         Arr::set($this->data, $attribute, $value);
+        $this->clearDistinctValues();
+    }
+
+    /**
+     * Discard distinct lookups derived from the previous data.
+     */
+    private function clearDistinctValues(): void
+    {
+        $this->distinctValues = [];
+        $this->distinctValueCounts = [];
+        $this->distinctValueGroups = [];
     }
 
     /**

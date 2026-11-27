@@ -134,8 +134,8 @@ class DatabasePresenceVerifier implements PresenceVerifierInterface
     /**
      * Add an equality comparison with a prepared value.
      *
-     * PostgreSQL raises an error for integers outside the column's range. Presence rules have
-     * no column type, so use a preceding range rule such as `between` to reject those values.
+     * PostgreSQL rejects integers outside the column's range. Presence rules have no column
+     * type, so apply `integer` and a numeric range such as `between:0,2147483647` first.
      *
      * @param '!='|'<>'|'=' $operator
      */
