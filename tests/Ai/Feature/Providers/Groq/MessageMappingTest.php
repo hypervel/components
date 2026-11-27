@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Groq;
 
+use Hypervel\Ai\AgentUserInteraction\AgentUserInteraction;
 use Hypervel\Ai\Files\Base64Document;
 use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\LocalImage;
@@ -95,6 +96,37 @@ class MessageMappingTest extends TestCase
         $this->assertSame('FixedNumberGenerator', $assistantMsg['tool_calls'][0]['function']['name']);
         $this->assertSame($assistantMsg['tool_calls'][0]['id'], $toolMsg['tool_call_id']);
         $this->assertNotEmpty($toolMsg['content']);
+    }
+
+    public function testReplayingAnOpenaiIssuedAgUiToolResultPairsTheCallAndTheResult(): void
+    {
+        Http::fake([
+            'api.groq.com/*' => fakeGroqResponse('Yes, that account is in the list.'),
+        ]);
+
+        $chat = AgentUserInteraction::chat([
+            'threadId' => 'thread-1',
+            'runId' => 'run-1',
+            'messages' => [
+                ['id' => 'u1', 'role' => 'user', 'content' => 'Which accounts can I see?'],
+                ['id' => 'fc_1', 'role' => 'assistant', 'toolCalls' => [
+                    ['id' => 'fc_1', 'type' => 'function', 'function' => ['name' => 'list_accounts', 'arguments' => '{}']],
+                ]],
+                ['id' => 'call_1', 'role' => 'tool', 'toolCallId' => 'fc_1', 'content' => 'Carloans365'],
+                ['id' => 'u2', 'role' => 'user', 'content' => 'Is Carloans365 one of them?'],
+            ],
+        ]);
+
+        (new AssistantAgent)->withMessages($chat->history())->prompt($chat, provider: 'groq');
+
+        Http::assertSent(function (Request $request): bool {
+            $messages = json_decode($request->body(), true)['messages'] ?? [];
+            $assistant = collect($messages)->first(fn (array $message): bool => ($message['role'] ?? null) === 'assistant' && isset($message['tool_calls']));
+            $tool = collect($messages)->firstWhere('role', 'tool');
+
+            return ($assistant['tool_calls'][0]['id'] ?? null) === 'fc_1'
+                && ($tool['tool_call_id'] ?? null) === 'fc_1';
+        });
     }
 
     public function testImageAttachmentMapsToImageUrlContentBlock(): void

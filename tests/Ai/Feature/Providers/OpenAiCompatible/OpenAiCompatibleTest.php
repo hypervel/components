@@ -12,6 +12,7 @@ use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
@@ -27,6 +28,9 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Ai\agent;
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
 
 class OpenAiCompatibleTest extends TestCase
 {
@@ -545,16 +549,55 @@ class OpenAiCompatibleTest extends TestCase
         $this->assertSame([['call_1', ['min' => 1]], ['call_2', []]], $toolCalls);
     }
 
-    public function testStreamingDiscardsToolCallsCutOffByTheLengthLimit(): void
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        Http::fakeSequence()
+            ->pushResponse($this->fakeOpenAiCompatibleToolCallStream([
+                [$this->fakeOpenAiCompatibleToolCall('call_123', '')],
+                [['function' => ['arguments' => '{"sta']]],
+                [['function' => ['arguments' => 'rt":1}']]],
+            ], 'tool_calls'))
+            ->pushResponse($this->fakeOpenAiCompatibleStream());
+
+        $events = (new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible');
+
+        $this->assertSame([
+            ['start', 'call_123', 'FixedNumberGenerator'],
+            ['delta', 'call_123', '{"sta'],
+            ['delta', 'call_123', 'rt":1}'],
+            ['call', 'call_123', ['start' => 1]],
+        ], toolInputEvents($events));
+    }
+
+    public function testStreamingEmitsNoToolInputForACallWhoseIdArrivesAfterItStarts(): void
+    {
+        Http::fakeSequence()
+            ->pushResponse($this->fakeOpenAiCompatibleToolCallStream([
+                [['index' => 0, 'function' => ['name' => 'FixedNumberGenerator', 'arguments' => '{"sta']]],
+                [['index' => 0, 'id' => 'call_123', 'function' => ['arguments' => 'rt":1}']]],
+            ], 'tool_calls'))
+            ->pushResponse($this->fakeOpenAiCompatibleStream());
+
+        $events = toolInputEvents((new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible'));
+
+        $this->assertSame(['call'], array_column($events, 0));
+        $this->assertSame(['start' => 1], $events[0][2]);
+    }
+
+    public function testStreamingFailsToolCallsCutOffByTheLengthLimitInsteadOfRunningThem(): void
     {
         Http::fake(['*' => $this->fakeOpenAiCompatibleToolCallStream([
             [['index' => 0] + $this->fakeOpenAiCompatibleToolCall('call_123', '{"min":')],
         ], 'length')]);
 
         $events = collect((new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible'));
+        $errors = $events->whereInstanceOf(ToolInputError::class)->values();
 
         $this->assertEmpty($events->filter(fn ($event): bool => $event instanceof ToolCallEvent));
         $this->assertEmpty($events->filter(fn ($event): bool => $event instanceof ToolResultEvent));
+        $this->assertCount(1, $errors);
+        $this->assertSame('call_123', $errors[0]->toolId);
+        $this->assertSame('{"min":', $errors[0]->input);
     }
 
     /**

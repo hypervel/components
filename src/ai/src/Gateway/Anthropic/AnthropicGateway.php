@@ -122,7 +122,7 @@ class AnthropicGateway implements Gateway, ReplaysFullHistory, StepTextGateway
             $options,
         );
 
-        $body = $this->withContainer($body, $stepContext);
+        $body = $this->withEagerInputStreaming($this->withContainer($body, $stepContext));
 
         $body['stream'] = true;
 

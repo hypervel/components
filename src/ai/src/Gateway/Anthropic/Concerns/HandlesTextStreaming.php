@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
 
 use Generator;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Messages\AssistantMessage;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Providers\Provider;
@@ -29,6 +30,8 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextStreaming
 {
+    use StreamsToolInput;
+
     /**
      * Get the content of the paused steps the turn being continued is made of.
      *
@@ -72,6 +75,7 @@ trait HandlesTextStreaming
         $currentToolIndex = -1;
         $currentServerToolInput = '';
         $pendingToolCalls = [];
+        $hasInvalidToolInput = false;
         $responseContent = [];
         $afterTool = false;
         $lastTextDelta = '';
@@ -198,6 +202,11 @@ trait HandlesTextStreaming
                         'name' => $data['content_block']['name'] ?? '',
                         'arguments' => '',
                     ];
+
+                    // Unlike upstream, keep the synthetic structured-output tool internal during streaming.
+                    if ($pendingToolCalls[$currentToolIndex]['name'] !== 'output_structured_data') {
+                        yield from $this->toolInputStart($invocationId, $pendingToolCalls[$currentToolIndex]['id'], $pendingToolCalls[$currentToolIndex]['name']);
+                    }
                 } elseif ($blockType === 'server_tool_use') {
                     $currentServerToolInput = '';
 
@@ -298,6 +307,10 @@ trait HandlesTextStreaming
 
                     if ($currentBlockType === 'tool_use' && isset($pendingToolCalls[$currentToolIndex])) {
                         $pendingToolCalls[$currentToolIndex]['arguments'] .= $partial;
+
+                        if ($pendingToolCalls[$currentToolIndex]['name'] !== 'output_structured_data') {
+                            yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$currentToolIndex]['id'], $pendingToolCalls[$currentToolIndex]['name'], $partial);
+                        }
                     } elseif ($currentBlockType === 'server_tool_use') {
                         $currentServerToolInput .= $partial;
                     }
@@ -330,24 +343,34 @@ trait HandlesTextStreaming
                     $reasoningId = '';
                 } elseif ($currentBlockType === 'tool_use' && isset($pendingToolCalls[$currentToolIndex])) {
                     $call = $pendingToolCalls[$currentToolIndex];
-                    $parsedArguments = json_decode($call['arguments'] ?: '{}', true) ?? [];
+                    $index = $data['index'] ?? $currentBlockIndex;
 
-                    $index = $data['index'] ?? $currentToolIndex;
+                    if ($call['name'] === 'output_structured_data') {
+                        if (isset($responseContent[$index])) {
+                            $responseContent[$index]['input'] = json_decode($call['arguments'] ?: '{}', true) ?? [];
+                        }
+                    } elseif ($this->isCompleteToolInput($call['arguments'])) {
+                        $parsedArguments = json_decode($call['arguments'] ?: '{}', true) ?? [];
 
-                    if (isset($responseContent[$index])) {
-                        $responseContent[$index]['input'] = $parsedArguments;
+                        if (isset($responseContent[$index])) {
+                            $responseContent[$index]['input'] = $parsedArguments;
+                        }
+
+                        yield (new ToolCallEvent(
+                            $this->generateEventId(),
+                            new ToolCall(
+                                $call['id'],
+                                $call['name'],
+                                $parsedArguments,
+                                $call['id'],
+                            ),
+                            time(),
+                        ))->withInvocationId($invocationId);
+                    } else {
+                        // Unlike upstream, eager input streaming skips Anthropic's JSON validation, so invalid input must never run with [].
+                        $hasInvalidToolInput = true;
+                        unset($responseContent[$index]);
                     }
-
-                    yield (new ToolCallEvent(
-                        $this->generateEventId(),
-                        new ToolCall(
-                            $call['id'],
-                            $call['name'],
-                            $parsedArguments,
-                            $call['id'],
-                        ),
-                        time(),
-                    ))->withInvocationId($invocationId);
                 } elseif ($currentBlockType === 'server_tool_use') {
                     $index = $data['index'] ?? count($responseContent) - 1;
 
@@ -402,15 +425,24 @@ trait HandlesTextStreaming
             ))->withInvocationId($invocationId);
         }
 
-        return $this->buildStepResponse(
+        $finishReason = $this->extractFinishReason(['stop_reason' => $stopReason]);
+
+        $step = $this->buildStepResponse(
             content: array_values($responseContent),
             provider: $provider,
             model: $model,
             usage: $usage ?? new TextUsage(0, 0),
-            finishReason: $this->extractFinishReason(['stop_reason' => $stopReason]),
+            finishReason: $finishReason,
             structured: false,
             container: $container,
         );
+
+        if ($hasInvalidToolInput && $step->toolCalls === []) {
+            // Without a remaining tool call, replaying raw blocks risks leaving a trailing thinking block Anthropic rejects.
+            $step->replayBlocks = [];
+        }
+
+        return $step;
     }
 
     /**

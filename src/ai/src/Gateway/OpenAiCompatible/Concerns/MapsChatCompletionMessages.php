@@ -10,6 +10,7 @@ use Hypervel\Ai\Messages\MessageRole;
 use Hypervel\Ai\Messages\ToolResultMessage;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Responses\Data\ToolCall;
+use Hypervel\Support\Arr;
 
 trait MapsChatCompletionMessages
 {
@@ -78,9 +79,21 @@ trait MapsChatCompletionMessages
             $msg['tool_calls'] = $message->toolCalls->map(
                 fn (ToolCall $toolCall): array => $this->serializeToolCallToChat($toolCall)
             )->all();
+
+            $msg = [...$msg, ...$this->mapReasoningReplay($message)];
         }
 
         $chatMessages[] = $msg;
+    }
+
+    /**
+     * Map the reasoning of a tool call turn back under the field the server returned it in.
+     */
+    protected function mapReasoningReplay(AssistantMessage $message): array
+    {
+        $block = collect($message->replayBlocks)->firstWhere('type', 'reasoning');
+
+        return $block === null ? [] : Arr::except($block, 'type');
     }
 
     /**

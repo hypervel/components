@@ -26,6 +26,7 @@ abstract class TestCase extends TestbenchTestCase
         try {
             $files = new Filesystem;
             $files->deleteDirectory(app_path('Mcp'));
+            $files->deleteDirectory(resource_path('skills'));
             $files->deleteDirectory(resource_path('views/mcp'));
             $files->delete([
                 base_path('stubs/mcp-app-resource.stub'),
@@ -33,6 +34,8 @@ abstract class TestCase extends TestbenchTestCase
                 base_path('stubs/mcp-prompt.stub'),
                 base_path('stubs/mcp-resource.stub'),
                 base_path('stubs/mcp-server.stub'),
+                base_path('stubs/mcp-skill.md.stub'),
+                base_path('stubs/mcp-skill.stub'),
                 base_path('stubs/mcp-tool.stub'),
             ]);
         } finally {

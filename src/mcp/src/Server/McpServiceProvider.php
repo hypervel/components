@@ -13,6 +13,7 @@ use Hypervel\Mcp\Console\Commands\MakeAppResourceCommand;
 use Hypervel\Mcp\Console\Commands\MakePromptCommand;
 use Hypervel\Mcp\Console\Commands\MakeResourceCommand;
 use Hypervel\Mcp\Console\Commands\MakeServerCommand;
+use Hypervel\Mcp\Console\Commands\MakeSkillCommand;
 use Hypervel\Mcp\Console\Commands\MakeToolCommand;
 use Hypervel\Mcp\Console\Commands\StartCommand;
 use Hypervel\Mcp\Request;
@@ -87,6 +88,8 @@ class McpServiceProvider extends ServiceProvider
             __DIR__ . '/../../stubs/mcp-tool.stub' => base_path('stubs/mcp-tool.stub'),
             __DIR__ . '/../../stubs/mcp-app-resource.stub' => base_path('stubs/mcp-app-resource.stub'),
             __DIR__ . '/../../stubs/mcp-app-resource.view.stub' => base_path('stubs/mcp-app-resource.view.stub'),
+            __DIR__ . '/../../stubs/mcp-skill.stub' => base_path('stubs/mcp-skill.stub'),
+            __DIR__ . '/../../stubs/mcp-skill.md.stub' => base_path('stubs/mcp-skill.md.stub'),
         ], 'mcp-stubs');
 
         $this->publishes([
@@ -150,6 +153,7 @@ class McpServiceProvider extends ServiceProvider
             MakePromptCommand::class,
             MakeResourceCommand::class,
             MakeAppResourceCommand::class,
+            MakeSkillCommand::class,
             InspectorCommand::class,
         ]);
     }

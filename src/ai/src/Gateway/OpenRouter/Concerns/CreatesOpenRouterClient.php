@@ -25,6 +25,8 @@ trait CreatesOpenRouterClient
                 'Authorization' => 'Bearer ' . $provider->providerCredentials()['key'],
                 'HTTP-Referer' => $config['http_referer'] ?? null,
                 'X-OpenRouter-Title' => $config['x_title'] ?? null,
+                // OpenRouter strips strict: true on Claude tool definitions unless this beta header is present.
+                'x-anthropic-beta' => 'structured-outputs-2025-11-13',
             ]),
             $config['headers'] ?? [],
             $timeout ?? 60,

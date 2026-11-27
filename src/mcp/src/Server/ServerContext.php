@@ -9,6 +9,8 @@ use Hypervel\Mcp\Request;
 use Hypervel\Mcp\Schema\Implementation;
 use Hypervel\Mcp\Server\Contracts\HasUriTemplate;
 use Hypervel\Mcp\Server\Resource as McpResource;
+use Hypervel\Mcp\Server\Skills\DirectorySkill;
+use Hypervel\Mcp\Server\Skills\SkillResource;
 use Hypervel\Mcp\Server\Tools\ToolSearch;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
@@ -16,6 +18,11 @@ use Symfony\Component\HttpFoundation\HeaderBag;
 
 class ServerContext
 {
+    /**
+     * @var null|Collection<int, Skill>
+     */
+    private ?Collection $resolvedSkills = null;
+
     /**
      * The selected resource reused when adding response cache hints.
      */
@@ -34,6 +41,7 @@ class ServerContext
      * @param array<int|string, array<int, string|Tool>|string|Tool> $tools
      * @param array<int, McpResource|string> $resources
      * @param array<int, Prompt|string> $prompts
+     * @param array<int, class-string<Skill>|Skill|string> $skills
      */
     public function __construct(
         public array $supportedProtocolVersions,
@@ -46,6 +54,7 @@ class ServerContext
         protected array $resources,
         protected array $prompts,
         public ?HeaderBag $headers = null,
+        protected array $skills = [],
     ) {
     }
 
@@ -104,6 +113,66 @@ class ServerContext
             ->filter(fn (McpResource|string $resource): bool => ! $this->isResourceTemplate($resource));
 
         return $this->resolvePrimitives($resourceTemplates);
+    }
+
+    /**
+     * Resolve the skills eligible for registration.
+     *
+     * @return Collection<int, Skill>
+     */
+    public function skills(): Collection
+    {
+        return $this->resolvedSkills ??= $this->resolveSkills();
+    }
+
+    /**
+     * Resolve a skill resource matching the given URI.
+     */
+    public function skillResource(string $uri): ?SkillResource
+    {
+        foreach ($this->skills() as $skill) {
+            if (($resource = $skill->resourceFor($uri)) instanceof SkillResource) {
+                return $resource;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve configured skills, reporting and isolating invalid entries.
+     *
+     * @return Collection<int, Skill>
+     */
+    private function resolveSkills(): Collection
+    {
+        $skills = collect($this->skills)
+            ->map(fn (Skill|string $skill): Skill => match (true) {
+                $skill instanceof Skill => clone $skill,
+                // Clone auto-singletoned Skill classes so once() caches frontmatter per request, not across calls in the same coroutine.
+                is_subclass_of($skill, Skill::class) => clone Container::getInstance()->make($skill),
+                default => new DirectorySkill($skill),
+            })
+            ->filter(fn (Skill $skill): bool => $skill->eligibleForRegistration());
+
+        $resolved = [];
+
+        foreach ($skills as $skill) {
+            try {
+                $skill->files();
+                $uri = $skill->uri();
+
+                if (array_key_exists($uri, $resolved)) {
+                    throw new InvalidArgumentException("The skill URI [{$uri}] is already registered.");
+                }
+
+                $resolved[$uri] = $skill;
+            } catch (InvalidArgumentException $invalidArgumentException) {
+                report($invalidArgumentException);
+            }
+        }
+
+        return collect($resolved)->values();
     }
 
     /**

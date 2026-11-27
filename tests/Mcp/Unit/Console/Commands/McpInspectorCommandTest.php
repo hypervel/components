@@ -142,7 +142,7 @@ class McpInspectorCommandTest extends TestCase
 
         $serverUrl = (new ReflectionMethod($command, 'serverUrl'))->invoke($command, $route);
 
-        $this->assertSame('http://localhost/mcp/4f8a1c2e', $serverUrl);
+        $this->assertSame(url('mcp/4f8a1c2e'), $serverUrl);
     }
 
     public function testFailsWhenARouteParameterIsLeftBlank(): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Groq\Concerns;
 
 use Generator;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\Meta;
@@ -26,6 +27,8 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextStreaming
 {
+    use StreamsToolInput;
+
     /**
      * Process a Chat Completions streaming response for a single turn and yield Hypervel stream events.
      *
@@ -160,10 +163,14 @@ trait HandlesTextStreaming
                             'name' => $tcDelta['function']['name'] ?? '',
                             'arguments' => '',
                         ];
+
+                        yield from $this->toolInputStart($invocationId, $pendingToolCalls[$idx]['id'], $pendingToolCalls[$idx]['name']);
                     }
 
                     if (isset($tcDelta['function']['arguments'])) {
                         $pendingToolCalls[$idx]['arguments'] .= $tcDelta['function']['arguments'];
+
+                        yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$idx]['id'], $pendingToolCalls[$idx]['name'], (string) $tcDelta['function']['arguments']);
                     }
                 }
             }

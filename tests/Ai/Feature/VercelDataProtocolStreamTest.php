@@ -28,6 +28,9 @@ use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Ai\Streaming\Protocols\VercelDataProtocol;
 use Hypervel\Ai\Vercel\Vercel;
@@ -556,6 +559,66 @@ class VercelDataProtocolStreamTest extends TestCase
             vercelFinishPart(),
             ['type' => 'done'],
         ], $parts);
+    }
+
+    public function testAToolInputStreamedByTheProviderEmitsStartAndDeltaPartsBeforeTheInputIsAvailable(): void
+    {
+        $parts = vercelProtocolParts([
+            new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
+            new ToolInputStart('event-1', 'call-1', 'GetWeather', time()),
+            new ToolInputDelta('event-2', 'call-1', '{"city":', time()),
+            new ToolInputDelta('event-3', 'call-1', '"Lisbon"}', time()),
+            new ToolCall('event-4', new ToolCallData('call-1', 'GetWeather', ['city' => 'Lisbon']), time()),
+            new ToolResult('event-5', new ToolResultData('call-1', 'GetWeather', ['city' => 'Lisbon'], 'sunny'), true, null, time()),
+            new StreamEnd('event-6', 'stop', new TextUsage, time()),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'start', 'messageId' => 'msg-1'],
+            ['type' => 'start-step'],
+            ['type' => 'tool-input-start', 'toolCallId' => 'call-1', 'toolName' => 'GetWeather'],
+            ['type' => 'tool-input-delta', 'toolCallId' => 'call-1', 'inputTextDelta' => '{"city":'],
+            ['type' => 'tool-input-delta', 'toolCallId' => 'call-1', 'inputTextDelta' => '"Lisbon"}'],
+            ['type' => 'tool-input-available', 'toolCallId' => 'call-1', 'toolName' => 'GetWeather', 'input' => ['city' => 'Lisbon']],
+            ['type' => 'tool-output-available', 'toolCallId' => 'call-1', 'output' => 'sunny'],
+            ['type' => 'finish-step'],
+            vercelFinishPart(),
+            ['type' => 'done'],
+        ], $parts);
+    }
+
+    public function testAToolInputThatNeverCompletedEmitsAnInputErrorPart(): void
+    {
+        $parts = vercelProtocolParts([
+            new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
+            new ToolInputStart('event-1', 'call-1', 'GetWeather', time()),
+            new ToolInputDelta('event-2', 'call-1', '{"city":', time()),
+            new ToolInputError('event-3', 'call-1', 'GetWeather', '{"city":', 'This tool call was not executed because its input did not complete.', time()),
+            new StreamEnd('event-4', 'length', new TextUsage, time()),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'start', 'messageId' => 'msg-1'],
+            ['type' => 'start-step'],
+            ['type' => 'tool-input-start', 'toolCallId' => 'call-1', 'toolName' => 'GetWeather'],
+            ['type' => 'tool-input-delta', 'toolCallId' => 'call-1', 'inputTextDelta' => '{"city":'],
+            ['type' => 'tool-input-error', 'toolCallId' => 'call-1', 'toolName' => 'GetWeather', 'input' => '{"city":', 'errorText' => 'This tool call was not executed because its input did not complete.'],
+            ['type' => 'finish-step'],
+            vercelFinishPart('length'),
+            ['type' => 'done'],
+        ], $parts);
+    }
+
+    public function testAToolInputErrorForACallThatNeverStartedStillEmitsAnInputErrorPart(): void
+    {
+        $parts = vercelProtocolParts([
+            new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
+            new ToolInputError('event-1', 'call-1', 'GetWeather', '', 'This tool call was not executed because its input did not complete.', time()),
+            new StreamEnd('event-2', 'stop', new TextUsage, time()),
+        ]);
+
+        // The SDK creates the tool part from the error itself, so nothing needs to have started it...
+        $this->assertSame(['type' => 'tool-input-error', 'toolCallId' => 'call-1', 'toolName' => 'GetWeather', 'input' => '', 'errorText' => 'This tool call was not executed because its input did not complete.'], $parts[2]);
     }
 
     public function testAToolStillProducingItsOutputEmitsPreliminaryPartsWithoutChangingTheRunLifecycle(): void

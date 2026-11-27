@@ -432,6 +432,7 @@ class AgentUserInteraction
         $error = $message['error'] ?? null;
         $denied = ($message['metadata']['denied'] ?? false) === true;
 
+        // Unlike upstream, the tool message id is not used as the result id: clients assign message ids and hydration composes them, so calls and results pair on toolCallId instead.
         return new ToolResult(
             id: $id,
             name: $call->name ?? '',

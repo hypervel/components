@@ -9,13 +9,12 @@ use Hypervel\Ai\Attributes\CacheInstructions;
 use Hypervel\Ai\Attributes\CacheToolDefinitions;
 use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\PendingStep;
-use Hypervel\Ai\Providers\Tools\ToolSearch;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Tests\Ai\Fixtures\Agents\AnthropicToolSearchAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\PromptCacheAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\PromptCacheStructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
-use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -41,37 +40,18 @@ class PromptCacheTest extends TestCase
         });
     }
 
-    #[DataProvider('toolSearchModes')]
-    public function testCacheToolDefinitionsAttributeStampsTheLastTool(bool $deferred): void
+    public function testCacheToolDefinitionsAttributeStampsTheLastTool(): void
     {
         Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
 
-        $agent = new #[CacheToolDefinitions] class extends PromptCacheAgent {};
-
-        if ($deferred) {
-            $agent->withTools([new ToolSearch([new FixedNumberGenerator])]);
-        }
-
-        $agent->prompt('Hi', provider: 'anthropic');
+        (new #[CacheToolDefinitions] class extends PromptCacheAgent {})->prompt('Hi', provider: 'anthropic');
 
         Http::assertSent(function ($request): bool {
             $body = $request->data();
 
-            $eligible = array_filter($body['tools'], fn (array $tool): bool => ! ($tool['defer_loading'] ?? false));
-            $deferredTools = array_filter($body['tools'], fn (array $tool): bool => $tool['defer_loading'] ?? false);
-
             return $body['system'] === 'You are a helpful assistant that generates numbers.'
-                && Arr::last($eligible)['cache_control'] === ['type' => 'ephemeral']
-                && array_all($deferredTools, fn (array $tool): bool => ! isset($tool['cache_control']));
+                && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral'];
         });
-    }
-
-    /**
-     * Cover ordinary tools and a trailing deferred search catalog.
-     */
-    public static function toolSearchModes(): array
-    {
-        return [[false], [true]];
     }
 
     public function testBothTargetsMayBeCachedTogether(): void
@@ -250,6 +230,21 @@ class PromptCacheTest extends TestCase
             ]]
                 && Arr::last($body['tools'])['name'] === 'custom'
                 && Arr::last($body['tools'])['cache_control'] === ['type' => 'ephemeral'];
+        });
+    }
+
+    public function testTheToolsBreakpointSkipsDeferredTools(): void
+    {
+        Http::fake(['api.anthropic.com/*' => $this->fakeTextResponse()]);
+
+        (new #[CacheToolDefinitions] class extends AnthropicToolSearchAgent {})->prompt('Hi', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $tools = collect($request->data()['tools'])->keyBy('name');
+
+            return ($tools['tool_search_tool_regex']['cache_control'] ?? null) === ['type' => 'ephemeral']
+                && ! array_key_exists('cache_control', $tools['NonStrictTool'])
+                && ! array_key_exists('cache_control', $tools['DeferredTool']);
         });
     }
 

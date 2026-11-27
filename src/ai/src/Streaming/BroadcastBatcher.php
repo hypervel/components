@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
@@ -213,22 +214,24 @@ class BroadcastBatcher
     /**
      * Identify plain deltas without additional event semantics.
      *
-     * @phpstan-assert-if-true TextDelta|ReasoningDelta $event
+     * @phpstan-assert-if-true TextDelta|ReasoningDelta|ToolInputDelta $event
      */
     protected function isBatchable(StreamEvent $event): bool
     {
         return $event::class === TextDelta::class
+            || $event::class === ToolInputDelta::class
             || ($event::class === ReasoningDelta::class && $event->summary === null);
     }
 
     /**
      * Match the invocation and content block of adjacent deltas.
      */
-    protected function isCompatible(TextDelta|ReasoningDelta $first, TextDelta|ReasoningDelta $event): bool
+    protected function isCompatible(TextDelta|ReasoningDelta|ToolInputDelta $first, TextDelta|ReasoningDelta|ToolInputDelta $event): bool
     {
         return match (true) {
             $first instanceof TextDelta && $event instanceof TextDelta => $first->invocationId === $event->invocationId && $first->messageId === $event->messageId,
             $first instanceof ReasoningDelta && $event instanceof ReasoningDelta => $first->invocationId === $event->invocationId && $first->reasoningId === $event->reasoningId,
+            $first instanceof ToolInputDelta && $event instanceof ToolInputDelta => $first->invocationId === $event->invocationId && $first->toolId === $event->toolId,
             default => false,
         };
     }

@@ -24,6 +24,9 @@ use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Ai\agent;
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
 
 class StreamingTest extends TestCase
 {
@@ -96,6 +99,34 @@ class StreamingTest extends TestCase
         $this->assertCount(1, $streamEndEvents);
         $this->assertInstanceOf(StreamEnd::class, $events[count($events) - 1]);
         $this->assertSame(FinishReason::Stop->value, $streamEndEvents[0]->reason);
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        Http::fake([
+            '*' => Http::sequence([
+                Http::response($this->ssePayload([
+                    $this->chatChunkToolCallStart(0, 'call_123', 'FixedNumberGenerator'),
+                    $this->chatChunkToolCallDelta(0, ''),
+                    $this->chatChunkToolCallDelta(0, '{"sta'),
+                    $this->chatChunkToolCallDelta(0, 'rt":1}'),
+                    $this->chatChunkFinish('tool_calls', ['prompt_tokens' => 5, 'completion_tokens' => 10]),
+                ])),
+                Http::response($this->ssePayload([
+                    $this->chatChunk(['role' => 'assistant', 'content' => 'The number is 72019']),
+                    $this->chatChunkFinish('stop', ['prompt_tokens' => 20, 'completion_tokens' => 5]),
+                ])),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent(tools: [new FixedNumberGenerator]));
+
+        $this->assertSame([
+            ['start', 'call_123', 'FixedNumberGenerator'],
+            ['delta', 'call_123', '{"sta'],
+            ['delta', 'call_123', 'rt":1}'],
+            ['call', 'call_123', ['start' => 1]],
+        ], toolInputEvents($events));
     }
 
     public function testStreamingToolLoopEmitsASingleStreamEndWithAccumulatedUsage(): void

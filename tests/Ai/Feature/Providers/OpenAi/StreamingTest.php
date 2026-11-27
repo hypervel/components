@@ -25,6 +25,10 @@ use Hypervel\Tests\Ai\Fixtures\OpenAiHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
+
 class StreamingTest extends TestCase
 {
     use OpenAiHelpers;
@@ -167,6 +171,95 @@ class StreamingTest extends TestCase
         $this->assertSame(FinishReason::Stop->value, $streamEnd->reason);
         $this->assertSame(30, $streamEnd->usage->inputTokens);
         $this->assertSame(15, $streamEnd->usage->outputTokens);
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->responseCreated(),
+                        $this->outputItemAdded('fc_1', 'call_1', 'FixedNumberGenerator'),
+                        $this->functionCallArgumentsDelta('fc_1', ''),
+                        // A fragment event without a delta is skipped rather than ending the stream...
+                        ['type' => 'response.function_call_arguments.delta', 'item_id' => 'fc_1', 'output_index' => 0],
+                        $this->functionCallArgumentsDelta('fc_1', '{"sta'),
+                        $this->functionCallArgumentsDelta('fc_1', 'rt":1}'),
+                        $this->functionCallArgumentsDone('fc_1', '{"start":1}'),
+                        $this->responseCompleted(10, 5, output: [
+                            [
+                                'type' => 'function_call',
+                                'status' => 'completed',
+                                'id' => 'fc_1',
+                                'call_id' => 'call_1',
+                                'name' => 'FixedNumberGenerator',
+                                'arguments' => '{"start":1}',
+                            ],
+                        ]),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        [
+                            'type' => 'response.created',
+                            'response' => ['id' => 'resp_2', 'model' => 'gpt-5.4', 'status' => 'in_progress', 'output' => []],
+                        ],
+                        $this->outputTextDelta('The number is 72019'),
+                        $this->outputTextDone('The number is 72019'),
+                        $this->responseCompleted(20, 10),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'fc_1', 'FixedNumberGenerator'],
+            ['delta', 'fc_1', '{"sta'],
+            ['delta', 'fc_1', 'rt":1}'],
+            ['call', 'fc_1', ['start' => 1]],
+        ], toolInputEvents($events));
+    }
+
+    public function testStreamingFailsAToolCallTheOutputLimitCutOffInsteadOfCallingIt(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(
+                body: $this->ssePayload([
+                    $this->responseCreated(),
+                    $this->outputItemAdded('fc_1', 'call_1', 'FixedNumberGenerator'),
+                    $this->functionCallArgumentsDelta('fc_1', '{"sta'),
+                    $this->responseIncomplete('max_output_tokens', 10, 5, output: [
+                        ['type' => 'reasoning', 'id' => 'rs_1', 'summary' => [['type' => 'summary_text', 'text' => 'Let me check']]],
+                        ['type' => 'function_call', 'status' => 'incomplete', 'id' => 'fc_1', 'call_id' => 'call_1', 'name' => 'FixedNumberGenerator', 'arguments' => '{"sta'],
+                    ]),
+                ]),
+                status: 200,
+                headers: ['Content-Type' => 'text/event-stream'],
+            ),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'fc_1', 'FixedNumberGenerator'],
+            ['delta', 'fc_1', '{"sta'],
+            ['error', 'fc_1', '{"sta'],
+        ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
+        $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
+
+        Http::assertSentCount(1);
     }
 
     #[DataProvider('reasoningEventTypes')]

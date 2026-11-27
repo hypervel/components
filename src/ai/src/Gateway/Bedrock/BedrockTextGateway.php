@@ -23,6 +23,7 @@ use Hypervel\Ai\Gateway\Bedrock\Concerns\MapsAttachments;
 use Hypervel\Ai\Gateway\Cohere\Concerns\ParsesEmbeddings;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
@@ -67,6 +68,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
     use JoinsReasoning;
     use MapsAttachments;
     use ParsesEmbeddings;
+    use StreamsToolInput;
 
     protected const string STRUCTURED_OUTPUT_TOOL = 'structured_output';
 
@@ -313,6 +315,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
 
         $assistantText = '';
         $pendingToolCalls = [];
+        $incompleteToolCalls = [];
         $toolCalls = [];
         $structuredOutput = null;
         $currentBlockIndex = null;
@@ -367,6 +370,11 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                         'name' => $start['toolUse']['name'] ?? '',
                         'input' => '',
                     ];
+
+                    // Unlike upstream, keep the synthetic structured-output tool internal when generateStreamStep() is called with a schema.
+                    if (! ($structured && $pendingToolCalls[$currentBlockIndex]['name'] === self::STRUCTURED_OUTPUT_TOOL)) {
+                        yield from $this->toolInputStart($invocationId, $pendingToolCalls[$currentBlockIndex]['id'], $pendingToolCalls[$currentBlockIndex]['name']);
+                    }
                 }
 
                 continue;
@@ -430,6 +438,10 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                     $currentReasoningRedacted .= $delta['reasoningContent']['redactedContent'];
                 } elseif (isset($delta['toolUse']['input'], $pendingToolCalls[$index])) {
                     $pendingToolCalls[$index]['input'] .= $delta['toolUse']['input'];
+
+                    if (! ($structured && $pendingToolCalls[$index]['name'] === self::STRUCTURED_OUTPUT_TOOL)) {
+                        yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$index]['id'], $pendingToolCalls[$index]['name'], (string) $delta['toolUse']['input']);
+                    }
                 }
 
                 continue;
@@ -490,7 +502,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                         $structuredOutput = json_encode($arguments);
                     } else {
                         $toolCall = new ToolCall($pending['id'], $pending['name'], $arguments);
-                        $toolCalls[] = $toolCall;
+                        $toolCalls[$index] = $toolCall;
                         $responseContent[$index] = [
                             'toolUse' => [
                                 'toolUseId' => $toolCall->id,
@@ -499,11 +511,17 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                             ],
                         ];
 
-                        yield (new ToolCallEvent(
+                        $toolCallEvent = (new ToolCallEvent(
                             (string) Str::uuid(),
                             $toolCall,
                             $timestamp,
                         ))->withInvocationId($invocationId);
+
+                        if ($this->isCompleteToolInput($pending['input'])) {
+                            yield $toolCallEvent;
+                        } else {
+                            $incompleteToolCalls[] = [$toolCallEvent, $pending['input'], $index];
+                        }
                     }
 
                     unset($pendingToolCalls[$index]);
@@ -559,11 +577,23 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             ))->withInvocationId($invocationId);
         }
 
+        $finishReason = $this->extractFinishReason(['stopReason' => $stopReason]);
+        $hasCutOffToolCall = false;
+
+        foreach ($incompleteToolCalls as [$toolCallEvent, $input, $index]) {
+            if ($this->wasCutOff($input, $finishReason)) {
+                $hasCutOffToolCall = true;
+                unset($toolCalls[$index], $responseContent[$index]);
+            } else {
+                yield $toolCallEvent;
+            }
+        }
+
+        $toolCalls = array_values($toolCalls);
+
         if ($structured && $toolCalls === [] && $structuredOutput === null) {
             $structuredOutput = $assistantText;
         }
-
-        $finishReason = $this->extractFinishReason(['stopReason' => $stopReason]);
 
         if ($toolCalls === [] && $structured && $finishReason === FinishReason::ToolCalls) {
             $finishReason = FinishReason::Stop;
@@ -574,7 +604,8 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             $finishReason = FinishReason::ToolCalls;
         }
 
-        $replayBlocks = array_values($responseContent);
+        // A step that drops a cut-off tool call cannot replay raw blocks without risking a trailing reasoning block.
+        $replayBlocks = $hasCutOffToolCall ? [] : array_values($responseContent);
 
         if (! $hasReasoningBlocks) {
             $replayBlocks = array_values(array_filter(
@@ -782,6 +813,13 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
 
         $inferenceConfig = $this->buildInferenceConfig($options);
 
+        if (! $this->supportsSamplingParameters($model)) {
+            unset($inferenceConfig['temperature'], $inferenceConfig['topP']);
+        // Claude models reject temperature and topP together, so temperature wins, as in the Anthropic gateway.
+        } elseif (str_contains($model, 'claude-') && isset($inferenceConfig['temperature'])) {
+            unset($inferenceConfig['topP']);
+        }
+
         if ($inferenceConfig !== []) {
             $parameters['inferenceConfig'] = $inferenceConfig;
         }
@@ -899,6 +937,18 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
     protected function rejectsForcedToolChoice(string $model): bool
     {
         return Str::contains($model, self::MODELS_REJECTING_FORCED_TOOL_CHOICE);
+    }
+
+    /**
+     * Determine if the model accepts temperature and topP sampling parameters.
+     */
+    protected function supportsSamplingParameters(string $model): bool
+    {
+        if (! str_contains($model, 'claude-')) {
+            return true;
+        }
+
+        return (bool) preg_match('/(?:^|[.\/:])claude-(3-|(opus|sonnet|haiku)-4(-[0-6])?(-\d{8})?(-v\d+(?::[0-9a-zA-Z]+)*)?$)/', $model);
     }
 
     /**
@@ -1086,5 +1136,13 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Generate a unique ID for a stream event.
+     */
+    protected function generateEventId(): string
+    {
+        return (string) Str::uuid();
     }
 }

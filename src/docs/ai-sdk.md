@@ -1156,6 +1156,8 @@ foreach ($stream as $event) {
 }
 ```
 
+When a provider streams a tool call's arguments, the stream yields `ToolInputStart` and `ToolInputDelta` events as fragments arrive, followed by the completed `ToolCall` event once the arguments are ready. If a tool call is cut off before its input completes, such as at the output token limit, the stream yields a `ToolInputError` event instead of invoking the tool.
+
 The response also contains the model's reasoning and any sources it cited. Both are stored with the assistant message when using the `RemembersConversations` trait:
 
 ```php
@@ -1357,7 +1359,7 @@ Echo.channel('channel-name')
 <a name="broadcast-batching"></a>
 #### Broadcast Batching
 
-Agent broadcasts combine adjacent text and reasoning deltas by default, reducing broadcast requests and queued jobs. Generation continues while one sender delivers the batches, and the agent's `broadcast` call waits for that sender before returning. Direct HTTP/SSE streams and calls to an individual stream event's `broadcast` method are unchanged.
+Agent broadcasts combine adjacent text, reasoning, and tool input deltas by default, reducing broadcast requests and queued jobs. Generation continues while one sender delivers the batches, and the agent's `broadcast` call waits for that sender before returning. Direct HTTP/SSE streams and calls to an individual stream event's `broadcast` method are unchanged.
 
 The `broadcasting` section of `config/ai.php` controls batching:
 
@@ -1583,7 +1585,7 @@ class RandomNumberGenerator implements Tool
 }
 ```
 
-OpenAI, Azure OpenAI, xAI, and Anthropic support strict tools, and other providers ignore the attribute. Anthropic applies strict mode through its native structured outputs, which are enabled by default. If you set the `use_native_structured_output` option of your `anthropic` provider configuration to `false`, strict tools are sent as ordinary tools.
+OpenAI, Azure OpenAI, xAI, Anthropic, Mistral, and OpenRouter support strict tools, and other providers ignore the attribute. Anthropic applies strict mode through its native structured outputs, which are enabled by default. If you set the `use_native_structured_output` option of your `anthropic` provider configuration to `false`, strict tools are sent as ordinary tools.
 
 When added to an agent with [structured output](#structured-output), the attribute applies strict mode to the agent's response instead. OpenAI, Azure OpenAI, xAI, Groq, Mistral, OpenRouter, and OpenAI-compatible providers support strict structured output.
 

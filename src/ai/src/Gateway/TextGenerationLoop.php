@@ -62,6 +62,9 @@ use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Ai\Tools\Request;
@@ -367,6 +370,7 @@ class TextGenerationLoop
                 }
 
                 $reasoningDeltas = [];
+                $unfinishedToolInputs = [];
 
                 foreach ($stepResult as $event) {
                     yield $event;
@@ -378,10 +382,18 @@ class TextGenerationLoop
                     if ($event instanceof ReasoningDelta) {
                         $reasoningDeltas[] = $event;
                     }
+
+                    $this->trackUnfinishedToolInput($unfinishedToolInputs, $event);
                 }
 
                 $prepared = $attempt->step ?? $pending;
                 $result = $stepResult->response();
+
+                if ($result instanceof StepResponse) {
+                    foreach ($this->unfinishedToolInputErrors($unfinishedToolInputs, $invocationId) as $error) {
+                        yield $error;
+                    }
+                }
 
                 if (! $stepResult->streamed() && $result instanceof StepResponse) {
                     // Re-yield with distinct keys so iterator_to_array() retains events from every step.
@@ -791,6 +803,43 @@ class TextGenerationLoop
         }
 
         return [$toolResults, $pendingApprovals];
+    }
+
+    /**
+     * Track the input of each tool call the step has started streaming but not yet called.
+     *
+     * @param array<array-key, array{name: string, input: string}> $toolInputs
+     */
+    protected function trackUnfinishedToolInput(array &$toolInputs, StreamEvent $event): void
+    {
+        // Updated in place: returning a modified copy would re-copy the accumulated input on every delta.
+        if ($event instanceof ToolInputStart) {
+            $toolInputs[$event->toolId] = ['name' => $event->toolName, 'input' => ''];
+        } elseif ($event instanceof ToolInputDelta && isset($toolInputs[$event->toolId])) {
+            $toolInputs[$event->toolId]['input'] .= $event->delta;
+        } elseif ($event instanceof ToolCallEvent) {
+            unset($toolInputs[$event->toolCall->id]);
+        }
+    }
+
+    /**
+     * Get the errors for the tool calls whose input started streaming but that the step never called, such as one cut off by the token limit.
+     *
+     * @param array<array-key, array{name: string, input: string}> $toolInputs
+     * @return Generator<int, ToolInputError>
+     */
+    protected function unfinishedToolInputErrors(array $toolInputs, string $invocationId): Generator
+    {
+        foreach ($toolInputs as $id => $toolInput) {
+            yield (new ToolInputError(
+                $this->generateEventId(),
+                (string) $id,
+                $toolInput['name'],
+                $toolInput['input'],
+                'This tool call was not executed because its input did not complete.',
+                time(),
+            ))->withInvocationId($invocationId);
+        }
     }
 
     /**
@@ -1358,6 +1407,7 @@ class TextGenerationLoop
             $result->text,
             collect($result->toolCalls),
             $result->replayBlocks,
+            $result->replayBlocks !== [] ? $result->meta->provider : null,
         );
     }
 

@@ -127,4 +127,18 @@ class ToolMappingTest extends TestCase
             return data_get(json_decode($request->body(), true), 'tools') === [['type' => 'code_interpreter']];
         });
     }
+
+    public function testToolWithStrictAttributeOmitsStrict(): void
+    {
+        Http::fake(['*' => fakeGroqResponse('42')]);
+
+        agent(tools: [new RandomNumberGenerator])->prompt('Give me a random number', provider: 'groq');
+
+        Http::assertSent(function (Request $request): bool {
+            $function = collect(data_get(json_decode($request->body(), true), 'tools'))
+                ->firstWhere('function.name', 'RandomNumberGenerator')['function'];
+
+            return ! array_key_exists('strict', $function);
+        });
+    }
 }

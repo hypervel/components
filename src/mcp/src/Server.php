@@ -29,11 +29,13 @@ use Hypervel\Mcp\Server\Methods\CompletionComplete;
 use Hypervel\Mcp\Server\Methods\Concerns\ResolvesResources;
 use Hypervel\Mcp\Server\Methods\Discover;
 use Hypervel\Mcp\Server\Methods\GetPrompt;
+use Hypervel\Mcp\Server\Methods\GetSkill;
 use Hypervel\Mcp\Server\Methods\Initialize;
 use Hypervel\Mcp\Server\Methods\Listen;
 use Hypervel\Mcp\Server\Methods\ListPrompts;
 use Hypervel\Mcp\Server\Methods\ListResources;
 use Hypervel\Mcp\Server\Methods\ListResourceTemplates;
+use Hypervel\Mcp\Server\Methods\ListSkills;
 use Hypervel\Mcp\Server\Methods\ListTools;
 use Hypervel\Mcp\Server\Methods\Ping;
 use Hypervel\Mcp\Server\Methods\ReadResource;
@@ -41,6 +43,7 @@ use Hypervel\Mcp\Server\Prompt;
 use Hypervel\Mcp\Server\RequestContext;
 use Hypervel\Mcp\Server\Resource as McpResource;
 use Hypervel\Mcp\Server\ServerContext;
+use Hypervel\Mcp\Server\Skill;
 use Hypervel\Mcp\Server\Testing\PendingTestResponse;
 use Hypervel\Mcp\Server\Testing\TestListResponse;
 use Hypervel\Mcp\Server\Testing\TestResponse;
@@ -78,6 +81,8 @@ abstract class Server
         'resources/list',
         'resources/templates/list',
         'resources/read',
+        'skills/list',
+        'skills/get',
     ];
 
     protected string $name = 'Hypervel MCP Server';
@@ -127,6 +132,11 @@ abstract class Server
      * @var array<int, class-string<Prompt>|Prompt>
      */
     protected array $prompts = [];
+
+    /**
+     * @var array<int, class-string<Skill>|Skill|string>
+     */
+    protected array $skills = [];
 
     public int $maxPaginationLength = 50;
 
@@ -201,6 +211,7 @@ abstract class Server
     {
         $this->boot();
         $this->detectUiCapability();
+        $this->detectSkillsCapability();
 
         $this->transport->onReceive($this->handle(...));
     }
@@ -318,6 +329,7 @@ abstract class Server
             resources: $this->resources,
             prompts: $this->prompts,
             headers: $this->transport instanceof HttpTransport ? $this->transport->headers() : null,
+            skills: $this->skills,
         );
     }
 
@@ -573,6 +585,21 @@ abstract class Server
         if (collect($this->resources)->contains(fn (McpResource|string $resource): bool => is_subclass_of($resource, AppResource::class))) {
             $this->extensions[] = Extension::Ui;
         }
+    }
+
+    /**
+     * Enable the Skills extension and methods when skills are registered.
+     */
+    protected function detectSkillsCapability(): void
+    {
+        if ($this->skills === []) {
+            return;
+        }
+
+        $this->extensions[] = Extension::Skills;
+        $this->capabilities[self::CAPABILITY_RESOURCES] ??= (object) [];
+        $this->methods['skills/list'] ??= ListSkills::class;
+        $this->methods['skills/get'] ??= GetSkill::class;
     }
 
     /**

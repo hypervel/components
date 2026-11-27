@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Cohere\Concerns;
 
 use Generator;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\Meta;
@@ -25,6 +26,8 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextStreaming
 {
+    use StreamsToolInput;
+
     /**
      * Process a Cohere Chat API event stream.
      *
@@ -115,10 +118,18 @@ trait HandlesTextStreaming
                         'arguments' => (string) ($toolCall['function']['arguments'] ?? ''),
                     ];
 
+                    yield from $this->toolInputStart($invocationId, $pendingToolCalls[$data['index']]['id'], $pendingToolCalls[$data['index']]['name']);
+
+                    yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$data['index']]['id'], $pendingToolCalls[$data['index']]['name'], $pendingToolCalls[$data['index']]['arguments']);
+
                     break;
                 case 'tool-call-delta':
                     if (isset($pendingToolCalls[$data['index']])) {
-                        $pendingToolCalls[$data['index']]['arguments'] .= (string) ($delta['message']['tool_calls']['function']['arguments'] ?? '');
+                        $argumentsDelta = (string) ($delta['message']['tool_calls']['function']['arguments'] ?? '');
+
+                        $pendingToolCalls[$data['index']]['arguments'] .= $argumentsDelta;
+
+                        yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$data['index']]['id'], $pendingToolCalls[$data['index']]['name'], $argumentsDelta);
                     }
 
                     break;
@@ -167,7 +178,13 @@ trait HandlesTextStreaming
             ))->withInvocationId($invocationId);
         }
 
+        $mappedFinishReason = $this->extractFinishReason($finishReason);
+
         foreach ($pendingToolCalls as $pending) {
+            if ($this->wasCutOff($pending['arguments'], $mappedFinishReason)) {
+                continue;
+            }
+
             $toolCall = new ToolCall(
                 $pending['id'],
                 $pending['name'],
@@ -187,7 +204,7 @@ trait HandlesTextStreaming
         return new StepResponse(
             text: $currentText,
             toolCalls: $toolCalls,
-            finishReason: $this->extractFinishReason($finishReason),
+            finishReason: $mappedFinishReason,
             usage: $usage ?? new TextUsage(0, 0),
             meta: new Meta($provider->name(), $model),
         );

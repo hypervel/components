@@ -58,8 +58,10 @@
         "symfony/console": "^8.1.10",
         "symfony/http-foundation": "^8.1.11",
         "symfony/http-kernel": "^8.1.11",
+        "symfony/mime": "^8.1",
         "symfony/process": "^8.1",
-        "symfony/routing": "^8.1.11"
+        "symfony/routing": "^8.1.11",
+        "symfony/yaml": "^8.1.11"
     },
     "suggest": {
         "hypervel/passport": "Required to authorize MCP clients using OAuth (^0.4).",

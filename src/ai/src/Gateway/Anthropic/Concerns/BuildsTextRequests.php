@@ -117,6 +117,21 @@ trait BuildsTextRequests
     }
 
     /**
+     * Stream each function tool's input as Claude writes it, rather than once each parameter is complete.
+     */
+    protected function withEagerInputStreaming(array $body): array
+    {
+        foreach ($body['tools'] ?? [] as $index => $tool) {
+            // The synthetic structured-output tool is never streamed to clients, so it keeps Anthropic's input validation.
+            if (! isset($tool['type']) && $tool['name'] !== 'output_structured_data') {
+                $body['tools'][$index]['eager_input_streaming'] ??= true;
+            }
+        }
+
+        return $body;
+    }
+
+    /**
      * Stamp the requested cache breakpoints onto the final request body.
      */
     protected function applyPromptCacheBreakpoints(array $body, ?TextGenerationOptions $options): array

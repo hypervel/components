@@ -7,10 +7,12 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 use Closure;
 use Hypervel\Ai\Attributes\TopP;
 use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
 use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\ToolChoice;
+use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\AttributeAgent;
@@ -608,6 +610,42 @@ class RequestMappingTest extends TestCase
         (new ToolChoiceAgent('none'))->prompt('Just talk', provider: 'anthropic');
 
         Http::assertSent(fn ($request): bool => $request->data()['tool_choice'] === ['type' => 'none']);
+    }
+
+    #[DataProvider('structuredToolChoices')]
+    public function testNativeStructuredOutputHonorsTheToolChoice(string|array|null $toolChoice, array $expected): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeStructuredResponse(['number' => 42]),
+        ]);
+
+        (new class($toolChoice) extends ToolChoiceAgent implements HasStructuredOutput {
+            /**
+             * Get the output schema.
+             */
+            public function schema(JsonSchema $schema): array
+            {
+                return ['number' => $schema->integer()->required()];
+            }
+        })->prompt('Generate a number', provider: 'anthropic');
+
+        Http::assertSent(fn ($request): bool => isset($request->data()['output_config'])
+            && $request->data()['tool_choice'] === $expected);
+    }
+
+    /**
+     * Provide agent tool choices for native structured output requests.
+     *
+     * @return array<string, array{0: null|array<string, string>|string, 1: array<string, string>}>
+     */
+    public static function structuredToolChoices(): array
+    {
+        return [
+            'default' => [null, ['type' => 'auto']],
+            'required' => ['required', ['type' => 'any']],
+            'named tool' => [['tool' => 'custom_named_tool'], ['type' => 'tool', 'name' => 'custom_named_tool']],
+            'none' => ['none', ['type' => 'none']],
+        ];
     }
 
     #[DataProvider('structuredModes')]

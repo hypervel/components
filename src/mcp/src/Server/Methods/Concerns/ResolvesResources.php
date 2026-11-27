@@ -22,7 +22,8 @@ trait ResolvesResources
 
         $resource = $context->resources()->first(fn (Resource $resource): bool => $resource->uri() === $uri)
             ?? $context->resourceTemplates()->first(fn (Resource&HasUriTemplate $template): bool => (string) $template->uriTemplate() === $uri
-                || $template->uriTemplate()->match($uri) !== null);
+                || $template->uriTemplate()->match($uri) !== null)
+            ?? $context->skillResource($uri);
 
         if (! $resource) {
             throw new InvalidArgumentException("Resource [{$uri}] not found.");

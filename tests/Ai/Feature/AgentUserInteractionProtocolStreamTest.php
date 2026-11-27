@@ -34,6 +34,9 @@ use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Ai\Streaming\Protocols\AgentUserInteractionProtocol;
 use Hypervel\Support\Facades\Exceptions;
@@ -406,6 +409,89 @@ class AgentUserInteractionProtocolStreamTest extends TestCase
                 ],
             ],
             ['type' => 'TOOL_CALL_RESULT', 'messageId' => 'event-3', 'toolCallId' => 'call-1', 'content' => 'done', 'role' => 'tool'],
+            ['type' => 'STEP_FINISHED', 'stepName' => '1'],
+            agUiRunFinished(),
+        ], $events);
+    }
+
+    public function testAToolInputStreamedByTheProviderEmitsItsArgumentsAsTheyArriveAndClosesTheCallOnce(): void
+    {
+        $events = agUiProtocolEvents([
+            new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
+            new ToolInputStart('event-1', 'call-1', 'GetWeather', time()),
+            new ToolInputDelta('event-2', 'call-1', '{"city":', time()),
+            new ToolInputDelta('event-3', 'call-1', '"Lisbon"}', time()),
+            new ToolCall('event-4', new ToolCallData('call-1', 'GetWeather', ['city' => 'Lisbon']), time()),
+            new ToolResult('event-5', new ToolResultData('call-1', 'GetWeather', ['city' => 'Lisbon'], 'sunny'), true, null, time()),
+            new StreamEnd('event-6', 'stop', new TextUsage, time()),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'RUN_STARTED', 'threadId' => 'thread-1', 'runId' => 'run-1'],
+            ['type' => 'STEP_STARTED', 'stepName' => '1'],
+            ['type' => 'TOOL_CALL_START', 'toolCallId' => 'call-1', 'toolCallName' => 'GetWeather'],
+            ['type' => 'TOOL_CALL_ARGS', 'toolCallId' => 'call-1', 'delta' => '{"city":'],
+            ['type' => 'TOOL_CALL_ARGS', 'toolCallId' => 'call-1', 'delta' => '"Lisbon"}'],
+            ['type' => 'TOOL_CALL_END', 'toolCallId' => 'call-1'],
+            ['type' => 'TOOL_CALL_RESULT', 'messageId' => 'event-5', 'toolCallId' => 'call-1', 'content' => 'sunny', 'role' => 'tool'],
+            ['type' => 'STEP_FINISHED', 'stepName' => '1'],
+            agUiRunFinished(),
+        ], $events);
+    }
+
+    public function testAToolInputThatStreamedNoArgumentsSendsAnEmptyJsonObjectWithItsToolCall(): void
+    {
+        $events = agUiProtocolEvents([
+            new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
+            new ToolInputStart('event-1', 'call-1', 'GetTime', time()),
+            new ToolCall('event-2', new ToolCallData('call-1', 'GetTime', []), time()),
+            new StreamEnd('event-3', 'stop', new TextUsage, time()),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'TOOL_CALL_START', 'toolCallId' => 'call-1', 'toolCallName' => 'GetTime'],
+            ['type' => 'TOOL_CALL_ARGS', 'toolCallId' => 'call-1', 'delta' => '{}'],
+            ['type' => 'TOOL_CALL_END', 'toolCallId' => 'call-1'],
+        ], array_slice($events, 2, 3));
+    }
+
+    public function testAToolInputThatNeverCompletedEndsTheCallAndReportsItAsFailed(): void
+    {
+        $events = agUiProtocolEvents([
+            new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
+            new ToolInputStart('event-1', 'call-1', 'GetWeather', time()),
+            new ToolInputDelta('event-2', 'call-1', '{"city":', time()),
+            new ToolInputError('event-3', 'call-1', 'GetWeather', '{"city":', 'This tool call was not executed because its input did not complete.', time()),
+            new StreamEnd('event-4', 'length', new TextUsage, time()),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'TOOL_CALL_START', 'toolCallId' => 'call-1', 'toolCallName' => 'GetWeather'],
+            ['type' => 'TOOL_CALL_ARGS', 'toolCallId' => 'call-1', 'delta' => '{"city":'],
+            ['type' => 'TOOL_CALL_END', 'toolCallId' => 'call-1'],
+            [
+                'type' => 'TOOL_CALL_RESULT',
+                'messageId' => 'event-3',
+                'toolCallId' => 'call-1',
+                'content' => 'This tool call was not executed because its input did not complete.',
+                'role' => 'tool',
+                'metadata' => ['error' => 'This tool call was not executed because its input did not complete.'],
+            ],
+            ['type' => 'STEP_FINISHED', 'stepName' => '1'],
+        ], array_slice($events, 2, 5));
+    }
+
+    public function testAToolInputErrorForACallThatNeverStartedEmitsNothing(): void
+    {
+        $events = agUiProtocolEvents([
+            new StreamStart('msg-1', 'anthropic', 'claude-sonnet-4-6', time()),
+            new ToolInputError('event-1', 'call-1', 'GetWeather', '', 'This tool call was not executed because its input did not complete.', time()),
+            new StreamEnd('event-2', 'stop', new TextUsage, time()),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'RUN_STARTED', 'threadId' => 'thread-1', 'runId' => 'run-1'],
+            ['type' => 'STEP_STARTED', 'stepName' => '1'],
             ['type' => 'STEP_FINISHED', 'stepName' => '1'],
             agUiRunFinished(),
         ], $events);

@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Streaming\Events;
+
+class ToolInputDelta extends StreamEvent
+{
+    /**
+     * Create a tool input delta event.
+     */
+    public function __construct(
+        public string $id,
+        public string $toolId,
+        public string $delta,
+        public int $timestamp,
+    ) {
+    }
+
+    /**
+     * Get the event as an array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'invocation_id' => $this->invocationId,
+            'type' => 'tool_input_delta',
+            'tool_id' => $this->toolId,
+            'delta' => $this->delta,
+            'timestamp' => $this->timestamp,
+        ];
+    }
+}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\OpenAi\Concerns;
 
 use Generator;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\Meta;
@@ -28,6 +29,8 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextGeneration
 {
+    use StreamsToolInput;
+
     /**
      * Process streamed response events and return the completed step.
      *
@@ -240,6 +243,8 @@ trait HandlesTextGeneration
 
                 $pendingToolCalls[$index] = $toolCall;
 
+                yield from $this->toolInputStart($invocationId, $toolCall['id'], $toolCall['name']);
+
                 continue;
             }
 
@@ -248,7 +253,11 @@ trait HandlesTextGeneration
 
                 foreach ($pendingToolCalls as &$call) {
                     if (($call['id'] ?? null) === $callId) {
-                        $call['arguments'] .= $data['delta'] ?? '';
+                        $delta = (string) ($data['delta'] ?? '');
+                        $call['arguments'] .= $delta;
+
+                        yield from $this->toolInputDelta($invocationId, $callId, $call['name'], $delta);
+
                         break;
                     }
                 }
@@ -317,6 +326,14 @@ trait HandlesTextGeneration
             return null;
         }
 
+        // A step that drops an incomplete tool call cannot replay raw blocks without risking an orphaned reasoning item.
+        $hasCutOffToolCall = array_any(
+            $responseData['output'] ?? [],
+            fn (mixed $item): bool => is_array($item)
+                && ($item['type'] ?? null) === 'function_call'
+                && ($item['status'] ?? null) === 'incomplete',
+        );
+
         return new StepResponse(
             text: $currentText,
             toolCalls: $toolCalls,
@@ -324,7 +341,7 @@ trait HandlesTextGeneration
             usage: $usage ?? new TextUsage(0, 0),
             meta: new Meta($provider->name(), $responseData['model'] ?? $model),
             continuationToken: $responseId,
-            replayBlocks: $this->extractReplayBlocks($responseData['output'] ?? []),
+            replayBlocks: $hasCutOffToolCall ? [] : $this->extractReplayBlocks($responseData['output'] ?? []),
             providerToolCalls: $this->extractProviderToolCalls($responseData['output'] ?? []),
         );
     }

@@ -35,6 +35,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Ai\agent;
 use function Hypervel\Tests\Ai\Fixtures\sentRequest;
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
 
 require_once __DIR__ . '/../../../Fixtures/helpers.php';
 
@@ -262,6 +263,58 @@ class StreamingTest extends TestCase
         $toolCall = array_values(array_filter($events, fn (StreamEvent $event): bool => $event instanceof ToolCallEvent))[0];
 
         $this->assertSame(['seed' => 7], $toolCall->toolCall->arguments);
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push(...$this->geminiStream([
+                    $this->stepStart(0, ['type' => 'function_call', 'id' => 'call_1', 'name' => 'FixedNumberGenerator']),
+                    $this->argumentsDelta(0, '{"see'),
+                    $this->argumentsDelta(0, 'd": 7}'),
+                    $this->stepStop(0),
+                    $this->interactionCompleted([], 'requires_action'),
+                ]))
+                ->push(...$this->geminiStream([
+                    $this->stepDelta(0, 'text', 'Done'),
+                    $this->interactionCompleted(),
+                ])),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'call_1', 'FixedNumberGenerator'],
+            ['delta', 'call_1', '{"see'],
+            ['delta', 'call_1', 'd": 7}'],
+            ['call', 'call_1', ['seed' => 7]],
+        ], toolInputEvents($events));
+    }
+
+    public function testStreamingFailsAToolCallTheLengthLimitCutOffInsteadOfCallingIt(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => $this->geminiStreamResponse([
+                $this->stepStart(0, ['type' => 'function_call', 'id' => 'call_1', 'name' => 'FixedNumberGenerator']),
+                $this->argumentsDelta(0, '{"see'),
+                $this->interactionCompleted([], 'incomplete'),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'call_1', 'FixedNumberGenerator'],
+            ['delta', 'call_1', '{"see'],
+            ['error', 'call_1', '{"see'],
+        ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
+        $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
     }
 
     public function testStreamedArgumentDeltasAreReplayedToGeminiAsAnObject(): void

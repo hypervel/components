@@ -22,6 +22,10 @@ use Hypervel\Tests\Ai\Fixtures\MistralHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
+
 class StreamingTest extends TestCase
 {
     use MistralHelpers;
@@ -121,6 +125,51 @@ class StreamingTest extends TestCase
         $this->assertSame(FinishReason::Stop->value, $streamEndEvents[0]->reason);
         $this->assertSame(30, $streamEndEvents[0]->usage->inputTokens);
         $this->assertSame(15, $streamEndEvents[0]->usage->outputTokens);
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        $chunk = fn (array $delta, ?string $finishReason = null): array => [
+            'id' => 'chatcmpl-123',
+            'object' => 'chat.completion.chunk',
+            'model' => 'mistral-medium-latest',
+            'choices' => [['index' => 0, 'delta' => $delta, 'finish_reason' => $finishReason]],
+        ];
+
+        Http::fake([
+            '*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        // The opening chunk carries an empty arguments fragment, which carries no delta...
+                        $chunk(['role' => 'assistant', 'tool_calls' => [
+                            ['index' => 0, 'id' => 'call_1', 'function' => ['name' => 'FixedNumberGenerator', 'arguments' => '']],
+                        ]]),
+                        $chunk(['tool_calls' => [['index' => 0, 'function' => ['arguments' => '{"sta']]]]),
+                        $chunk(['tool_calls' => [['index' => 0, 'function' => ['arguments' => 'rt":1}']]]]),
+                        [...$chunk([], 'tool_calls'), 'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5]],
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $chunk(['role' => 'assistant', 'content' => 'The number is 72019']),
+                        [...$chunk([], 'stop'), 'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 10]],
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'call_1', 'FixedNumberGenerator'],
+            ['delta', 'call_1', '{"sta'],
+            ['delta', 'call_1', 'rt":1}'],
+            ['call', 'call_1', ['start' => 1]],
+        ], toolInputEvents($events));
     }
 
     public function testStreamingCapturesUsage(): void

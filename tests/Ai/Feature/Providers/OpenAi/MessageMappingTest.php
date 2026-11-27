@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\OpenAi;
 
+use Hypervel\Ai\AgentUserInteraction\AgentUserInteraction;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\Base64Document;
@@ -99,6 +100,37 @@ class MessageMappingTest extends TestCase
         }
 
         $this->assertTrue($hasFunctionCallOutput);
+    }
+
+    public function testReplayingAnAgUiToolResultKeepsTheCallIdOnTheFunctionCall(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => fakeOpenAiResponse('Yes, that account is in the list.'),
+        ]);
+
+        $chat = AgentUserInteraction::chat([
+            'threadId' => 'thread-1',
+            'runId' => 'run-1',
+            'messages' => [
+                ['id' => 'u1', 'role' => 'user', 'content' => 'Which accounts can I see?'],
+                ['id' => 'fc_1', 'role' => 'assistant', 'toolCalls' => [
+                    ['id' => 'fc_1', 'type' => 'function', 'function' => ['name' => 'list_accounts', 'arguments' => '{}']],
+                ]],
+                ['id' => 'call_1', 'role' => 'tool', 'toolCallId' => 'fc_1', 'content' => 'Carloans365'],
+                ['id' => 'u2', 'role' => 'user', 'content' => 'Is Carloans365 one of them?'],
+            ],
+        ]);
+
+        (new AssistantAgent)->withMessages($chat->history())->prompt($chat, provider: 'openai');
+
+        Http::assertSent(function (Request $request): bool {
+            $input = json_decode($request->body(), true)['input'] ?? [];
+            $functionCall = collect($input)->firstWhere('type', 'function_call');
+            $output = collect($input)->firstWhere('type', 'function_call_output');
+
+            return ($functionCall['call_id'] ?? null) === 'fc_1'
+                && ($output['call_id'] ?? null) === 'fc_1';
+        });
     }
 
     public function testBase64PdfDocumentMapsToInputFile(): void

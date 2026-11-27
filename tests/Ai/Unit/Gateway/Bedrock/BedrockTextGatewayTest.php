@@ -764,6 +764,90 @@ class BedrockTextGatewayTest extends TestCase
         ];
     }
 
+    #[DataProvider('samplingCompatibleModels')]
+    public function testBuildConverseParametersRetainsSamplingParametersForCompatibleModels(
+        string $model,
+        TextGenerationOptions $options,
+        array $expected,
+    ): void {
+        $params = textGateway()->callBuildConverseParameters(
+            $model,
+            null,
+            [],
+            null,
+            null,
+            true,
+            $options,
+            false,
+        );
+
+        $this->assertSame($expected, $params['inferenceConfig']);
+    }
+
+    /**
+     * Provide Bedrock model IDs that accept sampling parameters and their expected inferenceConfig.
+     */
+    public static function samplingCompatibleModels(): array
+    {
+        $both = new TextGenerationOptions(maxTokens: 100, temperature: 0.7, topP: 0.9);
+        $topPOnly = new TextGenerationOptions(maxTokens: 100, topP: 0.9);
+
+        return [
+            'non-claude keeps both' => ['amazon.nova-pro-v1:0', $both, ['maxTokens' => 100, 'temperature' => 0.7, 'topP' => 0.9]],
+            'claude 3 prefers temperature' => ['anthropic.claude-3-5-sonnet-20241022-v2:0', $both, ['maxTokens' => 100, 'temperature' => 0.7]],
+            'claude 4.5 haiku prefers temperature' => ['us.anthropic.claude-haiku-4-5-20251001-v1:0', $both, ['maxTokens' => 100, 'temperature' => 0.7]],
+            'claude 4.6 sonnet prefers temperature' => ['global.anthropic.claude-sonnet-4-6', $both, ['maxTokens' => 100, 'temperature' => 0.7]],
+            'claude 4.6 opus prefers temperature' => ['anthropic.claude-opus-4-6-v1', $both, ['maxTokens' => 100, 'temperature' => 0.7]],
+            'claude 4.0 with context suffix' => ['anthropic.claude-sonnet-4-20250514-v1:0:200k', $both, ['maxTokens' => 100, 'temperature' => 0.7]],
+            'claude 4.6 inference profile arn' => ['arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-6', $both, ['maxTokens' => 100, 'temperature' => 0.7]],
+            'claude 4.6 sends topP without temperature' => ['global.anthropic.claude-sonnet-4-6', $topPOnly, ['maxTokens' => 100, 'topP' => 0.9]],
+        ];
+    }
+
+    #[DataProvider('samplingIncompatibleModels')]
+    public function testBuildConverseParametersDropsSamplingParametersForIncompatibleClaudeModels(string $model): void
+    {
+        $paramsWithMaxTokens = textGateway()->callBuildConverseParameters(
+            $model,
+            null,
+            [],
+            null,
+            null,
+            true,
+            new TextGenerationOptions(maxTokens: 100, temperature: 0.2, topP: 0.9),
+            false,
+        );
+
+        $this->assertSame(['maxTokens' => 100], $paramsWithMaxTokens['inferenceConfig']);
+
+        $paramsSamplingOnly = textGateway()->callBuildConverseParameters(
+            $model,
+            null,
+            [],
+            null,
+            null,
+            true,
+            new TextGenerationOptions(temperature: 0.2, topP: 0.9),
+            false,
+        );
+
+        $this->assertArrayNotHasKey('inferenceConfig', $paramsSamplingOnly);
+    }
+
+    /**
+     * Provide Bedrock Claude model IDs that reject sampling parameters.
+     */
+    public static function samplingIncompatibleModels(): array
+    {
+        return [
+            ['global.anthropic.claude-haiku-5-5'],
+            ['global.anthropic.claude-sonnet-5-5'],
+            ['global.anthropic.claude-opus-5-5'],
+            ['anthropic.claude-opus-4-7-v1:0'],
+            ['anthropic.claude-fable-5-1'],
+        ];
+    }
+
     #[DataProvider('unsupportedToolChoices')]
     public function testBuildConverseParametersRejectsUnsupportedToolChoices(ToolChoice $choice, array $providerOptions, string $message): void
     {

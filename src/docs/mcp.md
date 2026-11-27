@@ -42,6 +42,11 @@
     - [Rendering Apps From Tools](#rendering-apps-from-tools)
     - [App Tool Visibility](#app-tool-visibility)
     - [App Configuration](#app-configuration)
+- [Skills](#skills)
+    - [Creating Skills](#creating-skills)
+    - [Registering Skills](#registering-skills)
+    - [Custom Skill URIs](#custom-skill-uris)
+    - [Conditional Skill Registration](#conditional-skill-registration)
 - [Metadata](#metadata)
 - [Icons](#icons)
 - [Authentication](#authentication)
@@ -1735,6 +1740,109 @@ public function appMeta(): AppMeta
 ```
 
 For the complete protocol reference, including the full client-side API and schema details, see the official [MCP Apps documentation](https://modelcontextprotocol.io/extensions/apps/overview).
+
+<a name="skills"></a>
+## Skills
+
+Skills let your MCP server publish reusable instruction bundles — a `SKILL.md` file with YAML frontmatter alongside any supporting reference files — through the `io.modelcontextprotocol/skills` extension.
+
+When a server registers skills, Hypervel MCP automatically advertises the `io.modelcontextprotocol/skills` extension and `resources` capability, exposes the `skills/list` and `skills/get` methods, lists each skill's `SKILL.md` under `resources/list`, and serves every file in the skill directory through `resources/read`.
+
+<a name="creating-skills"></a>
+### Creating Skills
+
+To generate a skill class and starter `SKILL.md` file, run the `make:mcp-skill` Artisan command:
+
+```shell
+php artisan make:mcp-skill ReleaseChecklist
+```
+
+This creates `app/Mcp/Skills/ReleaseChecklist.php` and `resources/skills/release-checklist/SKILL.md`. Each `SKILL.md` must begin with a YAML frontmatter block whose `name` matches the directory name (lowercase letters, digits, and hyphens, up to 64 characters) and includes a `description` (up to 1,024 characters):
+
+```markdown
+---
+name: release-checklist
+description: Prepare a release using the bundled checklist.
+---
+
+# Release Checklist
+
+Read [the checklist](references/checklist.md) before preparing a release.
+```
+
+Skill directories skip dotfiles, dot directories, and symlinks, and are limited to 512 files and 16 MiB in total.
+
+<a name="registering-skills"></a>
+### Registering Skills
+
+Register skill classes, `Skill` instances, or directory paths (absolute or relative to `resources/`) in your server's `$skills` property:
+
+```php
+<?php
+
+namespace App\Mcp\Servers;
+
+use App\Mcp\Skills\ReleaseChecklist;
+use Hypervel\Mcp\Server;
+use Hypervel\Mcp\Server\Skill;
+
+class OperationsServer extends Server
+{
+    /**
+     * The skills registered with this MCP server.
+     *
+     * @var array<int, class-string<Skill>|Skill|string>
+     */
+    protected array $skills = [
+        ReleaseChecklist::class,
+        'skills/house-style',
+    ];
+}
+```
+
+Invalid or duplicate skills are reported and skipped so they do not affect other skills or resources on the server.
+
+<a name="custom-skill-uris"></a>
+### Custom Skill URIs
+
+By default, a skill's URI is `skill://{name}/SKILL.md`. You may customize the URI using the `#[Uri]` attribute on a `Skill` class, provided it ends with `/{name}/SKILL.md`:
+
+```php
+use Hypervel\Mcp\Server\Attributes\Uri;
+use Hypervel\Mcp\Server\Skill;
+
+#[Uri('skill://team/release-checklist/SKILL.md')]
+class TeamReleaseChecklist extends Skill
+{
+    public function path(): string
+    {
+        return 'skills/release-checklist';
+    }
+}
+```
+
+<a name="conditional-skill-registration"></a>
+### Conditional Skill Registration
+
+Like tools, prompts, and resources, a `Skill` class may define a `shouldRegister` method to decide at request time whether the skill should be exposed:
+
+```php
+use Hypervel\Contracts\Config\Repository;
+use Hypervel\Mcp\Server\Skill;
+
+class HouseStyle extends Skill
+{
+    public function path(): string
+    {
+        return 'skills/house-style';
+    }
+
+    public function shouldRegister(Repository $config): bool
+    {
+        return $config->boolean('mcp.skills.house_style', true);
+    }
+}
+```
 
 <a name="metadata"></a>
 ## Metadata

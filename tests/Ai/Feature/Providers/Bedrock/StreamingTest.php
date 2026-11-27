@@ -28,6 +28,10 @@ use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
+
 class StreamingTest extends TestCase
 {
     use BedrockHelpers;
@@ -96,6 +100,83 @@ class StreamingTest extends TestCase
 
         $this->assertCount(2, $textStarts);
         $this->assertNotSame($textStarts[0]->messageId, $textStarts[1]->messageId);
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        $mock = new MockHandler([
+            new Result(['stream' => [
+                $this->contentBlockStart(0, ['toolUse' => ['toolUseId' => 't1', 'name' => 'FixedNumberGenerator']]),
+                $this->contentBlockDelta(0, ['toolUse' => ['input' => '']]),
+                $this->contentBlockDelta(0, ['toolUse' => ['input' => '{"sta']]),
+                $this->contentBlockDelta(0, ['toolUse' => ['input' => 'rt":1}']]),
+                $this->contentBlockStop(0),
+                $this->messageStop('tool_use'),
+            ]]),
+            new Result(['stream' => [
+                $this->contentBlockStart(0),
+                $this->contentBlockDelta(0, ['text' => 'Done']),
+                $this->contentBlockStop(0),
+                $this->messageStop('end_turn'),
+            ]]),
+        ]);
+
+        $gateway = $this->gatewayWithClient($this->bedrockClient($mock));
+
+        $events = iterator_to_array(
+            (new TextGenerationLoop($gateway))->stream(
+                'inv-1',
+                $this->bedrockProvider(),
+                'anthropic.claude-opus-4-7-v1:0',
+                null,
+                tools: [new FixedNumberGenerator],
+            ),
+            preserve_keys: false,
+        );
+
+        $this->assertSame([
+            ['start', 't1', 'FixedNumberGenerator'],
+            ['delta', 't1', '{"sta'],
+            ['delta', 't1', 'rt":1}'],
+            ['call', 't1', ['start' => 1]],
+        ], toolInputEvents($events));
+    }
+
+    public function testStreamingFailsAToolCallTheLengthLimitCutOffInsteadOfCallingIt(): void
+    {
+        $client = $this->fakeBedrockStream([
+            $this->contentBlockStart(0),
+            $this->contentBlockDelta(0, ['reasoningContent' => ['text' => 'Let me check']]),
+            $this->contentBlockDelta(0, ['reasoningContent' => ['signature' => 'sig-1']]),
+            $this->contentBlockStop(0),
+            $this->contentBlockStart(1, ['toolUse' => ['toolUseId' => 't1', 'name' => 'FixedNumberGenerator']]),
+            $this->contentBlockDelta(1, ['toolUse' => ['input' => '{"sta']]),
+            $this->contentBlockStop(1),
+            $this->messageStop('max_tokens'),
+        ]);
+
+        $events = iterator_to_array(
+            (new TextGenerationLoop($this->gatewayWithClient($client)))->stream(
+                'inv-1',
+                $this->bedrockProvider(),
+                'anthropic.claude-opus-4-7-v1:0',
+                null,
+                tools: [new FixedNumberGenerator],
+            ),
+            preserve_keys: false,
+        );
+
+        $this->assertSame([
+            ['start', 't1', 'FixedNumberGenerator'],
+            ['delta', 't1', '{"sta'],
+            ['error', 't1', '{"sta'],
+        ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
+        $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
     }
 
     public function testStreamingRoundTripsReasoningBlockOnFollowUpToolStep(): void

@@ -243,6 +243,15 @@ class RequestMappingTest extends TestCase
             && $request->hasHeader('X-OpenRouter-Title', 'My App'));
     }
 
+    public function testRequestSendsAnthropicStrictToolsBetaHeader(): void
+    {
+        Http::fake(['*' => fakeOpenRouterResponse('Hello')]);
+
+        agent()->prompt('Hello', provider: 'openrouter');
+
+        Http::assertSent(fn (Request $request): bool => $request->hasHeader('x-anthropic-beta', 'structured-outputs-2025-11-13'));
+    }
+
     public function testResponseTextIsCorrectlyParsed(): void
     {
         Http::fake(['*' => fakeOpenRouterResponse('Hypervel is great')]);

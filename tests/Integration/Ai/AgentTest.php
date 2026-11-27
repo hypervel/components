@@ -9,6 +9,7 @@ use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\HasProviderOptions;
 use Hypervel\Ai\Contracts\HasTools;
+use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Events\AgentPrompted;
 use Hypervel\Ai\Events\AgentStreamed;
@@ -28,9 +29,13 @@ use Hypervel\Ai\Responses\StreamedAgentResponse;
 use Hypervel\Ai\Skills\Skill;
 use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Ai\ToolChoice;
 use Hypervel\Ai\Tools\LoadSkill;
+use Hypervel\Ai\Tools\Request;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Event;
@@ -165,6 +170,82 @@ class AgentTest extends TestCase
 
         Event::assertDispatched(StreamingAgent::class);
         Event::assertDispatched(AgentStreamed::class);
+    }
+
+    #[DataProvider('toolInputStreamingProviders')]
+    public function testAgentsStreamToolInputAsItArrives(string $provider, string $apiKey, string $model): void
+    {
+        requiresApiKey($apiKey);
+
+        $tool = new class implements Tool {
+            /**
+             * Get the tool name.
+             */
+            public function name(): string
+            {
+                return 'SaveNote';
+            }
+
+            /**
+             * Get the tool description.
+             */
+            public function description(): string
+            {
+                return 'Save a note for the user.';
+            }
+
+            /**
+             * Execute the tool.
+             */
+            public function handle(Request $request): string
+            {
+                return 'Saved.';
+            }
+
+            /**
+             * Get the tool's schema definition.
+             */
+            public function schema(JsonSchema $schema): array
+            {
+                return ['content' => $schema->string()->required()];
+            }
+        };
+
+        $events = collect(agent(tools: [$tool])->stream(
+            'Save a note with a three sentence summary of what Laravel is. Then reply "Done".',
+            provider: $provider,
+            model: $model,
+        ));
+
+        $call = $events->whereInstanceOf(ToolCallEvent::class)->first()->toolCall;
+
+        $inputEvents = $events->filter(fn ($event): bool => ($event instanceof ToolInputStart || $event instanceof ToolInputDelta) && $event->toolId === $call->id)->values();
+
+        $this->assertInstanceOf(ToolInputStart::class, $inputEvents->first());
+        $this->assertSame($call->arguments, json_decode($inputEvents->whereInstanceOf(ToolInputDelta::class)->pluck('delta')->implode(''), true));
+        $this->assertLessThan(
+            $events->search(fn ($event): bool => $event instanceof ToolCallEvent),
+            $events->search(fn ($event): bool => $event instanceof ToolInputStart),
+        );
+        $this->assertEmpty($events->whereInstanceOf(ToolInputError::class));
+    }
+
+    /**
+     * Provide live provider configurations for tool input streaming.
+     */
+    public static function toolInputStreamingProviders(): array
+    {
+        return [
+            'anthropic' => ['anthropic', 'ANTHROPIC_API_KEY', 'claude-haiku-4-5-20251001'],
+            'cohere' => ['cohere', 'COHERE_API_KEY', 'command-a-03-2025'],
+            'deepseek' => ['deepseek', 'DEEPSEEK_API_KEY', 'deepseek-v4-pro'],
+            'gemini' => ['gemini', 'GEMINI_API_KEY', 'gemini-3.8-flash'],
+            'groq' => ['groq', 'GROQ_API_KEY', 'openai/gpt-oss-20b'],
+            'mistral' => ['mistral', 'MISTRAL_API_KEY', 'mistral-small-latest'],
+            'openai' => ['openai', 'OPENAI_API_KEY', 'gpt-6-luna'],
+            'openrouter' => ['openrouter', 'OPENROUTER_API_KEY', 'anthropic/claude-haiku-4.5'],
+            'xai' => ['xai', 'XAI_API_KEY', 'grok-4.20-non-reasoning'],
+        ];
     }
 
     #[DataProviderExternal(Providers::class, 'agents')]

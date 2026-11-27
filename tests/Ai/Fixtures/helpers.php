@@ -7,6 +7,11 @@ namespace Hypervel\Tests\Ai\Fixtures;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Providers\TypeSafeProvider;
+use Hypervel\Ai\Streaming\Events\StreamEvent;
+use Hypervel\Ai\Streaming\Events\ToolCall;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
@@ -394,4 +399,19 @@ function fakeDeepSeekToolCallResponse(): PromiseInterface
             'completion_tokens' => 5,
         ],
     ]);
+}
+
+function toolInputEvents(iterable $events): array
+{
+    return collect($events)
+        ->map(fn (StreamEvent $event): ?array => match (true) {
+            $event instanceof ToolInputStart => ['start', $event->toolId, $event->toolName],
+            $event instanceof ToolInputDelta => ['delta', $event->toolId, $event->delta],
+            $event instanceof ToolInputError => ['error', $event->toolId, $event->input],
+            $event instanceof ToolCall => ['call', $event->toolCall->id, $event->toolCall->arguments],
+            default => null,
+        })
+        ->filter()
+        ->values()
+        ->all();
 }
