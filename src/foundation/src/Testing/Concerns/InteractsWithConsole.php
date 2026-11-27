@@ -80,8 +80,8 @@ trait InteractsWithConsole
     /**
      * Disable mocking the console output.
      *
-     * When using this with traits like DatabaseMigrations, call this in setUp()
-     * before parent::setUp() to ensure mock output is never bound.
+     * Call this in setUp() before parent::setUp() if custom setup hooks invoke Artisan
+     * commands and should not bind mocked console output.
      *
      * @return $this
      */

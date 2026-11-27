@@ -402,8 +402,9 @@ trait InteractsWithDatabase
      */
     public function seed(array|string $class = 'Database\Seeders\DatabaseSeeder'): static
     {
+        // Run internal seeding unmocked so seed() works without Mockery.
         foreach (Arr::wrap($class) as $class) {
-            $this->artisan('db:seed', ['--class' => $class, '--no-interaction' => true]);
+            $this->realArtisan('db:seed', ['--class' => $class, '--no-interaction' => true]);
         }
 
         return $this;
