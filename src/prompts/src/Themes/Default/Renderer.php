@@ -58,7 +58,7 @@ abstract class Renderer implements Stringable
         $formatter = $this->formatter();
         $formatter->setDecorated($decorated);
 
-        return $formatter->format($text);
+        return $formatter->format($text) ?? '';
     }
 
     /**

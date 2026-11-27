@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\OpenAi;
 
 use Hypervel\Ai\AiManager;
+use Hypervel\Ai\Enums\StoreDocumentStatus;
 use Hypervel\Ai\Providers\OpenAiProvider;
+use Hypervel\Ai\Responses\Data\StoreDocument;
 use Hypervel\Ai\Stores;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
@@ -205,6 +207,148 @@ class StoreGatewayTest extends TestCase
             'name' => $name,
             'status' => 'completed',
             'file_counts' => ['completed' => 5, 'in_progress' => 1, 'failed' => 0],
+        ];
+    }
+
+    public function testListFilesReturnsTheDocumentsInTheStore(): void
+    {
+        Http::fake([
+            'api.openai.com/v1/vector_stores/vs-123/files*' => Http::response([
+                'object' => 'list',
+                'data' => [
+                    $this->fakeOpenAiStoreFile('file-1', 'completed', ['company' => 'hypervel']),
+                    $this->fakeOpenAiStoreFile('file-2', 'in_progress'),
+                    $this->fakeOpenAiStoreFile('file-3', 'failed'),
+                    $this->fakeOpenAiStoreFile('file-4', 'cancelled'),
+                ],
+                'first_id' => 'file-1',
+                'last_id' => 'file-4',
+                'has_more' => false,
+            ]),
+            'api.openai.com/*' => Http::response($this->fakeOpenAiStoreResponse()),
+        ]);
+
+        $documents = Stores::get('vs-123', provider: 'openai')->documents()->all();
+
+        $this->assertCount(4, $documents);
+        $this->assertInstanceOf(StoreDocument::class, $documents[0]);
+        $this->assertSame('file-1', $documents[0]->id);
+        $this->assertSame('file-1', $documents[0]->fileId);
+        $this->assertSame(StoreDocumentStatus::Completed, $documents[0]->status);
+        $this->assertTrue($documents[0]->completed());
+        $this->assertSame(['company' => 'hypervel'], $documents[0]->metadata);
+        $this->assertSame(StoreDocumentStatus::Pending, $documents[1]->status);
+        $this->assertSame([], $documents[1]->metadata);
+        $this->assertSame(StoreDocumentStatus::Failed, $documents[2]->status);
+        $this->assertSame(StoreDocumentStatus::Failed, $documents[3]->status);
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
+            && $request->url() === 'https://api.openai.com/v1/vector_stores/vs-123/files?limit=100'
+            && $request->hasHeader('Authorization', 'Bearer test-key'));
+    }
+
+    public function testListFilesFollowsTheCursorToTheNextPage(): void
+    {
+        Http::fake([
+            'api.openai.com/v1/vector_stores/vs-123/files*' => Http::sequence()
+                ->push([
+                    'object' => 'list',
+                    'data' => [$this->fakeOpenAiStoreFile('file-1'), $this->fakeOpenAiStoreFile('file-2')],
+                    'last_id' => 'file-2',
+                    'has_more' => true,
+                ])
+                ->push([
+                    'object' => 'list',
+                    'data' => [$this->fakeOpenAiStoreFile('file-3')],
+                    'last_id' => 'file-3',
+                    'has_more' => false,
+                ]),
+        ]);
+
+        $provider = $this->openAiProvider();
+
+        $ids = $provider->storeGateway()->listFiles($provider, 'vs-123')->pluck('id')->all();
+
+        $this->assertSame(['file-1', 'file-2', 'file-3'], $ids);
+
+        Http::assertSentCount(2);
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/vector_stores/vs-123/files?limit=100&after=file-2');
+    }
+
+    public function testListFilesOnlyFetchesThePagesThatAreIterated(): void
+    {
+        Http::fake([
+            'api.openai.com/v1/vector_stores/vs-123/files*' => Http::response([
+                'object' => 'list',
+                'data' => [$this->fakeOpenAiStoreFile('file-1'), $this->fakeOpenAiStoreFile('file-2')],
+                'last_id' => 'file-2',
+                'has_more' => true,
+            ]),
+        ]);
+
+        $provider = $this->openAiProvider();
+
+        $files = $provider->storeGateway()->listFiles($provider, 'vs-123');
+
+        Http::assertNothingSent();
+
+        $this->assertSame('file-1', $files->first()->id);
+
+        Http::assertSentCount(1);
+    }
+
+    public function testListFilesReturnsAnEmptyCollectionForAnEmptyStore(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(['object' => 'list', 'data' => [], 'has_more' => false]),
+        ]);
+
+        $provider = $this->openAiProvider();
+
+        $this->assertSame([], $provider->storeGateway()->listFiles($provider, 'vs-123')->all());
+    }
+
+    public function testListedDocumentCanBeRemovedWithItsSourceFile(): void
+    {
+        Http::fake([
+            '*/vs-123/files?*' => Http::response(['data' => [$this->fakeOpenAiStoreFile('file-1')]]),
+            '*/vs-123' => Http::response($this->fakeOpenAiStoreResponse()),
+            '*' => Http::response(['deleted' => true]),
+        ]);
+        $store = Stores::get('vs-123', provider: 'openai');
+
+        $this->assertTrue($store->remove($store->documents()->first(), deleteFile: true));
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://api.openai.com/v1/vector_stores/vs-123/files/file-1');
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://api.openai.com/v1/files/file-1');
+    }
+
+    public function testListFilesEncodesTheStoreIdAsASinglePathSegment(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(['object' => 'list', 'data' => [], 'has_more' => false]),
+        ]);
+
+        $provider = $this->openAiProvider();
+        $provider->storeGateway()->listFiles($provider, '../files')->all();
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/vector_stores/..%2Ffiles/files?limit=100');
+    }
+
+    /**
+     * Build a vector store file response.
+     */
+    private function fakeOpenAiStoreFile(string $id, string $status = 'completed', ?array $attributes = null): array
+    {
+        return [
+            'id' => $id,
+            'object' => 'vector_store.file',
+            'vector_store_id' => 'vs-123',
+            'status' => $status,
+            'attributes' => $attributes,
         ];
     }
 }

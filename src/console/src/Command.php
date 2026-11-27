@@ -19,6 +19,7 @@ use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Prompts\Prompt;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Traits\Macroable;
@@ -184,15 +185,17 @@ class Command extends SymfonyCommand
 
         $this->components = $this->hypervel->make(Factory::class, ['output' => $this->output]);
 
-        $this->configurePrompts($input);
+        return Prompt::withSavedConfiguration(function () use ($input): int {
+            $this->configurePrompts($input);
 
-        try {
-            $this->setUpTraits($this->input = $input, $this->output);
+            try {
+                $this->setUpTraits($this->input = $input, $this->output);
 
-            return parent::run($this->input, $this->output);
-        } finally {
-            $this->untrap();
-        }
+                return parent::run($this->input, $this->output);
+            } finally {
+                $this->untrap();
+            }
+        });
     }
 
     /**
@@ -285,7 +288,6 @@ class Command extends SymfonyCommand
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->disableDispatcher($input);
-        $this->replaceOutput();
 
         $commandMutex = null;
 
@@ -423,16 +425,6 @@ class Command extends SymfonyCommand
         return $this->hypervel->bound(CommandMutex::class)
             ? $this->hypervel->make(CommandMutex::class)
             : $this->hypervel->make(CacheCommandMutex::class);
-    }
-
-    /**
-     * Replace the command output with the configured output style.
-     */
-    protected function replaceOutput(): void
-    {
-        if ($this->hypervel->bound(OutputStyle::class)) {
-            $this->output = $this->hypervel->make(OutputStyle::class);
-        }
     }
 
     /**

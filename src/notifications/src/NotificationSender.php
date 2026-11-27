@@ -212,9 +212,13 @@ class NotificationSender
         $original = clone $notification;
 
         foreach ($notifiables as $notifiable) {
+            if (empty($viaChannels = $original->via($notifiable))) {
+                continue;
+            }
+
             $notificationId = Str::uuid()->toString();
 
-            foreach ((array) $original->via($notifiable) as $channel) {
+            foreach ((array) $viaChannels as $channel) {
                 $notification = clone $original;
 
                 if (! $notification->id) {

@@ -239,6 +239,8 @@ class Post extends Model
 
 Common model properties to audit include `$connection`, `$table`, `$primaryKey`, `$keyType`, `$incrementing`, `$perPage`, `$fillable`, `$guarded`, `$casts`, and `$timestamps`.
 
+If a route-bound model uses a string primary key, declare its [key type](/docs/{{version}}/eloquent#primary-keys). Hypervel checks integer route keys even when auto-incrementing is disabled.
+
 Artisan command properties require the same review:
 
 ```php
@@ -938,7 +940,7 @@ Laravel's Memcached, APC / APCu, DynamoDB, and generic cache-backed session conf
 
 Queue connections include `database`, `redis`, `sqs`, `beanstalkd`, `failover`, `sync`, `background`, `deferred`, and `null`. The `background` and `deferred` drivers run work inside the current worker process and are not durable external queues.
 
-Remove assignments to `Worker::$flushStickyConnections`: daemon jobs already have independent [sticky routing state](/docs/{{version}}/database#the-sticky-option). If a job must read from the writer regardless of its own writes, use an explicit `::write` connection. The worker constructor also omits Laravel's `$resetScope` callback; move custom per-job setup or cleanup into [job events](/docs/{{version}}/queues#job-events), or [job middleware](/docs/{{version}}/queues#job-middleware) for specific jobs, instead of a worker-wide reset.
+Remove assignments to `Worker::$flushStickyConnections`: daemon jobs already have independent [sticky routing state](/docs/{{version}}/database#the-sticky-option). If a job must read from the writer regardless of its own writes, use an explicit `::write` connection. The worker constructor also omits Laravel's `$resetScope` callback; move custom per-job setup or cleanup into [job events](/docs/{{version}}/queues#job-events), or [job middleware](/docs/{{version}}/queues#job-middleware) for specific jobs, instead of a worker-wide reset. If you track memory usage per job, account for `JobAttempted::$memoryUsage` measuring PHP's peak allocated memory across jobs in the same worker.
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 

@@ -7,11 +7,11 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Connection;
 use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PdoConnection;
-use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
@@ -118,25 +118,34 @@ class DatabaseSchemaBuilderTest extends TestCase
         $this->assertTrue($builder->dropDatabaseIfExists('foo'));
     }
 
-    public function testTruncateTablesChecksWriteRowsAndSkipsEmptyTables(): void
+    public function testTruncateTablesInChunks(): void
     {
-        $connection = Double::for(Connection::class)->strict();
-        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class)->strict());
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:', '', ['sticky' => false]);
+        $replica = new PDO('sqlite::memory:');
+        $tables = array_map(fn (int $number): string => "foo_{$number}", range(1, 101));
 
-        foreach (['public.populated' => true, 'public.empty' => false] as $name => $hasRows) {
-            $query = Double::for(QueryBuilder::class)->strict();
-            $connection->expects('table')->with($name)->returns($query);
-            $query->expects('useWritePdo')->returns($query);
-            $query->expects('exists')->returns($hasRows);
-
-            if ($hasRows) {
-                $query->expects('truncate');
-            } else {
-                $query->expects('truncate')->never();
-            }
+        foreach ($tables as $table) {
+            $sql = "create table {$table} (id integer primary key autoincrement)";
+            $connection->statement($sql);
+            $replica->exec($sql);
         }
 
-        (new Builder($connection))->truncateTables(['public.populated', 'public.empty']);
+        foreach (['foo_1', 'foo_100', 'foo_101'] as $table) {
+            $connection->table($table)->insert(['id' => 1]);
+        }
+
+        $connection->statement('create trigger empty_foo_100 after delete on foo_1 begin delete from foo_100; end');
+
+        $connection->setReadPdo($replica);
+        $this->assertFalse($connection->table('foo_1')->exists());
+        $this->assertTrue($connection->table('foo_1')->useWritePdo()->exists());
+        $connection->enableQueryLog();
+        $connection->getSchemaBuilder()->truncateTables($tables);
+
+        $queries = array_column($connection->getQueryLog(), 'query');
+        $this->assertCount(4, preg_grep('/^select \(select /', $queries));
+        $this->assertSame(['delete from "foo_1"', 'delete from "foo_101"'], array_values(preg_grep('/^delete from "foo_/', $queries)));
+        $this->assertSame(0, $connection->table('foo_1')->useWritePdo()->count());
     }
 
     #[DataProvider('partitionSelections')]

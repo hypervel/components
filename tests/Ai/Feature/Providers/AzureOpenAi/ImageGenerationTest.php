@@ -8,6 +8,7 @@ use Closure;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
+use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\LocalDocument;
 use Hypervel\Ai\Files\LocalImage;
 use Hypervel\Ai\Image;
@@ -193,6 +194,31 @@ class ImageGenerationTest extends TestCase
             'local' => [fn (): LocalImage => new LocalImage($path)],
             'upload' => [fn (): UploadedFile => new UploadedFile($path, 'red.png', 'image/png', null, true)],
         ];
+    }
+
+    public function testImageEditSendsTheMaskAsASingleFile(): void
+    {
+        Http::fake(['*' => $this->fakeAzureImageResponse()]);
+
+        Image::of('Edit')
+            ->attachments([new Base64Image(base64_encode('image bytes'), 'image/png')])
+            ->withProviderOptions(['mask' => new Base64Image(base64_encode('mask bytes'), 'image/png')])
+            ->generate(provider: 'azure');
+
+        Http::assertSent(fn (Request $request): bool => $request->hasFile('image[]', 'image bytes', 'image.png')
+            && $request->hasFile('mask', 'mask bytes', 'mask.png')
+            && collect($request->data())->where('name', 'mask')->count() === 1);
+    }
+
+    public function testMaskRequiresAnImageToEdit(): void
+    {
+        Http::fake(['*' => $this->fakeAzureImageResponse()]);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An image mask can only be used when editing an attached image.');
+
+        Image::of('Edit')
+            ->withProviderOptions(['mask' => new Base64Image(base64_encode('mask bytes'), 'image/png')])
+            ->generate(provider: 'azure');
     }
 
     public function testImageEditsRejectNonImageAttachments(): void

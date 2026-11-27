@@ -5,19 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\OpenAi;
 
 use DateInterval;
+use Hypervel\Ai\Contracts\Gateway\ListsStoreFiles;
 use Hypervel\Ai\Contracts\Gateway\StoreGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
+use Hypervel\Ai\Enums\StoreDocumentStatus;
 use Hypervel\Ai\Gateway\Concerns\EncodesResourceIds;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\CreatesOpenAiClient;
 use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\Responses\Data\StoreDocument;
 use Hypervel\Ai\Responses\Data\StoreFileCounts;
 use Hypervel\Ai\Store;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\LazyCollection;
 
-class OpenAiStoreGateway implements StoreGateway
+class OpenAiStoreGateway implements StoreGateway, ListsStoreFiles
 {
     use CreatesOpenAiClient;
     use EncodesResourceIds;
@@ -96,6 +101,54 @@ class OpenAiStoreGateway implements StoreGateway
         );
 
         return $response->json('id');
+    }
+
+    /**
+     * List the documents in a vector store, fetching further pages as they are needed.
+     *
+     * @return LazyCollection<int, StoreDocument>
+     */
+    public function listFiles(StoreProvider $provider, string $storeId): LazyCollection
+    {
+        /** @var Provider&StoreProvider $provider */
+        return LazyCollection::make(function () use ($provider, $storeId) {
+            $after = null;
+
+            do {
+                $response = $this->withErrorHandling(
+                    $provider->name(),
+                    fn () => $this->client($provider)
+                        ->get("vector_stores/{$this->resourceId($storeId)}/files", Arr::whereNotNull([
+                            'limit' => 100,
+                            'after' => $after,
+                        ]))
+                );
+
+                foreach ($response->json('data') ?? [] as $file) {
+                    yield new StoreDocument(
+                        id: $file['id'],
+                        fileId: $file['id'],
+                        status: $this->documentStatus($file['status'] ?? null),
+                        metadata: $file['attributes'] ?? [],
+                    );
+                }
+
+                $after = $response->json('last_id');
+            } while ($response->json('has_more') === true && filled($after));
+        });
+    }
+
+    /**
+     * Map an OpenAI vector store file status to a document status.
+     */
+    protected function documentStatus(?string $status): ?StoreDocumentStatus
+    {
+        return match ($status) {
+            'completed' => StoreDocumentStatus::Completed,
+            'in_progress' => StoreDocumentStatus::Pending,
+            'failed', 'cancelled' => StoreDocumentStatus::Failed,
+            default => null,
+        };
     }
 
     /**

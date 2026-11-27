@@ -11,14 +11,13 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Console\Fixtures\FakeCommandWithPromptValidation;
-use Mockery as m;
-use Mockery\Exception\InvalidCountException;
-use Mockery\Exception\InvalidOrderException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class ArtisanCommandTest extends TestCase
 {
@@ -107,13 +106,11 @@ class ArtisanCommandTest extends TestCase
 
         $this->expectExceptionObject(new AssertionFailedError('Output "Your name is Albert Chen and you prefer PHP." was not printed.'));
 
-        $this->ignoringMockOnceExceptions(function () {
-            $this->artisan('survey')
-                ->expectsQuestion('What is your name?', 'Albert Chen')
-                ->expectsQuestion('Which language do you prefer?', 'Ruby')
-                ->expectsOutput('Your name is Albert Chen and you prefer PHP.')
-                ->assertExitCode(0);
-        });
+        $this->artisan('survey')
+            ->expectsQuestion('What is your name?', 'Albert Chen')
+            ->expectsQuestion('Which language do you prefer?', 'Ruby')
+            ->expectsOutput('Your name is Albert Chen and you prefer PHP.')
+            ->assertExitCode(0);
     }
 
     public function testConsoleCommandFailsFromExitCodeMismatch(): void
@@ -132,18 +129,16 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerSlimCommand();
 
-        $this->expectException(InvalidOrderException::class);
+        $this->expectExceptionObject(new AssertionFailedError('Output "Danger" was printed before "Chen".'));
 
-        $this->ignoringMockOnceExceptions(function () {
-            $this->artisan('slim')
-                ->expectsQuestion('Who?', 'Albert')
-                ->expectsQuestion('What?', 'Danger')
-                ->expectsQuestion('Huh?', 'Chen')
-                ->expectsOutput('Albert')
-                ->expectsOutput('Chen')
-                ->expectsOutput('Danger')
-                ->assertExitCode(0);
-        });
+        $this->artisan('slim')
+            ->expectsQuestion('Who?', 'Albert')
+            ->expectsQuestion('What?', 'Danger')
+            ->expectsQuestion('Huh?', 'Chen')
+            ->expectsOutput('Albert')
+            ->expectsOutput('Chen')
+            ->expectsOutput('Danger')
+            ->assertExitCode(0);
     }
 
     public function testConsoleCommandPassesIfTheOutputContains(): void
@@ -177,29 +172,25 @@ class ArtisanCommandTest extends TestCase
 
     public function testConsoleCommandFailIfDoesntOutputSomething(): void
     {
-        Artisan::command('exit', fn () => 0);
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
 
-        $this->expectException(InvalidCountException::class);
+        $this->expectExceptionObject(new AssertionFailedError('No output was printed.'));
 
-        $this->artisan('exit')
+        $this->artisan('exit', ['code' => 0])
             ->expectsOutput()
             ->assertExitCode(0);
-
-        $this->verifyMockeryExpectationsNow();
     }
 
     public function testConsoleCommandFailIfDoesntOutputSomethingAndIsNotTheExpectedOutput(): void
     {
-        Artisan::command('exit', fn () => 0);
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
 
-        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionObject(new AssertionFailedError('Output "My name is Albert Chen" was not printed.'));
 
-        $this->ignoringMockOnceExceptions(function () {
-            $this->artisan('exit')
-                ->expectsOutput()
-                ->expectsOutput('My name is Albert Chen')
-                ->assertExitCode(0);
-        });
+        $this->artisan('exit', ['code' => 0])
+            ->expectsOutput()
+            ->expectsOutput('My name is Albert Chen')
+            ->assertExitCode(0);
     }
 
     public function testConsoleCommandPassesIfDoesNotOutputAnything(): void
@@ -237,7 +228,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerInteractionsCommand();
 
-        $this->expectException(InvalidCountException::class);
+        $this->expectExceptionObject(new AssertionFailedError('Output "+-------------+---------------------+" was printed.'));
 
         $this->artisan('interactions', ['--no-interaction' => true])
             ->doesntExpectOutput()
@@ -245,35 +236,29 @@ class ArtisanCommandTest extends TestCase
             ->expectsChoice('Which language do you prefer?', 'PHP', ['PHP', 'PHP', 'PHP'])
             ->expectsConfirmation('Do you want to continue?', 'no')
             ->assertExitCode(0);
-
-        $this->verifyMockeryExpectationsNow();
     }
 
     public function testConsoleCommandFailsIfDoesntExpectOutputButOutputsSomething(): void
     {
         $this->registerContainsCommand();
 
-        $this->expectException(InvalidCountException::class);
+        $this->expectExceptionObject(new AssertionFailedError('Output "My name is Albert Chen" was printed.'));
 
         $this->artisan('contains')
             ->doesntExpectOutput()
             ->assertExitCode(0);
-
-        $this->verifyMockeryExpectationsNow();
     }
 
-    public function testConsoleCommandFailsIfDoesntExpectOutputSomethingAndIsNotExpectOutput(): void
+    public function testConsoleCommandFailsIfDoesntExpectOutputAndDoesExpectOutput(): void
     {
         $this->registerContainsCommand();
 
-        $this->expectException(InvalidCountException::class);
+        $this->expectExceptionObject(new AssertionFailedError('Output "My name is Albert Chen" was printed.'));
 
         $this->artisan('contains')
             ->doesntExpectOutput()
             ->doesntExpectOutput('My name is Albert Chen')
             ->assertExitCode(0);
-
-        $this->verifyMockeryExpectationsNow();
     }
 
     public function testConsoleCommandFailsIfTheOutputDoesNotContain(): void
@@ -282,11 +267,184 @@ class ArtisanCommandTest extends TestCase
 
         $this->expectExceptionObject(new AssertionFailedError('Output does not contain "Chen Albert".'));
 
-        $this->ignoringMockOnceExceptions(function () {
-            $this->artisan('contains')
-                ->expectsOutputToContain('Chen Albert')
-                ->assertExitCode(0);
+        $this->artisan('contains')
+            ->expectsOutputToContain('Chen Albert')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandFailsFromUnexpectedQuestion(): void
+    {
+        $this->registerSlimCommand();
+
+        $this->expectExceptionObject(new AssertionFailedError('Unexpected question "What?" was asked.'));
+
+        $this->artisan('slim')
+            ->expectsQuestion('Who?', 'Albert');
+    }
+
+    public function testConsoleCommandFailsFromUnaskedQuestion(): void
+    {
+        $this->registerSlimCommand();
+
+        $this->expectExceptionObject(new AssertionFailedError('Question "When?" was not asked.'));
+
+        $this->artisan('slim')
+            ->expectsQuestion('Who?', 'Albert')
+            ->expectsQuestion('What?', 'Danger')
+            ->expectsQuestion('Huh?', 'Chen')
+            ->expectsQuestion('When?', 'Now');
+    }
+
+    public function testConsoleCommandFailsFromUnorderedQuestions(): void
+    {
+        $this->registerSlimCommand();
+
+        $this->expectExceptionObject(new AssertionFailedError('Question "What?" was asked before "Huh?".'));
+
+        $this->artisan('slim')
+            ->expectsQuestion('Who?', 'Albert')
+            ->expectsQuestion('Huh?', 'Chen')
+            ->expectsQuestion('What?', 'Danger');
+    }
+
+    public function testConsoleCommandFailsFromUnexpectedQuestionTheCommandSwallows(): void
+    {
+        Artisan::command('swallow', function () {
+            try {
+                $this->ask('Who?');
+            } catch (Throwable) {
+            }
         });
+
+        $this->expectExceptionObject(new AssertionFailedError('Unexpected question "Who?" was asked.'));
+
+        $this->artisan('swallow');
+    }
+
+    public function testConsoleCommandPassesIfOneLineContainsSeveralExpectedSubstrings(): void
+    {
+        $this->registerContainsCommand();
+
+        $this->artisan('contains')
+            ->expectsOutput('My name is Albert Chen')
+            ->expectsOutputToContain('Albert')
+            ->expectsOutputToContain('Chen')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandFailsIfExpectedOutputContainsAnUnexpectedSubstring(): void
+    {
+        $this->registerContainsCommand();
+
+        $this->expectExceptionObject(new AssertionFailedError('Output "Chen" was printed.'));
+
+        $this->artisan('contains')
+            ->expectsOutputToContain('Albert')
+            ->doesntExpectOutputToContain('Chen')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandFailsIfOutputsSomethingUnexpected(): void
+    {
+        $this->registerContainsCommand();
+
+        $this->expectExceptionObject(new AssertionFailedError('Output "My name is Albert Chen" was printed.'));
+
+        $this->artisan('contains')
+            ->expectsOutput()
+            ->doesntExpectOutput('My name is Albert Chen')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandPassesIfExpectedOutputRepeatsAfterLaterOutput(): void
+    {
+        $this->registerSlimCommand();
+
+        $this->artisan('slim')
+            ->expectsQuestion('Who?', 'Albert')
+            ->expectsQuestion('What?', 'Chen')
+            ->expectsQuestion('Huh?', 'Albert')
+            ->expectsOutput('Albert')
+            ->expectsOutput('Chen')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandPassesWithExpectedTable(): void
+    {
+        $this->registerInteractionsCommand();
+
+        $this->artisan('interactions', ['--no-interaction' => true])
+            ->expectsQuestion('What is your name?', 'Albert Chen')
+            ->expectsChoice('Which language do you prefer?', 'PHP', ['PHP', 'PHP', 'PHP'])
+            ->expectsTable(['Name', 'Email'], [
+                ['Albert Chen', 'albert@hypervel.org'],
+            ])
+            ->expectsConfirmation('Do you want to continue?', 'yes')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandFailsWithDifferentTable(): void
+    {
+        $this->registerInteractionsCommand();
+
+        $this->expectExceptionObject(new AssertionFailedError('Output "| Albert Chen | albert@hypervel.net |" was not printed.'));
+
+        $this->artisan('interactions', ['--no-interaction' => true])
+            ->expectsQuestion('What is your name?', 'Albert Chen')
+            ->expectsChoice('Which language do you prefer?', 'PHP', ['PHP', 'PHP', 'PHP'])
+            ->expectsTable(['Name', 'Email'], [
+                ['Albert Chen', 'albert@hypervel.net'],
+            ])
+            ->expectsConfirmation('Do you want to continue?', 'yes')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandFailsWithDifferentChoices(): void
+    {
+        $this->registerSurveyCommand();
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Question "Which language do you prefer?" has different options.');
+
+        $this->artisan('survey')
+            ->expectsQuestion('What is your name?', 'Albert Chen')
+            ->expectsChoice('Which language do you prefer?', 'PHP', ['PHP', 'Ruby', 'Go']);
+    }
+
+    public function testConsoleCommandExpectationsDoNotLeakIntoNestedCommands(): void
+    {
+        $this->registerContainsCommand();
+
+        $test = $this;
+
+        Artisan::command('outer', function () use ($test) {
+            $this->line('Outer');
+
+            $outerOutput = app(OutputStyle::class);
+            $test->artisan('contains')->expectsOutput('My name is Albert Chen');
+            $test->assertSame($outerOutput, app(OutputStyle::class));
+
+            $this->line('Done');
+        });
+
+        $this->artisan('outer')
+            ->expectsOutput('Outer')
+            ->expectsOutput('Done')
+            ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandOutputExpectationDoesNotCarryOverToTheNextCommand(): void
+    {
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
+        $this->registerContainsCommand();
+
+        $this->artisan('exit', ['code' => 0])
+            ->doesntExpectOutput()
+            ->assertExitCode(0);
+
+        $this->artisan('contains')
+            ->expectsOutput('My name is Albert Chen')
+            ->assertExitCode(0);
     }
 
     public function testPendingCommandCanBeTapped(): void
@@ -318,6 +476,48 @@ class ArtisanCommandTest extends TestCase
                 }
             })
             ->assertExitCode(0);
+    }
+
+    public function testSilentNestedCommandDoesNotWriteToOuterOutput(): void
+    {
+        $test = $this;
+        Artisan::command('test:child', function () use ($test) {
+            $test->assertSame('Yes', $this->ask('Continue?'));
+            $this->line('Hidden');
+        });
+
+        Artisan::command('test:parent', function () {
+            $this->callSilent('test:child');
+            $this->line('Visible');
+        });
+
+        $this->artisan('test:parent')->expectsQuestion('Continue?', 'Yes')->expectsOutput('Visible')->doesntExpectOutput('Hidden');
+    }
+
+    public function testBufferedNestedCommandUsesItsBufferAndTheTestAnswers(): void
+    {
+        Artisan::command('test:child', function () {
+            $this->line('Answer ' . $this->ask('Color?'));
+        });
+
+        $test = $this;
+        Artisan::command('test:parent', function () use ($test) {
+            Artisan::call('test:child', [], $buffer = new BufferedOutput);
+            $test->assertSame('Answer blue' . PHP_EOL, $buffer->fetch());
+        });
+
+        $this->artisan('test:parent')->expectsQuestion('Color?', 'blue')->doesntExpectOutput();
+    }
+
+    public function testUnexpectedQuestionInBufferedNestedCommandFails(): void
+    {
+        Artisan::command('test:child', function () {
+            $this->ask('Color?');
+        });
+        Artisan::command('test:parent', fn () => Artisan::call('test:child'));
+
+        $this->expectExceptionObject(new AssertionFailedError('Unexpected question "Color?" was asked.'));
+        $this->artisan('test:parent')->run();
     }
 
     public function testConsoleCommandReturnsCodeWithDisabledMocking(): void
@@ -361,7 +561,7 @@ class ArtisanCommandTest extends TestCase
             ->assertFailed();
     }
 
-    public function testForbiddenOutputNamedStringZeroIsReported(): void
+    public function testConsoleCommandFailsFromZeroAsUnexpectedOutput(): void
     {
         Artisan::command('zero-output', function (): void {
             $this->line('0');
@@ -372,7 +572,7 @@ class ArtisanCommandTest extends TestCase
         $this->artisan('zero-output')->doesntExpectOutput('0')->run();
     }
 
-    public function testForbiddenOutputSubstringNamedStringZeroIsReported(): void
+    public function testConsoleCommandFailsFromZeroAsUnexpectedOutputSubstring(): void
     {
         Artisan::command('zero-substring', function (): void {
             $this->line('value 0');
@@ -381,6 +581,27 @@ class ArtisanCommandTest extends TestCase
         $this->expectExceptionObject(new AssertionFailedError('Output "0" was printed.'));
 
         $this->artisan('zero-substring')->doesntExpectOutputToContain('0')->run();
+    }
+
+    public function testForbiddenOutputIsReportedWhenTheCommandThrows(): void
+    {
+        $error = new RuntimeException('Command failed');
+        Artisan::command('test:throw', function () use ($error) {
+            $this->line('Unexpected output');
+
+            throw $error;
+        });
+
+        try {
+            $this->artisan('test:throw')->doesntExpectOutput()->run();
+        } catch (AssertionFailedError $failure) {
+            $this->assertSame('Output "Unexpected output" was printed.', $failure->getMessage());
+            $this->assertSame($error, $failure->getPrevious());
+
+            return;
+        }
+
+        $this->fail('The forbidden output was not reported.');
     }
 
     public function testCommandFailureDoesNotLeakExpectationsOrOutputBinding(): void
@@ -435,17 +656,6 @@ class ArtisanCommandTest extends TestCase
 
         $this->assertConsoleExpectationsFlushed();
         $this->artisan('verified-output')->expectsOutput('verified')->assertSuccessful();
-    }
-
-    public function testNoOutputExpectationDoesNotDisableMatchersOnTheNextCommand(): void
-    {
-        Artisan::command('silent-command', fn () => Command::SUCCESS);
-        Artisan::command('output-command', function () {
-            $this->line('expected output');
-        });
-
-        $this->artisan('silent-command')->doesntExpectOutput()->assertSuccessful();
-        $this->artisan('output-command')->expectsOutput('expected output')->assertSuccessful();
     }
 
     public function testOutputExpectationDoesNotRequireOutputFromTheNextCommand(): void
@@ -552,31 +762,5 @@ class ArtisanCommandTest extends TestCase
         $this->assertSame([], $this->expectedQuestions);
         $this->assertSame([], $this->expectedChoices);
         $this->assertFalse($this->app->bound(OutputStyle::class));
-    }
-
-    /**
-     * Verify the PendingCommand mock expectations immediately, so an unmet
-     * expectation throws here and is caught by the test's expectException().
-     */
-    protected function verifyMockeryExpectationsNow(): void
-    {
-        m::close();
-    }
-
-    /**
-     * Don't allow Mockery's InvalidCountException to be reported. Mocks setup
-     * in PendingCommand cause PHPUnit tearDown() to later throw the exception.
-     */
-    protected function ignoringMockOnceExceptions(callable $callback): void
-    {
-        try {
-            $callback();
-        } finally {
-            try {
-                m::close();
-            } catch (InvalidCountException) {
-                // Ignore mock exception from PendingCommand::expectsOutput().
-            }
-        }
     }
 }

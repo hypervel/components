@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\OpenAi;
 
-use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Files\TranscribableAudio;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
@@ -37,8 +36,8 @@ use Hypervel\Ai\Responses\ImageResponse;
 use Hypervel\Ai\Responses\TranscriptionResponse;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Client\Response;
-use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use LogicException;
 
@@ -84,6 +83,10 @@ class OpenAiGateway implements Gateway, StepTextGateway
     ): ImageResponse {
         $hasAttachments = filled($attachments);
 
+        if (! $hasAttachments && isset($providerOptions['mask'])) {
+            throw new InvalidArgumentException('An image mask can only be used when editing an attached image.');
+        }
+
         $response = $this->withErrorHandling(
             $provider->name(),
             fn () => $hasAttachments
@@ -123,7 +126,7 @@ class OpenAiGateway implements Gateway, StepTextGateway
             'model' => $model,
             'prompt' => $prompt,
             ...$provider->defaultImageOptions($size, $quality),
-            ...(str_starts_with($model, 'gpt-image')
+            ...(Str::startsWith($model, ['gpt-image', 'chatgpt-image'])
                 ? ['moderation' => $providerOptions['moderation'] ?? 'low']
                 : ['response_format' => 'b64_json']),
         ]);
@@ -147,17 +150,15 @@ class OpenAiGateway implements Gateway, StepTextGateway
         /** @var ImageProvider&Provider $provider */
         $request = $this->client($provider, $timeout ?? 120);
 
-        $isGptImage = str_starts_with($model, 'gpt-image');
+        $isGptImage = Str::startsWith($model, ['gpt-image', 'chatgpt-image']);
         $field = $isGptImage ? 'image[]' : 'image';
 
         foreach ($attachments as $attachment) {
-            $content = match (true) {
-                $attachment instanceof Image && $attachment instanceof StorableFile => $attachment->content(),
-                $attachment instanceof UploadedFile => $attachment->get(),
-                default => throw new InvalidArgumentException('Unsupported image attachment type [' . get_debug_type($attachment) . ']'),
-            };
+            $request = $request->attach($field, $this->imageEditContent($attachment), 'image.png');
+        }
 
-            $request = $request->attach($field, $content, 'image.png');
+        if (($mask = Arr::pull($providerOptions, 'mask')) !== null) {
+            $request = $request->attach('mask', $this->imageEditContent($mask), 'mask.png');
         }
 
         return $request->post('images/edits', array_merge($providerOptions, [

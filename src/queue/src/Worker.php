@@ -1359,7 +1359,8 @@ class Worker
                         $connectionName,
                         $job,
                         $exceptionOccurred ?? null,
-                        $duration ?? null
+                        $duration ?? null,
+                        $this->peakMemoryUsage(),
                     ));
                 }
 
@@ -1375,6 +1376,7 @@ class Worker
                         $job,
                         $exceptionOccurred ?? ($timedOut ? $this->timeoutExceededException($job) : $cancellation),
                         $duration ?? null,
+                        $this->peakMemoryUsage(),
                         canceled: true,
                     ));
                 } catch (Throwable $exception) {
@@ -1898,9 +1900,19 @@ class Worker
     /**
      * Get the current memory usage in megabytes.
      */
-    protected function currentMemoryUsage(): float
+    protected function currentMemoryUsage(): float|int
     {
         return memory_get_usage(true) / 1024 / 1024;
+    }
+
+    /**
+     * Get PHP's peak allocated memory for this worker, in megabytes.
+     *
+     * Resetting PHP's peak for one job would also reset it for concurrent jobs.
+     */
+    protected function peakMemoryUsage(): float|int
+    {
+        return memory_get_peak_usage(true) / 1024 / 1024;
     }
 
     /**

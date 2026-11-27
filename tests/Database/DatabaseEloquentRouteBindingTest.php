@@ -4,31 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Database\Capsule\Manager as Capsule;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
-use RuntimeException;
 
 class DatabaseEloquentRouteBindingTest extends TestCase
 {
     use VerifiesDoubles;
 
     #[DataProvider('invalidIntegerKeyProvider')]
-    public function testItRejectsValuesThatCannotAddressAnIntegerKeyWithoutQuerying(mixed $value): void
+    public function testMalformedIntegerKeysProduceAnEmptyPredicate(mixed $value): void
     {
-        $query = Double::for(Builder::class)->strict();
-        $query->expects('where')->never();
+        $model = new RouteBindingIntKeyModel;
+        $query = (new Builder((new SQLiteConnection(new PDO('sqlite::memory:')))->query()))->setModel($model);
+        $binding = $model->resolveRouteBindingQuery($query, $value);
 
-        $this->expectException(ModelNotFoundException::class);
-
-        (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, $value);
+        $this->assertStringContainsString('where 0 = 1', $binding->toSql());
+        $this->assertSame([], $binding->getBindings());
     }
 
     /**
@@ -53,12 +55,15 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     }
 
     #[DataProvider('validIntegerKeyProvider')]
-    public function testItPassesThroughValuesTheDatabaseCanStillMatch(int|string $value): void
+    public function testItResolvesValuesTheDatabaseCanStillMatch(int|string $value): void
     {
-        $query = Double::for(Builder::class)->strict();
-        $query->expects('where')->with('id', $value);
+        $database = $this->createLabelsDatabase();
+        foreach ([12, 0, -5, 5, PHP_INT_MAX] as $key) {
+            $database->getConnection()->table('labels')->insert(['id' => $key]);
+        }
 
-        $this->assertSame($query, (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, $value));
+        $model = (new RouteBindingIntKeyModel)->setTable('labels');
+        $this->assertSame((int) $value, $model->resolveRouteBinding($value)?->getKey());
     }
 
     /**
@@ -83,12 +88,12 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[TestWith(['integer'])]
     public function testItValidatesQualifiedKeyColumnsFromChildBindings(string $keyType): void
     {
-        $query = Double::for(Builder::class)->strict();
-        $query->expects('where')->never();
+        $model = (new RouteBindingIntKeyModel)->setKeyType($keyType);
+        $query = (new Builder((new SQLiteConnection(new PDO('sqlite::memory:')))->query()))->setModel($model);
+        $binding = $model->resolveRouteBindingQuery($query, 'abc', 'route_binding_int_key_models.id');
 
-        $this->expectException(ModelNotFoundException::class);
-
-        (new RouteBindingIntKeyModel)->setKeyType($keyType)->resolveRouteBindingQuery($query, 'abc', 'route_binding_int_key_models.id');
+        $this->assertStringContainsString('where 0 = 1', $binding->toSql());
+        $this->assertSame([], $binding->getBindings());
     }
 
     public function testItDoesNotValidateNonKeyBindingFields(): void
@@ -107,19 +112,6 @@ class DatabaseEloquentRouteBindingTest extends TestCase
         (new RouteBindingStringKeyModel)->resolveRouteBindingQuery($query, 'abc');
     }
 
-    // REMOVED: Laravel's testItDoesNotValidateNonIncrementingModelsWithTheDefaultKeyType.
-    // Integer keys stay validated without auto-increment; string keys declare keyType 'string'.
-
-    public function testItValidatesNonIncrementingModelsWithTheDefaultKeyType(): void
-    {
-        $query = Double::for(Builder::class)->strict();
-        $query->expects('where')->never();
-
-        $this->expectException(ModelNotFoundException::class);
-
-        (new RouteBindingNonIncrementingKeyModel)->resolveRouteBindingQuery($query, '12abc');
-    }
-
     public function testItDoesNotValidateNullValuesForModelsWithStringKeys(): void
     {
         $query = Double::for(Builder::class)->strict();
@@ -128,31 +120,32 @@ class DatabaseEloquentRouteBindingTest extends TestCase
         (new RouteBindingStringKeyModel)->resolveRouteBindingQuery($query, null);
     }
 
-    public function testTheInvalidKeyHandlerMayBeOverridden(): void
+    public function testMalformedIntegerKeysAllowFallbackAndComposableBindings(): void
     {
-        $query = Double::for(Builder::class)->strict();
-        $query->expects('where')->never();
+        $database = $this->createLabelsDatabase();
+        $database->getConnection()->table('labels')->insert(['id' => 12, 'slug' => 'green']);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIs('Invalid id: abc');
-
-        (new RouteBindingCustomExceptionModel)->resolveRouteBindingQuery($query, 'abc');
-    }
-
-    public function testTheExceptionCarriesTheModelAndValue(): void
-    {
-        $query = Double::for(Builder::class)->strict();
-
-        try {
-            (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, 'abc');
-        } catch (ModelNotFoundException $e) {
-            $this->assertSame(RouteBindingIntKeyModel::class, $e->getModel());
-            $this->assertSame(['abc'], $e->getIds());
-
-            return;
+        foreach ([new RouteBindingIntKeyModel, new RouteBindingNonIncrementingKeyModel] as $model) {
+            $model->setTable('labels');
+            $this->assertNull($model->resolveRouteBinding('12abc'));
+            $this->assertNull($model->resolveRouteBinding('99999999999999999999'));
+            $this->assertSame(12, $model->resolveRouteBindingQuery($model, 'green')->orWhere('slug', 'green')->firstOrFail()->getKey());
         }
 
-        $this->fail('No exception was thrown.');
+        $this->assertSame(12, (new RouteBindingFallbackModel)->resolveRouteBinding('green')->getKey());
+    }
+
+    /**
+     * Create the SQLite table used by the route binding models.
+     */
+    private function createLabelsDatabase(): Capsule
+    {
+        $database = new Capsule;
+        $database->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
+        $database->bootEloquent();
+        $database->getConnection()->statement('create table labels (id integer primary key, slug text)');
+
+        return $database;
     }
 
     /**
@@ -182,7 +175,6 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     public static function nullRouteKeyModelProvider(): array
     {
         return [
-            'integer key' => [RouteBindingIntKeyModel::class],
             'uuid key' => [RouteBindingUuidKeyModel::class],
             'ulid key' => [RouteBindingUlidKeyModel::class],
         ];
@@ -233,13 +225,15 @@ class RouteBindingNonIncrementingKeyModel extends Model
     public bool $incrementing = false;
 }
 
-class RouteBindingCustomExceptionModel extends Model
+class RouteBindingFallbackModel extends Model
 {
+    protected ?string $table = 'labels';
+
     /**
-     * Throw an exception for the given invalid route key.
+     * Fall back to the slug when the primary key does not match.
      */
-    protected function handleInvalidRouteKey(mixed $value, string $field): never
+    public function resolveRouteBinding(mixed $value, ?string $field = null): ?Model
     {
-        throw new RuntimeException("Invalid {$field}: {$value}");
+        return parent::resolveRouteBinding($value, $field) ?? $this->newQuery()->where('slug', $value)->first();
     }
 }

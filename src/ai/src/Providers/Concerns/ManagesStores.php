@@ -17,9 +17,12 @@ use Hypervel\Ai\Events\RemovingFileFromStore;
 use Hypervel\Ai\Events\RemovingFileFromStoreFailed;
 use Hypervel\Ai\Events\StoreCreated;
 use Hypervel\Ai\Events\StoreDeleted;
+use Hypervel\Ai\Responses\Data\StoreDocument;
 use Hypervel\Ai\Store;
 use Hypervel\Support\Collection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
+use LogicException;
 use Throwable;
 
 trait ManagesStores
@@ -114,6 +117,22 @@ trait ManagesStores
                 }
             }
         );
+    }
+
+    /**
+     * List the documents in a vector store.
+     *
+     * @return LazyCollection<int, StoreDocument>
+     */
+    public function listStoreFiles(string $storeId): LazyCollection
+    {
+        $gateway = $this->storeGateway();
+
+        if (! method_exists($gateway, 'listFiles')) {
+            throw new LogicException("Provider [{$this->name()}] does not support listing store files.");
+        }
+
+        return $gateway->listFiles($this, $storeId);
     }
 
     /**

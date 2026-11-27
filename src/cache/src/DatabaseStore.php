@@ -18,6 +18,7 @@ use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
+use ReflectionMethod;
 use RuntimeException;
 
 class DatabaseStore implements CanFlushLocks, LockProvider, Store
@@ -25,6 +26,11 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     use InteractsWithTime;
 
     public const string DEFAULT_LOCK_TABLE = 'cache_locks';
+
+    private const int FOREVER_SECONDS = 315360000;
+
+    // Limit the number of keys and bindings sent in one write or delete statement.
+    private const int BATCH_SIZE = 250;
 
     /**
      * The database connection resolver.
@@ -286,7 +292,33 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      */
     public function forever(string $key, mixed $value): bool
     {
-        return $this->put($key, $value, 315360000);
+        return $this->put($key, $value, self::FOREVER_SECONDS);
+    }
+
+    /**
+     * Store multiple items in the cache indefinitely with one upsert per chunk.
+     *
+     * @internal
+     *
+     * @return array<array-key, bool>
+     */
+    public function foreverMany(array $values): array
+    {
+        $results = [];
+
+        if (! $this->usesOwnMethod('forever') || ! $this->usesOwnMethod('put') || ! $this->usesOwnMethod('putMany')) {
+            foreach ($values as $key => $value) {
+                $results[$key] = $this->forever((string) $key, $value);
+            }
+
+            return $results;
+        }
+
+        foreach (array_chunk($values, self::BATCH_SIZE, true) as $chunk) {
+            $results += array_fill_keys(array_keys($chunk), $this->putMany($chunk, self::FOREVER_SECONDS));
+        }
+
+        return $results;
     }
 
     /**
@@ -333,6 +365,35 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     public function forget(string $key): bool
     {
         return $this->forgetMany([$key]);
+    }
+
+    /**
+     * Remove multiple items from the cache with one query per chunk.
+     *
+     * @internal
+     *
+     * @param array<array-key, string> $keys
+     * @return list<bool>
+     */
+    public function forgetManyKeys(array $keys): array
+    {
+        if (! $this->usesOwnMethod('forget') || ! $this->usesOwnMethod('forgetMany')) {
+            return array_map($this->forget(...), array_values($keys));
+        }
+
+        foreach (array_chunk(array_unique($keys), self::BATCH_SIZE) as $chunk) {
+            $this->forgetMany($chunk);
+        }
+
+        return array_fill(0, count($keys), true);
+    }
+
+    /**
+     * Determine whether batching preserves the store's per-key behavior.
+     */
+    private function usesOwnMethod(string $method): bool
+    {
+        return static::class === self::class || (new ReflectionMethod($this, $method))->class === self::class;
     }
 
     /**

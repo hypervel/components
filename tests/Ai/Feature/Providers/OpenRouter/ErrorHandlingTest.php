@@ -105,12 +105,34 @@ class ErrorHandlingTest extends TestCase
     {
         return [
             [['type' => 'invalid_request_error', 'message' => 'The model does not exist.'], false, AiException::class],
-            [['code' => 429, 'message' => 'Rate limited'], false, RateLimitedException::class],
             [['code' => 402, 'message' => 'Insufficient credits'], false, InsufficientCreditsException::class],
             [['code' => 503, 'message' => 'Provider overloaded'], true, ProviderOverloadedException::class],
             [['code' => 502, 'message' => 'Provider disconnected mid-stream'], true, ProviderOverloadedException::class],
             [['code' => 400, 'message' => 'Invalid request'], true, AiException::class],
         ];
+    }
+
+    public function testRateLimitErrorIn200ResponseThrowsRateLimitedException(): void
+    {
+        $message = 'openai/gpt-5-mini is temporarily rate-limited upstream. Please retry shortly.';
+        Http::fake(['openrouter.ai/*' => Http::response(['error' => ['code' => 429, 'message' => $message]])]);
+
+        $this->expectException(RateLimitedException::class);
+        $this->expectExceptionMessageIs("OpenRouter Error: [429] {$message}");
+        $this->expectExceptionCode(429);
+
+        (new AssistantAgent)->prompt('Hello', provider: 'openrouter');
+    }
+
+    public function testOverloadedErrorIn200ResponseThrowsProviderOverloadedException(): void
+    {
+        Http::fake(['openrouter.ai/*' => Http::response(['error' => ['code' => 502, 'message' => 'Provider returned error']])]);
+
+        $this->expectException(ProviderOverloadedException::class);
+        $this->expectExceptionMessageIs('OpenRouter Error: [502] Provider returned error');
+        $this->expectExceptionCode(502);
+
+        (new AssistantAgent)->prompt('Hello', provider: 'openrouter');
     }
 
     public function testBufferedBodyErrorsTryTheNextProvider(): void

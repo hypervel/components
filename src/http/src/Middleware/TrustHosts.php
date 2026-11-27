@@ -53,7 +53,9 @@ class TrustHosts
     public function hosts(): array
     {
         if (is_null(static::$alwaysTrust)) {
-            return [$this->allSubdomainsOfApplicationUrl()];
+            return [static::$subdomains === false
+                ? $this->applicationUrlWithoutSubdomains()
+                : $this->allSubdomainsOfApplicationUrl()];
         }
 
         $hosts = match (true) {
@@ -106,10 +108,10 @@ class TrustHosts
      * The list persists in static properties for the worker lifetime and
      * applies to every subsequent request.
      *
-     * @param array<int, string>|(callable(): array<int, string>) $hosts
+     * @param null|array<int, string>|(callable(): array<int, string>) $hosts
      */
     #[BootOnly]
-    public static function at(array|callable $hosts, bool $subdomains = true): void
+    public static function at(array|callable|null $hosts, bool $subdomains = true): void
     {
         static::$alwaysTrust = is_callable($hosts) ? $hosts(...) : $hosts;
         static::$subdomains = $subdomains;
@@ -143,6 +145,22 @@ class TrustHosts
      */
     protected function allSubdomainsOfApplicationUrl(): ?string
     {
+        return $this->applicationHostPattern(includeSubdomains: true);
+    }
+
+    /**
+     * Get a regular expression matching only the application URL, excluding its subdomains.
+     */
+    protected function applicationUrlWithoutSubdomains(): ?string
+    {
+        return $this->applicationHostPattern(includeSubdomains: false);
+    }
+
+    /**
+     * Build a trusted host pattern from the configured application URL.
+     */
+    private function applicationHostPattern(bool $includeSubdomains): ?string
+    {
         $url = $this->app->make('config')->nullableString('app.url');
 
         if ($url === null) {
@@ -150,7 +168,7 @@ class TrustHosts
         }
 
         if ($host = parse_url($url, PHP_URL_HOST)) {
-            return '^(.+\.)?' . preg_quote($host) . '$';
+            return ($includeSubdomains ? '^(.+\.)?' : '^') . preg_quote($host) . '$';
         }
 
         return null;

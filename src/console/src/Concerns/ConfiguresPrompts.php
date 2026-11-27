@@ -392,6 +392,14 @@ trait ConfiguresPrompts
     }
 
     /**
+     * Restore the prompts output.
+     */
+    protected function restorePrompts(): void
+    {
+        Prompt::setOutput($this->output);
+    }
+
+    /**
      * Select fallback.
      *
      * @param string $label

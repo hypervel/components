@@ -345,9 +345,8 @@ class DoctorCommand extends Command
     /**
      * Restore the prompts configuration.
      *
-     * Fixes may run nested Artisan commands, which re-bind the prompts
-     * output and fallbacks to the nested command. Without a restore, Doctor's
-     * remaining output is swallowed and pending confirmations appear to hang.
+     * Diagnostic fixes can change the prompt output or fallbacks directly.
+     * Restore Doctor's settings before its next message or confirmation.
      */
     protected function restorePrompts(): void
     {

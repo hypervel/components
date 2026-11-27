@@ -2496,6 +2496,8 @@ class SalesCoach implements Agent
 
 If your instructions change on every request, such as when they embed the current date, use `CacheToolDefinitions` alone. Caching a prefix that changes on every request creates a new cache entry each time, so you pay to write it to the cache without ever reusing it.
 
+OpenRouter also supports `CacheInstructions` for models that accept cache control. It marks the last content block in the system message and forwards the optional TTL.
+
 Providers that do not support these attributes ignore them, so an agent may safely declare them while using [failover](#failover).
 
 Cached prefixes are retained for five minutes by default. Anthropic, and supported Claude models on Amazon Bedrock, may retain them for an hour if you pass a TTL to the attribute:
@@ -2787,6 +2789,15 @@ $image = Image::of('Update this photo of me to be in the style of an impressioni
 ```
 
 The Bedrock provider supports text-to-image generation only and does not accept reference images.
+
+When editing an attached image with OpenAI or Azure OpenAI, you may pass a mask using the `mask` provider option:
+
+```php
+$image = Image::of('Remove the selected object')
+    ->attachments([Files\Image::fromStorage('photo.png')])
+    ->withProviderOptions(['mask' => Files\Image::fromStorage('mask.png')])
+    ->generate(provider: 'openai');
+```
 
 Some providers may generate multiple images in a single request. OpenAI, Azure, and xAI accept an `n` [provider option](#provider-options), and the response will contain every image that was returned:
 
@@ -3632,16 +3643,39 @@ $store->add(Document::fromPath('/path/to/document.pdf'), metadata: [
 ]);
 ```
 
-To remove a file from a store, use the `remove` method:
+To list documents in an OpenAI, Azure OpenAI, or Gemini store, iterate over the lazy collection returned by `documents()`. Pages are fetched as you read them:
 
 ```php
-$store->remove('file_id');
+foreach ($store->documents() as $document) {
+    $document->id;
+    $document->status;
+    $document->metadata;
+}
 ```
 
-Removing a file from a vector store does not remove it from the provider's [file storage](#files). To remove a file from the vector store and delete it permanently from file storage, use the `deleteFile` argument:
+To remove a document from a store, pass the listed document or its document ID to the `remove` method:
 
 ```php
-$store->remove('file_abc123', deleteFile: true);
+$store->remove($document);
+```
+
+The source file stays in the provider's [file storage](#files). To delete it too, pass the response from `add()` with `deleteFile: true`. OpenAI and Azure OpenAI also include the source file ID in listed documents, so those documents can be passed the same way:
+
+```php
+$store->remove($document, deleteFile: true);
+```
+
+Gemini listings omit the source file ID. When working with saved IDs, remove the document by its ID, then delete the source file by its own ID on the same provider:
+
+```php
+use Hypervel\Ai\Files;
+use Hypervel\Ai\Stores;
+
+$store = Stores::get($storeId, provider: 'gemini');
+
+if ($store->remove($documentId)) {
+    Files::delete($fileId, provider: 'gemini');
+}
 ```
 
 <a name="usage"></a>

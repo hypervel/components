@@ -791,19 +791,7 @@ Route::get('/locations/{location:slug}', [LocationsController::class, 'show'])
     });
 ```
 
-Implicit model binding also treats invalid route values as missing models. When binding an integer primary key, Hypervel rejects malformed integers and values outside PHP's integer range without querying the database. If the database rejects a value for its column, such as a number too large for an `integer` column on PostgreSQL, implicit binding also treats the model as missing. Hypervel still reports these database exceptions. You may disable that reporting using the `reportRouteModelBindingExceptions` method, typically within the `boot` method of your application's `AppServiceProvider`:
-
-```php
-use Hypervel\Database\Eloquent\Model;
-
-/**
- * Bootstrap any application services.
- */
-public function boot(): void
-{
-    Model::reportRouteModelBindingExceptions(! $this->app->isProduction());
-}
-```
+When a model declares an integer primary key, a malformed integer or a value outside PHP's integer range does not match that key. A custom route binding may still look up the value using another field, such as a slug.
 
 <a name="implicit-enum-binding"></a>
 ### Implicit Enum Binding

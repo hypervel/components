@@ -65,6 +65,14 @@ class TrustHostsTest extends TestCase
             ->assertContent('example.com');
     }
 
+    public function testApplicationHostWithoutSubdomainsUsesTheConfiguredUrl(): void
+    {
+        config(['app.url' => 'https://app.example.com:8443']);
+        (new Middleware)->trustHosts(subdomains: false);
+
+        $this->assertSame(['^app\.example\.com$'], (new TrustHosts($this->app))->hosts());
+    }
+
     public function testMiddlewareConfigurationAcceptsArrayTrustedHostCallbacks(): void
     {
         (new Middleware)->trustHosts(at: [new TrustedHostsResolver, 'apiHosts'], subdomains: false);

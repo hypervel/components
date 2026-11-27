@@ -9,6 +9,7 @@ use Countable;
 use DateTime;
 use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
+use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
@@ -4995,9 +4996,47 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => ["caf\xE9", "caf\xE9"]], ['foo.*' => 'distinct:ignore_case']);
         $this->assertFalse($v->passes());
 
-        // A malformed sibling must not stop the case-insensitive search for later duplicates.
-        $v = new Validator($trans, ['foo' => ["caf\xE9", 'BAR', 'bar']], ['foo.*' => 'distinct:ignore_case']);
+        $v = new Validator($trans, ['foo' => ["\xFF", 'bar', 'BAR']], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertFalse($v->passes());
         $this->assertSame(['foo.1', 'foo.2'], $v->errors()->keys());
+
+        $v = new Validator($trans, ['foo' => ["\xFF" => 'bar', "\xFE" => 'bar']], ['foo.*' => 'distinct']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => ['' => ['bar' => ['a' => 'baz', 'b' => 'baz']]]], ['foo.*.bar.*' => 'distinct']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['foo' => ['99999999999999999999', '099999999999999999999', '1e400', '2e400']], ['foo.*' => 'distinct']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => ['99999999999999999999', 1e20, '1e400', INF]], ['foo.*' => 'distinct']);
+        $this->assertFalse($v->passes());
+        $this->assertSame(['foo.0', 'foo.1', 'foo.2', 'foo.3'], $v->errors()->keys());
+
+        foreach ([
+            ['100000000000000000000.0', '100000000000000000000.00', '100000000000000000000.000'],
+            ['100000000000000000000e-20', '100000000000000000000.0e-20', '100000000000000000000.00e-20'],
+        ] as [$first, $second, $third]) {
+            $v = new Validator($trans, ['foo' => [$first, $second, $third, $third]], ['foo.*' => 'distinct']);
+            $this->assertSame(['foo.2', 'foo.3'], $v->errors()->keys());
+        }
+
+        $v = new Validator($trans, ['foo' => ['100000000000000000000.0', '100000000000000000000.00', 1e20, '100000000000000000000']], ['foo.*' => 'distinct']);
+        $this->assertSame(['foo.0', 'foo.1', 'foo.2', 'foo.3'], $v->errors()->keys());
+
+        $file = new UploadedFile(__FILE__, 'foo.php', null, null, true);
+
+        $v = new Validator($trans, ['foo' => [['file' => $file, 'name' => 'bar'], ['name' => 'baz']]], ['foo.*' => 'distinct:strict']);
+        $this->assertTrue($v->passes());
+
+        foreach ([
+            "\u{A7DA}" => "\u{A7DB}", "\u{1FD3}" => "\u{0390}",
+            "\u{A7CE}" => "\u{A7CF}", "\u{A7D2}" => "\u{A7D3}", "\u{A7D4}" => "\u{A7D5}",
+            "\u{16EA0}" => "\u{16EBB}", "\u{16EB8}" => "\u{16ED3}",
+        ] as $upper => $lower) {
+            $v = new Validator($trans, ['foo' => [$upper, $lower]], ['foo.*' => 'distinct:ignore_case']);
+            $this->assertSame(preg_match('/^' . $upper . '$/iu', $lower) === 1, $v->fails());
+        }
 
         $v = new Validator($trans, ['values' => ['hello', []]], ['values.*' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());
@@ -5080,26 +5119,75 @@ class ValidationValidatorTest extends TestCase
             /**
              * Get the distinct values that may be equal to the given value.
              */
-            protected function getDistinctValuesToCompare(string $attribute, mixed $value, bool $ignoreCase): array
+            protected function getDistinctValueCandidates(string $attribute, mixed $value, bool $ignoreCase, bool $strict): Generator
             {
-                return [];
+                yield from [];
             }
         };
 
         $this->assertTrue($validator->passes());
 
-        // As upstream, a custom "invalid" group makes every value a candidate.
-        $validator = new class($this->getArrayTranslator(), ['values' => ['1', 1]], ['values.*' => 'distinct']) extends Validator {
+        $validator = new class($this->getArrayTranslator(), ['values' => ['1', 1, 'a', 'b', 'c', 'c']], ['values.*' => 'distinct']) extends Validator {
             /**
-             * Get the group of a distinct value, or "*" if it may be equal to values in any group.
+             * Compare candidates only within their native type.
              */
-            protected function getDistinctValueGroup(mixed $value, bool $ignoreCase): string
+            protected function getDistinctValueGroups(mixed $value, string $mode): array
             {
-                return is_int($value) ? 'invalid' : parent::getDistinctValueGroup($value, $ignoreCase);
+                $group = get_debug_type($value);
+
+                return [[$group => (string) $value], [$group]];
             }
         };
 
-        $this->assertFalse($validator->passes());
+        $this->assertSame(['values.4', 'values.5'], $validator->errors()->keys());
+    }
+
+    public function testLooseDistinctUsesCurrentObjectProperties(): void
+    {
+        $first = (object) ['id' => 1];
+        $second = (object) ['id' => 2];
+        $validator = new Validator($this->getArrayTranslator(), ['items' => [$first, $second]], ['items.*' => 'distinct']);
+
+        $this->assertTrue($validator->validateDistinct('items.0', $first, []));
+        $second->id = 1;
+        $this->assertFalse($validator->validateDistinct('items.0', $first, []));
+
+        $validator->setData(['items' => [false, 'a']]);
+        $this->assertTrue($validator->validateDistinct('items.0', false, []));
+
+        $validator->setValue('items.1', 0);
+        $this->assertFalse($validator->validateDistinct('items.0', false, []));
+    }
+
+    #[TestWith(['distinct'])]
+    #[TestWith(['distinct:strict'])]
+    public function testDistinctComparesWholeArraysFromACustomValueSource(string $rule): void
+    {
+        $validator = new class($this->getArrayTranslator(), ['items' => [[1], [2], [3], [3], [7], [7], ['7']]], ['items.*' => $rule]) extends Validator {
+            /**
+             * Return the whole items for comparison.
+             */
+            protected function getDistinctValues(string $attribute): array
+            {
+                $values = [];
+
+                foreach ($this->data['items'] as $index => $item) {
+                    $values["items.{$index}"] = $item;
+                }
+
+                return $values;
+            }
+
+            /**
+             * Exclude sevens from the distinct comparison.
+             */
+            protected function getDistinctValueGroups(mixed $value, string $mode): array
+            {
+                return $value === [7] ? [[], []] : parent::getDistinctValueGroups($value, $mode);
+            }
+        };
+
+        $this->assertSame(['items.2', 'items.3'], $validator->errors()->keys());
     }
 
     public function testFirstDeclaredOverlappingWildcardDefinesDistinctScope(): void
@@ -5130,6 +5218,10 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['foo', 'foo'], ['*' => 'distinct']);
         $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['bar', 'foo', 'foo'], ['*' => 'distinct']);
+        $this->assertFalse($v->passes());
+        $this->assertSame([1, 2], $v->errors()->keys());
 
         $v = new Validator($trans, [['foo' => 1], ['foo' => 1]], ['*' => 'array', '*.foo' => 'distinct']);
         $this->assertFalse($v->passes());

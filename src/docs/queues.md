@@ -4205,7 +4205,7 @@ Queue::whenJobRunsLongerThan(1000, function (Job $job, float $duration) {
 });
 ```
 
-You may listen for `JobAttempted` to inspect an attempt's `connectionName`, `job`, `exception` and `duration`. The event is dispatched in the job's coroutine. If coroutine cancellation stops the attempt, including a job killed by its timeout, `canceled` is `true` and `successful()` returns `false`; normal completion steps and deferred callbacks are skipped. The event cannot be dispatched if the coroutine remains blocked until the worker exits.
+You may listen for `JobAttempted` to inspect an attempt's `connectionName`, `job`, `exception`, `duration`, and `memoryUsage`. Queue workers report PHP's peak allocated memory in megabytes for the worker process. Earlier and concurrent jobs can contribute to that peak. Synchronous jobs leave `memoryUsage` as `null`. The event is dispatched in the job's coroutine. If coroutine cancellation stops the attempt, including a job killed by its timeout, `canceled` is `true` and `successful()` returns `false`; normal completion steps and deferred callbacks are skipped. The event cannot be dispatched if the coroutine remains blocked until the worker exits.
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Its `sendAttempted` property is `false` when the attempt failed before the job was handed to the queue backend.
 

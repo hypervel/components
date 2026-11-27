@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Concerns;
 
+use Hypervel\Console\Command;
+use Hypervel\Prompts\Prompt;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -48,14 +50,15 @@ trait CallsCommands
     {
         $arguments['command'] = $command;
 
-        try {
-            return $this->resolveCommand($command)->run(
-                $this->createInputFromArguments($arguments),
-                $output
-            );
-        } finally {
-            $this->configurePrompts($this->input);
-        }
+        $command = $this->resolveCommand($command);
+        $input = $this->createInputFromArguments($arguments);
+        $result = $command instanceof Command
+            ? $command->run($input, $output)
+            : Prompt::withSavedConfiguration(fn (): int => $command->run($input, $output));
+
+        $this->restorePrompts();
+
+        return $result;
     }
 
     /**

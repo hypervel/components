@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Database\DatabasePdoConnectionTest;
 
 use ErrorException;
 use Exception;
-use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
@@ -14,7 +13,6 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\DeadlockException;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
-use Hypervel\Database\InvalidValueException;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
@@ -23,8 +21,6 @@ use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
-use Hypervel\Http\Client\RequestException;
-use Hypervel\Http\Client\Response;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
@@ -426,39 +422,6 @@ class DatabasePdoConnectionTest extends TestCase
         }
 
         $this->assertSame($pdo, $connection->getPdo());
-    }
-
-    #[DataProvider('failuresForMySqlInvalidValueClassification')]
-    public function testMySqlInvalidValueClassificationUsesTheUnderlyingPdoFailure(Exception $failure, string $expectedClass): void
-    {
-        $connection = new class(new PDO('sqlite::memory:')) extends MySqlConnection {
-            /**
-             * Build the query exception using the driver's classification.
-             */
-            public function queryException(Exception $failure): QueryException
-            {
-                return $this->newQueryException('select 1', [], $failure);
-            }
-        };
-
-        $exception = $connection->queryException($failure);
-
-        $this->assertSame($expectedClass, $exception::class);
-        $this->assertSame($failure, $exception->getPrevious());
-    }
-
-    /**
-     * Provide genuine invalid values and failures with similar HTTP or query context.
-     *
-     * @return iterable<string, array{Exception, class-string<QueryException>}>
-     */
-    public static function failuresForMySqlInvalidValueClassification(): iterable
-    {
-        $message = 'SQLSTATE[HY000]: General error: 1366 Incorrect integer value';
-
-        yield 'HTTP response' => [new RequestException(new Response(new PsrResponse(500, [], $message))), QueryException::class];
-        yield 'nested query context' => [new QueryException('mysql', 'insert into logs values (?)', [$message], new PDOException('Syntax error')), QueryException::class];
-        yield 'nested PDO invalid value' => [new QueryException('mysql', 'select 2', [], new PDOException($message)), InvalidValueException::class];
     }
 
     public function testEscapingAndServerIntrospectionUseSynchronizedPdoHandOuts(): void

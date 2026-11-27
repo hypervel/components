@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Terminal;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\WithEnvironmentVariable;
 use Symfony\Component\Console\Output\StreamOutput;
 use Symfony\Component\Process\Process;
 
@@ -113,6 +114,26 @@ class TerminalTest extends TestCase
         $output = new StreamOutput(fopen('php://memory', 'w'));
 
         $this->assertFalse((new Terminal)->isOutputTty($output));
+    }
+
+    #[WithEnvironmentVariable('COLUMNS')]
+    #[WithEnvironmentVariable('LINES')]
+    public function testInitializesTheTerminalDimensionsWithoutDeprecationNotices(): void
+    {
+        $deprecations = [];
+        set_error_handler(function (int $level, string $message) use (&$deprecations): bool {
+            $deprecations[] = $message;
+
+            return true;
+        }, E_DEPRECATED);
+
+        try {
+            (new Terminal)->initDimensions();
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame([], $deprecations);
     }
 
     public function testOutputIsCheckedAtItsDestination(): void

@@ -459,6 +459,38 @@ class FoundationFormRequestModelTest extends TestCase
 
         $this->assertSame([$post->id], $models->modelKeys());
     }
+
+    public function testModelsIgnoresNestedArrayInputForIntegerKeys(): void
+    {
+        $first = BlogPost::create(['account_id' => 1, 'slug' => 'first']);
+        $second = BlogPost::create(['account_id' => 1, 'slug' => 'second']);
+
+        DB::enableQueryLog();
+
+        $request = FormRequest::create('/', 'POST', ['blog_post_ids' => [[$first->id], [$second->id]]]);
+
+        $this->assertTrue($request->models('blog_post_ids', BlogPost::class)->isEmpty());
+        $this->assertSame([], DB::getQueryLog());
+
+        $request = FormRequest::create('/', 'POST', ['blog_post_ids' => [$first->id, [$second->id]]]);
+
+        $this->assertSame([$first->id], $request->models('blog_post_ids', BlogPost::class)->modelKeys());
+    }
+
+    public function testModelsIgnoresNestedArrayInputForStringKeys(): void
+    {
+        SlugKeyedBlogPost::create(['account_id' => 1, 'slug' => 'first']);
+        SlugKeyedBlogPost::create(['account_id' => 1, 'slug' => 'second']);
+
+        $request = FormRequest::create('/', 'POST', ['slugs' => [['first']]]);
+        $this->assertTrue($request->models('slugs', SlugKeyedBlogPost::class)->isEmpty());
+
+        $request = FormRequest::create('/', 'POST', ['slugs' => [['first', 'second']]]);
+        $this->assertTrue($request->models('slugs', SlugKeyedBlogPost::class)->isEmpty());
+
+        $request = FormRequest::create('/', 'POST', ['slugs' => ['first', ['second']]]);
+        $this->assertSame(['first'], $request->models('slugs', SlugKeyedBlogPost::class)->modelKeys());
+    }
 }
 
 class FormRequestModelTestApplication extends Application

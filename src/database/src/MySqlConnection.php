@@ -15,7 +15,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use Override;
 use PDO;
-use PDOException;
 use RuntimeException;
 use Throwable;
 
@@ -199,32 +198,6 @@ class MySqlConnection extends PdoConnection
     protected function isUniqueConstraintError(Exception $exception): bool
     {
         return (bool) preg_match('#Integrity constraint violation: 1062#i', $exception->getMessage());
-    }
-
-    /**
-     * Determine if the given database exception was caused by an invalid or out of range value.
-     */
-    protected function isDataTypeError(Exception $exception): bool
-    {
-        // Query context and external-service failures can contain MySQL error text.
-        $cause = $exception;
-
-        while ($cause instanceof QueryException && $cause->getPrevious() !== null) {
-            $cause = $cause->getPrevious();
-        }
-
-        if (! $cause instanceof PDOException) {
-            return false;
-        }
-
-        return in_array($cause->getCode(), [
-            '22001', // String data, right truncation
-            '22003', // Numeric value out of range
-            '22007', // Invalid datetime format
-        ], true)
-            // 1264: Out of range value, 1292: Truncated incorrect value,
-            // 1366: Incorrect integer value, 1406: Data too long
-            || (bool) preg_match('#General error: (1264|1292|1366|1406)\b#i', $cause->getMessage());
     }
 
     /**

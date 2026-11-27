@@ -204,20 +204,25 @@ class MiddlewareTest extends TestCase
         $middleware = new class($app) extends TrustHosts {
             protected function allSubdomainsOfApplicationUrl(): ?string
             {
-                return '^(.+\.)?laravel\.test$';
+                return '^(.+\.)?hypervel\.test$';
+            }
+
+            protected function applicationUrlWithoutSubdomains(): ?string
+            {
+                return '^hypervel\.test$';
             }
         };
 
-        $this->assertEquals(['^(.+\.)?laravel\.test$'], $middleware->hosts());
+        $this->assertEquals(['^(.+\.)?hypervel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts();
-        $this->assertEquals(['^(.+\.)?laravel\.test$'], $middleware->hosts());
+        $this->assertEquals(['^(.+\.)?hypervel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts(at: ['my.test']);
-        $this->assertEquals(['my.test', '^(.+\.)?laravel\.test$'], $middleware->hosts());
+        $this->assertEquals(['my.test', '^(.+\.)?hypervel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts(at: static fn () => ['my.test']);
-        $this->assertEquals(['my.test', '^(.+\.)?laravel\.test$'], $middleware->hosts());
+        $this->assertEquals(['my.test', '^(.+\.)?hypervel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts(at: ['my.test'], subdomains: false);
         $this->assertEquals(['my.test'], $middleware->hosts());
@@ -226,16 +231,22 @@ class MiddlewareTest extends TestCase
         $this->assertEquals(['my.test'], $middleware->hosts());
 
         $configuration->trustHosts(at: []);
-        $this->assertEquals(['^(.+\.)?laravel\.test$'], $middleware->hosts());
+        $this->assertEquals(['^(.+\.)?hypervel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts(at: static fn () => []);
-        $this->assertEquals(['^(.+\.)?laravel\.test$'], $middleware->hosts());
+        $this->assertEquals(['^(.+\.)?hypervel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts(at: [], subdomains: false);
         $this->assertSame([], $middleware->hosts());
 
         $configuration->trustHosts(at: static fn () => [], subdomains: false);
         $this->assertSame([], $middleware->hosts());
+
+        $configuration->trustHosts(subdomains: false);
+        $this->assertEquals(['^hypervel\.test$'], $middleware->hosts());
+
+        $configuration->trustHosts();
+        $this->assertEquals(['^(.+\.)?hypervel\.test$'], $middleware->hosts());
     }
 
     public function testEncryptCookies(): void

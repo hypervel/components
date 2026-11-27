@@ -8,7 +8,6 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
-use Hypervel\Database\InvalidValueException;
 use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
@@ -103,35 +102,25 @@ class ImplicitRouteBinding
                 ? 'resolveSoftDeletableRouteBinding'
                 : 'resolveRouteBinding';
 
-            try {
-                if ($parent instanceof UrlRoutable
-                    && ! $route->preventsScopedBindings()
-                    && ($route->enforcesScopedBindings() || array_key_exists($parameterName, $route->bindingFields()))) {
-                    $childRouteBindingMethod = $route->allowsTrashedBindings()
-                        && $parent instanceof Model
-                        && $instance instanceof Model
-                        && $instance::isSoftDeletable()
-                            ? 'resolveSoftDeletableChildRouteBinding'
-                            : 'resolveChildRouteBinding';
+            // Only a missing result becomes a 404. Database errors may come from scopes or custom bindings.
+            if ($parent instanceof UrlRoutable
+                && ! $route->preventsScopedBindings()
+                && ($route->enforcesScopedBindings() || array_key_exists($parameterName, $route->bindingFields()))) {
+                $childRouteBindingMethod = $route->allowsTrashedBindings()
+                    && $parent instanceof Model
+                    && $instance instanceof Model
+                    && $instance::isSoftDeletable()
+                        ? 'resolveSoftDeletableChildRouteBinding'
+                        : 'resolveChildRouteBinding';
 
-                    if (! $model = $parent->{$childRouteBindingMethod}(
-                        $parameterName,
-                        $parameterValue,
-                        $route->bindingFieldFor($parameterName)
-                    )) {
-                        throw (new ModelNotFoundException)->setModel(get_class($instance), $parameterValue === null ? [] : [$parameterValue]);
-                    }
-                } elseif (! $model = $instance->{$routeBindingMethod}($parameterValue, $route->bindingFieldFor($parameterName))) {
+                if (! $model = $parent->{$childRouteBindingMethod}(
+                    $parameterName,
+                    $parameterValue,
+                    $route->bindingFieldFor($parameterName)
+                )) {
                     throw (new ModelNotFoundException)->setModel(get_class($instance), $parameterValue === null ? [] : [$parameterValue]);
                 }
-            } catch (InvalidValueException $e) {
-                report_if(
-                    $instance instanceof Model
-                        ? $instance::reportsRouteModelBindingExceptions()
-                        : Model::reportsRouteModelBindingExceptions(),
-                    $e
-                );
-
+            } elseif (! $model = $instance->{$routeBindingMethod}($parameterValue, $route->bindingFieldFor($parameterName))) {
                 throw (new ModelNotFoundException)->setModel(get_class($instance), $parameterValue === null ? [] : [$parameterValue]);
             }
 

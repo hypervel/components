@@ -6,18 +6,30 @@ namespace Hypervel\Ai\Gateway;
 
 use Closure;
 use DateInterval;
+use Hypervel\Ai\Contracts\Gateway\ListsStoreFiles;
 use Hypervel\Ai\Contracts\Gateway\StoreGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
+use Hypervel\Ai\Enums\StoreDocumentStatus;
+use Hypervel\Ai\Responses\Data\StoreDocument;
 use Hypervel\Ai\Responses\Data\StoreFileCounts;
 use Hypervel\Ai\Store;
 use Hypervel\Ai\Stores;
 use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
+use Hypervel\Support\LazyCollection;
 use RuntimeException;
 
-class FakeStoreGateway implements StoreGateway
+class FakeStoreGateway implements StoreGateway, ListsStoreFiles
 {
+    /**
+     * The documents in each fake vector store, keyed by store ID and then document ID.
+     * All providers share this map, and creating the same name reuses its fake ID.
+     *
+     * @var array<string, array<string, StoreDocument>>
+     */
+    protected array $documents = [];
+
     protected int $currentResponseIndex = 0;
 
     protected bool $preventStrayOperations = false;
@@ -105,10 +117,14 @@ class FakeStoreGateway implements StoreGateway
         ?Collection $fileIds = null,
         ?DateInterval $expiresWhenIdleFor = null,
     ): Store {
+        $storeId = Stores::fakeId($name);
+        $this->documents[$storeId] = [];
+        $this->withDocuments($storeId, $fileIds?->values()->all() ?? []);
+
         /** @var FileProvider&StoreProvider $provider */
         return new Store(
             provider: $provider,
-            id: Stores::fakeId($name),
+            id: $storeId,
             name: $name,
             fileCounts: new StoreFileCounts(0, 0, 0),
             ready: true,
@@ -120,7 +136,19 @@ class FakeStoreGateway implements StoreGateway
      */
     public function addFile(StoreProvider $provider, string $storeId, string $fileId, array $metadata = []): string
     {
+        $this->documents[$storeId][$fileId] = new StoreDocument($fileId, $fileId, StoreDocumentStatus::Completed, $metadata);
+
         return $fileId;
+    }
+
+    /**
+     * List the documents in a vector store.
+     *
+     * @return LazyCollection<int, StoreDocument>
+     */
+    public function listFiles(StoreProvider $provider, string $storeId): LazyCollection
+    {
+        return LazyCollection::make(fn () => array_values($this->documents[$storeId] ?? []));
     }
 
     /**
@@ -128,6 +156,8 @@ class FakeStoreGateway implements StoreGateway
      */
     public function removeFile(StoreProvider $provider, string $storeId, string $documentId): bool
     {
+        unset($this->documents[$storeId][$documentId]);
+
         return true;
     }
 
@@ -136,6 +166,8 @@ class FakeStoreGateway implements StoreGateway
      */
     public function deleteStore(StoreProvider $provider, string $storeId): bool
     {
+        unset($this->documents[$storeId]);
+
         return true;
     }
 
@@ -149,6 +181,23 @@ class FakeStoreGateway implements StoreGateway
     public function preventStrayOperations(bool $prevent = true): self
     {
         $this->preventStrayOperations = $prevent;
+
+        return $this;
+    }
+
+    /**
+     * Seed a fake vector store with the given documents or file IDs.
+     *
+     * @param array<int, StoreDocument|string> $documents
+     */
+    #[TestsOnly(whenShared: true)]
+    public function withDocuments(string $storeId, array $documents): self
+    {
+        foreach ($documents as $document) {
+            $document = is_string($document) ? new StoreDocument($document, $document, StoreDocumentStatus::Completed) : $document;
+
+            $this->documents[$storeId][$document->id] = $document;
+        }
 
         return $this;
     }

@@ -736,7 +736,7 @@ class ConfiguresPromptsTest extends TestCase
 
         Artisan::registerCommand($parent);
 
-        $this->artisan($parent->getName())->assertSuccessful();
+        $this->artisan($parent->getName())->expectsOutput('Parent hook ran')->assertSuccessful();
 
         $this->assertSame(ConfiguresPromptsNestedParentCommand::class, CoroutineContext::get('__test.console.prompt_owner'));
     }
@@ -887,6 +887,16 @@ class ConfiguresPromptsNestedParentCommand extends Command
         $prompt = new TextPrompt('Test', validate: 'required');
 
         $validation($prompt, $prompt->value());
+    }
+
+    /**
+     * Report when the parent command's prompt hook runs.
+     */
+    protected function restorePrompts(): void
+    {
+        parent::restorePrompts();
+
+        $this->line('Parent hook ran');
     }
 
     protected function validatePrompt(mixed $value, mixed $rules): ?string

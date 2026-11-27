@@ -8,12 +8,13 @@ use Carbon\CarbonInterval;
 use Closure;
 use Exception;
 use Hypervel\Console\Application;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Concurrency\Driver;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Process\Pool;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Defer\DeferredCallback;
-use Hypervel\Support\Facades\Context;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
 use SensitiveParameter;
@@ -51,7 +52,7 @@ class ProcessDriver implements Driver
 
                 $process = $pool->as((string) $key)->path(base_path())->env([
                     SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE => $envelopeKeys[$key],
-                    '__HYPERVEL_CONTEXT' => base64_encode(serialize(Context::dehydrate())),
+                    '__HYPERVEL_CONTEXT' => $this->dehydrateContext(),
                     'HYPERVEL_INVOKABLE_CLOSURE' => base64_encode(
                         serialize(new SerializableClosure($task))
                     ),
@@ -85,6 +86,16 @@ class ProcessDriver implements Driver
     }
 
     /**
+     * Get the dehydrated context to pass to the child process.
+     *
+     * Overrides may return false to omit the context from the child's environment.
+     */
+    protected function dehydrateContext(): string|false
+    {
+        return base64_encode(serialize(Container::getInstance()->make(ContextRepository::class)->dehydrate()));
+    }
+
+    /**
      * Start the given tasks in the background after the current task has finished.
      */
     public function defer(Closure|array $tasks): DeferredCallback
@@ -94,7 +105,7 @@ class ProcessDriver implements Driver
         return defer(function () use ($tasks, $command) {
             foreach (Arr::wrap($tasks) as $task) {
                 $this->processFactory->path(base_path())->env([
-                    '__HYPERVEL_CONTEXT' => base64_encode(serialize(Context::dehydrate())),
+                    '__HYPERVEL_CONTEXT' => $this->dehydrateContext(),
                     'HYPERVEL_INVOKABLE_CLOSURE' => base64_encode(
                         serialize(new SerializableClosure($task))
                     ),
