@@ -5013,12 +5013,27 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $this->assertSame(['foo.0', 'foo.1', 'foo.2', 'foo.3'], $v->errors()->keys());
 
+        foreach ([
+            ['100000000000000000000.0', '100000000000000000000.00', '100000000000000000000.000'],
+            ['100000000000000000000e-20', '100000000000000000000.0e-20', '100000000000000000000.00e-20'],
+        ] as [$first, $second, $third]) {
+            $v = new Validator($trans, ['foo' => [$first, $second, $third, $third]], ['foo.*' => 'distinct']);
+            $this->assertSame(['foo.2', 'foo.3'], $v->errors()->keys());
+        }
+
+        $v = new Validator($trans, ['foo' => ['100000000000000000000.0', '100000000000000000000.00', 1e20, '100000000000000000000']], ['foo.*' => 'distinct']);
+        $this->assertSame(['foo.0', 'foo.1', 'foo.2', 'foo.3'], $v->errors()->keys());
+
         $file = new UploadedFile(__FILE__, 'foo.php', null, null, true);
 
         $v = new Validator($trans, ['foo' => [['file' => $file, 'name' => 'bar'], ['name' => 'baz']]], ['foo.*' => 'distinct:strict']);
         $this->assertTrue($v->passes());
 
-        foreach (["\u{A7DA}" => "\u{A7DB}", "\u{1FD3}" => "\u{0390}"] as $upper => $lower) {
+        foreach ([
+            "\u{A7DA}" => "\u{A7DB}", "\u{1FD3}" => "\u{0390}",
+            "\u{A7CE}" => "\u{A7CF}", "\u{A7D2}" => "\u{A7D3}", "\u{A7D4}" => "\u{A7D5}",
+            "\u{16EA0}" => "\u{16EBB}", "\u{16EB8}" => "\u{16ED3}",
+        ] as $upper => $lower) {
             $v = new Validator($trans, ['foo' => [$upper, $lower]], ['foo.*' => 'distinct:ignore_case']);
             $this->assertSame(preg_match('/^' . $upper . '$/iu', $lower) === 1, $v->fails());
         }
@@ -5112,7 +5127,7 @@ class ValidationValidatorTest extends TestCase
 
         $this->assertTrue($validator->passes());
 
-        $validator = new class($this->getArrayTranslator(), ['values' => ['1', 1]], ['values.*' => 'distinct']) extends Validator {
+        $validator = new class($this->getArrayTranslator(), ['values' => ['1', 1, 'a', 'b', 'c', 'c']], ['values.*' => 'distinct']) extends Validator {
             /**
              * Compare candidates only within their native type.
              */
@@ -5120,24 +5135,49 @@ class ValidationValidatorTest extends TestCase
             {
                 $group = get_debug_type($value);
 
-                return [[$group => ''], [$group]];
+                return [[$group => (string) $value], [$group]];
             }
         };
 
-        $this->assertTrue($validator->passes());
+        $this->assertSame(['values.4', 'values.5'], $validator->errors()->keys());
+    }
+
+    public function testLooseDistinctUsesCurrentObjectProperties(): void
+    {
+        $first = (object) ['id' => 1];
+        $second = (object) ['id' => 2];
+        $validator = new Validator($this->getArrayTranslator(), ['items' => [$first, $second]], ['items.*' => 'distinct']);
+
+        $this->assertTrue($validator->validateDistinct('items.0', $first, []));
+        $second->id = 1;
+        $this->assertFalse($validator->validateDistinct('items.0', $first, []));
     }
 
     #[TestWith(['distinct'])]
     #[TestWith(['distinct:strict'])]
     public function testDistinctComparesWholeArraysFromACustomValueSource(string $rule): void
     {
-        $validator = new class($this->getArrayTranslator(), ['items' => [[1], [2], [3], [3]]], ['items.*' => $rule]) extends Validator {
+        $validator = new class($this->getArrayTranslator(), ['items' => [[1], [2], [3], [3], [7], [7]]], ['items.*' => $rule]) extends Validator {
             /**
              * Return the whole items for comparison.
              */
             protected function getDistinctValues(string $attribute): array
             {
-                return ['items.0' => [1], 'items.1' => [2], 'items.2' => [3], 'items.3' => [3]];
+                $values = [];
+
+                foreach ($this->data['items'] as $index => $item) {
+                    $values["items.{$index}"] = $item;
+                }
+
+                return $values;
+            }
+
+            /**
+             * Exclude sevens from the distinct comparison.
+             */
+            protected function getDistinctValueGroups(mixed $value, string $mode): array
+            {
+                return $value === [7] ? [[], []] : parent::getDistinctValueGroups($value, $mode);
             }
         };
 

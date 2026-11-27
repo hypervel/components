@@ -980,19 +980,13 @@ trait ValidatesAttributes
     /**
      * Get the distinct values that may be equal to the given value.
      *
+     * Groups are shared across a wildcard attribute. Override this method to select candidates per item.
+     *
      * @return Generator<array-key, mixed>
      */
     protected function getDistinctValueCandidates(string $attribute, mixed $value, bool $ignoreCase, bool $strict): Generator
     {
         $values = $this->getDistinctValues($attribute);
-
-        // A custom value source can supply whole arrays. Two representatives cannot capture
-        // their contents, and serializing them could encounter files or other live objects.
-        if (is_array($value) && $value !== [] && static::class !== Validator::class) {
-            yield from $values;
-
-            return;
-        }
 
         // @phpstan-ignore function.alreadyNarrowedType (standalone trait consumers may omit the group cache)
         if (! property_exists($this, 'distinctValueGroups')) {
@@ -1015,7 +1009,28 @@ trait ValidatesAttributes
 
         foreach ($groupsToCompare as $group) {
             if (str_starts_with($group, 'equal-to:')) {
-                $groups[$group] ??= array_slice(array_filter($values, fn (mixed $item): bool => $item == $value), 0, 2, true);
+                // Objects can change between comparisons, and whole arrays share one group identity.
+                if (is_object($value) || (is_array($value) && $value !== [])) {
+                    yield from $values;
+
+                    continue;
+                }
+
+                if (! isset($groups[$group])) {
+                    $matches = [];
+
+                    foreach ($values as $key => $item) {
+                        if ($item == $value) {
+                            $matches[$key] = $item;
+
+                            if (count($matches) === 2) {
+                                break;
+                            }
+                        }
+                    }
+
+                    $groups[$group] = $matches;
+                }
             }
 
             yield from $groups[$group] ?? [];
@@ -1037,7 +1052,8 @@ trait ValidatesAttributes
             foreach ($valueGroups as $group => $identifier) {
                 $counts[$group][$identifier] ??= 0;
 
-                if (++$counts[$group][$identifier] <= 2) {
+                // Nonempty arrays share an identity even when their contents differ.
+                if ((is_array($value) && $value !== []) || ++$counts[$group][$identifier] <= 2) {
                     $groups[$group][$key] = $value;
                 }
             }
@@ -1048,6 +1064,9 @@ trait ValidatesAttributes
 
     /**
      * Get the distinct value groups for the given value.
+     *
+     * Except for nonempty arrays, the index keeps two representatives per group and identifier.
+     * Values sharing that identifier must be interchangeable when compared with a sibling.
      *
      * @return array{array<string, int|string>, array<int, string>}
      */
@@ -1094,18 +1113,22 @@ trait ValidatesAttributes
             return [[], []];
         }
 
-        static $unicode16Foldings = null;
+        static $unicode17Foldings = null;
 
-        // Include PCRE Unicode 16 case pairs when mbstring uses older Unicode tables.
-        $unicode16Foldings ??= [
+        // Include Unicode 16 and 17 case pairs when PCRE knows them before mbstring does.
+        $unicode17Foldings ??= [
             "\u{1C89}" => "\u{1C8A}", "\u{1FD3}" => "\u{0390}", "\u{1FE3}" => "\u{03B0}", "\u{A7CB}" => "\u{0264}",
             "\u{A7CC}" => "\u{A7CD}", "\u{A7DA}" => "\u{A7DB}", "\u{A7DC}" => "\u{019B}", "\u{FB05}" => "\u{FB06}",
+            "\u{A7CE}" => "\u{A7CF}", "\u{A7D2}" => "\u{A7D3}", "\u{A7D4}" => "\u{A7D5}",
         ] + array_combine(
             array_map(static fn (int $codepoint): string => mb_chr($codepoint, 'UTF-8'), range(0x10D50, 0x10D65)),
             array_map(static fn (int $codepoint): string => mb_chr($codepoint, 'UTF-8'), range(0x10D70, 0x10D85)),
+        ) + array_combine(
+            array_map(static fn (int $codepoint): string => mb_chr($codepoint, 'UTF-8'), range(0x16EA0, 0x16EB8)),
+            array_map(static fn (int $codepoint): string => mb_chr($codepoint, 'UTF-8'), range(0x16EBB, 0x16ED3)),
         );
 
-        $group = 'folded:' . strtr(mb_convert_case($value, MB_CASE_FOLD_SIMPLE, 'UTF-8'), $unicode16Foldings);
+        $group = 'folded:' . strtr(mb_convert_case($value, MB_CASE_FOLD_SIMPLE, 'UTF-8'), $unicode17Foldings);
 
         return [[$group => $value], [$group, 'any']];
     }
@@ -1135,7 +1158,8 @@ trait ValidatesAttributes
 
         $group = 'number:' . $this->getDistinctFloatKey($float);
 
-        return [[$group => ''], [$group, 'any']];
+        // Different decimal strings can round to the same float but compare unequal to one another.
+        return [[$group => is_string($value) ? $value : ''], [$group, 'any']];
     }
 
     /**
@@ -1172,7 +1196,7 @@ trait ValidatesAttributes
         };
 
         return [
-            array_fill_keys(["{$type}:{$float}", ...$exact], ''),
+            array_fill_keys(["{$type}:{$float}", ...$exact], $type === 'float' && is_string($value) ? $value : ''),
             [...$exact, ...array_map(fn (string $type): string => "{$type}:{$float}", $typesComparedAsFloats), 'any'],
         ];
     }
@@ -1182,7 +1206,7 @@ trait ValidatesAttributes
      */
     protected function getDistinctFloatKey(float $float): string
     {
-        return is_finite($float) ? Number::toString($float === 0.0 ? 0.0 : $float) : (string) $float;
+        return Number::toString($float === 0.0 ? 0.0 : $float);
     }
 
     /**
