@@ -2,7 +2,6 @@
 
 ## Release preparation
 
-- Before releasing Hypervel 0.4, ensure every split repository has a current `0.4` branch and a Packagist entry. Ensure the split job can access `hypervel/attributes`, `hypervel/phpstan`, and `hypervel/schema-parser`. The release script publishes the component tags before pushing the framework tag.
 - Once the 0.4 splits are published, verify a full Composer installation of the `hypervel/hypervel` skeleton, re-enable its manually disabled `tests` workflow, and confirm the first CI run passes.
 - Replace `psy/psysh` `dev-main` in the root and `src/tinker` manifests with the first stable release containing PsySH #951–#954. The latest stable release, v0.12.24, predates those changes.
 
