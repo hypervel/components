@@ -166,6 +166,8 @@ class AgentUserInteractionMessageTest extends TestCase
         $this->assertSame('The tool call was denied.', $messages[1]->toolResults[0]->result);
     }
 
+    // REMOVED: Upstream tests asserting AG-UI tool message ids copy into ToolCall::$resultId and ToolResult::$resultId (see AgentUserInteraction::toolResultFrom()).
+
     public function testSystemAndDeveloperMessagesAreSkippedAndMalformedToolMessagesAreDropped(): void
     {
         $messages = AgentUserInteraction::fromMessages([
