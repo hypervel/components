@@ -581,7 +581,8 @@ class DatabaseTruncationTest extends TestCase
             'database' => [
                 'default' => 'testing',
                 'migrations' => ['table' => 'migrations'],
-                'connections' => ['testing' => ['driver' => 'sqlite', 'database' => '/tmp/database.sqlite']],
+                // Empty database name skips in-memory PDO caching and parallel DB setup under TEST_TOKEN.
+                'connections' => ['testing' => ['driver' => 'sqlite', 'database' => '']],
             ],
         ]));
         RefreshDatabaseState::$migrated = false;
