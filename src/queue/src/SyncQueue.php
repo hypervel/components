@@ -356,7 +356,7 @@ class SyncQueue extends Queue implements QueueContract
             $events = $this->container->make('events');
 
             if ($events->hasListeners(JobAttempted::class)) {
-                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred, $duration, $canceled));
+                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred, $duration, canceled: $canceled));
             }
         }
     }

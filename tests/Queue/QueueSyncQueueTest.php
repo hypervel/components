@@ -323,6 +323,7 @@ class QueueSyncQueueTest extends TestCase
             $this->assertSame(['processing', 'fire', 'attempted'], SyncQueueEventOrder::$events);
             $this->assertNotNull(SyncQueueEventOrder::$attempted);
             $this->assertNull(SyncQueueEventOrder::$attempted->exception);
+            $this->assertNull(SyncQueueEventOrder::$attempted->memoryUsage);
             $this->assertTrue(SyncQueueEventOrder::$attempted->successful());
         } finally {
             SyncQueueEventOrder::reset();

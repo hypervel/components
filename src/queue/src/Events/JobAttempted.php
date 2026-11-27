@@ -14,6 +14,7 @@ class JobAttempted
      *
      * @param null|Throwable $exception the exception, if one occurred while processing the job
      * @param null|float $duration the number of milliseconds the job took to process
+     * @param null|float|int $memoryUsage the worker process's peak memory usage in megabytes so far
      * @param bool $canceled whether cancellation stopped the attempt, or its timeout monitor took it over, before its normal completion
      */
     public function __construct(
@@ -21,6 +22,7 @@ class JobAttempted
         public Job $job,
         public ?Throwable $exception = null,
         public ?float $duration = null,
+        public float|int|null $memoryUsage = null,
         public bool $canceled = false,
     ) {
     }

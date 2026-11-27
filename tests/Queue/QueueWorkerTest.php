@@ -298,7 +298,7 @@ class QueueWorkerTest extends TestCase
         $this->events->assertNotDispatched(JobProcessed::class);
         $this->events->assertDispatched(
             JobAttempted::class,
-            static fn (JobAttempted $event): bool => $event->canceled && $event->exception === $caught && ! $event->successful(),
+            static fn (JobAttempted $event): bool => $event->canceled && $event->exception === $caught && ! $event->successful() && $event->memoryUsage > 0,
         );
         $this->assertTrue($cache->get('job-processing:' . $job->uuid));
     }
@@ -1686,7 +1686,7 @@ class QueueWorkerTest extends TestCase
             /**
              * Get the current memory usage in megabytes.
              */
-            protected function currentMemoryUsage(): float
+            protected function currentMemoryUsage(): int
             {
                 return 512;
             }
@@ -2103,7 +2103,9 @@ class QueueWorkerTest extends TestCase
                 && $event->job === $job
                 && $event->exception === $e
                 && ! $event->successful()
-                && is_float($event->duration);
+                && is_float($event->duration)
+                && is_numeric($event->memoryUsage)
+                && $event->memoryUsage > 0;
         });
     }
 
