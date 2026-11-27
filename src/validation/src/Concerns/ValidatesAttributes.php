@@ -17,6 +17,7 @@ use Egulias\EmailValidator\Validation\MultipleValidationWithAnd;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
+use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
@@ -36,8 +37,8 @@ use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
 use Hypervel\Validation\ValidationRuleParser;
+use Hypervel\Validation\Validator;
 use InvalidArgumentException;
-use ReflectionMethod;
 use Stringable;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -906,10 +907,6 @@ trait ValidatesAttributes
     {
         $strict = in_array('strict', $parameters, true);
 
-        if (is_float($value) && is_nan($value) && $strict) {
-            return true;
-        }
-
         $ignoreCase = in_array('ignore_case', $parameters, true)
             && is_string($value)
             && mb_check_encoding($value, 'UTF-8');
@@ -917,12 +914,8 @@ trait ValidatesAttributes
         // \z rather than $, which also matches before a trailing newline.
         $pattern = $ignoreCase ? '/^' . preg_quote($value, '/') . '\z/iu' : null;
 
-        // An overridden hook may narrow the candidates, so it decides every comparison.
-        if ($this->overridesDistinctCandidates()) {
-            return ! $this->hasDistinctMatch($this->getDistinctValuesToCompare($attribute, $value, $ignoreCase), $attribute, $value, $strict, $pattern);
-        }
-
-        if (! $ignoreCase) {
+        // On subclasses, always run the candidate hooks so they can customize the comparison.
+        if (! $ignoreCase && static::class === Validator::class) {
             $values = $this->getDistinctValues($attribute);
             $primary = $this->getPrimaryAttribute($attribute);
 
@@ -956,106 +949,14 @@ trait ValidatesAttributes
             }
         }
 
-        [$candidates, $wildcards] = $this->getDistinctValueBuckets($attribute, $value, $ignoreCase);
-
-        return ! $this->hasDistinctMatch($candidates, $attribute, $value, $strict, $pattern)
-            && ! $this->hasDistinctMatch($wildcards, $attribute, $value, $strict, $pattern);
-    }
-
-    /**
-     * Get the distinct values that may be equal to the given value.
-     *
-     * Values are grouped so that equal values always share a group, letting each
-     * item be compared against its own group instead of against every value.
-     */
-    protected function getDistinctValuesToCompare(string $attribute, mixed $value, bool $ignoreCase): array
-    {
-        [$candidates, $wildcards] = $this->getDistinctValueBuckets($attribute, $value, $ignoreCase);
-
-        return $candidates + $wildcards;
-    }
-
-    /**
-     * Get the group of a distinct value, or "*" if it may be equal to values in any group.
-     */
-    protected function getDistinctValueGroup(mixed $value, bool $ignoreCase): string
-    {
-        if ($ignoreCase) {
-            if (! is_string($value)) {
-                return '*';
-            }
-
-            if (! mb_check_encoding($value, 'UTF-8')) {
-                return 'invalid';
-            }
-
-            // Unlike Laravel, a trailing newline is kept because the comparison is anchored with \z.
-            // Non-ASCII characters share a placeholder with "k" and "s", which the Kelvin sign and
-            // long s match caselessly, and with "i", as upstream groups it.
-            return 's:' . strtr(strtolower(preg_replace('/[^\x00-\x7F]/u', '?', $value)), 'iks', '???');
-        }
-
-        if (is_string($value) && ! is_numeric($value)) {
-            return 's:' . $value;
-        }
-
-        if (is_int($value) || is_string($value) || (is_float($value) && is_finite($value))) {
-            $number = (float) $value;
-
-            return 'n:' . ($number === 0.0 ? 0 : $number);
-        }
-
-        return '*';
-    }
-
-    /**
-     * Get the value's own distinct group and the values that may equal any value.
-     *
-     * @return array{0: array<array-key, mixed>, 1: array<array-key, mixed>}
-     */
-    private function getDistinctValueBuckets(string $attribute, mixed $value, bool $ignoreCase): array
-    {
-        $values = $this->getDistinctValues($attribute);
-        $group = $this->getDistinctValueGroup($value, $ignoreCase);
-
-        if ($group === '*') {
-            return [$values, []];
-        }
-
-        $groups = $this->distinctValueGroups[$this->getPrimaryAttribute($attribute)][(int) $ignoreCase] ??= (function () use ($values, $ignoreCase): array {
-            $groups = [];
-
-            foreach ($values as $key => $item) {
-                $groups[$this->getDistinctValueGroup($item, $ignoreCase)][$key] = $item;
-            }
-
-            return $groups;
-        })();
-
-        // Upstream compares every value when this group exists. The stock classifier only puts malformed text
-        // here, which never matches a case-insensitive comparison, so only a custom classifier needs that fallback.
-        if (isset($groups['invalid']) && $this->overridesDistinctCandidates()) {
-            return [$values, []];
-        }
-
-        return [$groups[$group] ?? [], $groups['*'] ?? []];
-    }
-
-    /**
-     * Determine if a candidate other than the attribute itself equals the value.
-     *
-     * @param array<array-key, mixed> $candidates
-     */
-    private function hasDistinctMatch(array $candidates, string $attribute, mixed $value, bool $strict, ?string $pattern): bool
-    {
-        foreach ($candidates as $key => $other) {
+        foreach ($this->getDistinctValueCandidates($attribute, $value, $ignoreCase, $strict) as $key => $other) {
             if ((string) $key === $attribute) {
                 continue;
             }
 
             if ($pattern === null) {
                 if ($strict ? $other === $value : $other == $value) {
-                    return true;
+                    return false;
                 }
 
                 continue;
@@ -1069,30 +970,243 @@ trait ValidatesAttributes
 
             // Only text in valid UTF-8 can match a case-insensitive comparison.
             if (mb_check_encoding($other, 'UTF-8') && preg_match($pattern, $other) === 1) {
-                return true;
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     /**
-     * Determine if the validator overrides a hook that selects distinct candidates.
+     * Get the distinct values that may be equal to the given value.
+     *
+     * @return Generator<array-key, mixed>
      */
-    private function overridesDistinctCandidates(): bool
+    protected function getDistinctValueCandidates(string $attribute, mixed $value, bool $ignoreCase, bool $strict): Generator
     {
-        if (static::class === self::class) {
-            return false;
+        $values = $this->getDistinctValues($attribute);
+
+        // A custom value source can supply whole arrays. Two representatives cannot capture
+        // their contents, and serializing them could encounter files or other live objects.
+        if (is_array($value) && $value !== [] && static::class !== Validator::class) {
+            yield from $values;
+
+            return;
         }
 
-        return $this->distinctCandidatesOverridden ??= (new ReflectionMethod($this, 'getDistinctValuesToCompare'))->getDeclaringClass()->getName() !== self::class
-            || (new ReflectionMethod($this, 'getDistinctValueGroup'))->getDeclaringClass()->getName() !== self::class;
+        // @phpstan-ignore function.alreadyNarrowedType (standalone trait consumers may omit the group cache)
+        if (! property_exists($this, 'distinctValueGroups')) {
+            yield from $values;
+
+            return;
+        }
+
+        $mode = match (true) {
+            $ignoreCase => 'ignore_case',
+            $strict => 'strict',
+            default => 'loose',
+        };
+
+        $groups = &$this->distinctValueGroups[$this->getPrimaryAttribute($attribute)][$mode];
+
+        $groups ??= $this->groupDistinctValues($values, $mode);
+
+        [, $groupsToCompare] = $this->getDistinctValueGroups($value, $mode);
+
+        foreach ($groupsToCompare as $group) {
+            if (str_starts_with($group, 'equal-to:')) {
+                $groups[$group] ??= array_slice(array_filter($values, fn (mixed $item): bool => $item == $value), 0, 2, true);
+            }
+
+            yield from $groups[$group] ?? [];
+        }
     }
+
+    /**
+     * Group the given distinct values by the groups they belong to.
+     *
+     * @return array<string, array<array-key, mixed>>
+     */
+    protected function groupDistinctValues(array $values, string $mode): array
+    {
+        $groups = $counts = [];
+
+        foreach ($values as $key => $value) {
+            [$valueGroups] = $this->getDistinctValueGroups($value, $mode);
+
+            foreach ($valueGroups as $group => $identifier) {
+                $counts[$group][$identifier] ??= 0;
+
+                if (++$counts[$group][$identifier] <= 2) {
+                    $groups[$group][$key] = $value;
+                }
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Get the distinct value groups for the given value.
+     *
+     * @return array{array<string, int|string>, array<int, string>}
+     */
+    protected function getDistinctValueGroups(mixed $value, string $mode): array
+    {
+        return match ($mode) {
+            'strict' => $this->getStrictDistinctValueGroups($value),
+            'ignore_case' => $this->getCaseInsensitiveDistinctValueGroups($value),
+            default => $this->getLooseDistinctValueGroups($value),
+        };
+    }
+
+    /**
+     * Get the distinct value groups for a strict comparison.
+     *
+     * @return array{array<string, string>, array<int, string>}
+     */
+    protected function getStrictDistinctValueGroups(mixed $value): array
+    {
+        $group = match (true) {
+            is_string($value) => "string:{$value}",
+            is_int($value) => "integer:{$value}",
+            is_float($value) => 'float:' . $this->getDistinctFloatKey($value),
+            default => 'value:' . $this->getDistinctValueIdentity($value),
+        };
+
+        return [[$group => ''], [$group]];
+    }
+
+    /**
+     * Get the distinct value groups for a case-insensitive comparison.
+     *
+     * @return array{array<string, int|string>, array<int, string>}
+     */
+    protected function getCaseInsensitiveDistinctValueGroups(mixed $value): array
+    {
+        if (! is_null($value) && ! is_scalar($value)) {
+            return [['any' => $this->getDistinctValueIdentity($value)], []];
+        }
+
+        $value = is_float($value) ? Number::toString($value) : (string) $value;
+
+        if (! mb_check_encoding($value, 'UTF-8')) {
+            return [[], []];
+        }
+
+        static $unicode16Foldings = null;
+
+        // Include PCRE Unicode 16 case pairs when mbstring uses older Unicode tables.
+        $unicode16Foldings ??= [
+            "\u{1C89}" => "\u{1C8A}", "\u{1FD3}" => "\u{0390}", "\u{1FE3}" => "\u{03B0}", "\u{A7CB}" => "\u{0264}",
+            "\u{A7CC}" => "\u{A7CD}", "\u{A7DA}" => "\u{A7DB}", "\u{A7DC}" => "\u{019B}", "\u{FB05}" => "\u{FB06}",
+        ] + array_combine(
+            array_map(static fn (int $codepoint): string => mb_chr($codepoint, 'UTF-8'), range(0x10D50, 0x10D65)),
+            array_map(static fn (int $codepoint): string => mb_chr($codepoint, 'UTF-8'), range(0x10D70, 0x10D85)),
+        );
+
+        $group = 'folded:' . strtr(mb_convert_case($value, MB_CASE_FOLD_SIMPLE, 'UTF-8'), $unicode16Foldings);
+
+        return [[$group => $value], [$group, 'any']];
+    }
+
+    /**
+     * Get the distinct value groups for a loose comparison.
+     *
+     * @return array{array<string, string>, array<int, string>}
+     */
+    protected function getLooseDistinctValueGroups(mixed $value): array
+    {
+        if (is_string($value) && ! is_numeric($value)) {
+            return [["string:{$value}" => ''], ["string:{$value}", 'any']];
+        }
+
+        if (! is_int($value) && ! is_string($value) && ! (is_float($value) && is_finite($value))) {
+            $identity = $this->getDistinctValueIdentity($value);
+
+            return [['any' => $identity], ["equal-to:{$identity}"]];
+        }
+
+        $float = (float) $value ?: 0.0;
+
+        if (abs($float) >= 2 ** 53) {
+            return $this->getLargeNumberDistinctValueGroups($value, $float);
+        }
+
+        $group = 'number:' . $this->getDistinctFloatKey($float);
+
+        return [[$group => ''], [$group, 'any']];
+    }
+
+    /**
+     * Get the distinct value groups for a number too large to be exact as a float.
+     *
+     * @param float|int|numeric-string $value
+     * @return array{array<string, string>, array<int, string>}
+     */
+    protected function getLargeNumberDistinctValueGroups(float|int|string $value, float $float): array
+    {
+        $float = $this->getDistinctFloatKey($float);
+
+        $number = is_string($value) ? $value + 0 : $value;
+
+        $type = match (true) {
+            is_int($value) => 'int',
+            is_float($value) => 'float',
+            is_int($number) => 'integer-string',
+            is_infinite($number) || preg_match('/^\s*[+-]?\d+\s*\z/', $value) => 'overflowing-string',
+            default => 'float',
+        };
+
+        $exact = match ($type) {
+            'int', 'integer-string' => ["exact:integer:{$number}"],
+            'overflowing-string' => ["exact:string:{$value}"],
+            'float' => [],
+        };
+
+        $typesComparedAsFloats = match ($type) {
+            'int' => ['float', 'overflowing-string'],
+            'integer-string' => ['float'],
+            'overflowing-string' => ['float', 'int'],
+            'float' => ['float', 'int', 'integer-string', 'overflowing-string'],
+        };
+
+        return [
+            array_fill_keys(["{$type}:{$float}", ...$exact], ''),
+            [...$exact, ...array_map(fn (string $type): string => "{$type}:{$float}", $typesComparedAsFloats), 'any'],
+        ];
+    }
+
+    /**
+     * Get a key that is unique to the given float.
+     */
+    protected function getDistinctFloatKey(float $float): string
+    {
+        return is_finite($float) ? Number::toString($float === 0.0 ? 0.0 : $float) : (string) $float;
+    }
+
+    /**
+     * Get the identity of the given value for the distinct rule.
+     */
+    protected function getDistinctValueIdentity(mixed $value): string
+    {
+        return match (true) {
+            is_object($value) => 'object:' . spl_object_id($value),
+            is_resource($value) => 'resource:' . get_resource_id($value),
+            is_array($value) => $value === [] ? 'array:empty' : 'array',
+            default => serialize($value),
+        };
+    }
+
+    // Laravel's deprecated getDistinctValuesToCompare() and getDistinctValueGroup() hooks were replaced by
+    // getDistinctValueCandidates() and getDistinctValueGroups().
 
     /**
      * Identify values whose strict equality can be counted without comparing every sibling.
+     *
+     * Private because only the stock validator uses counts. Subclasses customize getDistinctValueCandidates().
      */
-    protected function getDistinctValueKey(mixed $value): ?string
+    private function getDistinctValueKey(mixed $value): ?string
     {
         return match (gettype($value)) {
             'string' => 's' . $value,
@@ -1139,7 +1253,7 @@ trait ValidatesAttributes
         $pattern = str_replace('\*', '[^.]*', preg_quote($attribute, '#'));
 
         return Arr::where(Arr::dot($attributeData), function ($value, $key) use ($pattern) {
-            return (bool) preg_match('#^' . $pattern . '\z#u', (string) $key);
+            return (bool) preg_match('#^' . $pattern . '\z#', (string) $key);
         });
     }
 

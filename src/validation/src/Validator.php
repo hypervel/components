@@ -147,14 +147,9 @@ class Validator implements ValidatorContract
     /**
      * The cached groups of values for the "distinct" rule.
      *
-     * @var array<string, array<int, array<string, array<array-key, mixed>>>>
+     * @var array<string, array<string, array<string, array<array-key, mixed>>>>
      */
     protected array $distinctValueGroups = [];
-
-    /**
-     * Indicates if the validator overrides a hook that selects distinct candidates.
-     */
-    protected ?bool $distinctCandidatesOverridden = null;
 
     /**
      * The compiled execution plans for the current passes() invocation.
