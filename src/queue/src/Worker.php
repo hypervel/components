@@ -1906,7 +1906,9 @@ class Worker
     }
 
     /**
-     * Get the worker process's peak memory usage in megabytes.
+     * Get PHP's peak allocated memory for this worker, in megabytes.
+     *
+     * Resetting PHP's peak for one job would also reset it for concurrent jobs.
      */
     protected function peakMemoryUsage(): float|int
     {

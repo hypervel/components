@@ -456,7 +456,8 @@ class ValidationRules
             return [];
         }
 
-        // "in" cannot compare objects, and with the "array" rule it checks each member of an array value instead of the whole value.
+        // Scalar enums use the usual form-input comparisons of the "in" rule. Enums with
+        // objects or arrays need strict scalar comparisons and must compare whole structures.
         $comparesWholeArrays = Arr::some($schema['enum'], fn (mixed $value) => is_array($value) || $value instanceof stdClass)
             || in_array('object', Arr::wrap($schema['type'] ?? null), true);
 
