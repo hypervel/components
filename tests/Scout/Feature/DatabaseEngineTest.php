@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
+use Hypervel\Scout\Builder;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Searchable;
@@ -61,14 +62,14 @@ class DatabaseEngineTest extends ScoutTestCase
 
     public function testItDoesNotAddSearchWhereClausesWithEmptySearch(): void
     {
-        SearchableModel::search('')->query(function ($builder): void {
+        SearchableModel::search('')->query(function (EloquentBuilder $builder): void {
             $this->assertSame('select * from "searchable_models"', $builder->toSql());
         })->get();
     }
 
     public function testItAddsSearchWhereClausesWithNonEmptySearch(): void
     {
-        SearchableModel::search('Taylor')->query(function ($builder): void {
+        SearchableModel::search('Taylor')->query(function (EloquentBuilder $builder): void {
             $this->assertSame(
                 'select * from "searchable_models" where ("searchable_models"."title" like ? or "searchable_models"."body" like ?)',
                 $builder->toSql()
@@ -78,7 +79,7 @@ class DatabaseEngineTest extends ScoutTestCase
 
     public function testItMatchesThePrimaryKeyExactlyForANumericSearch(): void
     {
-        SearchableModel::search('1')->query(function ($builder): void {
+        SearchableModel::search('1')->query(function (EloquentBuilder $builder): void {
             $this->assertSame(
                 'select * from "searchable_models" where ("searchable_models"."id" = ? or "searchable_models"."title" like ? or "searchable_models"."body" like ?)',
                 $builder->toSql()
@@ -134,12 +135,103 @@ class DatabaseEngineTest extends ScoutTestCase
             }
         };
 
-        $model::search('30')->query(function ($builder): void {
+        $model::search('30')->query(function (EloquentBuilder $builder): void {
             $this->assertSame(
                 'select * from "scout_through_models" where ("scout_through_models"."id" = ? or "scout_through_models"."intermediate_id" = ? or "scout_through_models"."title" like ?)',
                 $builder->toSql()
             );
         })->get();
+    }
+
+    public function testItReturnsNoResultsForNonNumericSearchOnIntegerKeyOnlyModel(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => 30, 'title' => 'First']);
+        $model::create(['intermediate_id' => 42, 'title' => 'Second']);
+
+        $this->assertCount(0, $model::search('abc')->get());
+        $this->assertCount(0, $model::search("30\n")->get());
+        $this->assertCount(1, $model::search('30')->get());
+        $this->assertCount(2, $model::search('')->get());
+    }
+
+    public function testItMatchesNegativeIntegerScoutKeysExactly(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => -42, 'title' => 'Negative key']);
+        $model::create(['intermediate_id' => 42, 'title' => 'Positive key']);
+
+        $models = $model::search('-42')->get();
+
+        $this->assertCount(1, $models);
+        $this->assertSame(-42, $models->first()->intermediate_id);
     }
 
     public function testItCanRetrieveResults(): void
@@ -151,7 +243,7 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertCount(1, $models);
         $this->assertSame($taylor->id, $models[0]->id);
 
-        $models = SearchableModel::search('Taylor')->query(function ($query): void {
+        $models = SearchableModel::search('Taylor')->query(function (EloquentBuilder $query): void {
             $query->where('body', 'like', 'taylor@hypervel.org');
         })->get();
         $this->assertCount(1, $models);
@@ -234,7 +326,7 @@ class DatabaseEngineTest extends ScoutTestCase
 
         $this->assertCount(2, SearchableModel::search('hypervel')->get());
 
-        $models = SearchableModel::search('hypervel')->tap(function ($query) {
+        $models = SearchableModel::search('hypervel')->tap(function (Builder $query): Builder {
             return $query->take(1);
         })->get();
 

@@ -268,17 +268,24 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             $integerKeyColumns = $this->integerKeyColumns($builder);
             $searchableIntegerKeyColumns = array_values(array_intersect($integerKeyColumns, $columns));
             $integerKeyValue = $builder->query;
-            $canSearchIntegerKeys = ctype_digit((string) $builder->query)
-                && $searchableIntegerKeyColumns !== [];
+            $canSearchIntegerKeys = $searchableIntegerKeyColumns !== []
+                && preg_match('/^-?[0-9]+\z/', $integerKeyValue) === 1;
 
             if ($canSearchIntegerKeys && $connectionType === 'pgsql') {
-                $integerKeyValue = ltrim((string) $builder->query, '0') ?: '0';
+                $negative = str_starts_with($integerKeyValue, '-');
+                $digits = ltrim($negative ? substr($integerKeyValue, 1) : $integerKeyValue, '0') ?: '0';
+                $integerKeyValue = $negative && $digits !== '0' ? '-' . $digits : $digits;
                 $canSearchIntegerKeys = filter_var($integerKeyValue, FILTER_VALIDATE_INT) !== false;
             }
 
             if ($canSearchIntegerKeys) {
                 foreach ($searchableIntegerKeyColumns as $keyColumn) {
-                    $query->orWhere($builder->model->qualifyColumn($keyColumn), $integerKeyValue);
+                    if ($connectionType === 'pgsql') {
+                        // Cast to bigint so values outside smallint/integer ranges evaluate to false instead of throwing 22003.
+                        $query->orWhereRaw("{$this->wrapColumn($builder, $keyColumn)} = ?::bigint", [$integerKeyValue]);
+                    } else {
+                        $query->orWhere($builder->model->qualifyColumn($keyColumn), $integerKeyValue);
+                    }
                 }
             }
 
@@ -332,6 +339,11 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
             foreach ($this->getTrigramColumns($builder) as $column) {
                 $query->orWhereRaw("{$this->wrapColumn($builder, $column)} % ?", [$builder->query]);
+            }
+
+            // A non-blank search that generates no predicates must not leave an empty group that matches every row.
+            if ($query->getQuery()->wheres === []) {
+                $query->whereRaw('1 = 0');
             }
         });
     }

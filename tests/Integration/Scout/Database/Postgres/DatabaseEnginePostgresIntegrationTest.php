@@ -6,8 +6,10 @@ namespace Hypervel\Tests\Integration\Scout\Database\Postgres;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Searchable;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -44,9 +46,28 @@ class DatabaseEnginePostgresIntegrationTest extends ScoutTestCase
 
     public function testIntegerKeyEqualityNormalizesLeadingZeroesAndRejectsOverflow(): void
     {
-        SearchableModel::create(['id' => PHP_INT_MAX, 'title' => 'Maximum', 'body' => 'Body']);
+        SearchableModel::create(['id' => PHP_INT_MIN, 'title' => 'Minimum', 'body' => 'Body']);
+        SearchableModel::create(['id' => -42, 'title' => 'Minus forty two', 'body' => 'Body']);
+        SearchableModel::create(['id' => 0, 'title' => 'Zero', 'body' => 'Body']);
         SearchableModel::create(['id' => 42, 'title' => 'Forty two', 'body' => 'Body']);
+        SearchableModel::create(['id' => PHP_INT_MAX, 'title' => 'Maximum', 'body' => 'Body']);
 
+        $this->assertSame(
+            [PHP_INT_MIN],
+            SearchableModel::search((string) PHP_INT_MIN)->get()->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [-42],
+            SearchableModel::search('-42')->get()->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [-42],
+            SearchableModel::search('-00042')->get()->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [0],
+            SearchableModel::search('-0')->get()->pluck('id')->all(),
+        );
         $this->assertSame(
             [PHP_INT_MAX],
             SearchableModel::search((string) PHP_INT_MAX)->get()->pluck('id')->all(),
@@ -58,6 +79,53 @@ class DatabaseEnginePostgresIntegrationTest extends ScoutTestCase
         $this->assertCount(
             0,
             SearchableModel::search('9223372036854775808')->get(),
+        );
+        $this->assertCount(
+            0,
+            SearchableModel::search('-9223372036854775809')->get(),
+        );
+    }
+
+    public function testOutOfRangeIntegerQueryDoesNotFailOnNarrowPostgresIntegerColumns(): void
+    {
+        Schema::create('postgres_smallint_searchable_models', function (Blueprint $table): void {
+            $table->smallInteger('id')->primary();
+            $table->string('title');
+        });
+
+        PostgresSmallIntSearchableModel::create([
+            'id' => 1,
+            'title' => 'Order 32768 and 3000000000',
+        ]);
+
+        $this->assertSame(
+            [1],
+            PostgresSmallIntSearchableModel::search('1')->get()->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [1],
+            PostgresSmallIntSearchableModel::search('32768')->get()->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [1],
+            PostgresSmallIntSearchableModel::search('3000000000')->get()->pluck('id')->all(),
+        );
+        $this->assertCount(
+            0,
+            PostgresSmallIntSearchableModel::search('-32769')->get(),
+        );
+    }
+
+    public function testUnmatchedSearchReturnsNoResultsOnIntegerKeyOnlyModel(): void
+    {
+        PostgresIntegerKeyOnlyModel::create(['id' => 42, 'title' => 'Alpha', 'body' => 'Body']);
+        PostgresIntegerKeyOnlyModel::create(['id' => 99, 'title' => 'Beta', 'body' => 'Body']);
+
+        $this->assertCount(0, PostgresIntegerKeyOnlyModel::search('Alpha')->get());
+        $this->assertCount(0, PostgresIntegerKeyOnlyModel::search('9223372036854775808')->get());
+        $this->assertSame(
+            [42],
+            PostgresIntegerKeyOnlyModel::search('42')->get()->pluck('id')->all(),
         );
     }
 
@@ -122,6 +190,43 @@ class PostgresCustomIntegerScoutKeyModel extends Model
             'id' => $this->id,
             'intermediate_id' => $this->intermediate_id,
             'title' => $this->title,
+        ];
+    }
+}
+
+class PostgresSmallIntSearchableModel extends Model
+{
+    use Searchable;
+
+    protected ?string $table = 'postgres_smallint_searchable_models';
+
+    public bool $incrementing = false;
+
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    /**
+     * Get the indexable data array for the model.
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'title' => $this->title,
+        ];
+    }
+}
+
+class PostgresIntegerKeyOnlyModel extends SearchableModel
+{
+    /**
+     * Get the indexable data array for the model.
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
         ];
     }
 }
