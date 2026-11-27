@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\OpenRouter\Concerns;
 
+use Hypervel\Ai\Attributes\CacheInstructions;
 use Hypervel\Ai\Attributes\Strict;
 use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
@@ -74,8 +75,34 @@ trait BuildsTextRequests
         $providerOptions = $options?->providerOptions($provider->driver());
 
         if (filled($providerOptions)) {
-            return array_merge($body, $providerOptions);
+            $body = array_merge($body, $providerOptions);
         }
+
+        return $this->applyPromptCacheBreakpoints($body, $options);
+    }
+
+    /**
+     * Stamp the requested instructions cache breakpoint onto the system message.
+     */
+    protected function applyPromptCacheBreakpoints(array $body, ?TextGenerationOptions $options): array
+    {
+        if (! $options?->cacheInstructions instanceof CacheInstructions
+            || ($body['messages'][0]['role'] ?? null) !== 'system') {
+            return $body;
+        }
+
+        $content = $body['messages'][0]['content'];
+
+        $content = is_string($content)
+            ? [['type' => 'text', 'text' => $content]]
+            : $content;
+
+        $content[array_key_last($content)]['cache_control'] = array_filter([
+            'type' => 'ephemeral',
+            'ttl' => $options->cacheInstructions->ttl,
+        ]);
+
+        $body['messages'][0]['content'] = $content;
 
         return $body;
     }
