@@ -104,7 +104,7 @@ public function isEnabled(Server $server): bool
 <a name="configuration"></a>
 ### Configuration
 
-Most server processes should be registered by adding their class names to the `processes` array in your application's `config/server.php` file:
+Most server processes should be registered by adding their class names to the `processes` array in your application's [`config/server.php`](/docs/{{version}}/server#configuration) file:
 
 ```php
 'processes' => [
@@ -164,7 +164,7 @@ You may register listeners for these events in the same way as other Hypervel [e
 <a name="reloading-server-processes"></a>
 ### Reloading Server Processes
 
-The `server:reload` command reloads the server's event and task workers, but it does not reload custom server processes. Restart the server when server-process code or configuration changes.
+The [`server:reload` command](/docs/{{version}}/server#reloading-workers) reloads the server's event and task workers, but it does not reload custom server processes. Restart the server when server-process code or configuration changes.
 
 <a name="process-health"></a>
 ### Process Health

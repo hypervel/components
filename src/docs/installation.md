@@ -115,15 +115,13 @@ cd example-app
 php artisan serve
 ```
 
-Once you have started the development server, you can access your application in your web browser at [http://localhost:8000](http://localhost:8000). The server host, port, worker count, and other Swoole options may be configured in your application's `config/server.php` file.
+Once you have started the development server, you can access your application in your web browser at [http://localhost:8000](http://localhost:8000). The server host, port, worker count, and other Swoole options may be configured in your application's `config/server.php` file, which is covered in the [server documentation](/docs/{{version}}/server).
 
-You may temporarily override the HTTP server address for the current process using the `--host` and `--port` options:
+You may temporarily [override the host and port](/docs/{{version}}/server#overriding-the-host-and-port) for the current process using the `--host` and `--port` options:
 
 ```shell
 php artisan serve --host=127.0.0.1 --port=8001
 ```
-
-The `--host` option also accepts a port, such as `127.0.0.1:8001` or `[::1]:8001`. If both options specify a port, `--port` takes precedence.
 
 <a name="watching-for-changes"></a>
 ### Watching for Changes

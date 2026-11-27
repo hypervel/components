@@ -11,6 +11,7 @@
     - [Directory Structure](/docs/{{version}}/structure)
     - [Frontend](/docs/{{version}}/frontend)
     - [Starter Kits](/docs/{{version}}/starter-kits)
+    - [Server](/docs/{{version}}/server)
     - [Deployment](/docs/{{version}}/deployment)
 - ## Architecture Concepts
     - [Request Lifecycle](/docs/{{version}}/lifecycle)

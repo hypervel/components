@@ -1175,7 +1175,7 @@ Reasoning is also available on responses returned by the `prompt` method.
 
 Streams start their provider work when consumed. A completed stream retains its events for replay and aggregation, so memory use grows with the response. The native HTTP transport receives incremental data and bounds its own unread buffer; see [HTTP streaming](/docs/{{version}}/http-client#streaming-responses) for timeout and fallback behavior.
 
-When you return a stream as an SSE or protocol response, the SDK enables [disconnect cancellation](/docs/{{version}}/responses#canceling-disconnected-streams) so it can stop waiting for the provider when the client closes the connection. By default, if the client resets a single HTTP/2 stream, the SDK continues until a write fails, the provider finishes, or the request times out. To stop waiting as soon as the client resets its stream, enable [HTTP/2 stream cancellation](/docs/{{version}}/deployment#http2-stream-cancellation).
+When you return a stream as an SSE or protocol response, the SDK enables [disconnect cancellation](/docs/{{version}}/responses#canceling-disconnected-streams) so it can stop waiting for the provider when the client closes the connection. By default, if the client resets a single HTTP/2 stream, the SDK continues until a write fails, the provider finishes, or the request times out. To stop waiting as soon as the client resets its stream, enable [HTTP/2 stream cancellation](/docs/{{version}}/server#http2-stream-cancellation).
 
 <a name="capturing-application-context"></a>
 #### Capturing Application Context

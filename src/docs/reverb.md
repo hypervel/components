@@ -245,7 +245,7 @@ If you would like to scale Reverb independently from the rest of your applicatio
 
 Swoole counts incoming WebSocket messages toward the same `SERVER_MAX_REQUESTS` limit as HTTP requests. When a worker reaches this limit, its connected WebSocket clients are disconnected while the worker restarts. Swoole adds a random grace of up to half the configured limit so workers do not all restart together.
 
-For a dedicated Reverb deployment, you should set `SERVER_MAX_REQUESTS=0` to keep long-lived connections open. A mixed HTTP and Reverb deployment may retain a nonzero limit when periodic recycling is intentional, but its [`SERVER_MAX_WAIT_TIME` setting](/docs/{{version}}/deployment#graceful-shutdown) should allow enough time to drain its configured Redis, connection-limit, and webhook workload.
+For a dedicated Reverb deployment, you should set `SERVER_MAX_REQUESTS=0` to keep long-lived connections open. A mixed HTTP and Reverb deployment may retain a nonzero limit when periodic recycling is intentional, but its [`SERVER_MAX_WAIT_TIME` setting](/docs/{{version}}/server#graceful-shutdown) should allow enough time to drain its configured Redis, connection-limit, and webhook workload.
 
 <a name="logging"></a>
 ### Logging
@@ -498,7 +498,7 @@ hypervel        hard  nofile  10000
 <a name="workers"></a>
 ### Workers
 
-Reverb runs on Swoole's native WebSocket server and shares the configured WebSocket port across your Swoole workers. Increasing the number of workers increases the amount of parallel work Reverb can perform, but each worker also uses its own memory. You may configure the worker count using the `SERVER_WORKERS` environment variable read by your application's `config/server.php` configuration file.
+Reverb runs on Swoole's native WebSocket server and shares the configured WebSocket port across your Swoole workers. Increasing the number of workers increases the amount of parallel work Reverb can perform, but each worker also uses its own memory. You may configure the worker count using the `SERVER_WORKERS` environment variable read by your application's [`config/server.php`](/docs/{{version}}/server#environment-variables) configuration file.
 
 In single-instance mode, Reverb uses a Swoole table to track channel subscription counts, presence member counts, webhook locks, and per-application connection limits across workers. The default table sizes are suitable for most applications, but you may tune them if you have a large number of channels or presence members:
 
