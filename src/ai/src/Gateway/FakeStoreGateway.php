@@ -24,6 +24,7 @@ class FakeStoreGateway implements StoreGateway, ListsStoreFiles
 {
     /**
      * The documents in each fake vector store, keyed by store ID and then document ID.
+     * All providers share this map, and creating the same name reuses its fake ID.
      *
      * @var array<string, array<string, StoreDocument>>
      */
@@ -117,6 +118,7 @@ class FakeStoreGateway implements StoreGateway, ListsStoreFiles
         ?DateInterval $expiresWhenIdleFor = null,
     ): Store {
         $storeId = Stores::fakeId($name);
+        $this->documents[$storeId] = [];
         $this->withDocuments($storeId, $fileIds?->values()->all() ?? []);
 
         /** @var FileProvider&StoreProvider $provider */

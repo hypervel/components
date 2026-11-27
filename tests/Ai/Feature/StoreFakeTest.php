@@ -474,6 +474,9 @@ class StoreFakeTest extends TestCase
         $store = Stores::create('Manuals', fileIds: ['file_1', 'file_2']);
 
         $this->assertSame(['file_1', 'file_2'], $store->documents()->pluck('id')->all());
+        $store = Stores::create('Manuals', fileIds: ['new_file']);
+        $this->assertSame(['new_file'], $store->documents()->pluck('id')->all());
+
         $store->delete();
         $this->assertSame([], $store->documents()->all());
     }

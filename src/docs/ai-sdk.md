@@ -3653,19 +3653,21 @@ foreach ($store->documents() as $document) {
 }
 ```
 
-You may pass a listed document to `remove()`. Gemini does not include the source file ID in its listings. If you also need to delete that file, use the file ID saved when you added it to the store.
-
-To remove a file from a store, use the `remove` method:
+To remove a document from a store, pass the listed document or its document ID to the `remove` method:
 
 ```php
-$store->remove('file_id');
+$store->remove($document);
 ```
 
-Removing a file from a vector store does not remove it from the provider's [file storage](#files). To remove a file from the vector store and delete it permanently from file storage, use the `deleteFile` argument:
+The source file stays in the provider's [file storage](#files). To delete it too, pass the result of `add()`, which holds both IDs:
 
 ```php
-$store->remove('file_abc123', deleteFile: true);
+$added = $store->add('file_id');
+// Later...
+$store->remove($added, deleteFile: true);
 ```
+
+OpenAI and Azure OpenAI also return the source file ID in their listings. Gemini listings omit it. To delete a listed Gemini document and its source file separately, pass the document to `remove()`, then delete the source file using its saved file ID.
 
 <a name="usage"></a>
 ## Usage
