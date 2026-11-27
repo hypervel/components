@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\OpenAi\Concerns;
 
+use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\HasProviderOptions;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\Base64Document;
 use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\File;
+use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Files\LocalDocument;
 use Hypervel\Ai\Files\LocalImage;
 use Hypervel\Ai\Files\ProviderDocument;
@@ -107,6 +109,18 @@ trait MapsAttachments
                 ? array_merge($attachment->providerOptions($providerKey), $part)
                 : $part;
         })->all();
+    }
+
+    /**
+     * Get the contents of an image sent to the edits endpoint.
+     */
+    protected function imageEditContent(mixed $image): string
+    {
+        return match (true) {
+            $image instanceof Image && $image instanceof StorableFile => $image->content(),
+            $image instanceof UploadedFile => $image->get(),
+            default => throw new InvalidArgumentException('Unsupported image attachment type [' . get_debug_type($image) . ']'),
+        };
     }
 
     /**

@@ -324,6 +324,22 @@ class ImageGenerationTest extends TestCase
         $this->assertNull($response->usage->imageInputTokens);
         $this->assertNull($response->usage->imageOutputTokens);
     }
+
+    public function testChatgptImageModelsAreGeneratedAsGptImageModels(): void
+    {
+        Http::fake([
+            '*' => fakeOpenAiImageResponse(),
+        ]);
+
+        Image::of('A red apple')->generate(provider: 'openai', model: 'chatgpt-image-latest');
+
+        Http::assertSent(function (Request $request): bool {
+            $body = json_decode($request->body(), true);
+
+            return $body['moderation'] === 'low'
+                && ! array_key_exists('response_format', $body);
+        });
+    }
 }
 
 /**
