@@ -10,11 +10,15 @@ use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\LocalImage;
 use Hypervel\Ai\Gateway\Anthropic\AnthropicGateway;
 use Hypervel\Ai\Messages\AssistantMessage;
+use Hypervel\Ai\Messages\ToolResultMessage;
+use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\Responses\Data\ToolCall;
+use Hypervel\Ai\Responses\Data\ToolResult;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Storage;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
@@ -103,6 +107,56 @@ class MessageMappingTest extends TestCase
         $toolResultBlock = collect($toolResultMsg['content'])->firstWhere('type', 'tool_result');
         $this->assertSame($toolUseBlock['id'], $toolResultBlock['tool_use_id']);
         $this->assertNotEmpty($toolResultBlock['content']);
+        $this->assertArrayNotHasKey('is_error', $toolResultBlock);
+    }
+
+    #[WithConfig('app.debug', true)]
+    public function testFailedToolResultIsFlaggedAsAnError(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                $this->fakeToolCallResponse(),
+                $this->fakeTextResponse('The tool failed'),
+            ]),
+        ]);
+
+        (new ToolUsingAgent(fixed: true, toolThrowsException: true))->prompt(
+            'Generate a number',
+            provider: 'anthropic',
+        );
+
+        $toolResultBlock = collect(Http::recorded()[1][0]->data()['messages'])
+            ->flatMap(fn (array $message): array => is_array($message['content']) ? $message['content'] : [])
+            ->firstWhere('type', 'tool_result');
+
+        $this->assertSame('The tool call failed: Forced to throw exception.', $toolResultBlock['content']);
+        $this->assertTrue($toolResultBlock['is_error'] ?? null);
+    }
+
+    public function testFailedToolResultFromAStoredConversationIsFlaggedAsAnError(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => $this->fakeTextResponse('ok'),
+        ]);
+
+        agent(messages: [
+            new UserMessage('Generate a number'),
+            new AssistantMessage('', collect([new ToolCall('toolu_123', 'FixedNumberGenerator', [])])),
+            new ToolResultMessage(collect([ToolResult::fromArray([
+                'id' => 'toolu_123',
+                'name' => 'FixedNumberGenerator',
+                'result' => 'The tool call failed: boom.',
+                'failed' => true,
+            ])])),
+        ])->prompt('Try again', provider: 'anthropic');
+
+        Http::assertSent(function ($request): bool {
+            $toolResultBlock = collect($request->data()['messages'])
+                ->flatMap(fn (array $message): array => is_array($message['content']) ? $message['content'] : [])
+                ->firstWhere('type', 'tool_result');
+
+            return ($toolResultBlock['is_error'] ?? null) === true;
+        });
     }
 
     #[DataProvider('imagePrompts')]
