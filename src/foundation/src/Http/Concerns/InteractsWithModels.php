@@ -64,7 +64,7 @@ trait InteractsWithModels
     public function models(string $key, Closure|string|null $modelClass = null, ?Closure $callback = null): Collection
     {
         return $this->newModelQuery($key, $modelClass, $callback)
-            ->findMany($this->array($key));
+            ->findMany($this->modelIdentifiers($key));
     }
 
     /**
@@ -75,6 +75,19 @@ trait InteractsWithModels
         $id = $this->input($key);
 
         return $this->isNotFilled($key) || is_array($id) ? null : $id;
+    }
+
+    /**
+     * Get the model identifiers from the given input.
+     *
+     * @return list<mixed>
+     */
+    protected function modelIdentifiers(string $key): array
+    {
+        return array_values(array_filter(
+            $this->array($key),
+            fn (mixed $id): bool => ! is_array($id)
+        ));
     }
 
     /**
