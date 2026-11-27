@@ -122,7 +122,8 @@ trait BuildsTextRequests
     protected function withEagerInputStreaming(array $body): array
     {
         foreach ($body['tools'] ?? [] as $index => $tool) {
-            if (! isset($tool['type'])) {
+            // The synthetic structured-output tool is never streamed to clients, so it keeps Anthropic's input validation.
+            if (! isset($tool['type']) && $tool['name'] !== 'output_structured_data') {
                 $body['tools'][$index]['eager_input_streaming'] ??= true;
             }
         }

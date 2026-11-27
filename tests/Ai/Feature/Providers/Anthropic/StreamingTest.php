@@ -272,6 +272,68 @@ class StreamingTest extends TestCase
         $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
     }
 
+    public function testStreamingFailsMalformedToolInputOnToolUseStopAndPreservesThinkingForValidCalls(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'thinking', 'thinking' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'thinking_delta', 'thinking' => 'Planning']),
+                        $this->contentBlockDelta(0, ['type' => 'signature_delta', 'signature' => 'sig_valid']),
+                        $this->contentBlockStop(0),
+                        $this->contentBlockStart(1, ['type' => 'tool_use', 'id' => 'toolu_valid', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                        $this->contentBlockDelta(1, ['type' => 'input_json_delta', 'partial_json' => '{}']),
+                        $this->contentBlockStop(1),
+                        $this->contentBlockStart(2, ['type' => 'tool_use', 'id' => 'toolu_invalid', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                        $this->contentBlockDelta(2, ['type' => 'input_json_delta', 'partial_json' => '{"start":']),
+                        $this->contentBlockStop(2),
+                        $this->messageDelta('tool_use', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Done']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'toolu_valid', 'FixedNumberGenerator'],
+            ['delta', 'toolu_valid', '{}'],
+            ['call', 'toolu_valid', []],
+            ['start', 'toolu_invalid', 'FixedNumberGenerator'],
+            ['delta', 'toolu_invalid', '{"start":'],
+            ['error', 'toolu_invalid', '{"start":'],
+        ], toolInputEvents($events));
+
+        $toolResultIds = array_values(array_map(
+            fn (ToolResultEvent $event): string => $event->toolResult->id,
+            array_filter($events, fn ($event): bool => $event instanceof ToolResultEvent),
+        ));
+
+        $this->assertSame(['toolu_valid'], $toolResultIds);
+
+        $followUpAssistant = json_decode(Http::recorded()[1][0]->body(), true)['messages'][1]['content'];
+
+        $this->assertSame([
+            ['type' => 'thinking', 'thinking' => 'Planning', 'signature' => 'sig_valid'],
+            ['type' => 'tool_use', 'id' => 'toolu_valid', 'name' => 'FixedNumberGenerator', 'input' => []],
+        ], $followUpAssistant);
+    }
+
     public function testStreamingKeepsSyntheticStructuredOutputToolInternal(): void
     {
         config(['ai.providers.anthropic' => [
@@ -309,6 +371,9 @@ class StreamingTest extends TestCase
 
         $events = iterator_to_array($stream, false);
         $step = $stream->getReturn();
+
+        Http::assertSent(fn ($request): bool => $request->data()['tools'][0]['name'] === 'output_structured_data'
+            && ! array_key_exists('eager_input_streaming', $request->data()['tools'][0]));
 
         $this->assertSame([], toolInputEvents($events));
         $this->assertSame(['answer' => 42], $step->structured);

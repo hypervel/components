@@ -75,7 +75,7 @@ trait HandlesTextStreaming
         $currentToolIndex = -1;
         $currentServerToolInput = '';
         $pendingToolCalls = [];
-        $incompleteToolCalls = [];
+        $hasInvalidToolInput = false;
         $responseContent = [];
         $afterTool = false;
         $lastTextDelta = '';
@@ -343,16 +343,20 @@ trait HandlesTextStreaming
                     $reasoningId = '';
                 } elseif ($currentBlockType === 'tool_use' && isset($pendingToolCalls[$currentToolIndex])) {
                     $call = $pendingToolCalls[$currentToolIndex];
-                    $parsedArguments = json_decode($call['arguments'] ?: '{}', true) ?? [];
-
                     $index = $data['index'] ?? $currentBlockIndex;
 
-                    if (isset($responseContent[$index])) {
-                        $responseContent[$index]['input'] = $parsedArguments;
-                    }
+                    if ($call['name'] === 'output_structured_data') {
+                        if (isset($responseContent[$index])) {
+                            $responseContent[$index]['input'] = json_decode($call['arguments'] ?: '{}', true) ?? [];
+                        }
+                    } elseif ($this->isCompleteToolInput($call['arguments'])) {
+                        $parsedArguments = json_decode($call['arguments'] ?: '{}', true) ?? [];
 
-                    if ($call['name'] !== 'output_structured_data') {
-                        $toolCallEvent = (new ToolCallEvent(
+                        if (isset($responseContent[$index])) {
+                            $responseContent[$index]['input'] = $parsedArguments;
+                        }
+
+                        yield (new ToolCallEvent(
                             $this->generateEventId(),
                             new ToolCall(
                                 $call['id'],
@@ -362,12 +366,10 @@ trait HandlesTextStreaming
                             ),
                             time(),
                         ))->withInvocationId($invocationId);
-
-                        if ($this->isCompleteToolInput($call['arguments'])) {
-                            yield $toolCallEvent;
-                        } else {
-                            $incompleteToolCalls[] = [$toolCallEvent, $call['arguments'], $index];
-                        }
+                    } else {
+                        // Unlike upstream, eager input streaming skips Anthropic's JSON validation, so invalid input must never run with [].
+                        $hasInvalidToolInput = true;
+                        unset($responseContent[$index]);
                     }
                 } elseif ($currentBlockType === 'server_tool_use') {
                     $index = $data['index'] ?? count($responseContent) - 1;
@@ -424,16 +426,6 @@ trait HandlesTextStreaming
         }
 
         $finishReason = $this->extractFinishReason(['stop_reason' => $stopReason]);
-        $hasCutOffToolCall = false;
-
-        foreach ($incompleteToolCalls as [$toolCallEvent, $input, $index]) {
-            if ($this->wasCutOff($input, $finishReason)) {
-                $hasCutOffToolCall = true;
-                unset($responseContent[$index]);
-            } else {
-                yield $toolCallEvent;
-            }
-        }
 
         $step = $this->buildStepResponse(
             content: array_values($responseContent),
@@ -445,8 +437,8 @@ trait HandlesTextStreaming
             container: $container,
         );
 
-        if ($hasCutOffToolCall) {
-            // A step that drops a cut-off tool call cannot replay raw blocks without risking a trailing thinking block.
+        if ($hasInvalidToolInput && $step->toolCalls === []) {
+            // Without a remaining tool call, replaying raw blocks risks leaving a trailing thinking block Anthropic rejects.
             $step->replayBlocks = [];
         }
 
