@@ -178,7 +178,13 @@ trait HandlesTextStreaming
             ))->withInvocationId($invocationId);
         }
 
+        $mappedFinishReason = $this->extractFinishReason($finishReason);
+
         foreach ($pendingToolCalls as $pending) {
+            if ($this->wasCutOff($pending['arguments'], $mappedFinishReason)) {
+                continue;
+            }
+
             $toolCall = new ToolCall(
                 $pending['id'],
                 $pending['name'],
@@ -187,10 +193,6 @@ trait HandlesTextStreaming
             );
 
             $toolCalls[] = $toolCall;
-
-            if ($this->wasCutOff($pending['arguments'], $this->extractFinishReason($finishReason))) {
-                continue;
-            }
 
             yield (new ToolCallEvent(
                 $this->generateEventId(),
@@ -202,7 +204,7 @@ trait HandlesTextStreaming
         return new StepResponse(
             text: $currentText,
             toolCalls: $toolCalls,
-            finishReason: $this->extractFinishReason($finishReason),
+            finishReason: $mappedFinishReason,
             usage: $usage ?? new TextUsage(0, 0),
             meta: new Meta($provider->name(), $model),
         );

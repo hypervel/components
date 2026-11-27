@@ -236,7 +236,8 @@ trait HandlesTextStreaming
 
         $cutOffSteps = array_filter($partialArguments, fn (string $arguments): bool => $this->wasCutOff($arguments, $finishReason));
 
-        $functionCallSteps = $this->extractFunctionCallSteps(array_values(array_diff_key($steps, $cutOffSteps)));
+        $completeSteps = array_values(array_diff_key($steps, $cutOffSteps));
+        $functionCallSteps = $this->extractFunctionCallSteps($completeSteps);
 
         $steps = array_values($steps);
         $toolCalls = $this->mapToolCalls($functionCallSteps, $this->thoughtSignature($steps));
@@ -265,7 +266,7 @@ trait HandlesTextStreaming
             usage: $this->extractUsage($final),
             meta: new Meta($provider->name(), $model),
             continuationToken: $this->continuationToken($final, $stored),
-            replayBlocks: $this->replayableSteps($steps),
+            replayBlocks: $this->replayableSteps($completeSteps),
             reasoning: $this->extractReasoning($steps),
             providerToolCalls: $this->extractProviderToolCalls($steps),
         );

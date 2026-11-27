@@ -236,6 +236,7 @@ class StreamingTest extends TestCase
                     $this->outputItemAdded('fc_1', 'call_1', 'FixedNumberGenerator'),
                     $this->functionCallArgumentsDelta('fc_1', '{"sta'),
                     $this->responseIncomplete('max_output_tokens', 10, 5, output: [
+                        ['type' => 'reasoning', 'id' => 'rs_1', 'summary' => [['type' => 'summary_text', 'text' => 'Let me check']]],
                         ['type' => 'function_call', 'status' => 'incomplete', 'id' => 'fc_1', 'call_id' => 'call_1', 'name' => 'FixedNumberGenerator', 'arguments' => '{"sta'],
                     ]),
                 ]),
@@ -251,6 +252,12 @@ class StreamingTest extends TestCase
             ['delta', 'fc_1', '{"sta'],
             ['error', 'fc_1', '{"sta'],
         ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
+        $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
 
         Http::assertSentCount(1);
     }

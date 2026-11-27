@@ -145,9 +145,13 @@ class StreamingTest extends TestCase
     public function testStreamingFailsAToolCallTheLengthLimitCutOffInsteadOfCallingIt(): void
     {
         $client = $this->fakeBedrockStream([
-            $this->contentBlockStart(0, ['toolUse' => ['toolUseId' => 't1', 'name' => 'FixedNumberGenerator']]),
-            $this->contentBlockDelta(0, ['toolUse' => ['input' => '{"sta']]),
+            $this->contentBlockStart(0),
+            $this->contentBlockDelta(0, ['reasoningContent' => ['text' => 'Let me check']]),
+            $this->contentBlockDelta(0, ['reasoningContent' => ['signature' => 'sig-1']]),
             $this->contentBlockStop(0),
+            $this->contentBlockStart(1, ['toolUse' => ['toolUseId' => 't1', 'name' => 'FixedNumberGenerator']]),
+            $this->contentBlockDelta(1, ['toolUse' => ['input' => '{"sta']]),
+            $this->contentBlockStop(1),
             $this->messageStop('max_tokens'),
         ]);
 
@@ -167,6 +171,12 @@ class StreamingTest extends TestCase
             ['delta', 't1', '{"sta'],
             ['error', 't1', '{"sta'],
         ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
+        $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
     }
 
     public function testStreamingRoundTripsReasoningBlockOnFollowUpToolStep(): void

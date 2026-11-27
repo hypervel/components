@@ -808,7 +808,7 @@ class TextGenerationLoop
     /**
      * Track the input of each tool call the step has started streaming but not yet called.
      *
-     * @param array<string, array{name: string, input: string}> $toolInputs
+     * @param array<array-key, array{name: string, input: string}> $toolInputs
      */
     protected function trackUnfinishedToolInput(array &$toolInputs, StreamEvent $event): void
     {
@@ -825,7 +825,7 @@ class TextGenerationLoop
     /**
      * Get the errors for the tool calls whose input started streaming but that the step never called, such as one cut off by the token limit.
      *
-     * @param array<string, array{name: string, input: string}> $toolInputs
+     * @param array<array-key, array{name: string, input: string}> $toolInputs
      * @return Generator<int, ToolInputError>
      */
     protected function unfinishedToolInputErrors(array $toolInputs, string $invocationId): Generator
@@ -833,7 +833,7 @@ class TextGenerationLoop
         foreach ($toolInputs as $id => $toolInput) {
             yield (new ToolInputError(
                 $this->generateEventId(),
-                $id,
+                (string) $id,
                 $toolInput['name'],
                 $toolInput['input'],
                 'This tool call was not executed because its input did not complete.',
@@ -1407,6 +1407,7 @@ class TextGenerationLoop
             $result->text,
             collect($result->toolCalls),
             $result->replayBlocks,
+            $result->replayBlocks !== [] ? $result->meta->provider : null,
         );
     }
 

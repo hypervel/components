@@ -306,6 +306,26 @@ class TextGenerationLoopTest extends TestCase
         $this->assertSame('This tool call was not executed because its input did not complete.', $events[5]->error);
     }
 
+    public function testItFailsAStreamedToolInputWithANumericToolId(): void
+    {
+        $gateway = new TextGenerationLoopFakeGateway(streams: [
+            textGenerationLoopStreamStep(
+                events: [
+                    new ToolInputStart('input-start-1', '123', 'search', time()),
+                    new ToolInputDelta('input-delta-1', '123', '{"q":', time()),
+                ],
+                returns: new StepResponse('', [], FinishReason::Length, new TextUsage, new Meta('fake', 'model')),
+            ),
+        ]);
+
+        $events = array_values(iterator_to_array((new TextGenerationLoop($gateway))->stream('invocation-1', textGenerationLoopProvider(), 'model', null)));
+
+        $this->assertInstanceOf(ToolInputError::class, $events[2]);
+        $this->assertSame('123', $events[2]->toolId);
+        $this->assertSame('search', $events[2]->toolName);
+        $this->assertSame('{"q":', $events[2]->input);
+    }
+
     public function testItFailsAnUnfinishedToolInputOnceInTheStepThatStartedIt(): void
     {
         $tool = new TextGenerationLoopCountingTool;

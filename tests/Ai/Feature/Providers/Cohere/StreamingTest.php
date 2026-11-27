@@ -136,6 +136,11 @@ class StreamingTest extends TestCase
             ['delta', 'call_1', '{"sta'],
             ['error', 'call_1', '{"sta'],
         ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
     }
 
     public function testStreamingIgnoresToolPlanDeltas(): void

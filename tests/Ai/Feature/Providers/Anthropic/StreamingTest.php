@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
 use Closure;
+use Hypervel\Ai\Ai;
 use Hypervel\Ai\Attributes\MaxSteps;
 use Hypervel\Ai\Exceptions\StreamErrorException;
+use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\PendingStep;
@@ -24,6 +26,7 @@ use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
+use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\ProviderOptionsWithToolsAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
@@ -240,9 +243,13 @@ class StreamingTest extends TestCase
             'api.anthropic.com/*' => Http::response(
                 body: $this->ssePayload([
                     $this->messageStart(),
-                    $this->contentBlockStart(0, ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => '']),
-                    $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => '{"sta']),
+                    $this->contentBlockStart(0, ['type' => 'thinking', 'thinking' => '']),
+                    $this->contentBlockDelta(0, ['type' => 'thinking_delta', 'thinking' => 'Let me check']),
+                    $this->contentBlockDelta(0, ['type' => 'signature_delta', 'signature' => 'sig_1']),
                     $this->contentBlockStop(0),
+                    $this->contentBlockStart(1, ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                    $this->contentBlockDelta(1, ['type' => 'input_json_delta', 'partial_json' => '{"sta']),
+                    $this->contentBlockStop(1),
                     $this->messageDelta('max_tokens', 5),
                 ]),
                 status: 200,
@@ -257,6 +264,56 @@ class StreamingTest extends TestCase
             ['delta', 'toolu_1', '{"sta'],
             ['error', 'toolu_1', '{"sta'],
         ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
+        $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
+    }
+
+    public function testStreamingKeepsSyntheticStructuredOutputToolInternal(): void
+    {
+        config(['ai.providers.anthropic' => [
+            ...config('ai.providers.anthropic'),
+            'use_native_structured_output' => false,
+        ]]);
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::response(
+                body: $this->ssePayload([
+                    $this->messageStart(),
+                    $this->contentBlockStart(0, ['type' => 'tool_use', 'id' => 'toolu_structured', 'name' => 'output_structured_data', 'input' => '']),
+                    $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => '{"answer":42}']),
+                    $this->contentBlockStop(0),
+                    $this->messageDelta('tool_use', 5),
+                ]),
+                status: 200,
+                headers: ['Content-Type' => 'text/event-stream'],
+            ),
+        ]);
+
+        $provider = Ai::textProvider('anthropic');
+        $stream = $provider->textGateway()->generateStreamStep(
+            'inv-1',
+            $provider,
+            $provider->defaultTextModel(),
+            null,
+            [new UserMessage('Answer')],
+            [],
+            ['answer' => JsonSchema::integer()],
+            null,
+            null,
+            new StepContext,
+        );
+
+        $events = iterator_to_array($stream, false);
+        $step = $stream->getReturn();
+
+        $this->assertSame([], toolInputEvents($events));
+        $this->assertSame(['answer' => 42], $step->structured);
+        $this->assertSame([], $step->toolCalls);
+        $this->assertSame([], $step->replayBlocks);
     }
 
     #[TestWith([false])]

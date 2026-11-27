@@ -203,7 +203,10 @@ trait HandlesTextStreaming
                         'arguments' => '',
                     ];
 
-                    yield from $this->toolInputStart($invocationId, $pendingToolCalls[$currentToolIndex]['id'], $pendingToolCalls[$currentToolIndex]['name']);
+                    // Unlike upstream, keep the synthetic structured-output tool internal during streaming.
+                    if ($pendingToolCalls[$currentToolIndex]['name'] !== 'output_structured_data') {
+                        yield from $this->toolInputStart($invocationId, $pendingToolCalls[$currentToolIndex]['id'], $pendingToolCalls[$currentToolIndex]['name']);
+                    }
                 } elseif ($blockType === 'server_tool_use') {
                     $currentServerToolInput = '';
 
@@ -305,7 +308,9 @@ trait HandlesTextStreaming
                     if ($currentBlockType === 'tool_use' && isset($pendingToolCalls[$currentToolIndex])) {
                         $pendingToolCalls[$currentToolIndex]['arguments'] .= $partial;
 
-                        yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$currentToolIndex]['id'], $pendingToolCalls[$currentToolIndex]['name'], $partial);
+                        if ($pendingToolCalls[$currentToolIndex]['name'] !== 'output_structured_data') {
+                            yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$currentToolIndex]['id'], $pendingToolCalls[$currentToolIndex]['name'], $partial);
+                        }
                     } elseif ($currentBlockType === 'server_tool_use') {
                         $currentServerToolInput .= $partial;
                     }
@@ -340,27 +345,29 @@ trait HandlesTextStreaming
                     $call = $pendingToolCalls[$currentToolIndex];
                     $parsedArguments = json_decode($call['arguments'] ?: '{}', true) ?? [];
 
-                    $index = $data['index'] ?? $currentToolIndex;
+                    $index = $data['index'] ?? $currentBlockIndex;
 
                     if (isset($responseContent[$index])) {
                         $responseContent[$index]['input'] = $parsedArguments;
                     }
 
-                    $toolCallEvent = (new ToolCallEvent(
-                        $this->generateEventId(),
-                        new ToolCall(
-                            $call['id'],
-                            $call['name'],
-                            $parsedArguments,
-                            $call['id'],
-                        ),
-                        time(),
-                    ))->withInvocationId($invocationId);
+                    if ($call['name'] !== 'output_structured_data') {
+                        $toolCallEvent = (new ToolCallEvent(
+                            $this->generateEventId(),
+                            new ToolCall(
+                                $call['id'],
+                                $call['name'],
+                                $parsedArguments,
+                                $call['id'],
+                            ),
+                            time(),
+                        ))->withInvocationId($invocationId);
 
-                    if ($this->isCompleteToolInput($call['arguments'])) {
-                        yield $toolCallEvent;
-                    } else {
-                        $incompleteToolCalls[] = [$toolCallEvent, $call['arguments']];
+                        if ($this->isCompleteToolInput($call['arguments'])) {
+                            yield $toolCallEvent;
+                        } else {
+                            $incompleteToolCalls[] = [$toolCallEvent, $call['arguments'], $index];
+                        }
                     }
                 } elseif ($currentBlockType === 'server_tool_use') {
                     $index = $data['index'] ?? count($responseContent) - 1;
@@ -417,14 +424,18 @@ trait HandlesTextStreaming
         }
 
         $finishReason = $this->extractFinishReason(['stop_reason' => $stopReason]);
+        $hasCutOffToolCall = false;
 
-        foreach ($incompleteToolCalls as [$toolCallEvent, $input]) {
-            if (! $this->wasCutOff($input, $finishReason)) {
+        foreach ($incompleteToolCalls as [$toolCallEvent, $input, $index]) {
+            if ($this->wasCutOff($input, $finishReason)) {
+                $hasCutOffToolCall = true;
+                unset($responseContent[$index]);
+            } else {
                 yield $toolCallEvent;
             }
         }
 
-        return $this->buildStepResponse(
+        $step = $this->buildStepResponse(
             content: array_values($responseContent),
             provider: $provider,
             model: $model,
@@ -433,6 +444,13 @@ trait HandlesTextStreaming
             structured: false,
             container: $container,
         );
+
+        if ($hasCutOffToolCall) {
+            // A step that drops a cut-off tool call cannot replay raw blocks without risking a trailing thinking block.
+            $step->replayBlocks = [];
+        }
+
+        return $step;
     }
 
     /**

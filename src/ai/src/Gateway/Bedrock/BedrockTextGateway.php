@@ -502,7 +502,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                         $structuredOutput = json_encode($arguments);
                     } else {
                         $toolCall = new ToolCall($pending['id'], $pending['name'], $arguments);
-                        $toolCalls[] = $toolCall;
+                        $toolCalls[$index] = $toolCall;
                         $responseContent[$index] = [
                             'toolUse' => [
                                 'toolUseId' => $toolCall->id,
@@ -520,7 +520,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                         if ($this->isCompleteToolInput($pending['input'])) {
                             yield $toolCallEvent;
                         } else {
-                            $incompleteToolCalls[] = [$toolCallEvent, $pending['input']];
+                            $incompleteToolCalls[] = [$toolCallEvent, $pending['input'], $index];
                         }
                     }
 
@@ -577,11 +577,23 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             ))->withInvocationId($invocationId);
         }
 
+        $finishReason = $this->extractFinishReason(['stopReason' => $stopReason]);
+        $hasCutOffToolCall = false;
+
+        foreach ($incompleteToolCalls as [$toolCallEvent, $input, $index]) {
+            if ($this->wasCutOff($input, $finishReason)) {
+                $hasCutOffToolCall = true;
+                unset($toolCalls[$index], $responseContent[$index]);
+            } else {
+                yield $toolCallEvent;
+            }
+        }
+
+        $toolCalls = array_values($toolCalls);
+
         if ($structured && $toolCalls === [] && $structuredOutput === null) {
             $structuredOutput = $assistantText;
         }
-
-        $finishReason = $this->extractFinishReason(['stopReason' => $stopReason]);
 
         if ($toolCalls === [] && $structured && $finishReason === FinishReason::ToolCalls) {
             $finishReason = FinishReason::Stop;
@@ -592,13 +604,8 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             $finishReason = FinishReason::ToolCalls;
         }
 
-        foreach ($incompleteToolCalls as [$toolCallEvent, $input]) {
-            if (! $this->wasCutOff($input, $finishReason)) {
-                yield $toolCallEvent;
-            }
-        }
-
-        $replayBlocks = array_values($responseContent);
+        // A step that drops a cut-off tool call cannot replay raw blocks without risking a trailing reasoning block.
+        $replayBlocks = $hasCutOffToolCall ? [] : array_values($responseContent);
 
         if (! $hasReasoningBlocks) {
             $replayBlocks = array_values(array_filter(
@@ -806,6 +813,13 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
 
         $inferenceConfig = $this->buildInferenceConfig($options);
 
+        if (! $this->supportsSamplingParameters($model)) {
+            unset($inferenceConfig['temperature'], $inferenceConfig['topP']);
+        // Claude models reject temperature and topP together, so temperature wins, as in the Anthropic gateway.
+        } elseif (str_contains($model, 'claude-') && isset($inferenceConfig['temperature'])) {
+            unset($inferenceConfig['topP']);
+        }
+
         if ($inferenceConfig !== []) {
             $parameters['inferenceConfig'] = $inferenceConfig;
         }
@@ -923,6 +937,18 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
     protected function rejectsForcedToolChoice(string $model): bool
     {
         return Str::contains($model, self::MODELS_REJECTING_FORCED_TOOL_CHOICE);
+    }
+
+    /**
+     * Determine if the model accepts temperature and topP sampling parameters.
+     */
+    protected function supportsSamplingParameters(string $model): bool
+    {
+        if (! str_contains($model, 'claude-')) {
+            return true;
+        }
+
+        return (bool) preg_match('/(?:^|[.\/:])claude-(3-|(opus|sonnet|haiku)-4(-[0-6])?(-\d{8})?(-v\d+(?::[0-9a-zA-Z]+)*)?$)/', $model);
     }
 
     /**

@@ -162,6 +162,49 @@ class ReasoningTest extends TestCase
         $this->assertArrayNotHasKey('reasoning_content', $replayed);
     }
 
+    public function testInMemoryMessagesStripForeignReasoningReplayBlocksWhenSwitchingProviders(): void
+    {
+        Http::fake([
+            'http://localhost:1234/*' => Http::response([
+                'id' => 'chatcmpl-123',
+                'object' => 'chat.completion',
+                'model' => 'local-model',
+                'choices' => [[
+                    'index' => 0,
+                    'message' => ['role' => 'assistant', 'content' => 'Hello', 'reasoning_content' => 'Let me think...'],
+                    'finish_reason' => 'stop',
+                ]],
+                'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
+            ]),
+            'https://api.openai.com/*' => Http::response([
+                'id' => 'resp_123',
+                'object' => 'response',
+                'status' => 'completed',
+                'model' => 'gpt-5.4',
+                'output' => [[
+                    'type' => 'message',
+                    'status' => 'completed',
+                    'role' => 'assistant',
+                    'content' => [['type' => 'output_text', 'text' => 'Follow-up']],
+                ]],
+                'usage' => ['input_tokens' => 1, 'output_tokens' => 1],
+            ]),
+        ]);
+
+        $response = agent()->prompt('Hi', provider: 'openai-compatible');
+
+        $this->assertSame('openai-compatible', $response->messages->first()->replayBlocksProvider);
+
+        agent(messages: $response->messages->all())->prompt('Follow up', provider: 'openai');
+
+        $openAiInput = json_decode((string) Http::recorded()[1][0]->body(), true)['input'];
+
+        $this->assertSame([
+            ['role' => 'assistant', 'content' => [['type' => 'output_text', 'text' => 'Hello']]],
+            ['role' => 'user', 'content' => [['type' => 'input_text', 'text' => 'Follow up']]],
+        ], $openAiInput);
+    }
+
     /**
      * Build a tool call response carrying the supplied reasoning fields.
      *

@@ -309,6 +309,12 @@ class StreamingTest extends TestCase
             ['delta', 'call_1', '{"see'],
             ['error', 'call_1', '{"see'],
         ], toolInputEvents($events));
+
+        $streamEnd = collect($events)->last();
+
+        $this->assertInstanceOf(StreamEnd::class, $streamEnd);
+        $this->assertSame([], $streamEnd->steps[0]->toolCalls);
+        $this->assertSame([], $streamEnd->steps[0]->replayBlocks);
     }
 
     public function testStreamedArgumentDeltasAreReplayedToGeminiAsAnObject(): void

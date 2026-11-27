@@ -326,6 +326,14 @@ trait HandlesTextGeneration
             return null;
         }
 
+        // A step that drops an incomplete tool call cannot replay raw blocks without risking an orphaned reasoning item.
+        $hasCutOffToolCall = array_any(
+            $responseData['output'] ?? [],
+            fn (mixed $item): bool => is_array($item)
+                && ($item['type'] ?? null) === 'function_call'
+                && ($item['status'] ?? null) === 'incomplete',
+        );
+
         return new StepResponse(
             text: $currentText,
             toolCalls: $toolCalls,
@@ -333,7 +341,7 @@ trait HandlesTextGeneration
             usage: $usage ?? new TextUsage(0, 0),
             meta: new Meta($provider->name(), $responseData['model'] ?? $model),
             continuationToken: $responseId,
-            replayBlocks: $this->extractReplayBlocks($responseData['output'] ?? []),
+            replayBlocks: $hasCutOffToolCall ? [] : $this->extractReplayBlocks($responseData['output'] ?? []),
             providerToolCalls: $this->extractProviderToolCalls($responseData['output'] ?? []),
         );
     }
