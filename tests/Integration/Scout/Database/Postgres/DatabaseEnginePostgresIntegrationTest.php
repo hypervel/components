@@ -146,6 +146,21 @@ class DatabaseEnginePostgresIntegrationTest extends ScoutTestCase
         $this->assertCount(1, $numericResults);
         $this->assertSame(42, $numericResults->first()->intermediate_id);
     }
+
+    public function testQualifiedIntegerKeyIsExcludedFromPostgresTextAndFullTextPredicates(): void
+    {
+        PostgresQualifiedIntegerKeyModel::create(['id' => 42, 'title' => 'A qualified phrase', 'body' => 'Body']);
+
+        $textResults = PostgresQualifiedIntegerKeyModel::search('qualified')->get();
+
+        $this->assertCount(1, $textResults);
+        $this->assertSame(42, $textResults->first()->id);
+
+        $numericResults = PostgresQualifiedIntegerKeyModel::search('42')->get();
+
+        $this->assertCount(1, $numericResults);
+        $this->assertSame(42, $numericResults->first()->id);
+    }
 }
 
 class PostgresIntegerKeyFullTextModel extends SearchableModel
@@ -227,6 +242,21 @@ class PostgresIntegerKeyOnlyModel extends SearchableModel
     {
         return [
             'id' => $this->id,
+        ];
+    }
+}
+
+class PostgresQualifiedIntegerKeyModel extends SearchableModel
+{
+    /**
+     * Get the indexable data array for the model.
+     */
+    #[SearchUsingFullText(columns: ['searchable_models.id'])]
+    public function toSearchableArray(): array
+    {
+        return [
+            'searchable_models.id' => $this->id,
+            'title' => $this->title,
         ];
     }
 }

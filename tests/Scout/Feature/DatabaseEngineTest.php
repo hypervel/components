@@ -234,6 +234,110 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertSame(-42, $models->first()->intermediate_id);
     }
 
+    public function testItRejectsOutOfRangeIntegerScoutKeysOnSqlite(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => PHP_INT_MIN, 'title' => 'Minimum']);
+        $model::create(['intermediate_id' => PHP_INT_MAX, 'title' => 'Maximum']);
+        $model::create(['intermediate_id' => 9, 'title' => 'Nine']);
+
+        $this->assertCount(0, $model::search('-9223372036854775809')->get());
+        $this->assertCount(0, $model::search('9223372036854775808')->get());
+        $this->assertSame([PHP_INT_MIN], $model::search((string) PHP_INT_MIN)->get()->pluck('intermediate_id')->all());
+        $this->assertSame([PHP_INT_MAX], $model::search((string) PHP_INT_MAX)->get()->pluck('intermediate_id')->all());
+        $this->assertSame([9], $model::search('0009')->get()->pluck('intermediate_id')->all());
+    }
+
+    public function testItMatchesQualifiedIntegerKeyColumnsExactlyAndKeepsJoinedTableKeysDistinct(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Build the base query for database Scout searches.
+             */
+            public function newScoutQuery(): EloquentBuilder
+            {
+                return $this->newQuery()
+                    ->select('scout_through_models.*')
+                    ->join('searchable_models', 'searchable_models.id', '=', 'scout_through_models.intermediate_id');
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'scout_through_models.intermediate_id' => $this->intermediate_id,
+                    'searchable_models.id' => '',
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::search('30')->query(function (EloquentBuilder $builder): void {
+            $this->assertSame(
+                'select "scout_through_models".* from "scout_through_models" inner join "searchable_models" on "searchable_models"."id" = "scout_through_models"."intermediate_id" where ("scout_through_models"."intermediate_id" = ? or "searchable_models"."id" like ? or "scout_through_models"."title" like ?)',
+                $builder->toSql()
+            );
+        })->get();
+    }
+
     public function testItCanRetrieveResults(): void
     {
         $taylor = SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);

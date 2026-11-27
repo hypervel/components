@@ -266,12 +266,17 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
         return $query->where(function (EloquentBuilder $query) use ($connectionType, $builder, $columns, $prefixColumns, $fullTextColumns): void {
             $integerKeyColumns = $this->integerKeyColumns($builder);
-            $searchableIntegerKeyColumns = array_values(array_intersect($integerKeyColumns, $columns));
+            $searchableIntegerKeyColumns = array_values(array_unique(array_filter(
+                array_map($builder->model->qualifyColumn(...), $columns),
+                fn (string $column): bool => in_array($column, $integerKeyColumns, true)
+            )));
             $integerKeyValue = $builder->query;
             $canSearchIntegerKeys = $searchableIntegerKeyColumns !== []
                 && preg_match('/^-?[0-9]+\z/', $integerKeyValue) === 1;
 
-            if ($canSearchIntegerKeys && $connectionType === 'pgsql') {
+            // PostgreSQL and SQLite store signed 64-bit integers; SQLite otherwise coerces oversized
+            // strings to REAL on non-rowid columns, while MySQL/MariaDB allow BIGINT UNSIGNED keys.
+            if ($canSearchIntegerKeys && in_array($connectionType, ['pgsql', 'sqlite'], true)) {
                 $negative = str_starts_with($integerKeyValue, '-');
                 $digits = ltrim($negative ? substr($integerKeyValue, 1) : $integerKeyValue, '0') ?: '0';
                 $integerKeyValue = $negative && $digits !== '0' ? '-' . $digits : $digits;
@@ -284,7 +289,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                         // Cast to bigint so values outside smallint/integer ranges evaluate to false instead of throwing 22003.
                         $query->orWhereRaw("{$this->wrapColumn($builder, $keyColumn)} = ?::bigint", [$integerKeyValue]);
                     } else {
-                        $query->orWhere($builder->model->qualifyColumn($keyColumn), $integerKeyValue);
+                        $query->orWhere($keyColumn, $integerKeyValue);
                     }
                 }
             }
@@ -296,8 +301,10 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     continue;
                 }
 
+                $qualifiedColumn = $builder->model->qualifyColumn($column);
+
                 // Unlike upstream, integer keys are never matched with LIKE, since PostgreSQL has no LIKE operator for integer columns.
-                if (in_array($column, $integerKeyColumns, true)) {
+                if (in_array($qualifiedColumn, $integerKeyColumns, true)) {
                     continue;
                 }
 
@@ -306,7 +313,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     : '%' . $builder->query . '%';
 
                 $query->orWhere(
-                    $builder->model->qualifyColumn($column),
+                    $qualifiedColumn,
                     $likeOperator,
                     $pattern
                 );
@@ -678,7 +685,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             // Unlike upstream, integer keys are excluded from prefix/full-text attributes (see addTextSearchConstraints).
             $columns = array_values(array_filter(
                 $columns,
-                fn (string $column): bool => ! in_array($column, $integerKeyColumns, true)
+                fn (string $column): bool => ! in_array($builder->model->qualifyColumn($column), $integerKeyColumns, true)
             ));
         }
 
@@ -686,7 +693,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     }
 
     /**
-     * Get the integer key columns that must use exact matching instead of text predicates.
+     * Get the qualified integer key columns that must use exact matching instead of text predicates.
      *
      * @return array<int, string>
      */
@@ -695,11 +702,11 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         $columns = [];
 
         if (in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
-            $columns[] = $builder->model->getKeyName();
+            $columns[] = $builder->model->getQualifiedKeyName();
         }
 
         if (in_array($builder->model->getScoutKeyType(), ['int', 'integer'], true)) {
-            $scoutKey = $builder->model->getScoutKeyName();
+            $scoutKey = $builder->model->qualifyColumn($builder->model->getScoutKeyName());
 
             if (! in_array($scoutKey, $columns, true)) {
                 $columns[] = $scoutKey;
