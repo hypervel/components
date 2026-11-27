@@ -193,7 +193,7 @@ The `pass` and `warn` methods build results from the diagnostic's named messages
 
 Doctor ships with a focused suite of diagnostics that cover common configuration, environment, dependency, database, queue, and storage problems. The default suite includes:
 
-- **Environment** — the selected environment file, `APP_KEY`, PHP version constraints, and required and recommended PHP extensions.
+- **Environment** — the selected environment file, `APP_KEY`, PHP version constraints, required and recommended PHP extensions, and [CLI OPcache in production](/docs/{{version}}/deployment#php-configuration).
 - **Composer** — installed dependencies, optimized autoload validation, an [authoritative class map in production](/docs/{{version}}/deployment#autoloader-optimization), lock-file consistency, and local repairs for eligible dependency problems.
 - **Configuration** — configuration files can be loaded and cached, configuration values required by the active drivers are set, and bootstrap cache files are reported when their presence does not match the current environment.
 - **Database** — the default connection is reachable, including its selectable read and write records. Explicit `::read` or `::write` defaults check that role. Doctor also checks the selected SQLite database file and can apply pending migrations automatically in local environments.
