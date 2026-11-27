@@ -314,6 +314,20 @@ class SupportTestingNotificationFakeTest extends TestCase
         $this->fake->assertSentTo($user, NotificationWithShouldSendAndStringViaStub::class);
     }
 
+    public function testEmptyStringChannelDoesNotRecordANotification(): void
+    {
+        $notification = new class extends NotificationWithShouldSendAndStringViaStub {
+            public function via(mixed $notifiable): string
+            {
+                return '';
+            }
+        };
+
+        $this->fake->send($this->user, $notification);
+
+        $this->fake->assertNotSentTo($this->user, $notification::class);
+    }
+
     public function testAssertItCanSerializeAndRestoreNotifications(): void
     {
         $this->fake->serializeAndRestore();

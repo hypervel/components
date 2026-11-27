@@ -304,6 +304,7 @@ class NotificationSenderTest extends TestCase
         $sender = new NotificationSender($manager, $bus, $events);
 
         $sender->sendNow($notifiable, new DummyNotificationWithEmptyStringVia);
+        $sender->send($notifiable, new class extends DummyNotificationWithEmptyStringVia implements ShouldQueue {});
 
         $bus->assertNothingDispatched();
     }
