@@ -23,6 +23,8 @@ final class ViewEngineDecorator implements Engine
 
     /**
      * Get the evaluated contents of the view.
+     *
+     * @param array<string, mixed> $data
      */
     public function get(string $path, array $data = []): string
     {

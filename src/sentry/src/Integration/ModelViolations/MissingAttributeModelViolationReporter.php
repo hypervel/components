@@ -12,6 +12,8 @@ class MissingAttributeModelViolationReporter extends ModelViolationReporter
 {
     /**
      * Get the context data for the violation.
+     *
+     * @return array<string, string>
      */
     protected function getViolationContext(Model $model, string $property): array
     {
