@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Database\Postgres;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
+use Hypervel\Scout\Searchable;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -58,6 +60,24 @@ class DatabaseEnginePostgresIntegrationTest extends ScoutTestCase
             SearchableModel::search('9223372036854775808')->get(),
         );
     }
+
+    public function testCustomIntegerScoutKeyIsExcludedFromPostgresTextPredicates(): void
+    {
+        PostgresCustomIntegerScoutKeyModel::create([
+            'intermediate_id' => 42,
+            'title' => 'A searchable phrase',
+        ]);
+
+        $textResults = PostgresCustomIntegerScoutKeyModel::search('searchable')->get();
+
+        $this->assertCount(1, $textResults);
+        $this->assertSame(42, $textResults->first()->intermediate_id);
+
+        $numericResults = PostgresCustomIntegerScoutKeyModel::search('42')->get();
+
+        $this->assertCount(1, $numericResults);
+        $this->assertSame(42, $numericResults->first()->intermediate_id);
+    }
 }
 
 class PostgresIntegerKeyFullTextModel extends SearchableModel
@@ -66,5 +86,42 @@ class PostgresIntegerKeyFullTextModel extends SearchableModel
     public function toSearchableArray(): array
     {
         return parent::toSearchableArray();
+    }
+}
+
+class PostgresCustomIntegerScoutKeyModel extends Model
+{
+    use Searchable;
+
+    protected ?string $table = 'scout_through_models';
+
+    protected array $guarded = [];
+
+    /**
+     * Get the key name used to index the model.
+     */
+    public function getScoutKeyName(): string
+    {
+        return 'intermediate_id';
+    }
+
+    /**
+     * Get the key type used to query the model.
+     */
+    public function getScoutKeyType(): string
+    {
+        return 'int';
+    }
+
+    /**
+     * Get the indexable data array for the model.
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'intermediate_id' => $this->intermediate_id,
+            'title' => $this->title,
+        ];
     }
 }

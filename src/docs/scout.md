@@ -429,9 +429,9 @@ public function toSearchableArray(): array
 }
 ```
 
-The database engine always treats your model's Eloquent primary key as its identity. Integer primary keys are searched using exact equality and should not be listed in `SearchUsingPrefix` or `SearchUsingFullText`. String, UUID, and ULID primary keys may still use partial matching.
+Integer primary keys and integer Scout keys are searched using exact equality and should not be listed in `SearchUsingPrefix` or `SearchUsingFullText`. String, UUID, and ULID keys may still use partial matching.
 
-When using PostgreSQL, only include text-compatible columns in the default, prefix, and full-text searchable sets. Scout automatically handles the model's integer primary key, but other numeric columns should be omitted unless they are searched through an explicit query constraint.
+When using PostgreSQL, only include text-compatible columns in the default, prefix, and full-text searchable sets. Scout automatically handles the model's integer primary key and integer Scout key, but other numeric columns should be omitted unless they are searched through an explicit query constraint.
 
 > [!WARNING]
 > Before specifying that a column should use full text query constraints, ensure that the column has been assigned a [full text index](/docs/{{version}}/migrations#available-index-types).
@@ -589,10 +589,16 @@ class Post extends Model
 }
 ```
 
-Instead of overriding the method, you may use the `SearchableAs` attribute. Like the table name, the attribute's index name is prefixed with your configured `scout.prefix`, and child models inherit it:
+Alternatively, you may specify the model's index using the `SearchableAs` attribute. When using this attribute, the `prefix` defined in your application's `scout` configuration file will still be prepended to the index name, and child models inherit it:
 
 ```php
+<?php
+
+namespace App\Models;
+
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Attributes\SearchableAs;
+use Hypervel\Scout\Searchable;
 
 #[SearchableAs('posts_index')]
 class Post extends Model
@@ -602,7 +608,7 @@ class Post extends Model
 ```
 
 > [!NOTE]
-> The `searchableAs` method has no effect when using the database engine, which always searches the model's database table directly.
+> The `searchableAs` method and `SearchableAs` attribute have no effect when using the database engine, which always searches the model's database table directly.
 
 For more advanced use cases — such as zero-downtime index rebuilds via aliases — you may also override the `indexableAs` method to write to a different index name than the one used for searching. By default, `indexableAs` returns the same value as `searchableAs`:
 
@@ -616,7 +622,7 @@ public function indexableAs(): string
 <a name="configuring-the-model-id"></a>
 #### Configuring the Model ID
 
-By default, Scout will use the primary key of the model as the model's unique ID / key that is stored in the search index. If you need to customize this behavior when using a third-party engine, you may override the `getScoutKey` and the `getScoutKeyName` methods on the model:
+By default, Scout will use the primary key of the model as the model's unique ID / key that is stored in the search index. If you need to customize this behavior when using a third-party engine, you may override the `getScoutKey`, `getScoutKeyName`, and `getScoutKeyType` methods on the model. The `getScoutKeyType` method tells Scout how to query for the models matching your search results, so it should return `string` when your custom key is not an integer:
 
 ```php
 <?php
@@ -645,11 +651,16 @@ class User extends Model
     {
         return 'email';
     }
+
+    /**
+     * Get the key type used to query the model.
+     */
+    public function getScoutKeyType(): string
+    {
+        return 'string';
+    }
 }
 ```
-
-> [!NOTE]
-> The `getScoutKey` and `getScoutKeyName` methods have no effect when using the database engine, which always uses the model's primary key.
 
 > [!WARNING]
 > Meilisearch document identifiers may contain only letters, numbers, hyphens, and underscores, so custom Scout keys must follow that format when using Meilisearch.
@@ -1165,7 +1176,7 @@ protected function makeAllSearchableUsing(Builder $query): Builder
 ```
 
 > [!WARNING]
-> The `makeAllSearchableUsing` method may not be applicable when using a queue to batch import models. Relationships are [not restored](/docs/{{version}}/queues#handling-relationships) when model collections are processed by jobs.
+> When using a queue to batch import models, relationships eager loaded by the `makeAllSearchableUsing` method are [retrieved again in their entirety](/docs/{{version}}/queues#handling-relationships) when the job is processed, so any constraints applied to them are lost. If you need to constrain a relationship, eager load it in the [`makeSearchableUsing`](#modifying-records-before-importing) method instead, which runs within the job.
 
 <a name="adding-records"></a>
 ### Adding Records

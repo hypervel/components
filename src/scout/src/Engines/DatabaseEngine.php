@@ -265,20 +265,21 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         $connectionType = $builder->modelConnectionType();
 
         return $query->where(function (EloquentBuilder $query) use ($connectionType, $builder, $columns, $prefixColumns, $fullTextColumns): void {
-            $primaryKey = $builder->model->getKeyName();
-            $integerPrimaryKey = in_array($builder->model->getKeyType(), ['int', 'integer'], true);
-            $primaryKeyValue = $builder->query;
-            $canSearchPrimaryKey = ctype_digit((string) $builder->query)
-                && $integerPrimaryKey
-                && in_array($primaryKey, $columns, true);
+            $integerKeyColumns = $this->integerKeyColumns($builder);
+            $searchableIntegerKeyColumns = array_values(array_intersect($integerKeyColumns, $columns));
+            $integerKeyValue = $builder->query;
+            $canSearchIntegerKeys = ctype_digit((string) $builder->query)
+                && $searchableIntegerKeyColumns !== [];
 
-            if ($canSearchPrimaryKey && $connectionType === 'pgsql') {
-                $primaryKeyValue = ltrim((string) $builder->query, '0') ?: '0';
-                $canSearchPrimaryKey = filter_var($primaryKeyValue, FILTER_VALIDATE_INT) !== false;
+            if ($canSearchIntegerKeys && $connectionType === 'pgsql') {
+                $integerKeyValue = ltrim((string) $builder->query, '0') ?: '0';
+                $canSearchIntegerKeys = filter_var($integerKeyValue, FILTER_VALIDATE_INT) !== false;
             }
 
-            if ($canSearchPrimaryKey) {
-                $query->orWhere($builder->model->getQualifiedKeyName(), $primaryKeyValue);
+            if ($canSearchIntegerKeys) {
+                foreach ($searchableIntegerKeyColumns as $keyColumn) {
+                    $query->orWhere($builder->model->qualifyColumn($keyColumn), $integerKeyValue);
+                }
             }
 
             $likeOperator = $connectionType === 'pgsql' ? 'ilike' : 'like';
@@ -288,7 +289,8 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     continue;
                 }
 
-                if ($integerPrimaryKey && $column === $primaryKey) {
+                // Unlike upstream, integer keys are never matched with LIKE, since PostgreSQL has no LIKE operator for integer columns.
+                if (in_array($column, $integerKeyColumns, true)) {
                     continue;
                 }
 
@@ -494,7 +496,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 $query->orderBy($order['column'], $order['direction']);
             }
         })->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-            $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
+            $query->orderBy($builder->model->qualifyColumn($builder->model->getScoutKeyName()), 'desc');
         })->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
             $this->orderByRelevance($builder, $query);
 
@@ -658,14 +660,41 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             $columns = array_merge($columns, $attributeInstance->columns);
         }
 
-        if (in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
+        $integerKeyColumns = $this->integerKeyColumns($builder);
+
+        if ($integerKeyColumns !== []) {
+            // Unlike upstream, integer keys are excluded from prefix/full-text attributes (see addTextSearchConstraints).
             $columns = array_values(array_filter(
                 $columns,
-                fn (string $column): bool => $column !== $builder->model->getKeyName()
+                fn (string $column): bool => ! in_array($column, $integerKeyColumns, true)
             ));
         }
 
         return $this->attributeColumns[$modelClass][$attributeClass] = $columns;
+    }
+
+    /**
+     * Get the integer key columns that must use exact matching instead of text predicates.
+     *
+     * @return array<int, string>
+     */
+    protected function integerKeyColumns(Builder $builder): array
+    {
+        $columns = [];
+
+        if (in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
+            $columns[] = $builder->model->getKeyName();
+        }
+
+        if (in_array($builder->model->getScoutKeyType(), ['int', 'integer'], true)) {
+            $scoutKey = $builder->model->getScoutKeyName();
+
+            if (! in_array($scoutKey, $columns, true)) {
+                $columns[] = $scoutKey;
+            }
+        }
+
+        return $columns;
     }
 
     /**
