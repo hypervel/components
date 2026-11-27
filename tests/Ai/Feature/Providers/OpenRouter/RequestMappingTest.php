@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\OpenRouter;
 
+use Hypervel\Ai\Files\Document;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
@@ -416,5 +417,19 @@ class RequestMappingTest extends TestCase
         $response = agent()->prompt('Hi', provider: 'openrouter');
 
         $this->assertCount(0, $response->meta->citations);
+    }
+
+    public function testRequestBodyDoesNotEscapeForwardSlashes(): void
+    {
+        Http::fake(['*' => fakeOpenRouterResponse('Hello')]);
+
+        agent()->prompt('Read this', attachments: [
+            Document::fromString('%PDF-1.7', 'application/pdf'),
+        ], provider: 'openrouter');
+
+        Http::assertSent(function (Request $request): bool {
+            return str_contains($request->body(), 'data:application/pdf;base64,')
+                && ! str_contains($request->body(), '\/');
+        });
     }
 }
