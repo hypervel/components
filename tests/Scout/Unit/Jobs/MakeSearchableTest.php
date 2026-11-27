@@ -6,14 +6,94 @@ namespace Hypervel\Tests\Scout\Unit\Jobs;
 
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\MakeSearchableUniquely;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JsonException;
 
 class MakeSearchableTest extends ScoutTestCase
 {
+    use VerifiesDoubles;
+
+    public function testHandlePassesTheCollectionToEngine(): void
+    {
+        $job = new MakeSearchable($collection = Collection::make([
+            $this->model(1),
+        ]));
+
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')->with(Argument::same($collection));
+
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
+
+        $job->handle();
+    }
+
+    public function testHandleSkipsModelsSoftDeletedAfterTheJobWasDispatched(): void
+    {
+        $job = new MakeSearchable(Collection::make([
+            $this->softDeletableModel(1),
+            $this->softDeletableModel(2, trashed: true),
+            $this->softDeletableModel(3),
+        ]));
+
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')
+            ->with(Argument::satisfies(fn (Collection $models): bool => $models->modelKeys() === [1, 3]));
+
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
+
+        $job->handle();
+    }
+
+    public function testHandleDoesNotCallEngineWhenAllModelsWereSoftDeleted(): void
+    {
+        $job = new MakeSearchable(Collection::make([
+            $this->softDeletableModel(1, trashed: true),
+            $this->softDeletableModel(2, trashed: true),
+        ]));
+
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')->never();
+
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
+
+        $job->handle();
+    }
+
+    public function testHandleKeepsSoftDeletedModelsWhenSoftDeleteIsEnabled(): void
+    {
+        config()->set('scout.soft_delete', true);
+
+        $job = new MakeSearchable(Collection::make([
+            $this->softDeletableModel(1),
+            $this->softDeletableModel(2, trashed: true),
+        ]));
+
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runUpdate')
+            ->with(Argument::satisfies(fn (Collection $models): bool => $models->modelKeys() === [1, 2]));
+
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->allows('engine')->returns($engine);
+        $this->app->instance(EngineManager::class, $manager);
+
+        $job->handle();
+    }
+
     public function testJobPropertiesAreSetFromConfig(): void
     {
         config()->set('scout.jobs', [
@@ -124,6 +204,17 @@ class MakeSearchableTest extends ScoutTestCase
     private function model(int $id): SearchableModel
     {
         return (new SearchableModel)->setAttribute('id', $id);
+    }
+
+    /**
+     * Create a soft-deletable searchable model instance.
+     */
+    private function softDeletableModel(int $id, bool $trashed = false): SoftDeletableSearchableModel
+    {
+        return (new SoftDeletableSearchableModel)->forceFill([
+            'id' => $id,
+            'deleted_at' => $trashed ? now() : null,
+        ]);
     }
 }
 
