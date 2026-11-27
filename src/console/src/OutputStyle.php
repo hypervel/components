@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Hypervel\Console\Contracts\NewLineAware;
+use Hypervel\Context\CoroutineContext;
 use Override;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -13,6 +14,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 class OutputStyle extends SymfonyStyle implements NewLineAware
 {
+    public const string QUESTION_ANSWERER_CONTEXT_KEY = '__console.question_answerer';
+
     /**
      * The number of trailing new lines written by the last output.
      *
@@ -34,6 +37,14 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
     public function askQuestion(Question $question): mixed
     {
         try {
+            // A nested command can write to its own buffer while a pending test answers its questions.
+            $answerer = CoroutineContext::get(self::QUESTION_ANSWERER_CONTEXT_KEY)
+                ?? CoroutineContext::getFromNonCoroutine(self::QUESTION_ANSWERER_CONTEXT_KEY);
+
+            if ($answerer !== null && $answerer !== $this) {
+                return $answerer->askQuestion($question);
+            }
+
             return parent::askQuestion($question);
         } finally {
             ++$this->newLinesWritten;

@@ -6,6 +6,7 @@ namespace Hypervel\Testing;
 
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\PromptValidationException;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Support\Arrayable;
@@ -17,16 +18,12 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
-use Mockery;
-use Mockery\Exception\NoMatchingExpectationException;
-use Mockery\Expectation;
-use Mockery\LegacyMockInterface;
-use Mockery\MockInterface;
+use Hypervel\Testing\Console\FakeBufferedOutput;
+use Hypervel\Testing\Console\FakeOutputStyle;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Question\ChoiceQuestion;
 
 class PendingCommand
 {
@@ -48,6 +45,14 @@ class PendingCommand
      * Determine if the command has executed.
      */
     protected bool $hasExecuted = false;
+
+    /**
+     * The console output the command is run with.
+     */
+    protected FakeOutputStyle $consoleOutput;
+
+    /** @var list<string> The rendered prompt substrings expected from this command. */
+    private array $expectedPromptFrames = [];
 
     /**
      * Create a new pending console command run.
@@ -307,15 +312,29 @@ class PendingCommand
 
     /**
      * Render the given prompt and add the output to the expectations.
+     *
+     * @param PromptsNote|PromptsTable $prompt
      */
     protected function expectOutputToContainPrompt(BasePrompt $prompt): void
     {
-        $prompt->setOutput($output = new BufferedOutput);
+        $output = new class extends BufferedOutput {
+            public string $styled = '';
 
-        /** @var PromptsNote $prompt */
-        $prompt->display();
+            /**
+             * Retain the styles that identify a rendered note on a plain terminal.
+             */
+            public function capturePromptFrame(string $frame): void
+            {
+                $this->styled .= $frame;
+            }
+        };
 
-        $this->expectsOutputToContain(trim($output->fetch()));
+        BasePrompt::withSavedConfiguration(function () use ($output, $prompt): void {
+            BasePrompt::setOutput($output);
+            $prompt->display();
+        });
+
+        $this->expectedPromptFrames[] = trim($output->styled !== '' ? $output->styled : $output->fetch());
     }
 
     /**
@@ -382,26 +401,28 @@ class PendingCommand
 
     /**
      * Execute the command.
-     *
-     * @throws NoMatchingExpectationException
      */
     public function run(): int
     {
         $this->hasExecuted = true;
 
-        $mock = $this->mockConsoleOutput();
+        $previousOutput = $this->app->resolvedShared(OutputStyle::class) ? $this->app->make(OutputStyle::class) : null;
+        $previousAnswerer = CoroutineContext::get(OutputStyle::QUESTION_ANSWERER_CONTEXT_KEY);
+        $expectationCount = count($this->test->expectedQuestions)
+            + count($this->test->expectedOutput) + count($this->test->expectedOutputSubstrings)
+            + count($this->test->unexpectedOutput) + count($this->test->unexpectedOutputSubstrings)
+            + (int) ($this->test->expectsOutput !== null) + count($this->expectedPromptFrames);
 
         try {
+            $this->consoleOutput = $this->mockConsoleOutput();
+            $this->flushExpectations();
+
+            CoroutineContext::set(OutputStyle::QUESTION_ANSWERER_CONTEXT_KEY, $this->consoleOutput);
+
             try {
                 $exitCode = $this->app
                     ->make(KernelContract::class)
-                    ->call($this->command, $this->parameters, $mock);
-            } catch (NoMatchingExpectationException $e) {
-                if ($e->getMethodName() === 'askQuestion') {
-                    $this->test->fail('Unexpected question "' . $e->getActualArguments()[0]->getQuestion() . '" was asked.');
-                }
-
-                throw $e;
+                    ->call($this->command, $this->parameters, $this->consoleOutput);
             } catch (PromptValidationException) {
                 $exitCode = Command::FAILURE;
             }
@@ -422,11 +443,22 @@ class PendingCommand
 
             $this->verifyExpectations();
 
+            // Count verified console expectations so PHPUnit recognizes console-only tests.
+            $this->test->addToAssertionCount($expectationCount);
+
             return $exitCode;
         } finally {
-            $this->flushExpectations();
+            if ($previousAnswerer === null) {
+                CoroutineContext::forget(OutputStyle::QUESTION_ANSWERER_CONTEXT_KEY);
+            } else {
+                CoroutineContext::set(OutputStyle::QUESTION_ANSWERER_CONTEXT_KEY, $previousAnswerer);
+            }
 
-            $this->app->forgetInstance(OutputStyle::class);
+            if ($previousOutput === null) {
+                $this->app->forgetInstance(OutputStyle::class);
+            } else {
+                $this->app->instance(OutputStyle::class, $previousOutput);
+            }
         }
     }
 
@@ -454,152 +486,50 @@ class PendingCommand
      */
     protected function verifyExpectations(): void
     {
-        if (count($this->test->expectedQuestions)) {
-            $this->test->fail('Question "' . array_first($this->test->expectedQuestions)[0] . '" was not asked.');
+        if ($failure = $this->consoleOutput->failure()) {
+            $this->test->fail($failure);
         }
 
-        if (count($this->test->expectedChoices) > 0) {
-            foreach ($this->test->expectedChoices as $question => $answers) {
-                $assertion = $answers['strict'] ? 'assertEquals' : 'assertEqualsCanonicalizing';
+        foreach ($this->consoleOutput->choices() as $question => $answers) {
+            $assertion = $answers['strict'] ? 'assertEquals' : 'assertEqualsCanonicalizing';
 
-                $this->test->{$assertion}(
-                    $answers['expected'],
-                    $answers['actual'],
-                    'Question "' . $question . '" has different options.'
-                );
-            }
+            $this->test->{$assertion}(
+                $answers['expected'],
+                $answers['actual'],
+                'Question "' . $question . '" has different options.'
+            );
         }
 
-        if (count($this->test->expectedOutput)) {
-            $this->test->fail('Output "' . array_first($this->test->expectedOutput) . '" was not printed.');
-        }
+        $buffer = $this->consoleOutput->getOutput();
 
-        if (count($this->test->expectedOutputSubstrings)) {
-            $this->test->fail('Output does not contain "' . array_first($this->test->expectedOutputSubstrings) . '".');
-        }
-
-        if (($output = array_search(true, $this->test->unexpectedOutput, true)) !== false) {
-            $this->test->fail('Output "' . $output . '" was printed.');
-        }
-
-        if (($output = array_search(true, $this->test->unexpectedOutputSubstrings, true)) !== false) {
-            $this->test->fail('Output "' . $output . '" was printed.');
+        if ($failure = $buffer->failure()) {
+            $this->test->fail($failure);
         }
     }
 
     /**
-     * Mock the application's console output.
+     * Fake the application's console output.
      */
-    protected function mockConsoleOutput()
+    protected function mockConsoleOutput(): FakeOutputStyle
     {
-        $mock = Mockery::mock(OutputStyle::class . '[askQuestion]', [
+        $output = new FakeOutputStyle(
             new ArrayInput($this->parameters),
-            $this->createABufferedOutputMock(),
-        ]);
+            new FakeBufferedOutput(
+                $this->test->expectedOutput,
+                $this->test->expectedOutputSubstrings,
+                array_keys($this->test->unexpectedOutput),
+                array_keys($this->test->unexpectedOutputSubstrings),
+                $this->test->expectsOutput,
+                $this->expectedPromptFrames,
+            ),
+            $this->test->expectedQuestions,
+            $this->test->expectedChoices,
+        );
 
-        foreach ($this->test->expectedQuestions as $i => $question) {
-            /** @var Expectation $expectation */
-            $expectation = $mock->shouldReceive('askQuestion');
-            $expectation->once()
-                ->ordered()
-                ->with(Mockery::on(function ($argument) use ($question) {
-                    if (isset($this->test->expectedChoices[$question[0]])) {
-                        $this->test->expectedChoices[$question[0]]['actual'] = $argument instanceof ChoiceQuestion && ! array_is_list($this->test->expectedChoices[$question[0]]['expected'])
-                            ? $argument->getChoices()
-                            : $argument->getAutocompleterValues();
-                    }
+        // An instance leaves parameterized resolutions free to use a nested command's own output.
+        $this->app->instance(OutputStyle::class, $output);
 
-                    return $argument->getQuestion() === $question[0];
-                }))
-                ->andReturnUsing(function () use ($question, $i) {
-                    unset($this->test->expectedQuestions[$i]);
-
-                    return $question[1];
-                });
-        }
-
-        $this->app->instance(OutputStyle::class, $mock);
-
-        return $mock;
-    }
-
-    /**
-     * Create a mock for the buffered output.
-     *
-     * @return LegacyMockInterface|MockInterface
-     */
-    private function createABufferedOutputMock()
-    {
-        $mock = Mockery::mock(BufferedOutput::class . '[doWrite]')
-            ->shouldAllowMockingProtectedMethods()
-            ->shouldIgnoreMissing();
-
-        if ($this->test->expectsOutput === false) {
-            /** @var Expectation $expectation */
-            $expectation = $mock->shouldReceive('doWrite');
-            $expectation->never();
-
-            return $mock;
-        }
-
-        $expectedOutput = $this->test->expectedOutput;
-
-        foreach ($expectedOutput as $i => $output) {
-            /** @var Expectation $expectation */
-            $expectation = $mock->shouldReceive('doWrite');
-            $expectation->once()
-                ->ordered()
-                ->with($output, Mockery::any())
-                ->andReturnUsing(function (string $output) use ($i): void {
-                    unset($this->test->expectedOutput[$i]);
-
-                    $this->recordOutputMatches($output);
-                });
-        }
-
-        $expectsAnyOutput = $this->test->expectsOutput === true
-            && $expectedOutput === []
-            && $this->test->expectedOutputSubstrings === [];
-
-        if ($expectsAnyOutput
-            || $this->test->expectedOutputSubstrings !== []
-            || $this->test->unexpectedOutput !== []
-            || $this->test->unexpectedOutputSubstrings !== []
-        ) {
-            /** @var Expectation $expectation */
-            $expectation = $mock->shouldReceive('doWrite');
-            $expectation->atLeast()->times($expectsAnyOutput ? 1 : 0)
-                ->withArgs(fn (string $output): bool => ! in_array($output, $expectedOutput, true))
-                ->andReturnUsing(function (string $output): void {
-                    $this->recordOutputMatches($output);
-                });
-        }
-
-        return $mock;
-    }
-
-    /**
-     * Record the expectations matched by one output write.
-     */
-    private function recordOutputMatches(string $output): void
-    {
-        // One write can satisfy several checks; competing Mockery expectations only observe the first match.
-        foreach ($this->test->expectedOutputSubstrings as $i => $text) {
-            if (str_contains($output, $text)) {
-                unset($this->test->expectedOutputSubstrings[$i]);
-            }
-        }
-
-        if (isset($this->test->unexpectedOutput[$output])) {
-            $this->test->unexpectedOutput[$output] = true;
-        }
-
-        // PHP converts canonical numeric-string array keys to integers, so restore the public string contract before matching.
-        foreach ($this->test->unexpectedOutputSubstrings as $text => $displayed) {
-            if (str_contains($output, (string) $text)) {
-                $this->test->unexpectedOutputSubstrings[$text] = true;
-            }
-        }
+        return $output;
     }
 
     /**
@@ -607,6 +537,7 @@ class PendingCommand
      */
     protected function flushExpectations(): void
     {
+        $this->expectedPromptFrames = [];
         $this->test->expectsOutput = null;
         $this->test->expectedOutput = [];
         $this->test->expectedOutputSubstrings = [];

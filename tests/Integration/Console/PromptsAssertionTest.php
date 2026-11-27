@@ -6,20 +6,30 @@ namespace Hypervel\Tests\Integration\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\AssertionFailedError;
+use RuntimeException;
 
+use function Hypervel\Prompts\alert;
 use function Hypervel\Prompts\autocomplete;
 use function Hypervel\Prompts\confirm;
+use function Hypervel\Prompts\error;
+use function Hypervel\Prompts\info;
+use function Hypervel\Prompts\intro;
 use function Hypervel\Prompts\multisearch;
 use function Hypervel\Prompts\multiselect;
 use function Hypervel\Prompts\number;
+use function Hypervel\Prompts\outro;
 use function Hypervel\Prompts\password;
 use function Hypervel\Prompts\pause;
 use function Hypervel\Prompts\search;
 use function Hypervel\Prompts\select;
 use function Hypervel\Prompts\suggest;
+use function Hypervel\Prompts\table;
 use function Hypervel\Prompts\text;
 use function Hypervel\Prompts\textarea;
+use function Hypervel\Prompts\warning;
 
 class PromptsAssertionTest extends TestCase
 {
@@ -432,5 +442,208 @@ class PromptsAssertionTest extends TestCase
             ->expectsChoice('What is your name?', 'Jane', ['John', 'Jane'])
             ->expectsSearch('What is your title?', ['Dr'], 'D', ['Dr'])
             ->expectsOutput('I will refer to you Dr Jane.');
+    }
+
+    public function testAssertionForSelectPromptWithDifferentOptions(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:select';
+
+                public function handle(): void
+                {
+                    $name = select(
+                        label: 'What is your name?',
+                        options: ['john' => 'John', 'jane' => 'Jane']
+                    );
+
+                    $this->line("Your name is {$name}.");
+                }
+            }
+        );
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Question "What is your name?" has different options.');
+
+        $this
+            ->artisan('test:select')
+            ->expectsChoice('What is your name?', 'jane', ['john' => 'John', 'sally' => 'Sally']);
+    }
+
+    public function testAssertionForUnexpectedPrompt(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:confirm';
+
+                public function handle(): void
+                {
+                    confirm('Is your name John?');
+                }
+            }
+        );
+
+        $this->expectExceptionObject(new AssertionFailedError('Unexpected question "Is your name John?" was asked.'));
+
+        $this->artisan('test:confirm');
+    }
+
+    public function testAssertionForNotePrompts(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:notes';
+
+                public function handle(): void
+                {
+                    intro('Starting');
+                    info('Information');
+                    warning('Careful');
+                    error('Failure');
+                    alert('Attention');
+                    outro('Finished');
+                }
+            }
+        );
+
+        $this
+            ->artisan('test:notes')
+            ->expectsPromptsIntro('Starting')
+            ->expectsPromptsInfo('Information')
+            ->expectsPromptsWarning('Careful')
+            ->expectsPromptsError('Failure')
+            ->expectsPromptsAlert('Attention')
+            ->expectsPromptsOutro('Finished');
+    }
+
+    public function testAssertionForMissingNotePrompt(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:notes';
+
+                public function handle(): void
+                {
+                    info('Information');
+                }
+            }
+        );
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Output does not contain "');
+
+        $this
+            ->artisan('test:notes')
+            ->expectsPromptsWarning('Information');
+    }
+
+    public function testPromptStylesCanBeCheckedAlongsidePlainCommandOutput(): void
+    {
+        Artisan::command('test:plain', function () {
+            warning("First line\nSecond line");
+            $this->info('Finished');
+        });
+
+        $this->artisan('test:plain', ['--no-ansi' => true])
+            ->expectsPromptsWarning('Second line')
+            ->expectsOutputToContain('First line')
+            ->expectsOutput('Finished');
+    }
+
+    public function testQuietCommandDoesNotSatisfyPromptExpectations(): void
+    {
+        Artisan::command('test:quiet', function () {
+            info('Information');
+        });
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Output does not contain "Information".');
+
+        $this->artisan('test:quiet', ['--quiet' => true])->expectsPromptsInfo('Information');
+    }
+
+    public function testNestedCommandRestoresOuterPromptOutput(): void
+    {
+        Artisan::command('test:inner', function () {
+            info('Inside');
+        });
+
+        $test = $this;
+        Artisan::command('test:outer', function () use ($test) {
+            $test->artisan('test:inner')->expectsPromptsInfo('Inside')->run();
+            warning('Outside');
+            text('Continue?');
+        });
+
+        $this->artisan('test:outer')->expectsPromptsWarning('Outside')->expectsQuestion('Continue?', 'yes');
+    }
+
+    public function testFailingArtisanCallRestoresOuterPrompts(): void
+    {
+        $failure = new RuntimeException('Child failed');
+        Artisan::command('test:inner', fn () => throw $failure);
+
+        $test = $this;
+        Artisan::command('test:outer', function () use ($test, $failure) {
+            try {
+                Artisan::call('test:inner');
+            } catch (RuntimeException $caught) {
+                $test->assertSame($failure, $caught);
+                warning('Back in the parent');
+                $this->line(text('Continue?'));
+            }
+        });
+
+        $this->artisan('test:outer')->expectsPromptsWarning('Back in the parent')
+            ->expectsQuestion('Continue?', 'yes')->expectsOutput('yes');
+    }
+
+    public function testAssertionForTablePrompt(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:table';
+
+                public function handle(): void
+                {
+                    table(['Name', 'Email'], [
+                        ['Taylor Otwell', 'taylor@hypervel.org'],
+                        ['Jess Archer', 'jess@hypervel.org'],
+                    ]);
+                }
+            }
+        );
+
+        $this
+            ->artisan('test:table')
+            ->expectsPromptsTable(['Name', 'Email'], [
+                ['Taylor Otwell', 'taylor@hypervel.org'],
+                ['Jess Archer', 'jess@hypervel.org'],
+            ]);
+    }
+
+    public function testAssertionForDifferentTablePrompt(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:table';
+
+                public function handle(): void
+                {
+                    table(['Name', 'Email'], [
+                        ['Taylor Otwell', 'taylor@hypervel.org'],
+                    ]);
+                }
+            }
+        );
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Output does not contain "');
+
+        $this
+            ->artisan('test:table')
+            ->expectsPromptsTable(['Name', 'Email'], [
+                ['Jess Archer', 'jess@hypervel.org'],
+            ]);
     }
 }

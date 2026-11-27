@@ -308,6 +308,44 @@ abstract class Prompt
     }
 
     /**
+     * Restore the caller's prompt configuration after the callback returns or throws.
+     *
+     * @template TResult
+     * @param Closure(): TResult $callback
+     * @return TResult
+     */
+    public static function withSavedConfiguration(Closure $callback): mixed
+    {
+        if (! Coroutine::inCoroutine()) {
+            $previous = [self::$output, self::$interactive, self::$validateUsing, self::$shouldFallback, self::$fallbacks];
+
+            try {
+                return $callback();
+            } finally {
+                [self::$output, self::$interactive, self::$validateUsing, self::$shouldFallback, self::$fallbacks] = $previous;
+            }
+        }
+
+        // An absent override must keep inheriting the CLI configuration after a nested command.
+        $previous = [];
+        foreach ([self::OUTPUT_CONTEXT_KEY, self::INTERACTIVE_CONTEXT_KEY, self::VALIDATE_USING_CONTEXT_KEY, self::SHOULD_FALLBACK_CONTEXT_KEY, self::FALLBACKS_CONTEXT_KEY] as $key) {
+            $previous[$key] = CoroutineContext::get($key);
+        }
+
+        try {
+            return $callback();
+        } finally {
+            foreach ($previous as $key => $value) {
+                if ($value === null) {
+                    CoroutineContext::forget($key);
+                } else {
+                    CoroutineContext::set($key, $value);
+                }
+            }
+        }
+    }
+
+    /**
      * Get the current output instance.
      */
     protected static function output(): OutputInterface
@@ -537,9 +575,14 @@ abstract class Prompt
         }
 
         // Formatting restores escaped backslashes that may terminate control sequences.
-        $frame = Utils::stripTerminalControls($output->getFormatter()->format($frame));
+        $frame = $output->getFormatter()->format($frame);
 
-        $output->write($frame, false, OutputInterface::OUTPUT_RAW);
+        // Console tests distinguish note styles before plain output drops their color.
+        if (method_exists($output, 'capturePromptFrame')) {
+            $output->capturePromptFrame($frame);
+        }
+
+        $output->write(Utils::stripTerminalControls($frame), false, OutputInterface::OUTPUT_RAW);
     }
 
     /**
