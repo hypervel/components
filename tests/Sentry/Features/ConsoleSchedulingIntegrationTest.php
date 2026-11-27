@@ -61,6 +61,38 @@ class ConsoleSchedulingIntegrationTest extends TestCase
         $this->assertEquals('test-monitor', $finishCheckInEvent->getCheckIn()->getMonitorSlug());
     }
 
+    public function testScheduleMacroDoesNotTriggerDeprecations(): void
+    {
+        $sourceDirectory = realpath(__DIR__ . '/../../../src/sentry/src');
+        $this->assertIsString($sourceDirectory);
+
+        $deprecations = [];
+
+        set_error_handler(static function (int $level, string $message, string $file) use ($sourceDirectory, &$deprecations): bool {
+            if (! str_starts_with($file, $sourceDirectory . DIRECTORY_SEPARATOR)) {
+                return false;
+            }
+
+            $deprecations[] = $message;
+
+            return true;
+        }, E_DEPRECATED | E_USER_DEPRECATED);
+
+        try {
+            /** @var Event $scheduledEvent */
+            $scheduledEvent = $this->getScheduler()
+                ->call(function (): void {
+                })
+                ->sentryMonitor('test-monitor');
+
+            $scheduledEvent->run($this->app);
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame([], $deprecations);
+    }
+
     /**
      * When a timezone was defined on a command this would fail with:
      * Sentry\MonitorConfig::__construct(): Argument #4 ($timezone) must be of type ?string, DateTimeZone given
