@@ -11,4 +11,6 @@ Laravel's deprecated `UrlGenerator::forceRootUrl()` alias is intentionally not p
 
 Rebinding the container's `request` service does not update the URL generator. Hypervel resolves the current request from coroutine-local request context instead.
 
+Hypervel checks integer primary keys during route model binding, including non-incrementing keys. Models with string primary keys must declare their [key type](https://hypervel.org/docs/eloquent#primary-keys).
+
 Ported from: https://github.com/laravel/framework

@@ -286,11 +286,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static mixed $missingAttributeViolationCallback = null;
 
     /**
-     * Indicates if invalid value exceptions during implicit route model binding should be reported.
-     */
-    protected static bool $reportRouteModelBindingExceptions = true;
-
-    /**
      * The Eloquent query builder class to use for the model.
      *
      * @var class-string<Builder<*>>
@@ -811,18 +806,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public static function handleMissingAttributeViolationUsing(?callable $callback): void
     {
         static::$missingAttributeViolationCallback = $callback;
-    }
-
-    /**
-     * Report invalid value exceptions during implicit route model binding.
-     *
-     * The flag persists in a static property for the worker lifetime and
-     * applies to every implicit route binding across all coroutines.
-     */
-    #[BootOnly]
-    public static function reportRouteModelBindingExceptions(bool $value = true): void
-    {
-        static::$reportRouteModelBindingExceptions = $value;
     }
 
     /**
@@ -2951,19 +2934,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param self|TQuery $query
      * @return ($query is self ? Builder<static> : TQuery)
-     *
-     * @throws ModelNotFoundException<static>
      */
     public function resolveRouteBindingQuery(self|Builder|Relation $query, mixed $value, ?string $field = null): Builder|Relation
     {
         $field ??= $this->getRouteKeyName();
 
-        // Non-incrementing integer keys are validated too: MySQL and MariaDB would
-        // otherwise coerce a value such as "12abc" and resolve the model with key 12.
+        // An empty predicate avoids database coercion and lets custom bindings try another field.
         if (in_array($this->getKeyType(), ['int', 'integer'], true)
             && Str::afterLast($field, '.') === $this->getKeyName()
             && ! $this->isValidIntegerRouteKey($value)) {
-            $this->handleInvalidRouteKey($value, $field);
+            return $query->whereIn($field, []);
         }
 
         return $query->where($field, $value);
@@ -2986,16 +2966,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             preg_replace('/^(\s*[+-]?)0+(?=\d)/', '$1', $value),
             FILTER_VALIDATE_INT
         ) !== false;
-    }
-
-    /**
-     * Throw an exception for the given invalid route key.
-     *
-     * @throws ModelNotFoundException<static>
-     */
-    protected function handleInvalidRouteKey(mixed $value, string $field): never
-    {
-        throw (new ModelNotFoundException)->setModel(static::class, $value === null ? [] : [$value]);
     }
 
     /**
@@ -3084,14 +3054,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
-     * Determine if invalid value exceptions during implicit route model binding should be reported.
-     */
-    public static function reportsRouteModelBindingExceptions(): bool
-    {
-        return static::$reportRouteModelBindingExceptions;
-    }
-
-    /**
      * Get the broadcast channel route definition that is associated with the given entity.
      */
     public function broadcastChannelRoute(): string
@@ -3149,7 +3111,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$discardedAttributeViolationCallback = null;
         static::$modelsShouldPreventAccessingMissingAttributes = false;
         static::$missingAttributeViolationCallback = null;
-        static::$reportRouteModelBindingExceptions = true;
         static::$builder = Builder::class;
         static::$collectionClass = Collection::class;
         static::$resolvedBuilderClasses = [];

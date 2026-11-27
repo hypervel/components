@@ -5,15 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Routing\ImplicitRouteBindingTest;
 
 use Closure;
-use Exception;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Database\InvalidValueException;
-use Hypervel\Database\QueryException;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Routing\ImplicitRouteBinding;
@@ -21,18 +17,12 @@ use Hypervel\Routing\Route;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\CategoryEnum;
 use Hypervel\Tests\Routing\RoutingTestCase;
-use JMac\Testing\Double;
-use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
-use JMac\Testing\Matching\Argument;
 use LogicException;
-use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use WeakMap;
 
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
-    use VerifiesDoubles;
-
     public function testItDoesNotInspectTheActionWhenTheRouteHasNoParameters(): void
     {
         $route = new EmptyParameterRoute('GET', '/test', fn () => 'ok');
@@ -149,77 +139,6 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $route->prepareForSerialization();
 
         $container = Container::getInstance();
-
-        ImplicitRouteBinding::resolveForRoute($container, $route);
-    }
-
-    #[DataProvider('shouldReportProvider')]
-    public function testItThrowsModelNotFoundExceptionOnInvalidValueException(bool $shouldReport): void
-    {
-        Model::reportRouteModelBindingExceptions($shouldReport);
-
-        $mock = Double::for(ExceptionHandler::class)->strict();
-
-        if ($shouldReport) {
-            $mock->expects('report')->with(Argument::type(InvalidValueException::class), []);
-        } else {
-            $mock->expects('report')->never();
-        }
-
-        $container = Container::getInstance();
-        $container->instance(ExceptionHandler::class, $mock);
-
-        $action = ['uses' => fn (ImplicitRouteBindingUserWithInvalidValue $user): ImplicitRouteBindingUserWithInvalidValue => $user];
-
-        $route = new Route('GET', '/test/{user}', $action);
-        $route->bind(Request::create('/test/invalid-value'));
-        $route->prepareForSerialization();
-        $this->expectException(ModelNotFoundException::class);
-
-        ImplicitRouteBinding::resolveForRoute($container, $route);
-    }
-
-    /**
-     * Provide whether invalid value exceptions should be reported.
-     *
-     * @return list<array{0: bool}>
-     */
-    public static function shouldReportProvider(): array
-    {
-        return [[true], [false]];
-    }
-
-    public function testItDoesNotConvertUnrelatedQueryExceptions(): void
-    {
-        $mock = Double::for(ExceptionHandler::class)->strict();
-        $mock->expects('report')->never();
-
-        $container = Container::getInstance();
-        $container->instance(ExceptionHandler::class, $mock);
-
-        $action = ['uses' => fn (ImplicitRouteBindingUserWithQueryException $user): ImplicitRouteBindingUserWithQueryException => $user];
-
-        $route = new Route('GET', '/test/{user}', $action);
-        $route->bind(Request::create('/test/invalid-value'));
-        $route->prepareForSerialization();
-
-        $this->expectException(QueryException::class);
-
-        ImplicitRouteBinding::resolveForRoute($container, $route);
-    }
-
-    public function testItConvertsInvalidValueExceptionsFromNonModelBindings(): void
-    {
-        $mock = Double::for(ExceptionHandler::class)->strict();
-        $mock->expects('report')->with(Argument::type(InvalidValueException::class), []);
-
-        $container = Container::getInstance();
-        $container->instance(ExceptionHandler::class, $mock);
-
-        $route = new Route('GET', '/test/{resource}', ['uses' => fn (ImplicitRouteBindingResource $resource): ImplicitRouteBindingResource => $resource]);
-        $route->bind(Request::create('/test/invalid-value'));
-
-        $this->expectException(ModelNotFoundException::class);
 
         ImplicitRouteBinding::resolveForRoute($container, $route);
     }
@@ -356,28 +275,6 @@ class ImplicitRouteBindingUser extends Model
 {
 }
 
-class ImplicitRouteBindingUserWithInvalidValue extends Model
-{
-    /**
-     * Retrieve the model for a bound value.
-     */
-    public function resolveRouteBinding(mixed $value, ?string $field = null): never
-    {
-        throw new InvalidValueException('pgsql', 'select * from users where id = ?', [$value], new Exception('Out of range value'));
-    }
-}
-
-class ImplicitRouteBindingUserWithQueryException extends Model
-{
-    /**
-     * Retrieve the model for a bound value.
-     */
-    public function resolveRouteBinding(mixed $value, ?string $field = null): never
-    {
-        throw new QueryException('pgsql', 'select * from users where id = ?', [$value], new Exception('Undefined column'));
-    }
-}
-
 class ImplicitRouteBindingResource implements UrlRoutable
 {
     public mixed $value = null;
@@ -403,10 +300,6 @@ class ImplicitRouteBindingResource implements UrlRoutable
      */
     public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
     {
-        if ($value === 'invalid-value') {
-            throw new InvalidValueException('pgsql', 'select * from resources where id = ?', [$value], new Exception('Invalid text representation'));
-        }
-
         if ($value === null) {
             return null;
         }

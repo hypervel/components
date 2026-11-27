@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Database\Capsule\Manager as Capsule;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Routing\RouteBinding;
@@ -20,6 +21,7 @@ use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Workbench\App\Models\User;
 
 class BroadcasterTest extends TestCase
 {
@@ -160,6 +162,22 @@ class BroadcasterTest extends TestCase
         $callback = function (mixed $user, BroadcasterTestEloquentModelNotFoundStub $model): void {
         };
         $this->broadcaster->extractAuthParameters('asd.{model}', 'asd.1', $callback);
+    }
+
+    public function testMalformedIntegerChannelKeyDeniesAccess(): void
+    {
+        $database = new Capsule;
+        $database->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
+        $database->bootEloquent();
+        $database->getConnection()->statement('create table users (id integer primary key)');
+        $database->getConnection()->table('users')->insert(['id' => 1]);
+
+        $this->broadcaster->channel('accounts.{account}', fn (DummyUser $user, User $account): int => $account->getKey());
+        $request = $this->requestResolvingUsers(['' => new DummyUser]);
+        $this->assertSame(1, $this->broadcaster->verifyAccess($request, 'accounts.1'));
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $this->broadcaster->verifyAccess($request, 'accounts.missing');
     }
 
     public function testCanRegisterChannelsWithoutOptions(): void
