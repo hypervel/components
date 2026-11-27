@@ -305,6 +305,15 @@ class SupportTestingNotificationFakeTest extends TestCase
         $this->fake->assertNotSentTo($user, NotificationWithFalsyShouldSendStub::class);
     }
 
+    public function testAssertSentToWhenNotifiableHasShouldSendWhenViaIsString(): void
+    {
+        $user = new LocalizedUserStub;
+
+        $this->fake->send($user, new NotificationWithShouldSendAndStringViaStub);
+
+        $this->fake->assertSentTo($user, NotificationWithShouldSendAndStringViaStub::class);
+    }
+
     public function testAssertItCanSerializeAndRestoreNotifications(): void
     {
         $this->fake->serializeAndRestore();
@@ -345,6 +354,25 @@ class NotificationWithFalsyShouldSendStub extends Notification
     public function shouldSend(mixed $notifiable, string $channel): bool
     {
         return false;
+    }
+}
+
+class NotificationWithShouldSendAndStringViaStub extends Notification
+{
+    /**
+     * Get the notification channels.
+     */
+    public function via(mixed $notifiable): string
+    {
+        return 'mail';
+    }
+
+    /**
+     * Determine whether to send the notification.
+     */
+    public function shouldSend(mixed $notifiable, string $channel): bool
+    {
+        return true;
     }
 }
 

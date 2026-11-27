@@ -322,7 +322,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
                 $notification->id = Str::uuid()->toString();
             }
 
-            $notifiableChannels = $channels ?: $notification->via($notifiable);
+            $notifiableChannels = $channels ?: (array) $notification->via($notifiable);
 
             if (method_exists($notification, 'shouldSend')) {
                 $notifiableChannels = array_filter(
