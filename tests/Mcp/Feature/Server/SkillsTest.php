@@ -7,8 +7,12 @@ namespace Hypervel\Tests\Mcp\Feature\Server;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Mcp\Server;
 use Hypervel\Mcp\Server\Attributes\Uri;
+use Hypervel\Mcp\Server\Contracts\Method;
+use Hypervel\Mcp\Server\ServerContext;
 use Hypervel\Mcp\Server\Skill;
 use Hypervel\Mcp\Server\Skills\DirectorySkill;
+use Hypervel\Mcp\Transport\JsonRpcRequest;
+use Hypervel\Mcp\Transport\JsonRpcResponse;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Tests\Mcp\Fixtures\ArrayTransport;
@@ -65,6 +69,17 @@ class SkillsTest extends TestCase
 
         $this->assertArrayHasKey('resources', $capabilities);
         $this->assertArrayHasKey('io.modelcontextprotocol/skills', $capabilities['extensions']);
+
+        $minimal = new class($this->transport) extends Server {
+            protected array $capabilities = [];
+
+            protected array $skills = [ReleaseChecklistSkill::class];
+        };
+        $minimal->start();
+
+        $minimalCapabilities = $this->skillRequest($minimal, $this->transport, 'server/discover')['result']['capabilities'];
+        $this->assertArrayHasKey('resources', $minimalCapabilities);
+        $this->assertArrayHasKey('io.modelcontextprotocol/skills', $minimalCapabilities['extensions']);
 
         $server = new ExampleServer($this->transport);
         $server->start();
@@ -297,8 +312,8 @@ class SkillsTest extends TestCase
         Exceptions::fake();
 
         $this->temporarySkill($this->temporary . '/broken', "name: Broken\ndescription: A broken skill.");
-        $this->temporarySkill($this->temporary . '/first/demo');
-        $this->temporarySkill($this->temporary . '/second/demo');
+        $this->temporarySkill($this->temporary . '/first/demo', "name: demo\ndescription: First demo skill.");
+        $this->temporarySkill($this->temporary . '/second/demo', "name: demo\ndescription: Second demo skill.");
 
         $server = new class($this->transport) extends ExampleServer {
             public array $skills = [];
@@ -325,10 +340,9 @@ class SkillsTest extends TestCase
         $this->assertContains('skill://release-checklist/SKILL.md', $listedResources);
 
         $this->assertArrayHasKey('result', $this->skillRequest($server, $this->transport, 'resources/read', ['uri' => $resource->uri()]));
-        $this->assertStringContainsString(
-            '# Demo',
-            $this->skillRequest($server, $this->transport, 'resources/read', ['uri' => 'skill://demo/SKILL.md'])['result']['contents'][0]['text'],
-        );
+        $demoSkillContent = $this->skillRequest($server, $this->transport, 'resources/read', ['uri' => 'skill://demo/SKILL.md'])['result']['contents'][0]['text'];
+        $this->assertStringContainsString('First demo skill.', $demoSkillContent);
+        $this->assertStringNotContainsString('Second demo skill.', $demoSkillContent);
 
         Exceptions::assertReported(fn (InvalidArgumentException $e): bool => str_contains($e->getMessage(), 'The name field format is invalid.'));
         Exceptions::assertReported(fn (InvalidArgumentException $e): bool => str_contains($e->getMessage(), 'does not exist'));
@@ -478,6 +492,26 @@ class SkillsTest extends TestCase
         $this->assertSame('Updated version.', $second['frontmatter']['description']);
     }
 
+    public function testPreservesCustomSkillMethodsRegisteredInBoot(): void
+    {
+        $server = new class($this->transport) extends Server {
+            protected array $skills = [ReleaseChecklistSkill::class];
+
+            /**
+             * Register custom skill method handlers before capability detection runs.
+             */
+            protected function boot(): void
+            {
+                $this->addMethod('skills/list', CustomSkillMethodStub::class);
+                $this->addMethod('skills/get', CustomSkillMethodStub::class);
+            }
+        };
+        $server->start();
+
+        $this->assertSame('skills/list', $this->skillRequest($server, $this->transport, 'skills/list')['result']['custom']);
+        $this->assertSame('skills/get', $this->skillRequest($server, $this->transport, 'skills/get', ['uri' => 'skill://release-checklist/SKILL.md'])['result']['custom']);
+    }
+
     /**
      * Send a modern JSON-RPC request to the server and decode the last reply.
      *
@@ -486,12 +520,16 @@ class SkillsTest extends TestCase
      */
     private function skillRequest(Server $server, ArrayTransport $transport, string $method, array $params = []): array
     {
+        $sentBefore = count($transport->sent);
+
         $server->handle((string) json_encode([
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => $method,
             'params' => ['_meta' => protocolMeta(), ...$params],
         ]));
+
+        $this->assertGreaterThan($sentBefore, count($transport->sent));
 
         return json_decode((string) end($transport->sent), true);
     }
@@ -513,5 +551,16 @@ class DynamicPathSkillStub extends Skill
     public function path(): string
     {
         return config()->string('mcp.testing.dynamic-skill-path');
+    }
+}
+
+class CustomSkillMethodStub implements Method
+{
+    /**
+     * Return a custom response identifying the handled method.
+     */
+    public function handle(JsonRpcRequest $request, ServerContext $context): JsonRpcResponse
+    {
+        return JsonRpcResponse::result($request->id, ['custom' => $request->method]);
     }
 }

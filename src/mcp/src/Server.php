@@ -598,8 +598,8 @@ abstract class Server
 
         $this->extensions[] = Extension::Skills;
         $this->capabilities[self::CAPABILITY_RESOURCES] ??= (object) [];
-        $this->methods['skills/list'] = ListSkills::class;
-        $this->methods['skills/get'] = GetSkill::class;
+        $this->methods['skills/list'] ??= ListSkills::class;
+        $this->methods['skills/get'] ??= GetSkill::class;
     }
 
     /**

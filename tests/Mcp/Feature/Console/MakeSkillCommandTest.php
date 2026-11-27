@@ -62,4 +62,15 @@ class MakeSkillCommandTest extends TestCase
 
         $this->assertFileDoesNotExist(app_path('Mcp/Skills/' . str_repeat('a', 65) . '.php'));
     }
+
+    public function testFailsWhenTheSkillNameNormalizesToEmpty(): void
+    {
+        $this->artisan('make:mcp-skill', ['name' => '___'])
+            ->expectsOutputToContain('must contain at least one letter or number')
+            ->assertFailed()
+            ->run();
+
+        $this->assertFileDoesNotExist(app_path('Mcp/Skills/___.php'));
+        $this->assertFileDoesNotExist(resource_path('skills/SKILL.md'));
+    }
 }

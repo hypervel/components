@@ -22,8 +22,14 @@ class MakeSkillCommand extends GeneratorCommand
      */
     public function handle(): bool|int
     {
-        if (strlen($this->skillName()) > 64) {
-            $this->fail("The skill name [{$this->skillName()}] must not be longer than 64 characters.");
+        $skillName = $this->skillName();
+
+        if ($skillName === '') {
+            $this->fail("The skill name [{$this->getNameInput()}] must contain at least one letter or number.");
+        }
+
+        if (strlen($skillName) > 64) {
+            $this->fail("The skill name [{$skillName}] must not be longer than 64 characters.");
         }
 
         $result = parent::handle();
