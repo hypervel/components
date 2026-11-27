@@ -16,6 +16,7 @@ class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
         if (! Schema::hasTable('database_eloquent_postgres_integration_users')) {
             Schema::create('database_eloquent_postgres_integration_users', function (Blueprint $table) {
                 $table->id();
+                $table->integer('narrow_id')->nullable();
                 $table->string('name')->nullable();
                 $table->string('email')->unique();
                 $table->timestamps();
@@ -26,6 +27,14 @@ class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
     protected function destroyDatabaseMigrations(): void
     {
         Schema::drop('database_eloquent_postgres_integration_users');
+    }
+
+    public function testIntegerRouteKeysOutsideAColumnsRangeDoNotMatch(): void
+    {
+        $user = DatabaseEloquentPostgresIntegrationUser::create(['id' => 3000000000, 'narrow_id' => 1, 'email' => 'test@example.com']);
+
+        $this->assertSame(3000000000, $user->resolveRouteBinding('3000000000')->getKey());
+        $this->assertNull($user->setKeyName('narrow_id')->resolveRouteBinding('3000000000'));
     }
 
     public function testCreateOrFirst(): void

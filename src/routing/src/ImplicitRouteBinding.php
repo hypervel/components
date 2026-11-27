@@ -102,6 +102,7 @@ class ImplicitRouteBinding
                 ? 'resolveSoftDeletableRouteBinding'
                 : 'resolveRouteBinding';
 
+            // Only a missing result becomes a 404. Database errors may come from scopes or custom bindings.
             if ($parent instanceof UrlRoutable
                 && ! $route->preventsScopedBindings()
                 && ($route->enforcesScopedBindings() || array_key_exists($parameterName, $route->bindingFields()))) {

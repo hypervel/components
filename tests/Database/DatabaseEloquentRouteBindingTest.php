@@ -55,12 +55,15 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     }
 
     #[DataProvider('validIntegerKeyProvider')]
-    public function testItPassesThroughValuesTheDatabaseCanStillMatch(int|string $value): void
+    public function testItResolvesValuesTheDatabaseCanStillMatch(int|string $value): void
     {
-        $query = Double::for(Builder::class)->strict();
-        $query->expects('where')->with('id', $value);
+        $database = $this->createLabelsDatabase();
+        foreach ([12, 0, -5, 5, PHP_INT_MAX] as $key) {
+            $database->getConnection()->table('labels')->insert(['id' => $key]);
+        }
 
-        $this->assertSame($query, (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, $value));
+        $model = (new RouteBindingIntKeyModel)->setTable('labels');
+        $this->assertSame((int) $value, $model->resolveRouteBinding($value)?->getKey());
     }
 
     /**
@@ -119,10 +122,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testMalformedIntegerKeysAllowFallbackAndComposableBindings(): void
     {
-        $database = new Capsule;
-        $database->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
-        $database->bootEloquent();
-        $database->getConnection()->statement('create table labels (id integer primary key, slug text)');
+        $database = $this->createLabelsDatabase();
         $database->getConnection()->table('labels')->insert(['id' => 12, 'slug' => 'green']);
 
         foreach ([new RouteBindingIntKeyModel, new RouteBindingNonIncrementingKeyModel] as $model) {
@@ -133,6 +133,19 @@ class DatabaseEloquentRouteBindingTest extends TestCase
         }
 
         $this->assertSame(12, (new RouteBindingFallbackModel)->resolveRouteBinding('green')->getKey());
+    }
+
+    /**
+     * Create the SQLite table used by the route binding models.
+     */
+    private function createLabelsDatabase(): Capsule
+    {
+        $database = new Capsule;
+        $database->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
+        $database->bootEloquent();
+        $database->getConnection()->statement('create table labels (id integer primary key, slug text)');
+
+        return $database;
     }
 
     /**

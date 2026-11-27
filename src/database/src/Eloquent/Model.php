@@ -2939,13 +2939,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $field ??= $this->getRouteKeyName();
 
-        // An empty predicate avoids database coercion and lets custom bindings try another field.
         if (in_array($this->getKeyType(), ['int', 'integer'], true)
-            && Str::afterLast($field, '.') === $this->getKeyName()
-            && ! $this->isValidIntegerRouteKey($value)) {
-            return $query->whereIn($field, []);
+            && Str::afterLast($field, '.') === $this->getKeyName()) {
+            // An integer literal lets PostgreSQL compare keys wider than the column. An empty
+            // predicate prevents malformed keys from matching and still allows a slug fallback.
+            return $query->whereIntegerInRaw($field, $this->isValidIntegerRouteKey($value) ? [$value] : []);
         }
 
+        // The model has no column type for non-key fields, so PostgreSQL can reject an out-of-range value.
         return $query->where($field, $value);
     }
 
