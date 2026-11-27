@@ -3659,15 +3659,24 @@ To remove a document from a store, pass the listed document or its document ID t
 $store->remove($document);
 ```
 
-The source file stays in the provider's [file storage](#files). To delete it too, pass the result of `add()`, which holds both IDs:
+The source file stays in the provider's [file storage](#files). To delete it too, pass the response from `add()` with `deleteFile: true`. OpenAI and Azure OpenAI also include the source file ID in listed documents, so those documents can be passed the same way:
 
 ```php
-$added = $store->add('file_id');
-// Later...
-$store->remove($added, deleteFile: true);
+$store->remove($document, deleteFile: true);
 ```
 
-OpenAI and Azure OpenAI also return the source file ID in their listings. Gemini listings omit it. To delete a listed Gemini document and its source file separately, pass the document to `remove()`, then delete the source file using its saved file ID.
+Gemini listings omit the source file ID. When working with saved IDs, remove the document by its ID, then delete the source file by its own ID on the same provider:
+
+```php
+use Hypervel\Ai\Files;
+use Hypervel\Ai\Stores;
+
+$store = Stores::get($storeId, provider: 'gemini');
+
+if ($store->remove($documentId)) {
+    Files::delete($fileId, provider: 'gemini');
+}
+```
 
 <a name="usage"></a>
 ## Usage
