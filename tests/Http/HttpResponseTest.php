@@ -33,16 +33,36 @@ class HttpResponseTest extends TestCase
 {
     use VerifiesDoubles;
 
-    public function testConstructorInitializesStatusHeadersContentAndOriginalContent(): void
+    public function testConstructorInitializesHeadersWithoutDeprecation(): void
     {
-        $response = new Response(['name' => 'Taylor'], 201, ['X-Test' => 'yes']);
+        $deprecations = [];
+        set_error_handler(function (int $severity, string $message) use (&$deprecations): bool {
+            if ($severity === E_USER_DEPRECATED && str_contains($message, 'Directly setting property "headers"')) {
+                $deprecations[] = $message;
 
+                return true;
+            }
+
+            return false;
+        });
+
+        try {
+            $response = new Response(['foo' => 'bar'], 201, ['X-Test' => 'value']);
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame([], $deprecations);
         $this->assertSame(201, $response->getStatusCode());
-        $this->assertSame('yes', $response->headers->get('X-Test'));
+        $this->assertSame('value', $response->headers->get('X-Test'));
         $this->assertSame('1.0', $response->getProtocolVersion());
-        $this->assertSame('{"name":"Taylor"}', $response->getContent());
-        $this->assertSame(['name' => 'Taylor'], $response->getOriginalContent());
+        $this->assertSame(['foo' => 'bar'], $response->getOriginalContent());
+        $this->assertSame('application/json', $response->headers->get('Content-Type'));
+        $this->assertSame('{"foo":"bar"}', $response->getContent());
+    }
 
+    public function testConstructorRetainsTheGivenHeaderBag(): void
+    {
         $headers = new ResponseHeaderBag(['X-Test' => 'bag']);
         $headers->setCookie($cookie = new Cookie('name', 'value'));
 
