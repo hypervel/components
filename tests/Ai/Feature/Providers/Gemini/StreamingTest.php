@@ -11,6 +11,7 @@ use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Responses\Data\FinishReason;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ProviderToolEvent;
@@ -499,11 +500,11 @@ class StreamingTest extends TestCase
     }
 
     #[DataProvider('failedInteractions')]
-    public function testFailedTerminalInteractionPreservesTheError(string $status, array $errors, string $type, string $message): void
+    public function testFailedTerminalInteractionPreservesTheError(string $status, array $errors, string $type, string $message, ?array $usage = null): void
     {
         Http::fake(['*' => $this->geminiStreamResponse([
             $this->stepDelta(0, 'text', 'Partial'),
-            ['event_type' => 'interaction.completed', 'interaction' => ['status' => $status, 'errors' => $errors]],
+            ['event_type' => 'interaction.completed', 'interaction' => ['status' => $status, 'errors' => $errors, 'usage' => $usage]],
         ])]);
 
         $error = null;
@@ -517,6 +518,7 @@ class StreamingTest extends TestCase
         $this->assertInstanceOf(Error::class, $error);
         $this->assertSame($type, $error->type);
         $this->assertSame($message, $error->message);
+        $this->assertEquals($usage === null ? null : new TextUsage(10, 2), $error->usage);
     }
 
     /**
@@ -525,7 +527,7 @@ class StreamingTest extends TestCase
     public static function failedInteractions(): array
     {
         return [
-            'failed' => ['failed', [['code' => 'overloaded', 'message' => 'Server overloaded']], 'overloaded', 'Server overloaded'],
+            'failed' => ['failed', [['code' => 'overloaded', 'message' => 'Server overloaded']], 'overloaded', 'Server overloaded', ['total_input_tokens' => 10, 'total_output_tokens' => 2]],
             'cancelled' => ['cancelled', [], 'cancelled', 'The Gemini interaction did not complete.'],
         ];
     }

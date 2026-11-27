@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Streaming\Events;
 
+use Hypervel\Ai\Responses\Data\TextUsage;
+
 class Error extends StreamEvent
 {
     /**
      * Create a stream error event.
+     *
+     * @param null|TextUsage $usage the usage the provider reported before the stream failed, if any
      */
     public function __construct(
         public string $id,
@@ -16,6 +20,7 @@ class Error extends StreamEvent
         public bool $recoverable,
         public int $timestamp,
         public ?array $metadata = null,
+        public ?TextUsage $usage = null,
     ) {
     }
 
@@ -42,6 +47,7 @@ class Error extends StreamEvent
             'recoverable' => $this->recoverable,
             'timestamp' => $this->timestamp,
             'metadata' => $this->metadata,
+            'usage' => $this->usage?->toArray(),
         ];
     }
 }

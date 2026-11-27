@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Groq;
 
-use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\RequestException;
@@ -110,7 +110,7 @@ class ErrorHandlingTest extends TestCase
 
     public function testErrorIn200ResponseThrowsAiException(): void
     {
-        $this->expectException(AiException::class);
+        $this->expectException(ProviderResponseException::class);
         $this->expectExceptionMessage('Groq Error');
         Http::fake([
             'api.groq.com/*' => Http::response([

@@ -410,9 +410,17 @@ class AiIntegration extends Feature
     {
         $invocation = AiTracingScope::current()?->state->invocations->get($event->invocationId);
 
-        if ($invocation !== null && $invocation->activeStep === $event->stepNumber) {
-            $invocation->finishActiveChatSpan(AiTracingState::failureStatus($event->exception));
+        if ($invocation === null || $invocation->activeStep !== $event->stepNumber || $invocation->activeChatSpan === null) {
+            return;
         }
+
+        if ($event->usage !== null) {
+            $data = new AiSpanDataBag($invocation->activeChatSpan->getData());
+            $data->setTokenUsage($event->usage);
+            $invocation->activeChatSpan->setData($data->toArray());
+        }
+
+        $invocation->finishActiveChatSpan(AiTracingState::failureStatus($event->exception));
     }
 
     /**

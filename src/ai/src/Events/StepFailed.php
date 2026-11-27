@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Events;
 
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Throwable;
 
 class StepFailed
@@ -15,6 +16,7 @@ class StepFailed
      *
      * @param Throwable $exception a StreamErrorException carries the provider's error event on ->error when available, or null
      * @param float $time wall time spent in the provider call before it failed, in milliseconds
+     * @param null|TextUsage $usage the usage the provider reported before the step failed, if any
      */
     public function __construct(
         public string $invocationId,
@@ -25,6 +27,7 @@ class StepFailed
         public bool $isFinalStep,
         public Throwable $exception,
         public float $time,
+        public ?TextUsage $usage = null,
     ) {
     }
 }

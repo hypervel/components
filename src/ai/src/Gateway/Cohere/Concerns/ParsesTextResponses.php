@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Cohere\Concerns;
 
 use Hypervel\Ai\Concerns\JoinsReasoning;
-use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
@@ -22,12 +22,12 @@ trait ParsesTextResponses
     /**
      * Validate the Cohere response data.
      *
-     * @throws AiException
+     * @throws ProviderResponseException
      */
     protected function validateTextResponse(mixed $data): void
     {
         if (! is_array($data) || ! is_array($data['message'] ?? null)) {
-            throw new AiException(sprintf(
+            throw new ProviderResponseException(sprintf(
                 'Cohere Error: %s',
                 is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : 'Unknown Cohere error.',
             ));

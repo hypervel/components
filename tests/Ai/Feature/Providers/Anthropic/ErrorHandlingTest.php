@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
-use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\InsufficientCreditsException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
@@ -91,7 +91,7 @@ class ErrorHandlingTest extends TestCase
 
     public function testErrorIn200ResponseThrowsAiException(): void
     {
-        $this->expectException(AiException::class);
+        $this->expectException(ProviderResponseException::class);
         $this->expectExceptionMessage('api_error');
         Http::fake([
             'api.anthropic.com/*' => Http::response([

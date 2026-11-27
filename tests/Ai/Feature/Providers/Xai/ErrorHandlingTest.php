@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Xai;
 
-use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Events\StepFailed;
 use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\Client\Response;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\TestCase;
@@ -73,7 +75,7 @@ class ErrorHandlingTest extends TestCase
 
     public function testErrorIn200ResponseThrowsAiException(): void
     {
-        $this->expectException(AiException::class);
+        $this->expectException(ProviderResponseException::class);
         $this->expectExceptionMessage('xAI Error');
         Http::fake([
             '*' => Http::response([
@@ -89,7 +91,8 @@ class ErrorHandlingTest extends TestCase
 
     public function testFailedStatusResponseThrowsAiException(): void
     {
-        $this->expectException(AiException::class);
+        Event::fake([StepFailed::class]);
+        $this->expectException(ProviderResponseException::class);
         $this->expectExceptionMessage('xAI Error: [server_error] The response failed.');
         Http::fake([
             '*' => Http::response([
@@ -105,7 +108,11 @@ class ErrorHandlingTest extends TestCase
             ], 200),
         ]);
 
-        (new AssistantAgent)->prompt('Hi', provider: 'xai');
+        try {
+            (new AssistantAgent)->prompt('Hi', provider: 'xai');
+        } finally {
+            Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->usage?->totalTokens() === 0);
+        }
     }
 
     #[DataProvider('rejectedApiKeys')]

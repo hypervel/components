@@ -8,6 +8,7 @@ use Hypervel\Ai\Concerns\JoinsReasoning;
 use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\InsufficientCreditsException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\StepResponse;
@@ -42,7 +43,7 @@ trait ParsesTextResponses
                 $code === 429 => RateLimitedException::class,
                 $code === 402 => InsufficientCreditsException::class,
                 in_array($code, $this->overloadedStatusCodes(), true) => ProviderOverloadedException::class,
-                default => AiException::class,
+                default => ProviderResponseException::class,
             };
 
             throw new $exception(sprintf(

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\OpenRouter;
 use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\InsufficientCreditsException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\RequestException;
@@ -95,6 +96,7 @@ class ErrorHandlingTest extends TestCase
 
         $this->assertInstanceOf(AiException::class, $exception);
         $this->assertSame($exceptionClass, $exception::class);
+        $this->assertSame($error['code'] ?? 0, $exception->getCode());
         $this->assertSame(sprintf('OpenRouter Error: [%s] %s', $error['type'] ?? $error['code'], $error['message']), $exception->getMessage());
     }
 
@@ -104,11 +106,11 @@ class ErrorHandlingTest extends TestCase
     public static function bodyErrors(): array
     {
         return [
-            [['type' => 'invalid_request_error', 'message' => 'The model does not exist.'], false, AiException::class],
+            [['type' => 'invalid_request_error', 'message' => 'The model does not exist.'], false, ProviderResponseException::class],
             [['code' => 402, 'message' => 'Insufficient credits'], false, InsufficientCreditsException::class],
             [['code' => 503, 'message' => 'Provider overloaded'], true, ProviderOverloadedException::class],
             [['code' => 502, 'message' => 'Provider disconnected mid-stream'], true, ProviderOverloadedException::class],
-            [['code' => 400, 'message' => 'Invalid request'], true, AiException::class],
+            [['code' => 400, 'message' => 'Invalid request'], true, ProviderResponseException::class],
         ];
     }
 

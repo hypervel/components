@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Gemini\Concerns;
 
 use Hypervel\Ai\Concerns\JoinsReasoning;
-use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
@@ -32,12 +32,12 @@ trait ParsesTextResponses
     /**
      * Validate the Gemini response data.
      *
-     * @throws AiException
+     * @throws ProviderResponseException
      */
     protected function validateTextResponse(array $data): void
     {
         if (! $data || isset($data['error'])) {
-            throw new AiException(sprintf(
+            throw new ProviderResponseException(sprintf(
                 'Gemini Error: [%s] %s',
                 $data['error']['code'] ?? 'unknown',
                 $data['error']['message'] ?? 'Unknown Gemini error.',
@@ -48,11 +48,14 @@ trait ParsesTextResponses
 
         // A withheld answer is reported as a finish reason rather than thrown...
         if (in_array($data['status'] ?? '', ['failed', 'cancelled'], true) && ! $this->wasBlocked($errors)) {
-            throw new AiException(sprintf(
-                'Gemini Error: [%s] %s',
-                $errors[0]['code'] ?? $data['status'],
-                $errors[0]['message'] ?? 'The Gemini interaction did not complete.',
-            ));
+            throw new ProviderResponseException(
+                sprintf(
+                    'Gemini Error: [%s] %s',
+                    $errors[0]['code'] ?? $data['status'],
+                    $errors[0]['message'] ?? 'The Gemini interaction did not complete.',
+                ),
+                usage: isset($data['usage']) ? $this->extractUsage($data) : null,
+            );
         }
     }
 

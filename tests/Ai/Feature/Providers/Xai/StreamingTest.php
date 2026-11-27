@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Xai;
 
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Responses\Data\FinishReason;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ProviderToolEvent;
@@ -346,7 +347,7 @@ class StreamingTest extends TestCase
     }
 
     #[DataProvider('errorEvents')]
-    public function testStreamingErrorEventStopsStream(array $event): void
+    public function testStreamingErrorEventStopsStream(array $event, ?TextUsage $usage = null): void
     {
         Http::fake([
             '*' => Http::response(
@@ -369,6 +370,7 @@ class StreamingTest extends TestCase
         $this->assertInstanceOf(Error::class, $error);
         $this->assertSame('server_error', $error->type);
         $this->assertSame('Internal server error', $error->message);
+        $this->assertEquals($usage, $error->usage);
     }
 
     /**
@@ -380,7 +382,11 @@ class StreamingTest extends TestCase
             'nested code' => [['type' => 'error', 'error' => ['code' => 'server_error', 'message' => 'Internal server error']]],
             'nested type' => [['type' => 'error', 'error' => ['type' => 'server_error', 'message' => 'Internal server error']]],
             'flat error' => [['type' => 'error', 'code' => 'server_error', 'message' => 'Internal server error']],
-            'failed response' => [['type' => 'response.failed', 'response' => ['status' => 'failed', 'error' => ['code' => 'server_error', 'message' => 'Internal server error']]]],
+            'failed response' => [['type' => 'response.failed', 'response' => [
+                'status' => 'failed',
+                'error' => ['code' => 'server_error', 'message' => 'Internal server error'],
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 2],
+            ]], new TextUsage(10, 2)],
         ];
     }
 

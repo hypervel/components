@@ -211,6 +211,7 @@ trait HandlesTextStreaming
                 $errors[0]['message'] ?? 'The Gemini interaction did not complete.',
                 false,
                 time(),
+                usage: isset($final['usage']) ? $this->extractUsage($final) : null,
             ))->withInvocationId($invocationId);
 
             return null;

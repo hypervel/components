@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Cohere;
 
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Responses\Data\FinishReason;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Ai\Streaming\Events\ReasoningEnd;
@@ -209,7 +210,11 @@ class StreamingTest extends TestCase
     {
         Http::fake(['*' => $this->fakeStreamResponse([
             ['type' => 'content-delta', 'index' => 0, 'delta' => ['message' => ['content' => ['text' => 'Hel']]]],
-            ['type' => 'message-end', 'delta' => ['finish_reason' => 'TIMEOUT', 'error' => 'Generation timed out']],
+            ['type' => 'message-end', 'delta' => [
+                'finish_reason' => 'TIMEOUT',
+                'error' => 'Generation timed out',
+                'usage' => ['tokens' => ['input_tokens' => 10, 'output_tokens' => 2]],
+            ]],
         ])]);
 
         $error = null;
@@ -223,6 +228,7 @@ class StreamingTest extends TestCase
         $this->assertInstanceOf(Error::class, $error);
         $this->assertSame('timeout', $error->type);
         $this->assertSame('Generation timed out', $error->message);
+        $this->assertEquals(new TextUsage(10, 2), $error->usage);
     }
 
     #[DataProvider('unfinishedStreams')]

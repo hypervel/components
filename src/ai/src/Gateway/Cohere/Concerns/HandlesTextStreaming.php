@@ -143,6 +143,7 @@ trait HandlesTextStreaming
                             $delta['error'],
                             false,
                             time(),
+                            usage: isset($delta['usage']) ? $this->extractUsage($delta['usage']) : null,
                         ))->withInvocationId($invocationId);
 
                         return null;

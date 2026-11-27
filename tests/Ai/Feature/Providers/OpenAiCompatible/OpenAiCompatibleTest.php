@@ -10,6 +10,7 @@ use Hypervel\Ai\Contracts\HasProviderOptions;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Promptable;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Streaming\Events\ToolInputError;
@@ -291,11 +292,17 @@ class OpenAiCompatibleTest extends TestCase
         $this->assertSame(10, $response->usage->reasoningTokens);
     }
 
-    public function testStreamingRejectsPrematureEof(): void
+    #[DataProvider('failedStreams')]
+    public function testStreamingFailureKeepsReportedUsage(?array $errorFrame, string $type, string $message): void
     {
-        Http::fake(['*' => Http::response('data: ' . json_encode([
+        $stream = 'data: ' . json_encode([
             'choices' => [['index' => 0, 'delta' => ['content' => 'Partial'], 'finish_reason' => null]],
-        ]) . "\n\n")]);
+            'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 2],
+        ]) . "\n\n";
+        if ($errorFrame !== null) {
+            $stream .= 'data: ' . json_encode($errorFrame) . "\n\n";
+        }
+        Http::fake(['*' => Http::response($stream)]);
 
         $error = null;
 
@@ -306,26 +313,20 @@ class OpenAiCompatibleTest extends TestCase
         }
 
         $this->assertInstanceOf(Error::class, $error);
-        $this->assertSame('incomplete_stream', $error->type);
+        $this->assertSame($type, $error->type);
+        $this->assertSame($message, $error->message);
+        $this->assertEquals(new TextUsage(10, 2), $error->usage);
     }
 
-    public function testStreamingPreservesNumericErrorCodes(): void
+    /**
+     * Provide error and premature EOF endings for a partially consumed response.
+     */
+    public static function failedStreams(): array
     {
-        Http::fake(['*' => Http::response('data: ' . json_encode([
-            'error' => ['code' => 500, 'message' => 'Generation failed'],
-        ]) . "\n\n")]);
-
-        $error = null;
-
-        try {
-            agent()->stream('Hello', provider: 'openai-compatible')->each(fn (): true => true);
-        } catch (StreamErrorException $exception) {
-            $error = $exception->error;
-        }
-
-        $this->assertInstanceOf(Error::class, $error);
-        $this->assertSame('500', $error->type);
-        $this->assertSame('Generation failed', $error->message);
+        return [
+            'premature EOF' => [null, 'incomplete_stream', 'The provider stream ended before the response was complete.'],
+            'numeric error code' => [['error' => ['code' => 500, 'message' => 'Generation failed']], '500', 'Generation failed'],
+        ];
     }
 
     public function testStreamingOmitsStreamOptionsByDefault(): void
