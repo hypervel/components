@@ -23,6 +23,7 @@ use Hypervel\Ai\Gateway\Bedrock\Concerns\MapsAttachments;
 use Hypervel\Ai\Gateway\Cohere\Concerns\ParsesEmbeddings;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
@@ -67,6 +68,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
     use JoinsReasoning;
     use MapsAttachments;
     use ParsesEmbeddings;
+    use StreamsToolInput;
 
     protected const string STRUCTURED_OUTPUT_TOOL = 'structured_output';
 
@@ -313,6 +315,7 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
 
         $assistantText = '';
         $pendingToolCalls = [];
+        $incompleteToolCalls = [];
         $toolCalls = [];
         $structuredOutput = null;
         $currentBlockIndex = null;
@@ -367,6 +370,11 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                         'name' => $start['toolUse']['name'] ?? '',
                         'input' => '',
                     ];
+
+                    // Unlike upstream, keep the synthetic structured-output tool internal when generateStreamStep() is called with a schema.
+                    if (! ($structured && $pendingToolCalls[$currentBlockIndex]['name'] === self::STRUCTURED_OUTPUT_TOOL)) {
+                        yield from $this->toolInputStart($invocationId, $pendingToolCalls[$currentBlockIndex]['id'], $pendingToolCalls[$currentBlockIndex]['name']);
+                    }
                 }
 
                 continue;
@@ -430,6 +438,10 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                     $currentReasoningRedacted .= $delta['reasoningContent']['redactedContent'];
                 } elseif (isset($delta['toolUse']['input'], $pendingToolCalls[$index])) {
                     $pendingToolCalls[$index]['input'] .= $delta['toolUse']['input'];
+
+                    if (! ($structured && $pendingToolCalls[$index]['name'] === self::STRUCTURED_OUTPUT_TOOL)) {
+                        yield from $this->toolInputDelta($invocationId, $pendingToolCalls[$index]['id'], $pendingToolCalls[$index]['name'], (string) $delta['toolUse']['input']);
+                    }
                 }
 
                 continue;
@@ -499,11 +511,17 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
                             ],
                         ];
 
-                        yield (new ToolCallEvent(
+                        $toolCallEvent = (new ToolCallEvent(
                             (string) Str::uuid(),
                             $toolCall,
                             $timestamp,
                         ))->withInvocationId($invocationId);
+
+                        if ($this->isCompleteToolInput($pending['input'])) {
+                            yield $toolCallEvent;
+                        } else {
+                            $incompleteToolCalls[] = [$toolCallEvent, $pending['input']];
+                        }
                     }
 
                     unset($pendingToolCalls[$index]);
@@ -572,6 +590,12 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
         // Like the Anthropic API, Converse can end a message holding toolUse blocks with end_turn, so the tool calls still need to run.
         if ($finishReason === FinishReason::Stop && $toolCalls !== []) {
             $finishReason = FinishReason::ToolCalls;
+        }
+
+        foreach ($incompleteToolCalls as [$toolCallEvent, $input]) {
+            if (! $this->wasCutOff($input, $finishReason)) {
+                yield $toolCallEvent;
+            }
         }
 
         $replayBlocks = array_values($responseContent);
@@ -1086,5 +1110,13 @@ class BedrockTextGateway implements EmbeddingGateway, StepTextGateway
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Generate a unique ID for a stream event.
+     */
+    protected function generateEventId(): string
+    {
+        return (string) Str::uuid();
     }
 }

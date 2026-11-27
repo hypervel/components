@@ -26,6 +26,9 @@ use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
@@ -43,6 +46,13 @@ class AgentUserInteractionProtocol extends StreamProtocol
     protected int $step = 0;
 
     protected bool $finished = false;
+
+    /**
+     * Whether each tool call whose input is streaming has streamed any arguments, keyed by ID.
+     *
+     * @var array<string, bool>
+     */
+    protected array $streamingToolCalls = [];
 
     protected ?StreamableAgentResponse $response = null;
 
@@ -63,6 +73,7 @@ class AgentUserInteractionProtocol extends StreamProtocol
         $this->started = false;
         $this->errored = false;
         $this->finished = false;
+        $this->streamingToolCalls = [];
         $this->step = 0;
         $this->response = $response;
 
@@ -294,10 +305,73 @@ class AgentUserInteractionProtocol extends StreamProtocol
      */
     protected function toolCallParts(ToolCallData $call): array
     {
+        if (! array_key_exists($call->id, $this->streamingToolCalls)) {
+            return [
+                ['type' => 'TOOL_CALL_START', 'toolCallId' => $call->id, 'toolCallName' => $call->name],
+                ['type' => 'TOOL_CALL_ARGS', 'toolCallId' => $call->id, 'delta' => $this->json((object) $call->arguments)],
+                ['type' => 'TOOL_CALL_END', 'toolCallId' => $call->id],
+            ];
+        }
+
+        // The start and any streamed arguments were already sent...
+        if (Arr::pull($this->streamingToolCalls, $call->id)) {
+            return [['type' => 'TOOL_CALL_END', 'toolCallId' => $call->id]];
+        }
+
         return [
-            ['type' => 'TOOL_CALL_START', 'toolCallId' => $call->id, 'toolCallName' => $call->name],
             ['type' => 'TOOL_CALL_ARGS', 'toolCallId' => $call->id, 'delta' => $this->json((object) $call->arguments)],
             ['type' => 'TOOL_CALL_END', 'toolCallId' => $call->id],
+        ];
+    }
+
+    /**
+     * Get the protocol parts that start the given tool call as its input begins to stream.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function toolInputStartParts(ToolInputStart $event): array
+    {
+        $this->streamingToolCalls[$event->toolId] = false;
+
+        return [['type' => 'TOOL_CALL_START', 'toolCallId' => $event->toolId, 'toolCallName' => $event->toolName]];
+    }
+
+    /**
+     * Get the protocol parts that carry the given fragment of a tool call's input.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function toolInputDeltaParts(ToolInputDelta $event): array
+    {
+        $this->streamingToolCalls[$event->toolId] = true;
+
+        return [['type' => 'TOOL_CALL_ARGS', 'toolCallId' => $event->toolId, 'delta' => $event->delta]];
+    }
+
+    /**
+     * Get the protocol parts that end and fail the given tool call, whose input never completed.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function toolInputErrorParts(ToolInputError $event): array
+    {
+        if (! array_key_exists($event->toolId, $this->streamingToolCalls)) {
+            return [];
+        }
+
+        unset($this->streamingToolCalls[$event->toolId]);
+
+        // The result keeps a client from running a call whose arguments were cut off...
+        return [
+            ['type' => 'TOOL_CALL_END', 'toolCallId' => $event->toolId],
+            [
+                'type' => 'TOOL_CALL_RESULT',
+                'messageId' => $event->id,
+                'toolCallId' => $event->toolId,
+                'content' => $event->error,
+                'role' => 'tool',
+                'metadata' => ['error' => $event->error],
+            ],
         ];
     }
 
@@ -336,6 +410,9 @@ class AgentUserInteractionProtocol extends StreamProtocol
                 ['type' => 'REASONING_MESSAGE_END', 'messageId' => $event->reasoningId],
                 ['type' => 'REASONING_END', 'messageId' => $event->reasoningId],
             ],
+            $event instanceof ToolInputStart => $this->toolInputStartParts($event),
+            $event instanceof ToolInputDelta => $this->toolInputDeltaParts($event),
+            $event instanceof ToolInputError => $this->toolInputErrorParts($event),
             $event instanceof ToolCall => $this->toolCallParts($event->toolCall),
             $event instanceof ToolResult => [$event->preliminary
                 ? $this->preliminaryToolResultPart($event)

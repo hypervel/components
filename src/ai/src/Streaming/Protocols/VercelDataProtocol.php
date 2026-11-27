@@ -22,6 +22,9 @@ use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Support\Arr;
 
@@ -203,6 +206,23 @@ class VercelDataProtocol extends StreamProtocol
             $event instanceof ReasoningEnd => [
                 'type' => 'reasoning-end',
                 'id' => $event->reasoningId,
+            ],
+            $event instanceof ToolInputStart => [
+                'type' => 'tool-input-start',
+                'toolCallId' => $event->toolId,
+                'toolName' => $event->toolName,
+            ],
+            $event instanceof ToolInputDelta => [
+                'type' => 'tool-input-delta',
+                'toolCallId' => $event->toolId,
+                'inputTextDelta' => $event->delta,
+            ],
+            $event instanceof ToolInputError => [
+                'type' => 'tool-input-error',
+                'toolCallId' => $event->toolId,
+                'toolName' => $event->toolName,
+                'input' => $event->input,
+                'errorText' => $event->error,
             ],
             $event instanceof ToolCall => [
                 'type' => 'tool-input-available',

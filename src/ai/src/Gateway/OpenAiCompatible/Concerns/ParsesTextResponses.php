@@ -56,6 +56,8 @@ trait ParsesTextResponses
         ), $rawToolCalls);
 
         $finishReason = $this->extractFinishReason($choice);
+        $reasoningField = isset($message['reasoning_content']) ? 'reasoning_content' : 'reasoning';
+        $reasoning = (string) ($message[$reasoningField] ?? '');
 
         return new StepResponse(
             text: $text,
@@ -64,7 +66,8 @@ trait ParsesTextResponses
             usage: $this->extractUsage($data),
             meta: new Meta($provider->name(), $model),
             structured: $structured ? $this->decodeStructuredOutput($text) : null,
-            reasoning: (string) ($message['reasoning_content'] ?? $message['reasoning'] ?? ''),
+            replayBlocks: $reasoning === '' ? [] : [['type' => 'reasoning', $reasoningField => $reasoning]],
+            reasoning: $reasoning,
         );
     }
 

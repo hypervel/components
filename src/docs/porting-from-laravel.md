@@ -569,7 +569,7 @@ PHP's native request functions act on the worker process, not the request being 
 
 Agent and stream-event `broadcast` calls send immediately by default; pass `now: false` where you relied on queued delivery. See [broadcasting](/docs/{{version}}/ai-sdk#broadcasting).
 
-Agent broadcasts also batch adjacent text/reasoning deltas by default. Each batch retains the first delta's ID and timestamp; the response's original events remain unchanged. Clients that depend on individual provider chunks, match broadcasts one-for-one against response events, or order their own broadcasts against those deltas should set `ai.broadcasting.batching.enabled` to `false` or adapt to [batched delivery](/docs/{{version}}/ai-sdk#broadcast-batching).
+Agent broadcasts also batch adjacent text, reasoning, and tool input deltas by default. Each batch retains the first delta's ID and timestamp; the response's original events remain unchanged. Clients that depend on individual provider chunks, match broadcasts one-for-one against response events, or order their own broadcasts against those deltas should set `ai.broadcasting.batching.enabled` to `false` or adapt to [batched delivery](/docs/{{version}}/ai-sdk#broadcast-batching).
 
 Agent overrides of `Promptable::getProvidersAndModels()` must return an ordered list of provider/model pairs, such as `[['openai', 'gpt-4o']]`, instead of `['openai' => 'gpt-4o']`. The provider may also be a `Provider` object, preserving its credentials. Failover lists retain repeated entries as separate attempts. See [failover](/docs/{{version}}/ai-sdk#failover).
 

@@ -6,11 +6,14 @@ namespace Hypervel\Tests\Ai;
 
 use Closure;
 use Generator;
+use Hypervel\Ai\Responses\Data\ToolCall as ToolCallData;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
+use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
 use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\Channel as BroadcastChannel;
 use Hypervel\Context\CoroutineContext;
@@ -47,6 +50,10 @@ class BroadcastBatchingTest extends TestCase
             new ReasoningDelta('summary', 'reason', '', 6, ['text' => 'Summary']),
             new TextDelta('other-message', 'other', 'Other', 7),
             (new TextDelta('other-invocation', 'other', 'Run', 8))->withInvocationId('other-run'),
+            new ToolInputDelta('input-1', 'call-1', '{"city":', 9),
+            new ToolInputDelta('input-2', 'call-1', '"Paris"}', 10),
+            new ToolInputDelta('other-input', 'call-2', '{"unit":"c"}', 11),
+            new ToolCallEvent('call-end', new ToolCallData('call-1', 'weather', ['city' => 'Paris']), 12),
         ];
         $originals = array_map(static fn (StreamEvent $event): array => $event->toArray(), $events);
         $response = new StreamableAgentResponse('invocation', static fn (): array => $events);
@@ -54,11 +61,16 @@ class BroadcastBatchingTest extends TestCase
         $response->broadcast(new BroadcastChannel('conversation'));
 
         $payloads = Event::dispatched(AnonymousEvent::class)->map(static fn (array $arguments): array => $arguments[0]->broadcastWith())->all();
-        $this->assertSame(['text-1', 'end', 'reason-1', 'summary', 'other-message', 'other-invocation'], array_column($payloads, 'id'));
+        $this->assertSame(['text-1', 'end', 'reason-1', 'summary', 'other-message', 'other-invocation', 'input-1', 'other-input', 'call-end'], array_column($payloads, 'id'));
         $this->assertSame('Hello world', $payloads[0]['delta']);
         $this->assertSame(1, $payloads[0]['timestamp']);
         $this->assertSame('Think carefully', $payloads[2]['delta']);
         $this->assertSame(['text' => 'Summary'], $payloads[3]['summary']);
+        $this->assertSame('{"city":"Paris"}', $payloads[6]['delta']);
+        $this->assertSame(9, $payloads[6]['timestamp']);
+        $this->assertSame('{"unit":"c"}', $payloads[7]['delta']);
+        $this->assertSame('tool_call', $payloads[8]['type']);
+        $this->assertSame('call-1', $payloads[8]['tool_id']);
         $this->assertSame($events, iterator_to_array($response));
         $this->assertSame($originals, array_map(static fn (StreamEvent $event): array => $event->toArray(), $events));
     }

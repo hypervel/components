@@ -144,7 +144,7 @@ class GeminiProvider extends Provider implements AudioProvider, ClassificationPr
      */
     public function defaultTextModel(): string
     {
-        return $this->config['models']['text']['default'] ?? 'gemini-3.8-flash';
+        return $this->config['models']['text']['default'] ?? 'gemini-4-hydrogen';
     }
 
     /**
@@ -160,7 +160,7 @@ class GeminiProvider extends Provider implements AudioProvider, ClassificationPr
      */
     public function smartestTextModel(): string
     {
-        return $this->config['models']['text']['smartest'] ?? 'gemini-3.8-flash';
+        return $this->config['models']['text']['smartest'] ?? 'gemini-4-carbon';
     }
 
     /**

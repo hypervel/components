@@ -9,7 +9,7 @@ Documentation: https://hypervel.org/docs/ai-sdk
 
 Agent and stream-event `broadcast()` methods deliver events immediately by default. Pass `now: false` to queue events; queued generation remains available. See [broadcasting](https://hypervel.org/docs/ai-sdk#broadcasting).
 
-Agent broadcasts batch adjacent text/reasoning deltas by default within a 50 ms window, retaining original events for replay. Set `ai.broadcasting.batching.enabled` to `false` for individual-event delivery. See [broadcast batching](https://hypervel.org/docs/ai-sdk#broadcast-batching).
+Agent broadcasts batch adjacent text, reasoning, and tool input deltas by default within a 50 ms window, retaining original events for replay. Set `ai.broadcasting.batching.enabled` to `false` for individual-event delivery. See [broadcast batching](https://hypervel.org/docs/ai-sdk#broadcast-batching).
 
 Queued AI jobs' `failed()` hooks accept `?Throwable` so manual failures without an exception reach their callbacks. Overrides must accept null as well.
 
@@ -18,6 +18,8 @@ Queued AI jobs' `failed()` hooks accept `?Throwable` so manual failures without 
 Pending requests' protected `resolveProviderOptionsAndHeaders()` helper accepts the provider contract so custom implementations work. `PendingEmbeddingsGeneration`'s protected caching helpers receive precomputed identities or keys, keeping cache reads and writes consistent without repeated identity calculation. Subclasses overriding these helpers must match the Hypervel signatures; public generation and caching methods are unchanged.
 
 `RunContext::startingStep()` accepts optional trailing `?string $instructions = null` and `array $tools = []` parameters so listeners receive the resolved step inputs. Overrides must accept these parameters too.
+
+`TextGenerationLoop` replaces protected `unfinishedToolInputs()` with by-reference `trackUnfinishedToolInput(array &$toolInputs, StreamEvent $event): void` to avoid copying accumulated tool inputs on every streamed delta.
 
 Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored tool approvals safely. Claim-owned per-result recording replaces the protected `ResumesToolApprovals::storeApprovalResultRecorderFor()` helper, which is removed. Stores read `AgentPrompt::approvalClaim()` when settling the turn. Ordinary conversations and stateless resumption remain available without that capability.
 

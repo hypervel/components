@@ -26,6 +26,10 @@ use Hypervel\Tests\Ai\Fixtures\CohereHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
+
 class StreamingTest extends TestCase
 {
     use CohereHelpers;
@@ -95,6 +99,43 @@ class StreamingTest extends TestCase
         $followUp = json_decode((string) Http::recorded()[1][0]->body(), true);
 
         $this->assertSame('get_number_ejj5xe67w3e1', collect($followUp['messages'])->firstWhere('role', 'tool')['tool_call_id']);
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        Http::fake([
+            '*' => Http::sequence([
+                $this->fakeStreamResponse($this->streamToolCallEvents('FixedNumberGenerator', 'get_number_ejj5xe67w3e1', ['', '{"sta', 'rt":1}'])),
+                $this->fakeStreamResponse($this->streamTextEvents('The number is 72019')),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'get_number_ejj5xe67w3e1', 'FixedNumberGenerator'],
+            ['delta', 'get_number_ejj5xe67w3e1', '{"sta'],
+            ['delta', 'get_number_ejj5xe67w3e1', 'rt":1}'],
+            ['call', 'get_number_ejj5xe67w3e1', ['start' => 1]],
+        ], toolInputEvents($events));
+    }
+
+    public function testStreamingFailsAToolCallTheLengthLimitCutOffInsteadOfCallingIt(): void
+    {
+        Http::fake([
+            '*' => $this->fakeStreamResponse([
+                ...array_slice($this->streamToolCallEvents('FixedNumberGenerator', 'call_1', ['{"sta']), 0, -1),
+                ['type' => 'message-end', 'delta' => ['finish_reason' => 'MAX_TOKENS', 'usage' => ['tokens' => ['input_tokens' => 10, 'output_tokens' => 5]]]],
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'call_1', 'FixedNumberGenerator'],
+            ['delta', 'call_1', '{"sta'],
+            ['error', 'call_1', '{"sta'],
+        ], toolInputEvents($events));
     }
 
     public function testStreamingIgnoresToolPlanDeltas(): void

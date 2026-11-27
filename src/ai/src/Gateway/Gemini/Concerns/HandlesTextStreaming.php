@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Gemini\Concerns;
 
 use Generator;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\Meta;
@@ -26,6 +27,8 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextStreaming
 {
+    use StreamsToolInput;
+
     /**
      * Process a Gemini streaming response and yield Hypervel stream events.
      *
@@ -84,6 +87,10 @@ trait HandlesTextStreaming
 
             if (isset($data['step']) && is_array($data['step'])) {
                 $steps[$index] = array_merge($steps[$index] ?? [], $data['step']);
+            }
+
+            if ($event === 'step.start' && ($steps[$index]['type'] ?? '') === 'function_call') {
+                yield from $this->toolInputStart($invocationId, $steps[$index]['id'] ?? null, $steps[$index]['name'] ?? null);
             }
 
             $delta = $data['delta'] ?? null;
@@ -164,6 +171,8 @@ trait HandlesTextStreaming
 
                     $steps[$index]['type'] ??= 'function_call';
                     $steps[$index]['arguments'] = $this->decodeArguments($partialArguments[$index]);
+
+                    yield from $this->toolInputDelta($invocationId, $steps[$index]['id'] ?? null, $steps[$index]['name'] ?? null, (string) ($delta['arguments'] ?? ''));
                 }
             }
 
@@ -223,9 +232,13 @@ trait HandlesTextStreaming
             ))->withInvocationId($invocationId);
         }
 
-        $steps = array_values($steps);
+        $finishReason = $this->extractFinishReason($final, []);
 
-        $functionCallSteps = $this->extractFunctionCallSteps($steps);
+        $cutOffSteps = array_filter($partialArguments, fn (string $arguments): bool => $this->wasCutOff($arguments, $finishReason));
+
+        $functionCallSteps = $this->extractFunctionCallSteps(array_values(array_diff_key($steps, $cutOffSteps)));
+
+        $steps = array_values($steps);
         $toolCalls = $this->mapToolCalls($functionCallSteps, $this->thoughtSignature($steps));
 
         foreach ($toolCalls as $toolCall) {

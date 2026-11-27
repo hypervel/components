@@ -32,6 +32,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
+
 class StreamingTest extends TestCase
 {
     use AnthropicHelpers;
@@ -186,6 +190,73 @@ class StreamingTest extends TestCase
         $this->assertSame('FixedNumberGenerator', $toolCallEvents[0]->toolCall->name);
         $this->assertSame('toolu_1', $toolCallEvents[0]->toolCall->id);
         $this->assertSame('The number is 72019', TextDelta::combine($events));
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                        // Anthropic opens a tool input with an empty fragment, which carries no delta...
+                        $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => '{"sta']),
+                        $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => 'rt":1}']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('tool_use', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'The number is 72019']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 10),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'toolu_1', 'FixedNumberGenerator'],
+            ['delta', 'toolu_1', '{"sta'],
+            ['delta', 'toolu_1', 'rt":1}'],
+            ['call', 'toolu_1', ['start' => 1]],
+        ], toolInputEvents($events));
+    }
+
+    public function testStreamingFailsAToolCallTheLengthLimitCutOffInsteadOfCallingIt(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response(
+                body: $this->ssePayload([
+                    $this->messageStart(),
+                    $this->contentBlockStart(0, ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                    $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => '{"sta']),
+                    $this->contentBlockStop(0),
+                    $this->messageDelta('max_tokens', 5),
+                ]),
+                status: 200,
+                headers: ['Content-Type' => 'text/event-stream'],
+            ),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'toolu_1', 'FixedNumberGenerator'],
+            ['delta', 'toolu_1', '{"sta'],
+            ['error', 'toolu_1', '{"sta'],
+        ], toolInputEvents($events));
     }
 
     #[TestWith([false])]

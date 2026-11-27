@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Xai\Concerns;
 
 use Generator;
+use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\Meta;
@@ -27,6 +28,8 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextStreaming
 {
+    use StreamsToolInput;
+
     /**
      * Process an xAI streaming response for a single turn and yield Hypervel stream events.
      *
@@ -220,6 +223,8 @@ trait HandlesTextStreaming
 
                 $pendingToolCalls[$index] = $toolCall;
 
+                yield from $this->toolInputStart($invocationId, $toolCall['id'], $toolCall['name']);
+
                 continue;
             }
 
@@ -228,7 +233,11 @@ trait HandlesTextStreaming
 
                 foreach ($pendingToolCalls as &$call) {
                     if (($call['id'] ?? null) === $callId) {
-                        $call['arguments'] .= $data['delta'] ?? '';
+                        $delta = (string) ($data['delta'] ?? '');
+                        $call['arguments'] .= $delta;
+
+                        yield from $this->toolInputDelta($invocationId, $callId, $call['name'], $delta);
+
                         break;
                     }
                 }

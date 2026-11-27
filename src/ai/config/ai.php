@@ -68,9 +68,10 @@ return [
     | Broadcast Batching
     |--------------------------------------------------------------------------
     |
-    | Combine adjacent text and reasoning deltas to reduce broadcast requests.
-    | The window is measured from the first delta, and the byte limit counts
-    | JSON-encoded delta content. Disable batching for individual delivery.
+    | Combine adjacent text, reasoning, and tool input deltas to reduce
+    | broadcast requests. The window is measured from the first delta, and
+    | the byte limit counts JSON-encoded delta content. Disable batching for
+    | individual delivery.
     |
     */
 
@@ -135,7 +136,7 @@ return [
             'driver' => 'azure',
             'key' => env('AZURE_OPENAI_API_KEY'),
             'url' => env('AZURE_OPENAI_URL'),
-            'deployment' => env('AZURE_OPENAI_DEPLOYMENT', 'gpt-6-sol'),
+            'deployment' => env('AZURE_OPENAI_DEPLOYMENT', 'gpt-6.2-sol'),
             'embedding_deployment' => env('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small'),
             'image_deployment' => env('AZURE_OPENAI_IMAGE_DEPLOYMENT', 'gpt-image-2.5-flare'),
             'store' => (bool) env('AZURE_OPENAI_STORE', true),

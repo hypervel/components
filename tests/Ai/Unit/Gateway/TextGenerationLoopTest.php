@@ -59,6 +59,9 @@ use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolInputDelta;
+use Hypervel\Ai\Streaming\Events\ToolInputError;
+use Hypervel\Ai\Streaming\Events\ToolInputStart;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Ai\Tools\Request;
@@ -267,6 +270,102 @@ class TextGenerationLoopTest extends TestCase
         $this->assertSame('call-1', $approvalEvents->first()->pendingApprovals[0]->id);
         $this->assertCount(0, collect($events)->whereInstanceOf(ToolResultEvent::class));
         $this->assertCount(1, collect($events)->whereInstanceOf(StreamEnd::class));
+    }
+
+    public function testItFailsAStreamedToolInputThatTheStepNeverCalled(): void
+    {
+        $toolCall = new ToolCall('call-done', 'search', ['q' => 'a'], 'call-done');
+        $gateway = new TextGenerationLoopFakeGateway(streams: [
+            textGenerationLoopStreamStep(
+                events: [
+                    new ToolInputStart('input-start-1', 'call-done', 'search', time()),
+                    new ToolInputDelta('input-delta-1', 'call-done', '{"q":"a"}', time()),
+                    new ToolCallEvent('tool-call-event', $toolCall, time()),
+                    new ToolInputStart('input-start-2', 'call-cut', 'search', time()),
+                    new ToolInputDelta('input-delta-2', 'call-cut', '{"q":', time()),
+                ],
+                returns: new StepResponse('', [], FinishReason::Length, new TextUsage, new Meta('fake', 'model')),
+            ),
+        ]);
+
+        $events = array_values(iterator_to_array((new TextGenerationLoop($gateway))->stream('invocation-1', textGenerationLoopProvider(), 'model', null)));
+
+        $this->assertSame([
+            ToolInputStart::class,
+            ToolInputDelta::class,
+            ToolCallEvent::class,
+            ToolInputStart::class,
+            ToolInputDelta::class,
+            ToolInputError::class,
+            StreamEnd::class,
+        ], array_map(fn (StreamEvent $event): string => $event::class, $events));
+        $this->assertInstanceOf(ToolInputError::class, $events[5]);
+        $this->assertSame('call-cut', $events[5]->toolId);
+        $this->assertSame('search', $events[5]->toolName);
+        $this->assertSame('{"q":', $events[5]->input);
+        $this->assertSame('This tool call was not executed because its input did not complete.', $events[5]->error);
+    }
+
+    public function testItFailsAnUnfinishedToolInputOnceInTheStepThatStartedIt(): void
+    {
+        $tool = new TextGenerationLoopCountingTool;
+        $toolCall = new ToolCall('call-done', 'TextGenerationLoopCountingTool', [], 'call-done');
+        $gateway = new TextGenerationLoopFakeGateway(streams: [
+            textGenerationLoopStreamStep(
+                events: [
+                    new ToolInputStart('input-start-1', 'call-cut', 'search', time()),
+                    new ToolCallEvent('tool-call-event', $toolCall, time()),
+                ],
+                returns: new StepResponse('', [$toolCall], FinishReason::ToolCalls, new TextUsage, new Meta('fake', 'model')),
+            ),
+            textGenerationLoopStreamStep(
+                events: [new TextDelta('text-delta', 'message-2', 'done', time())],
+                returns: new StepResponse('done', [], FinishReason::Stop, new TextUsage, new Meta('fake', 'model')),
+            ),
+        ]);
+
+        $events = iterator_to_array((new TextGenerationLoop($gateway))->stream(
+            'invocation-1',
+            textGenerationLoopProvider(),
+            'model',
+            null,
+            [],
+            [$tool],
+            null,
+            new TextGenerationOptions(maxSteps: 2),
+        ));
+
+        $this->assertSame([
+            ToolInputStart::class,
+            ToolCallEvent::class,
+            ToolInputError::class,
+            ToolResultEvent::class,
+            TextDelta::class,
+            StreamEnd::class,
+        ], array_map(fn (StreamEvent $event): string => $event::class, array_values($events)));
+    }
+
+    public function testItDoesNotFailAStreamedToolInputWhenTheStepErrors(): void
+    {
+        $gateway = new TextGenerationLoopFakeGateway(streams: [
+            textGenerationLoopStreamStep(events: [
+                new ToolInputStart('input-start-1', 'call-cut', 'search', time()),
+                new Error('error-1', 'server_error', 'Server overloaded', false, time()),
+            ]),
+        ]);
+
+        $events = [];
+
+        try {
+            foreach ((new TextGenerationLoop($gateway))->stream('invocation-1', textGenerationLoopProvider(), 'model', null) as $event) {
+                $events[] = $event;
+            }
+            $this->fail('Expected StreamErrorException was not thrown.');
+        } catch (StreamErrorException) {
+            // Expected.
+        }
+
+        $this->assertCount(0, collect($events)->whereInstanceOf(ToolInputError::class));
     }
 
     public function testItResumesAPausedStepRunningOnlyTheStillPendingGatedCall(): void
@@ -1355,6 +1454,27 @@ class TextGenerationLoopTest extends TestCase
 
         // Six 100 character deltas cross the 240 byte threshold twice, at 300 and at 600...
         $this->assertSame([300, 600], $preliminary->map(fn (ToolResultEvent $event): int => strlen($event->toolResult->result))->values()->all());
+    }
+
+    public function testASubAgentWritingAToolInputDoesNotReportItsUnchangedOutputAgain(): void
+    {
+        $tool = textGenerationLoopAgentTool(fn (): Generator => yield from [
+            new TextDelta('sub-delta', 'sub-message', str_repeat('Looking it up. ', 20), time()),
+            new ToolInputStart('sub-input-start', 'sub-call', 'search', time()),
+            ...array_map(
+                fn (int $index): ToolInputDelta => new ToolInputDelta("sub-input-{$index}", 'sub-call', '"a",', time()),
+                range(1, 20),
+            ),
+            new ToolInputError('sub-input-error', 'sub-call', 'search', '', 'Cut off.', time()),
+            new StreamEnd('sub-end', FinishReason::Stop->value, new TextUsage, time()),
+        ]);
+        $toolCall = new ToolCall('call-sub-agent', 'research_agent', ['task' => 'Research'], 'call-sub-agent');
+
+        $preliminary = collect(textGenerationLoopSubAgentStream([$tool], [$toolCall]))
+            ->whereInstanceOf(ToolResultEvent::class)
+            ->filter(fn (ToolResultEvent $event): bool => $event->preliminary);
+
+        $this->assertCount(1, $preliminary);
     }
 
     public function testPreliminaryOutputJoinsTheTextOfSeparateSubAgentStepsTheWayTheFinalResultDoes(): void

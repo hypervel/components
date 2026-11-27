@@ -25,6 +25,9 @@ use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Ai\agent;
+use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
+
+require_once __DIR__ . '/../../../Fixtures/helpers.php';
 
 class StreamingTest extends TestCase
 {
@@ -163,6 +166,44 @@ class StreamingTest extends TestCase
         $this->assertSame(FinishReason::Stop->value, $streamEnds[0]->reason);
         $this->assertSame(30, $streamEnds[0]->usage->inputTokens);
         $this->assertSame(15, $streamEnds[0]->usage->outputTokens);
+    }
+
+    public function testStreamingEmitsTheToolInputAsItArrivesBeforeTheToolCall(): void
+    {
+        Http::fake([
+            'api.groq.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->chatChunkToolCallStart(0, 'call_1', 'FixedNumberGenerator'),
+                        $this->chatChunkToolCallDelta(0, ''),
+                        $this->chatChunkToolCallDelta(0, '{"sta'),
+                        $this->chatChunkToolCallDelta(0, 'rt":1}'),
+                        $this->chatChunkFinish('tool_calls', ['prompt_tokens' => 10, 'completion_tokens' => 5]),
+                        '[DONE]',
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->chatChunk(['role' => 'assistant', 'content' => 'The number is 72019']),
+                        $this->chatChunkFinish('stop', ['prompt_tokens' => 20, 'completion_tokens' => 10]),
+                        '[DONE]',
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $this->assertSame([
+            ['start', 'call_1', 'FixedNumberGenerator'],
+            ['delta', 'call_1', '{"sta'],
+            ['delta', 'call_1', 'rt":1}'],
+            ['call', 'call_1', ['start' => 1]],
+        ], toolInputEvents($events));
     }
 
     #[DataProvider('streamErrors')]

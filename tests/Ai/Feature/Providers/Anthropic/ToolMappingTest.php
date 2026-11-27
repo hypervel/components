@@ -66,6 +66,25 @@ class ToolMappingTest extends TestCase
         });
     }
 
+    public function testStreamedRequestsStreamFunctionToolInputEagerlyButLeaveProviderToolsAlone(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response(
+                body: $this->ssePayload([$this->messageStart(), $this->messageDelta('end_turn', 1)]),
+                headers: ['Content-Type' => 'text/event-stream'],
+            ),
+        ]);
+
+        agent(tools: [new NonStrictTool, new WebSearch])->stream('Hi', provider: 'anthropic')->each(fn () => null);
+
+        Http::assertSent(function ($request): bool {
+            $tools = collect($request->data()['tools'])->keyBy('name');
+
+            return $tools['NonStrictTool']['eager_input_streaming'] === true
+                && ! array_key_exists('eager_input_streaming', $tools['web_search']);
+        });
+    }
+
     public function testToolWithStrictAttributeSendsStrictTrue(): void
     {
         Http::fake([
