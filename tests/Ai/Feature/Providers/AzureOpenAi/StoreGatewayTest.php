@@ -99,4 +99,24 @@ class StoreGatewayTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
             && $request->url() === 'https://test-resource.openai.azure.com/openai/v1/vector_stores/vs-123/files/..%2F..');
     }
+
+    public function testListFilesSendsRequestToTheV1EndpointWithTheApiKeyHeader(): void
+    {
+        Http::fake([
+            'test-resource.openai.azure.com/*' => Http::response([
+                'object' => 'list',
+                'data' => [['id' => 'file-1', 'object' => 'vector_store.file', 'status' => 'completed']],
+                'last_id' => 'file-1',
+                'has_more' => false,
+            ]),
+        ]);
+
+        $provider = Ai::storeProvider('azure');
+
+        $this->assertSame(['file-1'], $provider->listStoreFiles('vs-123')->pluck('id')->all());
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
+            && $request->url() === 'https://test-resource.openai.azure.com/openai/v1/vector_stores/vs-123/files?limit=100'
+            && $request->hasHeader('api-key', 'test-key'));
+    }
 }

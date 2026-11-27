@@ -15,6 +15,7 @@ use Hypervel\Ai\Contracts\Providers\ImageProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
 use Hypervel\Ai\Contracts\Providers\SupportsCodeExecution;
 use Hypervel\Ai\Contracts\Providers\SupportsFileSearch;
+use Hypervel\Ai\Contracts\Providers\SupportsStoreFileListing;
 use Hypervel\Ai\Contracts\Providers\SupportsToolSearch;
 use Hypervel\Ai\Contracts\Providers\SupportsWebSearch;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
@@ -40,7 +41,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use InvalidArgumentException;
 use Override;
 
-class AzureOpenAiProvider extends Provider implements EmbeddingProvider, FileProvider, ImageProvider, StoreProvider, SupportsCodeExecution, SupportsFileSearch, SupportsToolSearch, SupportsWebSearch, TextProvider
+class AzureOpenAiProvider extends Provider implements EmbeddingProvider, FileProvider, ImageProvider, StoreProvider, SupportsStoreFileListing, SupportsCodeExecution, SupportsFileSearch, SupportsToolSearch, SupportsWebSearch, TextProvider
 {
     use GeneratesEmbeddings;
     use GeneratesImages;

@@ -2496,6 +2496,8 @@ class SalesCoach implements Agent
 
 If your instructions change on every request, such as when they embed the current date, use `CacheToolDefinitions` alone. Caching a prefix that changes on every request creates a new cache entry each time, so you pay to write it to the cache without ever reusing it.
 
+OpenRouter also supports `CacheInstructions` for models that accept cache control. It marks the last content block in the system message and forwards the optional TTL.
+
 Providers that do not support these attributes ignore them, so an agent may safely declare them while using [failover](#failover).
 
 Cached prefixes are retained for five minutes by default. Anthropic, and supported Claude models on Amazon Bedrock, may retain them for an hour if you pass a TTL to the attribute:
@@ -2787,6 +2789,15 @@ $image = Image::of('Update this photo of me to be in the style of an impressioni
 ```
 
 The Bedrock provider supports text-to-image generation only and does not accept reference images.
+
+When editing an attached image with OpenAI or Azure OpenAI, you may pass a mask using the `mask` provider option:
+
+```php
+$image = Image::of('Remove the selected object')
+    ->attachments([Files\Image::fromStorage('photo.png')])
+    ->withProviderOptions(['mask' => Files\Image::fromStorage('mask.png')])
+    ->generate(provider: 'openai');
+```
 
 Some providers may generate multiple images in a single request. OpenAI, Azure, and xAI accept an `n` [provider option](#provider-options), and the response will contain every image that was returned:
 
@@ -3631,6 +3642,18 @@ $store->add(Document::fromPath('/path/to/document.pdf'), metadata: [
     'year' => 2026,
 ]);
 ```
+
+To list documents in an OpenAI, Azure OpenAI, or Gemini store, iterate over the lazy collection returned by `documents()`. Pages are fetched as you read them:
+
+```php
+foreach ($store->documents() as $document) {
+    $document->id;
+    $document->status;
+    $document->metadata;
+}
+```
+
+You may pass a listed document to `remove()`. Gemini does not include the source file ID in its listings. If you also need to delete that file, use the file ID saved when you added it to the store.
 
 To remove a file from a store, use the `remove` method:
 

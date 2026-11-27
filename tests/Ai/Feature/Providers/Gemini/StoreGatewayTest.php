@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Gemini;
 
 use Hypervel\Ai\AiManager;
+use Hypervel\Ai\Enums\StoreDocumentStatus;
 use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Providers\GeminiProvider;
@@ -14,6 +15,7 @@ use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\Ai\TestCase;
+use LogicException;
 
 use function Hypervel\Tests\Ai\Fixtures\sentRequest;
 
@@ -474,5 +476,122 @@ class StoreGatewayTest extends TestCase
         $this->expectExceptionMessage('Missing or invalid API key for AI provider [gemini].');
 
         Stores::get('store123', provider: 'gemini');
+    }
+
+    public function testListFilesReturnsTheDocumentsInTheStore(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'documents' => [
+                    [
+                        'name' => 'fileSearchStores/store123/documents/doc-1',
+                        'displayName' => 'hypervel-roadmap.txt',
+                        'state' => 'STATE_ACTIVE',
+                        'customMetadata' => [
+                            ['key' => 'company', 'stringValue' => 'hypervel'],
+                            ['key' => 'year', 'numericValue' => 2026],
+                            ['key' => 'tags', 'stringListValue' => ['values' => ['php', 'framework']]],
+                        ],
+                    ],
+                    ['name' => 'fileSearchStores/store123/documents/doc-2', 'state' => 'STATE_PENDING'],
+                    ['name' => 'fileSearchStores/store123/documents/doc-3', 'state' => 'STATE_FAILED'],
+                    ['name' => 'fileSearchStores/store123/documents/doc-4', 'state' => 'STATE_UNSPECIFIED'],
+                ],
+            ]),
+        ]);
+
+        $provider = geminiProvider();
+
+        $documents = $provider->storeGateway()->listFiles($provider, 'store123')->all();
+
+        $this->assertCount(4, $documents);
+        $this->assertSame('doc-1', $documents[0]->id);
+        $this->assertNull($documents[0]->fileId);
+        $this->assertSame(StoreDocumentStatus::Completed, $documents[0]->status);
+        $this->assertSame(['company' => 'hypervel', 'year' => 2026, 'tags' => ['php', 'framework']], $documents[0]->metadata);
+        $this->assertSame(StoreDocumentStatus::Pending, $documents[1]->status);
+        $this->assertSame([], $documents[1]->metadata);
+        $this->assertSame(StoreDocumentStatus::Failed, $documents[2]->status);
+        $this->assertNull($documents[3]->status);
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
+            && $request->url() === 'https://generativelanguage.googleapis.com/v1beta/fileSearchStores/store123/documents?pageSize=20'
+            && $request->hasHeader('x-goog-api-key', 'test-gemini-key'));
+    }
+
+    public function testListFilesFollowsThePageTokenToTheNextPage(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push([
+                    'documents' => [['name' => 'fileSearchStores/store123/documents/doc-1', 'state' => 'STATE_ACTIVE']],
+                    'nextPageToken' => 'page-2',
+                ])
+                ->push([
+                    'documents' => [['name' => 'fileSearchStores/store123/documents/doc-2', 'state' => 'STATE_ACTIVE']],
+                ]),
+        ]);
+
+        $provider = geminiProvider();
+
+        $ids = $provider->storeGateway()->listFiles($provider, 'store123')->pluck('id')->all();
+
+        $this->assertSame(['doc-1', 'doc-2'], $ids);
+
+        Http::assertSentCount(2);
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://generativelanguage.googleapis.com/v1beta/fileSearchStores/store123/documents?pageSize=20&pageToken=page-2');
+    }
+
+    public function testListFilesNormalizesTheStoreIdWithPrefix(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([]),
+        ]);
+
+        $provider = geminiProvider();
+
+        $this->assertSame([], $provider->storeGateway()->listFiles($provider, 'fileSearchStores/store123')->all());
+
+        Http::assertSent(fn (Request $request): bool => str_contains((string) $request->url(), 'v1beta/fileSearchStores/store123/documents?'));
+    }
+
+    public function testListedDocumentsCanBeRemovedByTheirId(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push(['documents' => [['name' => 'fileSearchStores/store123/documents/doc-1', 'state' => 'STATE_ACTIVE']]])
+                ->push([]),
+        ]);
+
+        $provider = geminiProvider();
+        $gateway = $provider->storeGateway();
+
+        $document = $gateway->listFiles($provider, 'store123')->first();
+
+        $gateway->removeFile($provider, 'store123', $document->id);
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && str_contains((string) $request->url(), 'fileSearchStores/store123/documents/doc-1?force=true'));
+    }
+
+    public function testMissingSourceFileIdIsReportedBeforeEitherDeletion(): void
+    {
+        Http::fake([
+            '*/documents?*' => Http::response(['documents' => [['name' => 'fileSearchStores/store123/documents/doc-1']]]),
+            '*' => Http::response(fakeStoreResponse()),
+        ]);
+        $store = Stores::get('store123', provider: 'gemini');
+        $document = $store->documents()->first();
+
+        try {
+            $store->remove($document, deleteFile: true);
+            $this->fail('Expected an unknown source file ID to prevent deletion.');
+        } catch (LogicException $exception) {
+            $this->assertStringContainsString('source file ID', $exception->getMessage());
+        }
+
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn (Request $request): bool => $request->method() === 'DELETE');
     }
 }

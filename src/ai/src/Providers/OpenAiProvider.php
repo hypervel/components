@@ -15,6 +15,7 @@ use Hypervel\Ai\Contracts\Providers\ImageProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
 use Hypervel\Ai\Contracts\Providers\SupportsCodeExecution;
 use Hypervel\Ai\Contracts\Providers\SupportsFileSearch;
+use Hypervel\Ai\Contracts\Providers\SupportsStoreFileListing;
 use Hypervel\Ai\Contracts\Providers\SupportsToolSearch;
 use Hypervel\Ai\Contracts\Providers\SupportsWebSearch;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
@@ -45,7 +46,7 @@ use Hypervel\Ai\Providers\Tools\FileSearch;
 use Hypervel\Ai\Providers\Tools\WebSearch;
 use Hypervel\Support\Collection;
 
-class OpenAiProvider extends Provider implements AudioProvider, ClassificationProvider, EmbeddingProvider, FileProvider, ImageProvider, StoreProvider, SupportsCodeExecution, SupportsFileSearch, SupportsToolSearch, SupportsWebSearch, TextProvider, TranscriptionProvider
+class OpenAiProvider extends Provider implements AudioProvider, ClassificationProvider, EmbeddingProvider, FileProvider, ImageProvider, StoreProvider, SupportsStoreFileListing, SupportsCodeExecution, SupportsFileSearch, SupportsToolSearch, SupportsWebSearch, TextProvider, TranscriptionProvider
 {
     use Classifies;
     use GeneratesAudio;

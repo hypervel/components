@@ -12,8 +12,11 @@ use Hypervel\Ai\Contracts\Providers\StoreProvider;
 use Hypervel\Ai\Files\LocalDocument;
 use Hypervel\Ai\Files\ProviderDocument;
 use Hypervel\Ai\Responses\AddedDocumentResponse;
+use Hypervel\Ai\Responses\Data\StoreDocument;
 use Hypervel\Ai\Responses\Data\StoreFileCounts;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\LazyCollection;
+use LogicException;
 
 class Store
 {
@@ -60,10 +63,29 @@ class Store
     }
 
     /**
+     * List the documents in the store, fetching further pages as the collection is iterated.
+     *
+     * @return LazyCollection<int, StoreDocument>
+     */
+    public function documents(): LazyCollection
+    {
+        // Custom drivers may provide listing without declaring Hypervel's capability interface.
+        if (! method_exists($this->provider, 'listStoreFiles')) {
+            throw new LogicException("Provider [{$this->provider->name()}] does not support listing store files.");
+        }
+
+        return $this->provider->listStoreFiles($this->id);
+    }
+
+    /**
      * Resolve the ID of the file a document was imported from, which Gemini does not reuse as the document ID.
      */
     protected function fileIdFor(HasProviderId|string $documentId): string
     {
+        if ($documentId instanceof StoreDocument) {
+            return $documentId->fileId() ?? throw new LogicException("The provider did not return the document's source file ID. Delete the file separately.");
+        }
+
         if ($documentId instanceof AddedDocumentResponse && $documentId->fileId() !== null) {
             return $documentId->fileId();
         }
@@ -95,10 +117,11 @@ class Store
      */
     public function remove(HasProviderId|string $documentId, bool $deleteFile = false): bool
     {
+        $fileId = $deleteFile ? $this->fileIdFor($documentId) : null;
         $removed = $this->provider->removeFileFromStore($this->id, $documentId);
 
-        if ($deleteFile && $removed) {
-            $this->fakeableFileProvider()->deleteFile($this->fileIdFor($documentId));
+        if ($fileId !== null && $removed) {
+            $this->fakeableFileProvider()->deleteFile($fileId);
         }
 
         return $removed;

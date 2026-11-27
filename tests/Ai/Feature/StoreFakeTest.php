@@ -7,25 +7,30 @@ namespace Hypervel\Tests\Ai\Feature;
 use DateInterval;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Contracts\Files\StorableFile;
+use Hypervel\Ai\Contracts\Gateway\StoreGateway;
 use Hypervel\Ai\Contracts\Providers\FileProvider;
 use Hypervel\Ai\Contracts\Providers\StoreProvider;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Enums\StoreDocumentStatus;
 use Hypervel\Ai\Files;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Ai\Files\LocalDocument;
 use Hypervel\Ai\Files\ProviderDocument;
 use Hypervel\Ai\Responses\AddedDocumentResponse;
+use Hypervel\Ai\Responses\Data\StoreDocument;
 use Hypervel\Ai\Responses\Data\StoreFileCounts;
 use Hypervel\Ai\Responses\StoredFileResponse;
 use Hypervel\Ai\Store;
 use Hypervel\Ai\Stores;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Collection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
+use LogicException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -378,4 +383,158 @@ class StoreFakeTest extends TestCase
 
         $this->assertSame('Second Store', Stores::get('vs_2')->name);
     }
+
+    public function testDocumentsAddedToAFakeStoreAreListed(): void
+    {
+        Stores::fake();
+
+        $store = Stores::create('My Store');
+
+        $store->add('file_1', ['company' => 'hypervel']);
+        $store->add('file_2');
+
+        $documents = $store->documents()->all();
+
+        $this->assertCount(2, $documents);
+        $this->assertInstanceOf(StoreDocument::class, $documents[0]);
+        $this->assertSame('file_1', $documents[0]->id);
+        $this->assertSame('file_1', $documents[0]->fileId);
+        $this->assertSame(StoreDocumentStatus::Completed, $documents[0]->status);
+        $this->assertSame(['company' => 'hypervel'], $documents[0]->metadata);
+        $this->assertSame('file_2', $documents[1]->id);
+    }
+
+    public function testDocumentsRemovedFromAFakeStoreAreNoLongerListed(): void
+    {
+        Stores::fake();
+
+        $store = Stores::create('My Store');
+
+        $store->add('file_1');
+        $store->add('file_2');
+        $store->remove('file_1');
+
+        $this->assertSame(['file_2'], $store->documents()->pluck('id')->all());
+    }
+
+    public function testFakeStoreDocumentsAreReadWhenTheCollectionIsIterated(): void
+    {
+        Stores::fake();
+
+        $store = Stores::create('My Store');
+
+        $documents = $store->documents();
+
+        $store->add('file_1');
+
+        $this->assertSame(['file_1'], $documents->pluck('id')->all());
+    }
+
+    public function testDocumentsAreListedPerStore(): void
+    {
+        Stores::fake();
+
+        $first = Stores::create('First Store');
+        $second = Stores::create('Second Store');
+
+        $first->add('file_1');
+        $second->add('file_2');
+
+        $this->assertSame(['file_1'], $first->documents()->pluck('id')->all());
+        $this->assertSame(['file_2'], $second->documents()->pluck('id')->all());
+    }
+
+    public function testAFakeStoreCanBeSeededWithDocuments(): void
+    {
+        Stores::fake()->withDocuments('vs_1', [
+            'file_1',
+            new StoreDocument('doc_2', status: StoreDocumentStatus::Pending),
+        ]);
+
+        $documents = Stores::get('vs_1')->documents()->all();
+
+        $this->assertCount(2, $documents);
+        $this->assertSame('file_1', $documents[0]->id);
+        $this->assertTrue($documents[0]->completed());
+        $this->assertSame('doc_2', $documents[1]->id);
+        $this->assertNull($documents[1]->fileId);
+        $this->assertFalse($documents[1]->completed());
+    }
+
+    public function testAnUnknownFakeStoreHasNoDocuments(): void
+    {
+        Stores::fake();
+
+        $this->assertSame([], Stores::get('vs_unknown')->documents()->all());
+    }
+
+    public function testInitialFilesAreListedUntilTheFakeStoreIsDeleted(): void
+    {
+        Stores::fake();
+        $store = Stores::create('Manuals', fileIds: ['file_1', 'file_2']);
+
+        $this->assertSame(['file_1', 'file_2'], $store->documents()->pluck('id')->all());
+        $store->delete();
+        $this->assertSame([], $store->documents()->all());
+    }
+
+    public function testRemovingAListedDocumentDeletesItsSourceFile(): void
+    {
+        Stores::fake()->withDocuments('vs_1', [new StoreDocument('doc_1', 'file_2')]);
+        $store = Stores::get('vs_1');
+        $this->assertTrue($store->remove($store->documents()->first(), deleteFile: true));
+
+        $store->assertRemoved('doc_1');
+        Files::assertDeleted('file_2');
+        Files::assertNotDeleted('doc_1');
+    }
+
+    public function testListingDocumentsThrowsWhenTheStoreGatewayCannotListThem(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Provider [openai] does not support listing store files.');
+
+        Ai::storeProvider('openai')
+            ->useStoreGateway(Double::for(StoreGateway::class)->strict()->instance())
+            ->listStoreFiles('vs_1');
+    }
+
+    public function testCustomDriversCanListDocumentsWithoutTheCapabilityInterfaces(): void
+    {
+        $documents = LazyCollection::make([new StoreDocument('doc_1')]);
+        $provider = Double::for(StoreProvider::class, CustomStoreListingMethods::class)->strict();
+        $provider->expects('listStoreFiles')->with('vs_1')->returns($documents);
+
+        $store = new Store($provider->instance(), 'vs_1', 'Store', new StoreFileCounts(0, 0, 0), true);
+        $this->assertSame($documents, $store->documents());
+
+        $openAi = Ai::storeProvider('openai');
+        $gateway = Double::for(StoreGateway::class, CustomStoreListingMethods::class)->strict();
+        $gateway->expects('listFiles')->with($openAi, 'vs_1')->returns($documents);
+        $this->assertSame($documents, $openAi->useStoreGateway($gateway->instance())->listStoreFiles('vs_1'));
+    }
+
+    public function testListingDocumentsThrowsWhenTheStoreProviderCannotListThem(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Provider [custom] does not support listing store files.');
+
+        $provider = Double::for(StoreProvider::class)->strict();
+        $provider->allows('name')->returns('custom');
+
+        (new Store($provider->instance(), 'vs_1', 'Store', new StoreFileCounts(0, 0, 0), true))->documents();
+    }
+}
+
+interface CustomStoreListingMethods
+{
+    /**
+     * List the documents using a custom provider.
+     */
+    public function listStoreFiles(string $storeId): LazyCollection;
+
+    /**
+     * List the documents using a custom gateway.
+     */
+    public function listFiles(StoreProvider $provider, string $storeId): LazyCollection;
 }

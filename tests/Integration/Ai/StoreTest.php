@@ -103,6 +103,9 @@ class StoreTest extends TestCase
 
         $this->assertNotEmpty($documentId->id);
 
+        // List the documents in the store...
+        $this->assertContains($documentId->id(), $store->documents()->pluck('id')->all());
+
         // Refresh the store to see updated file counts...
         $refreshed = $store->refresh();
 
