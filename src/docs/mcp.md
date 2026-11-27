@@ -49,6 +49,7 @@
     - [Conditional Skill Registration](#conditional-skill-registration)
 - [Metadata](#metadata)
 - [Icons](#icons)
+- [Client Capabilities](#client-capabilities)
 - [Authentication](#authentication)
     - [OAuth 2.1](#oauth)
     - [Sanctum](#sanctum)
@@ -596,14 +597,6 @@ Tools, prompts and resources follow the container's normal lifetimes. An unbound
 
 Use `$request->isObject('options')` when you need to distinguish an incoming JSON object from an array. This also recognizes objects whose property names are consecutive numbers, even though PHP decodes their keys as integers. Calling `isObject()` without a key checks the complete argument map.
 
-To check whether the connected client declared support for a capability during initialization, use the `clientSupports` method (dot notation is supported):
-
-```php
-if ($request->clientSupports('roots.listChanged')) {
-    // ...
-}
-```
-
 <a name="tool-annotations"></a>
 ### Tool Annotations
 
@@ -844,11 +837,13 @@ class CurrentWeatherTool extends Tool
 
 When using web-based servers, streaming responses automatically open an SSE (Server-Sent Events) stream. Notifications are sent as they are yielded; other responses are collected into the final result.
 
-Tools may report progress using `Response::progress`. Progress is only sent when the client asked for it with a progress token:
+To emit standard MCP progress notifications (`notifications/progress`), yield `Response::progress` from your generator. You may provide the current progress value along with optional `total` and `message` arguments:
 
 ```php
 yield Response::progress($index + 1, total: count($locations), message: "Checking {$location}...");
 ```
+
+The server automatically attaches the request's `_meta.progressToken` to each progress notification. If the client did not include a `progressToken` with the request, progress notifications are omitted.
 
 For the `2026-07-28` protocol, disconnecting the HTTP client cancels stream production. Put resource cleanup in `finally` blocks and allow coroutine cancellation to propagate. Older protocol versions finish producing the response after a disconnect. See [stream cancellation](/docs/{{version}}/responses#canceling-disconnected-streams) for the HTTP server's cancellation behavior and limitations.
 
@@ -1744,9 +1739,7 @@ For the complete protocol reference, including the full client-side API and sche
 <a name="skills"></a>
 ## Skills
 
-Skills let your MCP server publish reusable instruction bundles — a `SKILL.md` file with YAML frontmatter alongside any supporting reference files — through the `io.modelcontextprotocol/skills` extension.
-
-When a server registers skills, Hypervel MCP automatically advertises the `io.modelcontextprotocol/skills` extension and `resources` capability, exposes the `skills/list` and `skills/get` methods, lists each skill's `SKILL.md` under `resources/list`, and serves every file in the skill directory through `resources/read`.
+Hypervel MCP supports serving [Agent Skills](https://agentskills.io/specification) through the [MCP Skills extension](https://skills.extensions.modelcontextprotocol.io/specification/beta/skills) (`io.modelcontextprotocol/skills`). Clients discover skills via `skills/list` and `skills/get` and read their files through `resources/read`. Registering skills automatically advertises the extension and the `resources` capability. Only each skill's `SKILL.md` appears in `resources/list`.
 
 <a name="creating-skills"></a>
 ### Creating Skills
@@ -1770,7 +1763,7 @@ description: Prepare a release using the bundled checklist.
 Read [the checklist](references/checklist.md) before preparing a release.
 ```
 
-Skill directories skip dotfiles, dot directories, and symlinks, and are limited to 512 files and 16 MiB in total.
+Dotfiles, dot directories, and symbolic links are skipped, and each skill is limited to 512 files and 16 MiB in total.
 
 <a name="registering-skills"></a>
 ### Registering Skills
@@ -1824,7 +1817,7 @@ class TeamReleaseChecklist extends Skill
 <a name="conditional-skill-registration"></a>
 ### Conditional Skill Registration
 
-Like tools, prompts, and resources, a `Skill` class may define a `shouldRegister` method to decide at request time whether the skill should be exposed:
+Like tools, prompts, and resources, a `Skill` class may define a `shouldRegister` method. The container resolves its dependencies at request time. Returning `false` hides the skill from all skill and resource endpoints:
 
 ```php
 use Hypervel\Contracts\Config\Repository;
@@ -1949,6 +1942,30 @@ Icons defined via the attribute and the `icons` method are combined automaticall
 - Relative paths are resolved to a URL using Hypervel's `asset` helper.
 
 </div>
+
+<a name="client-capabilities"></a>
+## Client Capabilities
+
+MCP clients advertise their capabilities during initialization and include them on requests. Inside any tool, prompt, or resource handler, you may inspect whether the connected client declared a capability using the `clientSupports` method on the `Hypervel\Mcp\Request` instance, using dot notation for nested capabilities:
+
+```php
+use Hypervel\Mcp\Request;
+use Hypervel\Mcp\Response;
+
+/**
+ * Handle the tool request.
+ */
+public function handle(Request $request): Response
+{
+    if ($request->clientSupports('sampling.tools')) {
+        // ...
+    }
+
+    return Response::text('Done.');
+}
+```
+
+Capability objects declared as arrays (including empty objects such as `['sampling' => ['tools' => []]]`) evaluate to `true`. Boolean capability flags are returned as declared, so `['roots' => ['listChanged' => true]]` returns `true` for `roots.listChanged` while `['sampling' => ['enabled' => false]]` returns `false` for `sampling.enabled`.
 
 <a name="authentication"></a>
 ## Authentication
@@ -2623,12 +2640,12 @@ You may also act as an authenticated user by chaining the `actingAs` method befo
 $response = WeatherServer::actingAs($user)->tool(...);
 ```
 
-To declare client capabilities for a test request, chain `withClientCapabilities` before invoking the primitive:
+To simulate a client that advertises specific [client capabilities](#client-capabilities), chain `withClientCapabilities` before invoking a tool, prompt, resource, or completion. By default, the test client declares no capabilities:
 
 ```php
 $response = WeatherServer::withClientCapabilities([
-    'roots' => ['listChanged' => true],
-])->tool(...);
+    'sampling' => ['tools' => []],
+])->tool(CurrentWeatherTool::class);
 ```
 
 Once you receive the response, you may use various assertion methods to verify the content and status of the response.
@@ -2702,7 +2719,7 @@ $response->assertHasErrors([
 ]);
 ```
 
-To assert a specific JSON-RPC error code and optional error `data` payload, use `assertErrorCode`:
+To assert that a JSON-RPC error response carries a specific error code and, optionally, error `data`, use the `assertErrorCode` method:
 
 ```php
 $response->assertErrorCode(-32602);
@@ -2739,11 +2756,12 @@ $response->assertSentNotification('processing/progress', [
 $response->assertNotificationCount(5);
 ```
 
-For standard progress notifications yielded with `Response::progress()`, use `assertSentProgress()`:
+For streaming tools that yield `Response::progress`, you may assert the emitted progress notifications using `assertSentProgress`:
 
 ```php
-$response->assertSentProgress(1, 2, 'Checking tables');
-$response->assertSentProgress(2);
+$response
+    ->assertSentProgress(1, total: 2, message: 'Checking Paris...')
+    ->assertSentProgress(2, total: 2, message: 'Checking London...');
 ```
 
 Finally, if you wish to inspect the raw response content, you may use the `dd` or `dump` methods to output the response for debugging purposes:
