@@ -14,6 +14,7 @@ use Hypervel\Tests\Console\Fixtures\FakeCommandWithPromptValidation;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Process\Process;
@@ -602,6 +603,26 @@ class ArtisanCommandTest extends TestCase
         }
 
         $this->fail('The forbidden output was not reported.');
+    }
+
+    public function testCancellationEscapesAfterForbiddenOutput(): void
+    {
+        $cancellation = new CanceledException;
+        Artisan::command('test:cancel', function () use ($cancellation) {
+            $this->line('Unexpected output');
+
+            throw $cancellation;
+        });
+
+        try {
+            $this->artisan('test:cancel')->doesntExpectOutput()->run();
+        } catch (CanceledException $caught) {
+            $this->assertSame($cancellation, $caught);
+
+            return;
+        }
+
+        $this->fail('The cancellation did not escape.');
     }
 
     public function testCommandFailureDoesNotLeakExpectationsOrOutputBinding(): void

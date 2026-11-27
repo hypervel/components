@@ -10,6 +10,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\TestCase;
 use Hypervel\Prompts\Note as PromptsNote;
 use Hypervel\Prompts\Prompt as BasePrompt;
@@ -428,6 +429,10 @@ class PendingCommand
             } catch (PromptValidationException) {
                 $exitCode = Command::FAILURE;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 if ($failure = $this->consoleOutput->getOutput()->unexpectedOutputFailure()) {
                     throw new AssertionFailedError($failure, 0, $exception);
                 }

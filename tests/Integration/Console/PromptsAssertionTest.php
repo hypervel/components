@@ -612,11 +612,15 @@ class PromptsAssertionTest extends TestCase
             if ($throughArtisan) {
                 Artisan::call('test:symfony');
             } else {
+                $failure = null;
+
                 try {
                     $this->call('test:symfony');
                 } catch (RuntimeException $caught) {
-                    $test->assertSame($error, $caught);
+                    $failure = $caught;
                 }
+
+                $test->assertSame($error, $failure);
             }
 
             warning('Back in the parent');
