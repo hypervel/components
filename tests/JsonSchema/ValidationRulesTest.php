@@ -355,6 +355,36 @@ class ValidationRulesTest extends TestCase
         $this->assertFalse($this->passes($schema, ['size' => ['w' => '01', 'h' => '2.0']]));
     }
 
+    public function testAMixedEnumComparesScalarValuesStrictly(): void
+    {
+        $schema = ['type' => 'object', 'properties' => [
+            'filter' => ['enum' => [['all'], true, 0, 1]],
+        ], 'required' => ['filter']];
+
+        $this->assertTrue($this->passes($schema, ['filter' => ['all']]));
+        $this->assertTrue($this->passes($schema, ['filter' => true]));
+        $this->assertTrue($this->passes($schema, ['filter' => 0]));
+        $this->assertTrue($this->passes($schema, ['filter' => 1]));
+        $this->assertFalse($this->passes($schema, ['filter' => 'anything']));
+        $this->assertFalse($this->passes($schema, ['filter' => '01']));
+        $this->assertFalse($this->passes($schema, ['filter' => '1']));
+        $this->assertFalse($this->passes($schema, ['filter' => false]));
+
+        $schema['properties']['filter']['enum'] = ['01', -0.0, ['x']];
+        $this->assertTrue($this->passes($schema, ['filter' => '01']));
+        $this->assertFalse($this->passes($schema, ['filter' => '1']));
+        $this->assertTrue($this->passes($schema, ['filter' => 0.0]));
+        $this->assertFalse($this->passes($schema, ['filter' => 0]));
+    }
+
+    public function testAMixedEnumAcceptsBackedEnumValues(): void
+    {
+        $schema = ['type' => 'object', 'properties' => ['value' => ['enum' => [StringBackedEnum::One, ['x']]]]];
+
+        $this->assertTrue($this->passes($schema, ['value' => 'one']));
+        $this->assertFalse($this->passes($schema, ['value' => 'two']));
+    }
+
     public function testExclusiveNumericBounds(): void
     {
         $schema = $this->schema(fn ($s) => ['price' => $s->number()->required()]);
@@ -722,24 +752,6 @@ class ValidationRulesTest extends TestCase
             $this->assertFalse($this->passes($schema, ['nothing' => 'x']));
             $this->assertFalse($this->passes($schema, ['nothing' => []]));
         }
-    }
-
-    public function testAnEnumWithArraysComparesScalarsLikeTheInRule(): void
-    {
-        $schema = ['type' => 'object', 'properties' => ['value' => ['enum' => [true, '01', ['x']]]], 'required' => ['value']];
-
-        $this->assertTrue($this->passes($schema, ['value' => true]));
-        $this->assertTrue($this->passes($schema, ['value' => '01']));
-        $this->assertFalse($this->passes($schema, ['value' => 'unlisted']));
-
-        $schema['properties']['value']['enum'] = ['01', ['x']];
-
-        $this->assertFalse($this->passes($schema, ['value' => '1']));
-
-        $schema['properties']['value']['enum'] = [StringBackedEnum::One, ['x']];
-
-        $this->assertTrue($this->passes($schema, ['value' => 'one']));
-        $this->assertFalse($this->passes($schema, ['value' => 'two']));
     }
 
     public function testAnObjectEnumComparesTheWholeValue(): void
