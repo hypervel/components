@@ -33,7 +33,8 @@ trait ParsesTextResponses
     {
         $choice = $data['choices'][0] ?? [];
 
-        // OpenRouter can commit HTTP 200 before a provider fails, including buffered requests.
+        // OpenRouter can commit HTTP 200 before a provider fails. Check both the response and
+        // the choice so failover also handles partial results and exhausted credits.
         if (! $data || isset($data['error']) || ($choice['finish_reason'] ?? null) === 'error') {
             $error = $data['error'] ?? $choice['error'] ?? [];
             $code = $error['code'] ?? null;
