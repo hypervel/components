@@ -588,7 +588,7 @@ $products = $request->enums('products', Product::class);
 <a name="retrieving-model-input-values"></a>
 #### Retrieving Model Input Values
 
-When using [form requests](/docs/{{version}}/validation#form-request-validation), you may retrieve Eloquent models using the identifiers present in the request's input. The `model` method returns `null` if the input is empty or no matching record exists, while the `modelOrFail` method throws a `Hypervel\Database\Eloquent\ModelNotFoundException`. If the input value is an array of identifiers, you may use the `models` method to retrieve an Eloquent collection of the matching records:
+When using [form requests](/docs/{{version}}/validation#form-request-validation), you may retrieve Eloquent models using the identifiers present in the request's input. The `model` method returns `null` if the input is empty or no matching record exists, while the `modelOrFail` method throws a `Hypervel\Database\Eloquent\ModelNotFoundException`. If the input value is an array of identifiers, you may use the `models` method to retrieve an Eloquent collection of the matching records. The `models` method ignores nested arrays in that list:
 
 ```php
 use App\Models\User;
@@ -1081,6 +1081,26 @@ use Hypervel\Foundation\Configuration\Middleware;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->trustHosts(at: fn () => config()->array('app.trusted_hosts'));
+})
+```
+
+If you only need to trust your application's own host, you may omit the `at` argument. Hypervel will then trust the host defined by your application's `app.url` configuration value, along with all of its subdomains:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->trustHosts(subdomains: true);
+})
+```
+
+If you would like to trust only the host defined by your application's `app.url` configuration value, without any of its subdomains, you may pass `false` to the `subdomains` argument:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->trustHosts(subdomains: false);
 })
 ```
 
