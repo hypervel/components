@@ -117,6 +117,12 @@ If you don't need an entire row, you may extract a single value from a record us
 $email = DB::table('users')->where('name', 'John')->value('email');
 ```
 
+The `soleValue` method retrieves the column's value only if exactly one row matches the query. If no matching row is found, a `Hypervel\Database\RecordsNotFoundException` will be thrown. If more than one row matches, a `Hypervel\Database\MultipleRecordsFoundException` will be thrown:
+
+```php
+$email = DB::table('users')->where('name', 'John')->soleValue('email');
+```
+
 The `rawValue` method returns a single value from a raw expression on the first result of the query:
 
 ```php
@@ -1058,7 +1064,7 @@ select * from comments where user_id in (
 )
 ```
 
-> [!WARNING]
+> [!NOTE]
 > If you are adding a large array of integer bindings to your query, the `whereIntegerInRaw` or `whereIntegerNotInRaw` methods may be used to greatly reduce your memory usage.
 
 **whereBetween / orWhereBetween**

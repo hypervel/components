@@ -272,7 +272,7 @@ Assert that a table in the database contains the given number of records:
 $this->assertDatabaseCount('users', 5);
 ```
 
-You may also pass an array of tables or models and their expected counts:
+You may also pass an array of tables and their expected record counts to assert the counts of several tables at once. Model class names may be used in place of table names:
 
 ```php
 $this->assertDatabaseCount([

@@ -1905,7 +1905,7 @@ $multiplied->all();
 // [2, 4, 6, 8, 10]
 ```
 
-> [!WARNING]
+> [!NOTE]
 > Like most other collection methods, `map` returns a new collection instance; it does not modify the collection it is called on. If you want to transform the original collection, use the [transform](#method-transform) method.
 
 <a name="method-mapinto"></a>
@@ -4351,7 +4351,7 @@ $handlerClass = collect([EmailHandler::class, SmsHandler::class])->first->suppor
 <a name="lazy-collection-introduction"></a>
 ### Introduction
 
-> [!WARNING]
+> [!NOTE]
 > Before learning more about Hypervel's lazy collections, take some time to familiarize yourself with [PHP generators](https://www.php.net/manual/en/language.generators.overview.php).
 
 To supplement the already powerful `Collection` class, the `LazyCollection` class leverages PHP's [generators](https://www.php.net/manual/en/language.generators.overview.php) to allow you to work with very large datasets while keeping memory usage low.

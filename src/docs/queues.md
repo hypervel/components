@@ -1924,7 +1924,9 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-When the window is a fixed length of time from when the job is dispatched, you may use the `RetryFor` attribute instead. Its first argument is in seconds, and `minutes` and `hours` may be passed by name. A `retryUntil` method or property takes precedence over the attribute:
+If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
+
+Alternatively, you may define a relative retry window using the `RetryFor` attribute on your job class:
 
 ```php
 <?php
@@ -1932,16 +1934,26 @@ When the window is a fixed length of time from when the job is dispatched, you m
 namespace App\Jobs;
 
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Queue\Attributes\RetryFor;
 
-#[RetryFor(minutes: 10)]
+#[RetryFor(hours: 1)]
 class ProcessPodcast implements ShouldQueue
 {
-    // ...
+    use Queueable;
 }
 ```
 
-If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
+The first argument specifies the duration in seconds, or you may pass named `minutes` and `hours` arguments:
+
+```php
+#[RetryFor(90)]
+#[RetryFor(minutes: 10)]
+#[RetryFor(hours: 4)]
+#[RetryFor(hours: 1, minutes: 30)]
+```
+
+If a `retryUntil` method or property is defined on the job class, it takes precedence over the `RetryFor` attribute.
 
 > [!NOTE]
 > You may also define a `Tries` or `RetryFor` attribute or a `retryUntil` method on your [queued event listeners](/docs/{{version}}/events#queued-event-listeners), [queued notifications](/docs/{{version}}/notifications#queueing-notifications) and queued mailables.
@@ -2339,10 +2351,28 @@ $this->release(10);
 $this->release(now()->plus(seconds: 10));
 ```
 
-If the job defines a [backoff](#dealing-with-failed-jobs), the `releaseUsingBackoff` method releases it with the delay for the current attempt, just as the worker would after an exception. Once the attempts outnumber the configured delays, the last delay is used. A job without a backoff is released for immediate processing:
+If your job defines a [backoff](#dealing-with-failed-jobs), you may use the `releaseUsingBackoff` method to release the job using the delay that its backoff specifies for the current attempt. When the backoff is an array and the job has been attempted more times than the array has values, the last value is used. If the job does not define a backoff, it is released for immediate processing:
 
 ```php
-$this->releaseUsingBackoff();
+use Hypervel\Queue\Attributes\Backoff;
+
+#[Backoff([10, 30, 60])]
+class CheckPaymentStatus implements ShouldQueue
+{
+    /**
+     * Execute the job.
+     */
+    public function handle(): void
+    {
+        if ($this->payment->isPending()) {
+            $this->releaseUsingBackoff();
+
+            return;
+        }
+
+        // ...
+    }
+}
 ```
 
 After releasing a job, return from its handler. If a worker-processed job throws after release, the worker reports the exception but does not fail or release that attempt again. Exceptions thrown after release do not count toward `maxExceptions`. The next delivery checks the job's attempt limit as usual.

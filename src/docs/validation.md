@@ -238,7 +238,7 @@ Within the `lang/en/validation.php` file, you will find a translation entry for 
 
 In addition, you may copy this file to another language directory to translate the messages for your application's language. To learn more about Hypervel localization, check out the complete [localization documentation](/docs/{{version}}/localization).
 
-> [!WARNING]
+> [!NOTE]
 > By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 <a name="quick-xhr-requests-and-validation"></a>
@@ -1297,7 +1297,7 @@ Within the `lang/en/validation.php` file, you will find a translation entry for 
 
 In addition, you may copy this file to another language directory to translate the messages for your application's language. To learn more about Hypervel localization, check out the complete [localization documentation](/docs/{{version}}/localization).
 
-> [!WARNING]
+> [!NOTE]
 > By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 <a name="custom-messages-for-specific-attributes"></a>
@@ -1325,7 +1325,7 @@ Many of Hypervel's built-in error messages include an `:attribute` placeholder t
 ],
 ```
 
-> [!WARNING]
+> [!NOTE]
 > By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 <a name="specifying-values-in-language-files"></a>
@@ -1355,7 +1355,7 @@ Instead of displaying `cc` as the payment type value, you may specify a more use
 ],
 ```
 
-> [!WARNING]
+> [!NOTE]
 > By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 After defining this value, the validation rule will produce the following error message:
