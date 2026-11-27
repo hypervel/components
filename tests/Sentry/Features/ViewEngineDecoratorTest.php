@@ -85,6 +85,25 @@ class ViewEngineDecoratorTest extends TestCase
         }
     }
 
+    public function testViewComposerIsRegisteredOnlyOnceWhenEnginesAreRecreated(): void
+    {
+        /** @var EngineResolver $engineResolver */
+        $engineResolver = $this->app->make('view.engine.resolver');
+
+        $engineResolver->resolve('blade');
+
+        $before = $this->countRenderingObservers();
+
+        $this->assertGreaterThan(0, $before);
+
+        for ($i = 0; $i < 10; ++$i) {
+            $engineResolver->forget('blade');
+            $engineResolver->resolve('blade');
+        }
+
+        $this->assertSame($before, $this->countRenderingObservers());
+    }
+
     public function testNamedViewUsesViewNameAsSpanDescription(): void
     {
         $this->filesystem->put($this->viewPath . '/hello.blade.php', 'Hello');
@@ -161,6 +180,19 @@ class ViewEngineDecoratorTest extends TestCase
 
         $this->assertSame('sentryrace::first', $results['first']);
         $this->assertSame('sentryrace::second', $results['second']);
+    }
+
+    /**
+     * Count the rendering observers registered on the view factory.
+     */
+    private function countRenderingObservers(): int
+    {
+        /** @var Factory $viewFactory */
+        $viewFactory = $this->app->make('view');
+
+        $property = new ReflectionProperty($viewFactory, 'renderingObservers');
+
+        return count($property->getValue($viewFactory));
     }
 
     /**
