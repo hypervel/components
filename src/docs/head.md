@@ -393,7 +393,7 @@ For a request to `/pricing`, this renders:
 <meta property="og:url" content="https://example.com/pricing">
 ```
 
-If no canonical URL is set, `og:url` is omitted. An explicit `url` passed to the `og` method always takes precedence over the canonical URL.
+If neither an explicit `url` nor a canonical URL is set, `og:url` is omitted. An explicit `url` passed to the `og` method always takes precedence over the canonical URL.
 
 <a name="twitter-cards"></a>
 ### X / Twitter Cards

@@ -2354,11 +2354,25 @@ $this->release(now()->plus(seconds: 10));
 If your job defines a [backoff](#dealing-with-failed-jobs), you may use the `releaseUsingBackoff` method to release the job using the delay that its backoff specifies for the current attempt. When the backoff is an array and the job has been attempted more times than the array has values, the last value is used. If the job does not define a backoff, it is released for immediate processing:
 
 ```php
+use App\Models\Payment;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\Tries;
 
+#[Tries(4)]
 #[Backoff([10, 30, 60])]
 class CheckPaymentStatus implements ShouldQueue
 {
+    use Queueable;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(
+        public Payment $payment,
+    ) {}
+
     /**
      * Execute the job.
      */

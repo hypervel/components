@@ -292,7 +292,7 @@ If you want opt-in cancellation on streamed responses when an HTTP/1.1 or HTTP/2
 <a name="reloading-workers"></a>
 ## Reloading Workers
 
-To gracefully recycle the server's worker processes without dropping active connections, you may use the `server:reload` Artisan command:
+To gracefully recycle the server's worker processes, you may use the `server:reload` Artisan command. Each worker gets up to [`SERVER_MAX_WAIT_TIME`](#graceful-shutdown) seconds to finish its active requests. In `SWOOLE_PROCESS` mode, client connections stay open in the master process, while in `SWOOLE_BASE` mode each replaced worker closes its client connections:
 
 ```shell
 php artisan server:reload
@@ -400,7 +400,11 @@ use Hypervel\Support\Facades\Event;
 public function boot(): void
 {
     Event::listen(MainWorkerStart::class, function (): void {
-        $this->app->make(Timer::class)->tick(60.0, function (): void {
+        $this->app->make(Timer::class)->tick(60.0, function (bool $isClosing): void {
+            if ($isClosing) {
+                return;
+            }
+
             // Run periodic worker-0 maintenance...
         });
     });
