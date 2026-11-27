@@ -57,16 +57,6 @@ class RegisterPruneTimerTest extends TestCase
         $this->assertSame([], $timer->ticks);
     }
 
-    public function testDoesNotRegisterATimerOnTaskWorkers(): void
-    {
-        $timer = new FakeRateLimiterTimer;
-
-        (new RegisterPruneTimer($this->config([]), Double::for(RateLimiter::class, override: true)->strict()->instance(), $timer))
-            ->handle($this->workerEvent(workerId: 0, taskworker: true));
-
-        $this->assertSame([], $timer->ticks);
-    }
-
     public function testRollsBackEarlierTimersWhenRegistrationFails(): void
     {
         $firstStore = Double::for(SwooleStore::class)->strict();
@@ -171,12 +161,9 @@ class RegisterPruneTimerTest extends TestCase
         return $limiter;
     }
 
-    private function workerEvent(int $workerId, bool $taskworker = false): AfterWorkerStart
+    private function workerEvent(int $workerId): AfterWorkerStart
     {
-        $server = Double::for(SwooleServer::class)->strict();
-        $server->taskworker = $taskworker;
-
-        return new AfterWorkerStart($server, $workerId);
+        return new AfterWorkerStart(Double::for(SwooleServer::class)->strict(), $workerId);
     }
 }
 

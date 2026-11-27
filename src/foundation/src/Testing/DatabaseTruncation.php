@@ -70,7 +70,8 @@ trait DatabaseTruncation
 
         // Migrate and seed the database on first run...
         if (! RefreshDatabaseState::$migrated || $this->hasMissingInMemoryDatabaseForTruncation()) {
-            $this->artisan('migrate:fresh', $this->migrateFreshUsing());
+            // Run internal migrations and seeding unmocked so this trait works without Mockery.
+            $this->realArtisan('migrate:fresh', $this->migrateFreshUsing());
 
             $this->app->make(Kernel::class)->setArtisan(null);
 
@@ -86,10 +87,10 @@ trait DatabaseTruncation
 
         if ($seeder = $this->seeder()) {
             // Use a specific seeder class...
-            $this->artisan('db:seed', ['--class' => $seeder]);
+            $this->realArtisan('db:seed', ['--class' => $seeder]);
         } elseif ($this->shouldSeed()) {
             // Use the default seeder class...
-            $this->artisan('db:seed');
+            $this->realArtisan('db:seed');
         }
 
         $this->afterTruncatingDatabase();

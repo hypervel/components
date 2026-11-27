@@ -1047,7 +1047,7 @@ Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `co
 
 Use Hypervel's migrations for framework tables such as jobs, job batches, sessions, and cache. Bring over migrations for your application's own tables and reapply any customizations to framework tables on top of Hypervel's schema. If you're keeping an existing database, preserve its migration history and keep the skeleton's migrations only for framework tables the database doesn't have yet, since the others would try to create tables that already exist. Then write new migrations for the changes needed to bring its existing framework tables in line with Hypervel's schema. Once those migrations have run, [dump the database schema](/docs/{{version}}/migrations#squashing-migrations) with its migration records. Fresh databases then start from the dump, since no remaining migration creates the framework tables the database already had.
 
-Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [deployment documentation](/docs/{{version}}/deployment) before adapting web server or process-monitor configuration.
+Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [server](/docs/{{version}}/server) and [deployment](/docs/{{version}}/deployment) documentation before adapting web server or process-monitor configuration.
 
 Build production releases with `composer install --no-dev --classmap-authoritative` instead of `--optimize-autoloader`; Doctor fails production checks without an authoritative class map. See [Autoloader Optimization](/docs/{{version}}/deployment#autoloader-optimization).
 

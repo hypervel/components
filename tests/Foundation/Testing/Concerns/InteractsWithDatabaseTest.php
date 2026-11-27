@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Faker\Generator;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
@@ -265,5 +266,22 @@ class InteractsWithDatabaseTest extends TestCase
             Collection::make($providerClasses)->contains(fn ($class) => str_contains($class, $locale)),
             "Expected one of the Faker providers to contain the locale '{$locale}', but none did."
         );
+    }
+
+    public function testSeedRunsUnmockedWhenMockConsoleOutputIsEnabled(): void
+    {
+        $this->mockConsoleOutput = true;
+
+        $kernel = Double::for(KernelContract::class)->strict();
+        $kernel->expects('call')
+            ->with('db:seed', ['--class' => 'FirstSeeder', '--no-interaction' => true])
+            ->returns(0);
+        $kernel->expects('call')
+            ->with('db:seed', ['--class' => 'SecondSeeder', '--no-interaction' => true])
+            ->returns(0);
+
+        $this->app->instance(KernelContract::class, $kernel);
+
+        $this->assertSame($this, $this->seed(['FirstSeeder', 'SecondSeeder']));
     }
 }

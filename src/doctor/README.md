@@ -11,4 +11,6 @@ Use `EnvironmentMode::fromHypervelEnvironment()` in place of `fromLaravelEnviron
 
 `ComposerAutoloadIsAuthoritative` fails in production unless Composer uses an [authoritative class map](https://hypervel.org/docs/deployment#autoloader-optimization).
 
+`OpcacheIsEnabledForCli` fails in production unless [OPcache is enabled for the PHP CLI](https://hypervel.org/docs/deployment#php-configuration).
+
 Ported from: https://github.com/laravel/doctor

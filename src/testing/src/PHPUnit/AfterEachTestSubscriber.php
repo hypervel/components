@@ -80,7 +80,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         }
 
         try {
-            Mockery::close();
+            if (class_exists(Mockery::class)) {
+                Mockery::close();
+            }
         } catch (Throwable $throwable) {
             $exception = Coroutine::preferCancellation($exception, $throwable);
         }

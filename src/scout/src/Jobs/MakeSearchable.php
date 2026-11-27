@@ -7,6 +7,7 @@ namespace Hypervel\Scout\Jobs;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Traits\ConfiguresJobOptions;
@@ -35,14 +36,16 @@ class MakeSearchable implements ShouldQueue
      */
     public function handle(): void
     {
-        if ($this->models->isEmpty()) {
+        $models = $this->withoutTrashedModels($this->models);
+
+        if ($models->isEmpty()) {
             return;
         }
 
         /** @var Model&SearchableInterface $firstModel */
-        $firstModel = $this->models->first();
+        $firstModel = $models->first();
 
-        $models = $firstModel->makeSearchableUsing($this->models);
+        $models = $firstModel->makeSearchableUsing($models);
 
         if ($models->isEmpty()) {
             return;
@@ -52,5 +55,24 @@ class MakeSearchable implements ShouldQueue
         $searchableModel = $models->first();
 
         $searchableModel->searchableUsing()->runUpdate($models);
+    }
+
+    /**
+     * Remove the models that were soft deleted after the job was dispatched.
+     *
+     * Queued models are restored without global scopes, so soft deleted models are restored as well.
+     *
+     * @param Collection<int, Model> $models
+     * @return Collection<int, Model>
+     */
+    protected function withoutTrashedModels(Collection $models): Collection
+    {
+        if ($models->isEmpty()
+            || config()->boolean('scout.soft_delete')
+            || ! in_array(SoftDeletes::class, class_uses_recursive($models->first()), true)) {
+            return $models;
+        }
+
+        return $models->reject->trashed()->values();
     }
 }

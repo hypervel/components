@@ -43,6 +43,10 @@ class DatabaseTruncationTest extends TestCase
 
     private array $connectionsToTruncate = [null];
 
+    protected bool $seed = false;
+
+    protected ?string $seeder = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -67,6 +71,8 @@ class DatabaseTruncationTest extends TestCase
         $this->tablesToTruncate = null;
         $this->exceptTables = null;
         $this->connectionsToTruncate = [null];
+        $this->seed = false;
+        $this->seeder = null;
 
         parent::tearDown();
     }
@@ -540,6 +546,55 @@ class DatabaseTruncationTest extends TestCase
 
         $this->assertTrue($testCase->cacheAvailableBeforeHook);
         $this->assertSame(['default' => $pdo], RefreshDatabaseState::$inMemoryConnections);
+    }
+
+    public function testTruncateDatabaseTablesRunsUnmockedWhenMockConsoleOutputIsEnabled(): void
+    {
+        $this->mockConsoleOutput = true;
+
+        $kernel = Double::for(KernelContract::class)->strict();
+        $kernel->expects('call')
+            ->with('migrate:fresh', [
+                '--drop-views' => false,
+                '--drop-types' => false,
+                '--seed' => false,
+            ])
+            ->returns(0);
+        $kernel->expects('setArtisan')->with(null);
+        $kernel->expects('call')
+            ->with('db:seed', [])
+            ->returns(0);
+        $kernel->expects('call')
+            ->with('db:seed', ['--class' => 'CustomSeeder'])
+            ->returns(0);
+
+        $schema = Double::for(Builder::class)->strict();
+        $schema->expects('withoutForeignKeyConstraints')->times(2);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaBuilder')->times(2)->returns($schema);
+        $database = Double::for(DatabaseManager::class)->strict();
+        $database->expects('connection')->times(2)->with(null)->returns($connection);
+
+        $this->app->instance(KernelContract::class, $kernel);
+        $this->app->instance('db', $database);
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'testing',
+                'migrations' => ['table' => 'migrations'],
+                // Empty database name skips in-memory PDO caching and parallel DB setup under TEST_TOKEN.
+                'connections' => ['testing' => ['driver' => 'sqlite', 'database' => '']],
+            ],
+        ]));
+        RefreshDatabaseState::$migrated = false;
+
+        $this->truncateDatabaseTables();
+
+        $this->seed = true;
+        $this->truncateDatabaseTables();
+
+        $this->seed = false;
+        $this->seeder = 'CustomSeeder';
+        $this->truncateDatabaseTables();
     }
 
     /**

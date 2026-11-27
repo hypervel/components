@@ -65,7 +65,6 @@
         "hypervel/server": "^0.4",
         "hypervel/session": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/testing": "^0.4",
         "hypervel/validation": "^0.4",
         "hypervel/view": "^0.4",
         "hypervel/websocket-server": "^0.4",
@@ -89,6 +88,7 @@
         "algolia/algoliasearch-client-php": "Required to use the InteractsWithAlgolia trait (^4.49.0).",
         "composer/semver": "Required to use PackageManifest::satisfies() for version constraint checking (^3.0).",
         "fakerphp/faker": "Required to use the fake() helper and WithFaker trait (^1.24).",
+        "hypervel/testing": "Required to use Foundation's testing helpers (^0.4).",
         "meilisearch/meilisearch-php": "Required to use the InteractsWithMeilisearch trait (^1.16).",
         "typesense/typesense-php": "Required to use the InteractsWithTypesense trait (^5.2)."
     },

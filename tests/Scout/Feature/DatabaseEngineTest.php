@@ -6,11 +6,16 @@ namespace Hypervel\Tests\Scout\Feature;
 
 use ArgumentCountError;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
+use Hypervel\Scout\Builder;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Searchable;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Scout\Fixtures\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\UuidSearchableModel;
@@ -25,27 +30,14 @@ class DatabaseEngineTest extends ScoutTestCase
         $app->make('config')->set('scout.driver', 'database');
     }
 
-    public function testSearchReturnsMatchingModels(): void
-    {
-        SearchableModel::create(['title' => 'Hello World', 'body' => 'This is a test']);
-        SearchableModel::create(['title' => 'Foo Bar', 'body' => 'Another test']);
-        SearchableModel::create(['title' => 'Baz Qux', 'body' => 'No match here']);
-
-        $results = SearchableModel::search('Hello')->get();
-
-        $this->assertCount(1, $results);
-        $this->assertEquals('Hello World', $results->first()->title);
-    }
-
-    public function testSearchReturnsAllModelsWithEmptyQuery(): void
+    public function testItCanRetrieveResultsWithEmptySearch(): void
     {
         SearchableModel::create(['title' => 'First', 'body' => 'Body 1']);
         SearchableModel::create(['title' => 'Second', 'body' => 'Body 2']);
         SearchableModel::create(['title' => 'Third', 'body' => 'Body 3']);
 
-        $results = SearchableModel::search('')->get();
-
-        $this->assertCount(3, $results);
+        $this->assertCount(3, SearchableModel::search()->get());
+        $this->assertCount(3, SearchableModel::search('')->get());
     }
 
     public function testSemanticSearchRequiresPostgresAndEmbeddingSource(): void
@@ -68,17 +60,528 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertSame('Taylor Otwell', $models->first()->title);
     }
 
-    public function testSearchWithWhereClause(): void
+    public function testItDoesNotAddSearchWhereClausesWithEmptySearch(): void
     {
-        $model1 = SearchableModel::create(['title' => 'Test A', 'body' => 'Body']);
-        SearchableModel::create(['title' => 'Test B', 'body' => 'Body']);
+        SearchableModel::search('')->query(function (EloquentBuilder $builder): void {
+            $this->assertSame('select * from "searchable_models"', $builder->toSql());
+        })->get();
+    }
 
-        $results = SearchableModel::search('Test')
-            ->where('id', $model1->id)
-            ->get();
+    public function testItAddsSearchWhereClausesWithNonEmptySearch(): void
+    {
+        SearchableModel::search('Taylor')->query(function (EloquentBuilder $builder): void {
+            $this->assertSame(
+                'select * from "searchable_models" where ("searchable_models"."title" like ? or "searchable_models"."body" like ?)',
+                $builder->toSql()
+            );
+        })->get();
+    }
 
-        $this->assertCount(1, $results);
-        $this->assertEquals($model1->id, $results->first()->id);
+    public function testItMatchesThePrimaryKeyExactlyForANumericSearch(): void
+    {
+        SearchableModel::search('1')->query(function (EloquentBuilder $builder): void {
+            $this->assertSame(
+                'select * from "searchable_models" where ("searchable_models"."id" = ? or "searchable_models"."title" like ? or "searchable_models"."body" like ?)',
+                $builder->toSql()
+            );
+        })->get();
+    }
+
+    public function testItSearchesACustomStringScoutKeyWithLikeForANumericSearch(): void
+    {
+        DatabaseCustomScoutKeyModel::create(['title' => 'user123@hypervel.org', 'body' => 'Body']);
+
+        $models = DatabaseCustomScoutKeyModel::search('123')->get();
+
+        $this->assertCount(1, $models);
+        $this->assertSame('user123@hypervel.org', $models->first()->title);
+    }
+
+    public function testItMatchesACustomIntegerScoutKeyExactlyForANumericSearch(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'id' => $this->id,
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::search('30')->query(function (EloquentBuilder $builder): void {
+            $this->assertSame(
+                'select * from "scout_through_models" where ("scout_through_models"."id" = ? or "scout_through_models"."intermediate_id" = ? or "scout_through_models"."title" like ?)',
+                $builder->toSql()
+            );
+        })->get();
+    }
+
+    public function testItReturnsNoResultsForNonNumericSearchOnIntegerKeyOnlyModel(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => 30, 'title' => 'First']);
+        $model::create(['intermediate_id' => 42, 'title' => 'Second']);
+
+        $this->assertCount(0, $model::search('abc')->get());
+        $this->assertCount(0, $model::search("30\n")->get());
+        $this->assertCount(1, $model::search('30')->get());
+        $this->assertCount(2, $model::search('')->get());
+    }
+
+    public function testItMatchesNegativeIntegerScoutKeysExactly(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => -42, 'title' => 'Negative key']);
+        $model::create(['intermediate_id' => 42, 'title' => 'Positive key']);
+
+        $models = $model::search('-42')->get();
+
+        $this->assertCount(1, $models);
+        $this->assertSame(-42, $models->first()->intermediate_id);
+    }
+
+    public function testItRejectsOutOfRangeIntegerScoutKeysOnSqlite(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => PHP_INT_MIN, 'title' => 'Minimum']);
+        $model::create(['intermediate_id' => PHP_INT_MAX, 'title' => 'Maximum']);
+        $model::create(['intermediate_id' => 9, 'title' => 'Nine']);
+
+        $this->assertCount(0, $model::search('-9223372036854775809')->get());
+        $this->assertCount(0, $model::search('9223372036854775808')->get());
+        $this->assertSame([PHP_INT_MIN], $model::search((string) PHP_INT_MIN)->get()->pluck('intermediate_id')->all());
+        $this->assertSame([PHP_INT_MAX], $model::search((string) PHP_INT_MAX)->get()->pluck('intermediate_id')->all());
+        $this->assertSame([9], $model::search('0009')->get()->pluck('intermediate_id')->all());
+    }
+
+    public function testItMatchesQualifiedIntegerKeyColumnsExactlyAndKeepsJoinedTableKeysDistinct(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Build the base query for database Scout searches.
+             */
+            public function newScoutQuery(): EloquentBuilder
+            {
+                return $this->newQuery()
+                    ->select('scout_through_models.*')
+                    ->join('searchable_models', 'searchable_models.id', '=', 'scout_through_models.intermediate_id');
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'scout_through_models.intermediate_id' => $this->intermediate_id,
+                    'searchable_models.id' => '',
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::search('30')->query(function (EloquentBuilder $builder): void {
+            $this->assertSame(
+                'select "scout_through_models".* from "scout_through_models" inner join "searchable_models" on "searchable_models"."id" = "scout_through_models"."intermediate_id" where ("scout_through_models"."intermediate_id" = ? or "searchable_models"."id" like ? or "scout_through_models"."title" like ?)',
+                $builder->toSql()
+            );
+        })->get();
+    }
+
+    public function testItSearchesModelsWithoutPrimaryKeyUsingCustomScoutKey(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected ?string $primaryKey = null;
+
+            public bool $incrementing = false;
+
+            protected array $guarded = [];
+
+            /**
+             * Get the value used to index the model.
+             */
+            public function getScoutKey(): mixed
+            {
+                return $this->intermediate_id;
+            }
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => 42, 'title' => 'Keyless row']);
+
+        $this->assertSame([42], $model::search('')->get()->pluck('intermediate_id')->all());
+        $this->assertSame([42], $model::search('42')->get()->pluck('intermediate_id')->all());
+        $this->assertSame([42], $model::search('Keyless')->get()->pluck('intermediate_id')->all());
+        $this->assertSame([42], $model::search('Keyless')->keys()->all());
+    }
+
+    public function testItCanRetrieveResults(): void
+    {
+        $taylor = SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
+        $abigail = SearchableModel::create(['title' => 'Abigail Otwell', 'body' => 'abigail@hypervel.org']);
+
+        $models = SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->get();
+        $this->assertCount(1, $models);
+        $this->assertSame($taylor->id, $models[0]->id);
+
+        $models = SearchableModel::search('Taylor')->query(function (EloquentBuilder $query): void {
+            $query->where('body', 'like', 'taylor@hypervel.org');
+        })->get();
+        $this->assertCount(1, $models);
+        $this->assertSame($taylor->id, $models[0]->id);
+
+        $models = SearchableModel::search('Abigail')->where('body', 'abigail@hypervel.org')->get();
+        $this->assertCount(1, $models);
+        $this->assertSame($abigail->id, $models[0]->id);
+
+        $this->assertCount(0, SearchableModel::search('Taylor')->where('body', 'abigail@hypervel.org')->get());
+        $this->assertCount(1, SearchableModel::search('Taylor')->where('id', $taylor->id)->get());
+        $this->assertCount(2, SearchableModel::search('otwell')->get());
+        $this->assertCount(2, SearchableModel::search('hypervel')->get());
+        $this->assertCount(0, SearchableModel::search('foo')->get());
+        $this->assertCount(0, SearchableModel::search('Abigail')->where('body', 'taylor@hypervel.org')->get());
+    }
+
+    public function testItCanPaginateResults(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
+        SearchableModel::create(['title' => 'Abigail Otwell', 'body' => 'abigail@hypervel.org']);
+
+        $this->assertCount(1, SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->paginate());
+        $this->assertCount(0, SearchableModel::search('Taylor')->where('body', 'abigail@hypervel.org')->paginate());
+        $this->assertCount(2, SearchableModel::search('hypervel')->paginate());
+
+        for ($i = 1; $i <= 8; ++$i) {
+            SearchableModel::create(['title' => "Item {$i}", 'body' => 'Body']);
+        }
+
+        $page1 = SearchableModel::search('')->paginate(3, 'page', 1);
+        $page2 = SearchableModel::search('')->paginate(3, 'page', 2);
+
+        $this->assertCount(3, $page1->items());
+        $this->assertCount(3, $page2->items());
+        $this->assertSame(10, $page1->total());
+    }
+
+    public function testItCanPaginateUsingACustomPageName(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
+
+        $models = SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->paginate();
+        $this->assertStringContainsString('page=1', $models->url(1));
+
+        $models = SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->paginate(pageName: 'foo');
+        $this->assertStringContainsString('foo=1', $models->url(1));
+
+        $models = SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->paginate(pageName: 'bar');
+        $this->assertStringContainsString('bar=1', $models->url(1));
+    }
+
+    public function testItCanSimplePaginateUsingACustomPageName(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
+
+        $models = SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->simplePaginate();
+        $this->assertStringContainsString('page=1', $models->url(1));
+
+        $models = SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->simplePaginate(pageName: 'foo');
+        $this->assertStringContainsString('foo=1', $models->url(1));
+
+        $models = SearchableModel::search('Taylor')->where('body', 'taylor@hypervel.org')->simplePaginate(pageName: 'bar');
+        $this->assertStringContainsString('bar=1', $models->url(1));
+    }
+
+    public function testLimitIsApplied(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
+        SearchableModel::create(['title' => 'Abigail Otwell', 'body' => 'abigail@hypervel.org']);
+
+        $this->assertCount(2, SearchableModel::search('hypervel')->get());
+        $this->assertCount(1, SearchableModel::search('hypervel')->take(1)->get());
+    }
+
+    public function testTapIsApplied(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
+        SearchableModel::create(['title' => 'Abigail Otwell', 'body' => 'abigail@hypervel.org']);
+
+        $this->assertCount(2, SearchableModel::search('hypervel')->get());
+
+        $models = SearchableModel::search('hypervel')->tap(function (Builder $query): Builder {
+            return $query->take(1);
+        })->get();
+
+        $this->assertCount(1, $models);
+    }
+
+    public function testItCanOrderResults(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'taylor@hypervel.org']);
+        SearchableModel::create(['title' => 'Abigail Otwell', 'body' => 'abigail@hypervel.org']);
+
+        $models = SearchableModel::search('hypervel')->orderBy('title', 'asc')->take(1)->get();
+        $this->assertCount(1, $models);
+        $this->assertSame('Abigail Otwell', $models[0]->title);
+
+        $modelsPaginate = SearchableModel::search('hypervel')->orderBy('title', 'asc')->paginate(1, 'page', 1);
+        $this->assertCount(1, $modelsPaginate);
+        $this->assertSame('Abigail Otwell', $modelsPaginate[0]->title);
+
+        $modelsSimplePaginate = SearchableModel::search('hypervel')->orderBy('title', 'asc')->simplePaginate(1, 'page', 1);
+        $this->assertCount(1, $modelsSimplePaginate);
+        $this->assertSame('Abigail Otwell', $modelsSimplePaginate[0]->title);
+
+        $models = SearchableModel::search('hypervel')->orderBy('title', 'desc')->take(1)->get();
+        $this->assertCount(1, $models);
+        $this->assertSame('Taylor Otwell', $models[0]->title);
+
+        $models = SearchableModel::search('hypervel')->orderByDesc('title')->take(1)->get();
+        $this->assertCount(1, $models);
+        $this->assertSame('Taylor Otwell', $models[0]->title);
+
+        $modelsPaginate = SearchableModel::search('hypervel')->orderBy('title', 'desc')->paginate(1, 'page', 1);
+        $this->assertCount(1, $modelsPaginate);
+        $this->assertSame('Taylor Otwell', $modelsPaginate[0]->title);
+
+        $modelsPaginate = SearchableModel::search('hypervel')->orderByDesc('title')->paginate(1, 'page', 1);
+        $this->assertCount(1, $modelsPaginate);
+        $this->assertSame('Taylor Otwell', $modelsPaginate[0]->title);
+
+        $modelsSimplePaginate = SearchableModel::search('hypervel')->orderBy('title', 'desc')->simplePaginate(1, 'page', 1);
+        $this->assertCount(1, $modelsSimplePaginate);
+        $this->assertSame('Taylor Otwell', $modelsSimplePaginate[0]->title);
+
+        $modelsSimplePaginate = SearchableModel::search('hypervel')->orderByDesc('title')->simplePaginate(1, 'page', 1);
+        $this->assertCount(1, $modelsSimplePaginate);
+        $this->assertSame('Taylor Otwell', $modelsSimplePaginate[0]->title);
+    }
+
+    public function testItUsesScoutQuery(): void
+    {
+        $related = SearchableModel::create([
+            'title' => 'Related',
+            'body' => 'This related row is searchable',
+        ]);
+
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Build the base query for database Scout searches.
+             */
+            public function newScoutQuery(): EloquentBuilder
+            {
+                return $this->newQuery()
+                    ->select('scout_through_models.*')
+                    ->join('searchable_models', 'searchable_models.id', '=', 'scout_through_models.intermediate_id');
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'title' => $this->title,
+                    'searchable_models.body' => '',
+                ];
+            }
+        };
+
+        $model::create([
+            'intermediate_id' => $related->id,
+            'title' => 'hypervel',
+        ]);
+
+        $models = $model::search('related row')->get();
+
+        $this->assertCount(1, $models);
+        $this->assertSame('hypervel', $models[0]->title);
+        $this->assertSame($related->id, $models[0]->intermediate_id);
     }
 
     public function testItCanFilterWithGreaterThan(): void
@@ -165,56 +668,6 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertFalse($results->contains('id', $model1->id));
     }
 
-    public function testSearchWithLimit(): void
-    {
-        SearchableModel::create(['title' => 'First', 'body' => 'Body']);
-        SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
-        SearchableModel::create(['title' => 'Third', 'body' => 'Body']);
-
-        $results = SearchableModel::search('')->take(2)->get();
-
-        $this->assertCount(2, $results);
-    }
-
-    public function testSearchWithPagination(): void
-    {
-        for ($i = 1; $i <= 10; ++$i) {
-            SearchableModel::create(['title' => "Item {$i}", 'body' => 'Body']);
-        }
-
-        $page1 = SearchableModel::search('')->paginate(3, 'page', 1);
-        $page2 = SearchableModel::search('')->paginate(3, 'page', 2);
-
-        $this->assertCount(3, $page1->items());
-        $this->assertCount(3, $page2->items());
-        $this->assertEquals(10, $page1->total());
-    }
-
-    public function testSearchWithOrderBy(): void
-    {
-        SearchableModel::create(['title' => 'B Item', 'body' => 'Body']);
-        SearchableModel::create(['title' => 'A Item', 'body' => 'Body']);
-        SearchableModel::create(['title' => 'C Item', 'body' => 'Body']);
-
-        $results = SearchableModel::search('')
-            ->orderBy('title', 'asc')
-            ->get();
-
-        $this->assertEquals('A Item', $results->first()->title);
-        $this->assertEquals('C Item', $results->last()->title);
-    }
-
-    public function testSearchMatchesInBody(): void
-    {
-        SearchableModel::create(['title' => 'No match', 'body' => 'The quick brown fox']);
-        SearchableModel::create(['title' => 'Also no match', 'body' => 'Lazy dog']);
-
-        $results = SearchableModel::search('fox')->get();
-
-        $this->assertCount(1, $results);
-        $this->assertEquals('No match', $results->first()->title);
-    }
-
     public function testSearchIsCaseInsensitive(): void
     {
         SearchableModel::create(['title' => 'UPPERCASE', 'body' => 'Body']);
@@ -226,18 +679,6 @@ class DatabaseEngineTest extends ScoutTestCase
 
         $results = SearchableModel::search('LOWERCASE')->get();
         $this->assertCount(1, $results);
-    }
-
-    public function testSearchByPrimaryKey(): void
-    {
-        $model1 = SearchableModel::create(['title' => 'Test A', 'body' => 'Body']);
-        SearchableModel::create(['title' => 'Test B', 'body' => 'Body']);
-
-        // Search by the ID as a string
-        $results = SearchableModel::search((string) $model1->id)->get();
-
-        $this->assertCount(1, $results);
-        $this->assertEquals($model1->id, $results->first()->id);
     }
 
     public function testIntegerPrimaryKeyUsesExactMatchingOnly(): void
@@ -271,19 +712,15 @@ class DatabaseEngineTest extends ScoutTestCase
         );
     }
 
-    public function testCustomScoutKeyDoesNotReplaceDatabaseIdentityOrDefaultOrder(): void
+    public function testCustomScoutKeyIsUsedForDefaultOrder(): void
     {
         DatabaseCustomScoutKeyModel::create(['id' => 1, 'title' => 'Zulu', 'body' => 'Body']);
         DatabaseCustomScoutKeyModel::create(['id' => 2, 'title' => 'Alpha', 'body' => 'Body']);
         DatabaseCustomScoutKeyModel::create(['id' => 10, 'title' => 'Bravo', 'body' => 'Body']);
 
         $this->assertSame(
-            [1],
-            DatabaseCustomScoutKeyModel::search('1')->get()->pluck('id')->all(),
-        );
-        $this->assertSame(
-            [10, 2, 1],
-            DatabaseCustomScoutKeyModel::search('')->get()->pluck('id')->all(),
+            ['Zulu', 'Bravo', 'Alpha'],
+            DatabaseCustomScoutKeyModel::search('')->get()->pluck('title')->all(),
         );
     }
 
@@ -402,6 +839,57 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertContains($model2->id, $ids->all());
     }
 
+    public function testMapIdsReturnsCustomScoutKeys(): void
+    {
+        $model = new class extends Model {
+            use Searchable;
+
+            protected ?string $table = 'scout_through_models';
+
+            protected array $guarded = [];
+
+            /**
+             * Get the value used to index the model.
+             */
+            public function getScoutKey(): mixed
+            {
+                return $this->intermediate_id;
+            }
+
+            /**
+             * Get the key name used to index the model.
+             */
+            public function getScoutKeyName(): string
+            {
+                return 'intermediate_id';
+            }
+
+            /**
+             * Get the key type used to query the model.
+             */
+            public function getScoutKeyType(): string
+            {
+                return 'int';
+            }
+
+            /**
+             * Get the indexable data array for the model.
+             */
+            public function toSearchableArray(): array
+            {
+                return [
+                    'intermediate_id' => $this->intermediate_id,
+                    'title' => $this->title,
+                ];
+            }
+        };
+
+        $model::create(['intermediate_id' => 100, 'title' => 'Custom Scout key']);
+        $model::create(['intermediate_id' => 200, 'title' => 'Custom Scout key']);
+
+        $this->assertSame([200, 100], $model::search('Custom')->keys()->all());
+    }
+
     public function testMapReturnsResults(): void
     {
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
@@ -427,7 +915,7 @@ class DatabaseEngineTest extends ScoutTestCase
 
         $lazyMapped = $engine->lazyMap($builder, $results, $model);
 
-        $this->assertInstanceOf(\Hypervel\Support\LazyCollection::class, $lazyMapped);
+        $this->assertInstanceOf(LazyCollection::class, $lazyMapped);
         $this->assertCount(1, $lazyMapped);
     }
 
@@ -544,9 +1032,28 @@ class MalformedSearchAttributeModel extends SearchableModel
 
 class DatabaseCustomScoutKeyModel extends SearchableModel
 {
+    /**
+     * Get the value used to index the model.
+     */
+    public function getScoutKey(): mixed
+    {
+        return $this->title;
+    }
+
+    /**
+     * Get the key name used to index the model.
+     */
     public function getScoutKeyName(): string
     {
         return 'title';
+    }
+
+    /**
+     * Get the key type used to query the model.
+     */
+    public function getScoutKeyType(): string
+    {
+        return 'string';
     }
 }
 

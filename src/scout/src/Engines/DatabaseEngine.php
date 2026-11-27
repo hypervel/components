@@ -265,20 +265,33 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         $connectionType = $builder->modelConnectionType();
 
         return $query->where(function (EloquentBuilder $query) use ($connectionType, $builder, $columns, $prefixColumns, $fullTextColumns): void {
-            $primaryKey = $builder->model->getKeyName();
-            $integerPrimaryKey = in_array($builder->model->getKeyType(), ['int', 'integer'], true);
-            $primaryKeyValue = $builder->query;
-            $canSearchPrimaryKey = ctype_digit((string) $builder->query)
-                && $integerPrimaryKey
-                && in_array($primaryKey, $columns, true);
+            $integerKeyColumns = $this->integerKeyColumns($builder);
+            $searchableIntegerKeyColumns = array_values(array_unique(array_filter(
+                array_map($builder->model->qualifyColumn(...), $columns),
+                fn (string $column): bool => in_array($column, $integerKeyColumns, true)
+            )));
+            $integerKeyValue = $builder->query;
+            $canSearchIntegerKeys = $searchableIntegerKeyColumns !== []
+                && preg_match('/^-?[0-9]+\z/', $integerKeyValue) === 1;
 
-            if ($canSearchPrimaryKey && $connectionType === 'pgsql') {
-                $primaryKeyValue = ltrim((string) $builder->query, '0') ?: '0';
-                $canSearchPrimaryKey = filter_var($primaryKeyValue, FILTER_VALIDATE_INT) !== false;
+            // PostgreSQL and SQLite store signed 64-bit integers; SQLite otherwise coerces oversized
+            // strings to REAL on non-rowid columns, while MySQL/MariaDB allow BIGINT UNSIGNED keys.
+            if ($canSearchIntegerKeys && in_array($connectionType, ['pgsql', 'sqlite'], true)) {
+                $negative = str_starts_with($integerKeyValue, '-');
+                $digits = ltrim($negative ? substr($integerKeyValue, 1) : $integerKeyValue, '0') ?: '0';
+                $integerKeyValue = $negative && $digits !== '0' ? '-' . $digits : $digits;
+                $canSearchIntegerKeys = filter_var($integerKeyValue, FILTER_VALIDATE_INT) !== false;
             }
 
-            if ($canSearchPrimaryKey) {
-                $query->orWhere($builder->model->getQualifiedKeyName(), $primaryKeyValue);
+            if ($canSearchIntegerKeys) {
+                foreach ($searchableIntegerKeyColumns as $keyColumn) {
+                    if ($connectionType === 'pgsql') {
+                        // Cast to bigint so values outside smallint/integer ranges evaluate to false instead of throwing 22003.
+                        $query->orWhereRaw("{$this->wrapColumn($builder, $keyColumn)} = ?::bigint", [$integerKeyValue]);
+                    } else {
+                        $query->orWhere($keyColumn, $integerKeyValue);
+                    }
+                }
             }
 
             $likeOperator = $connectionType === 'pgsql' ? 'ilike' : 'like';
@@ -288,7 +301,10 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     continue;
                 }
 
-                if ($integerPrimaryKey && $column === $primaryKey) {
+                $qualifiedColumn = $builder->model->qualifyColumn($column);
+
+                // Unlike upstream, integer keys are never matched with LIKE, since PostgreSQL has no LIKE operator for integer columns.
+                if (in_array($qualifiedColumn, $integerKeyColumns, true)) {
                     continue;
                 }
 
@@ -297,7 +313,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     : '%' . $builder->query . '%';
 
                 $query->orWhere(
-                    $builder->model->qualifyColumn($column),
+                    $qualifiedColumn,
                     $likeOperator,
                     $pattern
                 );
@@ -330,6 +346,11 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
             foreach ($this->getTrigramColumns($builder) as $column) {
                 $query->orWhereRaw("{$this->wrapColumn($builder, $column)} % ?", [$builder->query]);
+            }
+
+            // A non-blank search that generates no predicates must not leave an empty group that matches every row.
+            if ($query->getQuery()->wheres === []) {
+                $query->whereRaw('1 = 0');
             }
         });
     }
@@ -494,11 +515,14 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 $query->orderBy($order['column'], $order['direction']);
             }
         })->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-            $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
+            $query->orderBy($builder->model->qualifyColumn($builder->model->getScoutKeyName()), 'desc');
         })->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
             $this->orderByRelevance($builder, $query);
 
-            $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
+            $query->orderBy(
+                $builder->model->qualifyColumn($builder->model->getKeyName() ?? $builder->model->getScoutKeyName()),
+                'desc'
+            );
         });
     }
 
@@ -658,14 +682,42 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             $columns = array_merge($columns, $attributeInstance->columns);
         }
 
-        if (in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
+        $integerKeyColumns = $this->integerKeyColumns($builder);
+
+        if ($integerKeyColumns !== []) {
+            // Unlike upstream, integer keys are excluded from prefix/full-text attributes (see addTextSearchConstraints).
             $columns = array_values(array_filter(
                 $columns,
-                fn (string $column): bool => $column !== $builder->model->getKeyName()
+                fn (string $column): bool => ! in_array($builder->model->qualifyColumn($column), $integerKeyColumns, true)
             ));
         }
 
         return $this->attributeColumns[$modelClass][$attributeClass] = $columns;
+    }
+
+    /**
+     * Get the qualified integer key columns that must use exact matching instead of text predicates.
+     *
+     * @return array<int, string>
+     */
+    protected function integerKeyColumns(Builder $builder): array
+    {
+        $columns = [];
+        $primaryKey = $builder->model->getKeyName();
+
+        if ($primaryKey !== null && in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
+            $columns[] = $builder->model->qualifyColumn($primaryKey);
+        }
+
+        if (in_array($builder->model->getScoutKeyType(), ['int', 'integer'], true)) {
+            $scoutKey = $builder->model->qualifyColumn($builder->model->getScoutKeyName());
+
+            if (! in_array($scoutKey, $columns, true)) {
+                $columns[] = $scoutKey;
+            }
+        }
+
+        return $columns;
     }
 
     /**
@@ -721,12 +773,18 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     public function mapIds(mixed $results): Collection
     {
-        /** @var EloquentCollection<int, Model> $collection */
+        /** @var EloquentCollection<int, Model&SearchableInterface> $collection */
         $collection = $results['results'];
 
-        return $collection->isNotEmpty()
-            ? collect($collection->modelKeys())
-            : collect();
+        if ($collection->isEmpty()) {
+            return collect();
+        }
+
+        /** @var Model&SearchableInterface $first */
+        $first = $collection->first();
+
+        // Unlike upstream's modelKeys(), pluck the Scout key to match the other engines and support keyless models.
+        return $collection->pluck($first->getScoutKeyName());
     }
 
     /**

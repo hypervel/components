@@ -9,6 +9,8 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Tests\Sentry\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
@@ -37,6 +39,45 @@ class DatabaseEventsTest extends TestCase
         $lastBreadcrumb = $this->getLastSentryBreadcrumb();
 
         $this->assertEquals($query, $lastBreadcrumb->getMessage());
+    }
+
+    public function testQueryExecutedListenerIsNotRegisteredWhenBreadcrumbsAndTracingAreDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.traces_sample_rate' => 1.0,
+            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry.tracing.sql_queries' => false,
+        ]);
+
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        $this->assertFalse($events->hasListeners(QueryExecuted::class));
+        $this->assertTrue($events->hasListeners(RouteMatched::class));
+    }
+
+    public function testQueryExecutedListenerIsRegisteredWhenOnlyBreadcrumbsAreEnabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.traces_sample_rate' => 1.0,
+            'sentry.breadcrumbs.sql_queries' => true,
+            'sentry.tracing.sql_queries' => false,
+        ]);
+
+        $this->assertTrue($this->app->make('events')->hasListeners(QueryExecuted::class));
+        $this->assertSame(1, $this->countQueryExecutedListeners());
+    }
+
+    public function testQueryExecutedListenerIsRegisteredWhenOnlyTracingIsEnabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.traces_sample_rate' => 1.0,
+            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry.tracing.sql_queries' => true,
+        ]);
+
+        $this->assertTrue($this->app->make('events')->hasListeners(QueryExecuted::class));
+        $this->assertSame(1, $this->countQueryExecutedListeners());
     }
 
     public function testSqlBindingsAreRecordedWhenEnabled(): void
@@ -185,6 +226,21 @@ class DatabaseEventsTest extends TestCase
         $this->dispatchHypervelEvent(new TransactionBeginning($this->getMockedConnection()));
 
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
+    }
+
+    /**
+     * Count the Sentry queryExecuted listeners registered on the event dispatcher.
+     */
+    private function countQueryExecutedListeners(): int
+    {
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+        $listeners = $events->getRawListeners()[QueryExecuted::class] ?? [];
+
+        return count(array_filter(
+            $listeners,
+            static fn (mixed $listener): bool => is_array($listener) && ($listener[1] ?? null) === 'queryExecuted',
+        ));
     }
 
     /**

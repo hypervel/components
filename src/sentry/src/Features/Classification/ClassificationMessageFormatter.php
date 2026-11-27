@@ -119,6 +119,8 @@ class ClassificationMessageFormatter
 
     /**
      * Include confidence when the provider reports it.
+     *
+     * @param array<string, mixed> $formatted
      */
     private static function withConfidence(array $formatted, ?float $confidence): array
     {

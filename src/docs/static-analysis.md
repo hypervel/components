@@ -1376,7 +1376,7 @@ Direct reads and writes of request-specific properties are reported. Use pairs s
 <a name="swoole-tables"></a>
 ### Swoole Tables
 
-Create shared Swoole tables from a `Hypervel\Core\Events\BeforeServerStart` listener, before the server starts its workers. Creating a table directly in a service provider's `register` or `boot` method is reported because those methods also run in queue workers and console commands that never use the table.
+Create shared Swoole tables from a [`Hypervel\Core\Events\BeforeServerStart`](/docs/{{version}}/server#startup-and-fork-events) listener, before the server starts its workers. Creating a table directly in a service provider's `register` or `boot` method is reported because those methods also run in queue workers and console commands that never use the table.
 
 The check does not inspect closures, such as singleton factories. Resolve table-creating factories from a `BeforeServerStart` listener too; wrapping construction in a factory does not help if a provider immediately resolves it. You may disable the check using the `checkSwooleTables` parameter.
 

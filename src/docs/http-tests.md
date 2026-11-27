@@ -1099,7 +1099,7 @@ $response->assertDontSee($value, $escape = true);
 <a name="assert-dont-see-html"></a>
 #### assertDontSeeHtml
 
-Assert that the given HTML string is not contained within the response:
+Assert that the given HTML string is not contained within the response returned by the application. This assertion is an alias to `assertDontSee` with its escape argument set to `false`:
 
 ```php
 $response->assertDontSeeHtml($value);
@@ -1755,7 +1755,7 @@ $response->assertSee($value, $escape = true);
 <a name="assert-see-html"></a>
 #### assertSeeHtml
 
-Assert that the given HTML string is contained within the response:
+Assert that the given HTML string or array of HTML strings are contained within the response. This assertion is an alias to `assertSee` with its escape argument set to `false`:
 
 ```php
 $response->assertSeeHtml($value);
@@ -1764,7 +1764,7 @@ $response->assertSeeHtml($value);
 <a name="assert-see-html-in-order"></a>
 #### assertSeeHtmlInOrder
 
-Assert that the given HTML strings are contained in order within the response:
+Assert that the given HTML strings are contained in order within the response. This assertion is an alias to `assertSeeInOrder` with its escape argument set to `false`:
 
 ```php
 $response->assertSeeHtmlInOrder(array $values);

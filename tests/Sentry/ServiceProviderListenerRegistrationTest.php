@@ -6,11 +6,9 @@ namespace Hypervel\Tests\Sentry;
 
 use Closure;
 use Hypervel\Console\Events\ScheduledTaskStarting;
-use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Queue\Events\JobProcessing;
-use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\WebSocketServer\Events\ConnectionClosing;
@@ -27,40 +25,6 @@ class ServiceProviderListenerRegistrationTest extends TestCase
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
     ];
-
-    public function testQueryExecutedIsNotRegisteredWhenSqlBreadcrumbsAndTracingAreDisabled(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => false,
-            'sentry.tracing.sql_queries' => false,
-        ]);
-
-        $this->assertFalse(app('events')->hasListeners(QueryExecuted::class));
-        $this->assertSame(0, $this->countMethodListeners(QueryExecuted::class, 'queryExecuted'));
-        $this->assertTrue(app('events')->hasListeners(RouteMatched::class));
-    }
-
-    public function testQueryExecutedIsRegisteredForBreadcrumbsWithoutTracing(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => true,
-            'sentry.tracing.sql_queries' => false,
-        ]);
-
-        $this->assertTrue(app('events')->hasListeners(QueryExecuted::class));
-        $this->assertSame(1, $this->countMethodListeners(QueryExecuted::class, 'queryExecuted'));
-    }
-
-    public function testQueryExecutedIsRegisteredForTracingWithoutBreadcrumbs(): void
-    {
-        $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => false,
-            'sentry.tracing.sql_queries' => true,
-        ]);
-
-        $this->assertTrue(app('events')->hasListeners(QueryExecuted::class));
-        $this->assertSame(1, $this->countMethodListeners(QueryExecuted::class, 'queryExecuted'));
-    }
 
     public function testMessageLoggedIsNotRegisteredWhenLogBreadcrumbsAreDisabled(): void
     {

@@ -282,7 +282,7 @@ If the client's deadline passes while the service is waiting, for example on a q
 The `previousAttempts` method returns the number of completed retry attempts reported by the client. This can be useful for logging or idempotency handling.
 
 > [!NOTE]
-> The context does not expose a client cancellation flag. With [HTTP/2 stream cancellation](/docs/{{version}}/deployment#http2-stream-cancellation) enabled, a client's stream reset interrupts the request coroutine with a `Swoole\Coroutine\CanceledException`. Use a deadline when service work must finish within a bounded amount of time.
+> The context does not expose a client cancellation flag. With [HTTP/2 stream cancellation](/docs/{{version}}/server#http2-stream-cancellation) enabled, a client's stream reset interrupts the request coroutine with a `Swoole\Coroutine\CanceledException`. Use a deadline when service work must finish within a bounded amount of time.
 
 <a name="responses"></a>
 ## Responses

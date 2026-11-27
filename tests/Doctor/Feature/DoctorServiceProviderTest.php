@@ -23,6 +23,7 @@ use Hypervel\Doctor\Diagnostics\EnvironmentFileExists;
 use Hypervel\Doctor\Diagnostics\EnvironmentFileIsGitIgnored;
 use Hypervel\Doctor\Diagnostics\FilesystemDisksAreReachable;
 use Hypervel\Doctor\Diagnostics\MigrationsAreUpToDate;
+use Hypervel\Doctor\Diagnostics\OpcacheIsEnabledForCli;
 use Hypervel\Doctor\Diagnostics\PhpVersionSatisfiesComposerRequirement;
 use Hypervel\Doctor\Diagnostics\PublicStorageLinkExists;
 use Hypervel\Doctor\Diagnostics\QueueConnectionIsAsynchronous;
@@ -1122,6 +1123,7 @@ class DoctorServiceProviderTest extends TestCase
             PhpVersionSatisfiesComposerRequirement::class,
             RequiredPhpExtensionsAreLoaded::class,
             RecommendedPhpExtensionsAreLoaded::class,
+            OpcacheIsEnabledForCli::class,
             ComposerAutoloadIsValid::class,
             ComposerAutoloadIsAuthoritative::class,
             ComposerLockIsFresh::class,
@@ -1157,6 +1159,7 @@ class DoctorServiceProviderTest extends TestCase
             PhpVersionSatisfiesComposerRequirement::class,
             RequiredPhpExtensionsAreLoaded::class,
             RecommendedPhpExtensionsAreLoaded::class,
+            OpcacheIsEnabledForCli::class,
             ComposerAutoloadIsValid::class,
             ComposerAutoloadIsAuthoritative::class,
             ComposerLockIsFresh::class,

@@ -356,9 +356,6 @@ The `ogImage`, `ogVideo`, and `ogAudio` methods accept a URL as their first argu
 
 You may pass image MIME types as `ImageType` enum cases anywhere the API accepts an image `type`, such as `ImageType::Svg`, `ImageType::Png`, `ImageType::Jpeg`, and `ImageType::Webp`.
 
-> [!NOTE]
-> Document `title`, `description`, and canonical URL values automatically fill missing `og:title`, `og:description`, and `og:url` values.
-
 For a single Open Graph image with no other attributes, you may pass the `image` named argument to the `og` method:
 
 ```php
@@ -371,6 +368,32 @@ Head::og(
 ```
 
 The `og(image: ...)` and `ogImage(...)` calls write to the same underlying image list, so you may use whichever is more expressive at the call site. You may use the [`meta`](#custom-tags) method for custom Open Graph extensions such as product or article properties.
+
+> [!NOTE]
+> Document `title` and `description` automatically fill missing `og:title` and `og:description` values.
+
+When a page renders Open Graph tags without a `url`, Hypervel Head uses the page's [canonical URL](#defaults) as the `og:url` value. Since the canonical URL is resolved for each request, you may register both in your defaults:
+
+```php
+use Hypervel\Head\Enums\OgType;
+use Hypervel\Head\Facades\Head;
+use Hypervel\Head\HeadBuilder;
+
+Head::defaults(fn (HeadBuilder $head) => $head
+    ->canonical()
+    ->og(siteName: 'Hypervel', type: OgType::Website));
+```
+
+For a request to `/pricing`, this renders:
+
+```html
+<link rel="canonical" href="https://example.com/pricing">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Hypervel">
+<meta property="og:url" content="https://example.com/pricing">
+```
+
+If neither an explicit `url` nor a canonical URL is set, `og:url` is omitted. An explicit `url` passed to the `og` method always takes precedence over the canonical URL.
 
 <a name="twitter-cards"></a>
 ### X / Twitter Cards

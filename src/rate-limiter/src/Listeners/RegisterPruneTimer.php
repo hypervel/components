@@ -29,7 +29,7 @@ class RegisterPruneTimer
      */
     public function handle(AfterWorkerStart $event): void
     {
-        if ($event->workerId !== 0 || $event->server->taskworker) {
+        if ($event->workerId !== 0) {
             return;
         }
 

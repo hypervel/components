@@ -60,7 +60,7 @@ The `database` directory contains your database migrations, model factories, and
 
 The `public` directory houses your assets such as images, JavaScript, and CSS. Hypervel runs on Swoole, so requests do not enter your application through a `public/index.php` front controller. Instead, the Swoole HTTP server started by `php artisan serve` receives requests and dispatches them into your application.
 
-By default, Hypervel's Swoole server is configured to serve static files from the `public` directory directly. In production, you should usually serve static files with a web server such as Nginx and proxy dynamic requests to Hypervel. This is more efficient than serving static files through PHP. When your web server is serving static files directly, you may disable Swoole's static file handler by setting the `SERVER_STATIC_FILE_HANDLER` environment variable to `false`.
+By default, Hypervel's Swoole server serves static files from the `public` directory directly. In production behind a web server such as Nginx, let the web server serve static files and disable Swoole's [static file handler](/docs/{{version}}/server#static-files) by setting `SERVER_STATIC_FILE_HANDLER=false`.
 
 <a name="the-resources-directory"></a>
 ### The Resources Directory

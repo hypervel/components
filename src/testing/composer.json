@@ -72,7 +72,6 @@
         "hypervel/validation": "^0.4",
         "hypervel/view": "^0.4",
         "hypervel/websocket-server": "^0.4",
-        "mockery/mockery": "^1.6.15",
         "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1.10",
         "symfony/http-foundation": "^8.1.11",
@@ -81,6 +80,7 @@
     },
     "suggest": {
         "brianium/paratest": "Required to run tests in parallel (^7.27.2).",
+        "mockery/mockery": "Required to use mocking and mocked console output in tests (^1.6.15).",
         "phpunit/phpunit": "Required to use Hypervel's testing assertions and PHPUnit integration (~13.4.3)."
     },
     "autoload": {

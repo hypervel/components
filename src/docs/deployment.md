@@ -3,12 +3,11 @@
 - [Introduction](#introduction)
 - [Server Requirements](#server-requirements)
     - [Hypervel PHP Requirements](#hypervel-php-requirements)
+    - [PHP Configuration](#php-configuration)
 - [Server Configuration](#server-configuration)
     - [Nginx](#nginx)
     - [Nginx and WebSockets](#nginx-and-websockets)
     - [Running the Hypervel Server](#running-the-hypervel-server)
-    - [HTTP/2 Stream Cancellation](#http2-stream-cancellation)
-    - [Graceful Shutdown](#graceful-shutdown)
     - [Directory Permissions](#directory-permissions)
 - [Optimization](#optimization)
     - [Caching Configuration](#optimizing-configuration-loading)
@@ -40,17 +39,45 @@ Your server must meet Hypervel's [installation requirements](/docs/{{version}}/i
 php -v
 ```
 
+<a name="php-configuration"></a>
+### PHP Configuration
+
+Because Hypervel runs under the PHP CLI rather than PHP-FPM, configure your production CLI `php.ini` with Swoole short names disabled and OPcache enabled for the CLI:
+
+```ini
+swoole.use_shortname=Off
+
+opcache.enable=1
+opcache.enable_cli=1
+opcache.validate_timestamps=0
+opcache.memory_consumption=256
+opcache.max_accelerated_files=20000
+```
+
+> [!WARNING]
+> PHP disables `opcache.enable_cli` by default. Without both `opcache.enable=1` and `opcache.enable_cli=1`, your server starts normally without any error, but runs without OPcache: PHP's optimizer and JIT do not run, and each worker separately compiles the classes it loads after startup.
+
+Setting `opcache.validate_timestamps=0` avoids checking file timestamps on disk in production, since code changes already require a full server restart. Leave `validate_timestamps` enabled during local development. Size `opcache.memory_consumption` and `opcache.max_accelerated_files` to fit your application and its `vendor` directory.
+
+To verify CLI OPcache during deployment, install [Doctor](/docs/{{version}}/doctor#installation) without `--dev`, run the following command in your production environment, and stop the deployment if it fails:
+
+```shell
+php artisan doctor --only=OpcacheIsEnabledForCli --no-interaction
+```
+
+The check is skipped when Doctor runs in a [local environment](/docs/{{version}}/doctor#environment-modes).
+
 <a name="server-configuration"></a>
 ## Server Configuration
 
-Hypervel supports direct TLS termination, but for internet-facing production deployments, we recommend terminating TLS at a dedicated reverse proxy or load balancer.
+Hypervel supports [direct TLS termination](/docs/{{version}}/server#tls-https), but for internet-facing production deployments, we recommend terminating TLS at a dedicated reverse proxy or load balancer.
 
 <a name="nginx"></a>
 ### Nginx
 
 If you are deploying your application to a server that is running Nginx, you may use the following configuration file as a starting point for configuring your web server. Most likely, this file will need to be customized depending on your server's configuration. **If you would like assistance in managing your server, consider using a fully-managed Hypervel platform like [SonicStack](https://sonicstack.io).**
 
-Please ensure, like the configuration below, your web server proxies dynamic requests to your Hypervel server. The default Hypervel HTTP server listens on port `8000` and may be configured in your application's `config/server.php` file:
+Please ensure, like the configuration below, your web server proxies dynamic requests to your Hypervel server. The default Hypervel HTTP server listens on port `8000` and may be configured in your application's [`config/server.php`](/docs/{{version}}/server#configuration) file:
 
 ```nginx
 server {
@@ -86,7 +113,7 @@ server {
 }
 ```
 
-When using a web server such as Nginx, you should let the web server serve your application's static files directly and only proxy dynamic requests to Hypervel. This is more efficient than serving static files through PHP. Hypervel also includes a built-in static file handler for direct-to-client deployments; when using a web server to serve static files as shown above, you may disable it by setting the `SERVER_STATIC_FILE_HANDLER` environment variable to `false`.
+When using a web server such as Nginx, you should let the web server serve your application's static files directly and only proxy dynamic requests to Hypervel. This is more efficient than serving static files through PHP. When your web server serves static files as shown above, disable Swoole's built-in [static file handler](/docs/{{version}}/server#static-files) by setting `SERVER_STATIC_FILE_HANDLER=false`.
 
 <a name="nginx-and-websockets"></a>
 ### Nginx and WebSockets
@@ -123,36 +150,7 @@ In production, your Hypervel server should be kept running by a process monitor,
 php artisan serve
 ```
 
-By default, the HTTP server binds to `0.0.0.0:8000` with HTTP/2 enabled. You may configure the server host, port, worker count, max requests per worker, graceful shutdown allowance, HTTP/2 support, and other Swoole settings using the `SERVER_HOST`, `SERVER_PORT`, `SERVER_WORKERS`, `SERVER_MAX_REQUESTS`, `SERVER_MAX_WAIT_TIME`, and `SERVER_HTTP2` environment variables read by `config/server.php`.
-
-Swoole's `event_object` setting is not supported because Hypervel dispatches its own lifecycle event objects from the native server callbacks. Leave this setting disabled and use Hypervel's lifecycle events when integrating with server activity.
-
-The `serve` command also accepts `--host` and `--port` options for overriding the HTTP server address for the current process. In production, prefer durable configuration in `config/server.php` and your environment.
-
-<a name="http2-stream-cancellation"></a>
-### HTTP/2 Stream Cancellation
-
-When a client cancels a request by resetting its HTTP/2 stream, Hypervel can stop handling that request. Other streams on the same connection continue. This behavior is off by default, and most web applications should leave it off. Cancellation can interrupt a handler waiting for a database query or an HTTP response. For example, your application might save an order and then stop before sending the confirmation email.
-
-For a gRPC or streaming service, you may want to stop producing a response as soon as the client resets its stream. If all your HTTP/2 handlers can safely stop this way, set the following environment variable and restart the server.
-
-```dotenv
-SERVER_HTTP2_CANCEL_ON_STREAM_RESET=true
-```
-
-The default `config/server.php` reads this variable in its global `settings`. Adding the option to an individual listener's settings, including the gRPC listener's, has no effect. Clients must reach Hypervel over HTTP/2, either directly or through a proxy that forwards stream resets, such as Envoy. An Nginx `proxy_pass` connection using HTTP/1.1 cannot forward them.
-
-> [!NOTE]
-> This option requires a Swoole build with [HTTP/2 stream reset cancellation](https://github.com/swoole/swoole-src/pull/6436), such as a recent nightly. The tagged 6.3.0RC2 release predates it.
-
-<a name="graceful-shutdown"></a>
-### Graceful Shutdown
-
-Sending `SIGTERM` or `SIGINT` to the server's main process starts a graceful shutdown. `Ctrl+C` sends `SIGINT` to the entire terminal process group and can interrupt active requests. To allow requests to finish, signal the main process only.
-
-The `SERVER_MAX_WAIT_TIME` environment variable controls Swoole's server-wide graceful shutdown allowance in seconds. It defaults to `3`. Increase this value when long-running requests, WebSocket connections, or server-process cleanup need more time to finish. Swoole may forcefully terminate work that exceeds the configured allowance.
-
-A value of `0` does not provide unlimited shutdown time. Workers receive no graceful drain period, while Swoole's final timeout for custom server processes is disabled.
+Consult the [server documentation](/docs/{{version}}/server) for configuring workers, listeners, TLS, [HTTP/2 stream cancellation](/docs/{{version}}/server#http2-stream-cancellation), [graceful shutdown](/docs/{{version}}/server#graceful-shutdown), and server lifecycle events.
 
 <a name="directory-permissions"></a>
 ### Directory Permissions
@@ -254,25 +252,13 @@ php artisan reload
 
 If you are not using [SonicStack](https://sonicstack.io), you should configure a process monitor to restart services such as queue workers when they exit.
 
-To reload only the Hypervel server, you may use the `server:reload` command:
+To reload only the Hypervel server's event and task workers, you may use the `server:reload` command:
 
 ```shell
 php artisan server:reload
 ```
 
-This command gracefully replaces the server's event workers and any configured task workers. It does not rebuild the server application's booted service providers, container services, routes, listeners, or other application state inherited from the master process.
-
-Before each replacement worker starts, Hypervel re-reads the environment and rebuilds the configuration repository. However, services that already copied configuration into their own state retain their inherited values.
-
-Therefore, you should restart the full server process when deploying new code or changing environment variables, configuration, certificates, routes, listeners, package registration, server settings, or other boot-time application state. Use `server:reload` only when you intend to recycle workers without changing the application they inherited.
-
-Cache and Rate Limiter Swoole table definitions also require a full restart because shared tables can only be created before workers are forked. If a newly configured table is used after a reload, Hypervel reports an error instead of creating a separate table inside one worker.
-
-The command will fail if the configured PID file cannot be read, does not contain a valid process ID, or a reload signal cannot be delivered.
-
-If the reloaded configuration is invalid, replacement workers fail before accepting work and the server logs each worker error. Swoole immediately starts another replacement, so the failures continue until you correct the configuration. Once corrected, the next worker starts normally; you do not need to run `server:reload` again.
-
-The server reload does not restart queue workers, the scheduler, Horizon, or custom server processes. Use the `reload` command for queue workers and the scheduler. Restart Horizon and custom server processes separately.
+Because `server:reload` only recycles workers and does not rebuild the booted application inherited from the master process, you should restart the full server process when deploying new code or changing boot-time state. See [Reloading Workers](/docs/{{version}}/server#reloading-workers) for details on what is reloaded and when a full restart is required.
 
 <a name="debug-mode"></a>
 ## Debug Mode

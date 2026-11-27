@@ -13,6 +13,8 @@ class AboutCommandIntegration
 {
     /**
      * Get the Sentry details for the `about` command.
+     *
+     * @return array<string, string>
      */
     public function __invoke(HubInterface $hub): array
     {

@@ -19,7 +19,7 @@ For Laravel event broadcasting, Pusher-compatible clients, channels, presence, o
 <a name="server-configuration"></a>
 ## Server Configuration
 
-To add a WebSocket listener, define another server in your application's `config/server.php` file:
+To add a WebSocket listener, define another server in your application's [`config/server.php`](/docs/{{version}}/server#multiple-servers) file:
 
 ```php
 use Hypervel\Server\Event;

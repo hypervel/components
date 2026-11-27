@@ -850,9 +850,19 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-For a fixed window from when the listener is dispatched to the queue, you may use the [RetryFor attribute](/docs/{{version}}/queues#time-based-attempts) instead, such as `#[RetryFor(minutes: 5)]`.
-
 If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
+
+Alternatively, you may define a relative retry window using the `RetryFor` attribute on your listener class:
+
+```php
+use Hypervel\Queue\Attributes\RetryFor;
+
+#[RetryFor(minutes: 5)]
+class SendShipmentNotification implements ShouldQueue
+{
+    // ...
+}
+```
 
 <a name="specifying-queued-listener-backoff"></a>
 #### Specifying Queued Listener Backoff

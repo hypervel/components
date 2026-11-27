@@ -65,18 +65,6 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
         $this->assertSame([], $timer->ticks);
     }
 
-    public function testDoesNotRegisterTimersOnTaskWorkers(): void
-    {
-        $container = Double::for(Container::class, override: true)->strict();
-        $timer = new FakeCoordinatorTimer;
-
-        (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $this->config([])))
-            ->handle($this->workerEvent(workerId: 0, taskworker: true));
-
-        $container->unused();
-        $this->assertSame([], $timer->ticks);
-    }
-
     public function testTimerCallbacksCallTheConfiguredStore(): void
     {
         $config = $this->config([
@@ -369,12 +357,9 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
         return $container->instance();
     }
 
-    private function workerEvent(int $workerId, bool $taskworker = false): AfterWorkerStart
+    private function workerEvent(int $workerId): AfterWorkerStart
     {
-        $server = Double::for(SwooleServer::class)->strict();
-        $server->taskworker = $taskworker;
-
-        return new AfterWorkerStart($server, $workerId);
+        return new AfterWorkerStart(Double::for(SwooleServer::class)->strict(), $workerId);
     }
 }
 

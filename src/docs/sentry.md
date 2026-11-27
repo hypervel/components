@@ -591,7 +591,7 @@ If every transport is busy or the pool has closed, the event is skipped immediat
 
 Graceful worker shutdown performs a bounded drain after the worker-exit coordinator is released, then closes the transport pool. Delivery during a worker exit is best effort because Swoole may terminate outstanding reactor work after its shutdown deadline.
 
-The Sentry HTTP timeout and Swoole's worker shutdown timeout are configured independently. Your server's `server.settings.max_wait_time` value should be greater than `SENTRY_HTTP_TIMEOUT`, with enough additional time for other shutdown work:
+The Sentry HTTP timeout and Swoole's worker shutdown timeout are configured independently. Your server's [`server.settings.max_wait_time`](/docs/{{version}}/server#graceful-shutdown) value should be greater than `SENTRY_HTTP_TIMEOUT`, with enough additional time for other shutdown work:
 
 ```ini
 SENTRY_HTTP_TIMEOUT=2

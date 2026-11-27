@@ -11,11 +11,14 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Testing\Fixtures\ConsoleKernelSpy;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class DatabaseMigrationsTest extends TestCase
 {
     use DatabaseMigrations;
     use InteractsWithConsole;
+    use VerifiesDoubles;
 
     protected bool $dropViews = false;
 
@@ -166,5 +169,25 @@ class DatabaseMigrationsTest extends TestCase
             ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seeder' => 'seeder']],
         ], $kernel->calls);
         $this->assertSame([null], $kernel->setArtisanCalls);
+    }
+
+    public function testRunDatabaseMigrationsRunsUnmockedWhenMockConsoleOutputIsEnabled(): void
+    {
+        $this->mockConsoleOutput = true;
+
+        $kernel = Double::for(KernelContract::class)->strict();
+        $kernel->expects('call')
+            ->with('migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seed' => false])
+            ->returns(0);
+        $kernel->expects('setArtisan')->with(null);
+        $kernel->expects('call')
+            ->with('migrate:rollback', [])
+            ->returns(0);
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+
+        $this->runDatabaseMigrations();
     }
 }

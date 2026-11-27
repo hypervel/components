@@ -25,7 +25,7 @@ trait DatabaseMigrations
         $this->afterRefreshingDatabase();
 
         $this->beforeApplicationDestroyed(function (): void {
-            $this->artisan('migrate:rollback');
+            $this->realArtisan('migrate:rollback');
 
             RefreshDatabaseState::$migrated = false;
         });
@@ -36,7 +36,8 @@ trait DatabaseMigrations
      */
     protected function refreshTestDatabase(): void
     {
-        $this->artisan('migrate:fresh', $this->migrateFreshUsing());
+        // Run internal migrations unmocked so this trait works without Mockery.
+        $this->realArtisan('migrate:fresh', $this->migrateFreshUsing());
 
         $this->app->make(Kernel::class)->setArtisan(null);
     }
