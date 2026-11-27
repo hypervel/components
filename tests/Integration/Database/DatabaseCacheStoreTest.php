@@ -11,6 +11,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithMigration;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 #[WithMigration('cache')]
@@ -242,6 +243,65 @@ class DatabaseCacheStoreTest extends DatabaseTestCase
         ]);
     }
 
+    public function testPutManyForeverWritesAllValuesInOneQuery(): void
+    {
+        $store = $this->getStore();
+
+        $queries = $this->countQueries(fn () => $this->assertTrue($store->putMany(['first' => 'a', 'second' => 'b', 'third' => 'c'])));
+
+        $this->assertSame(1, $queries);
+        $this->assertSame(['first' => 'a', 'second' => 'b', 'third' => 'c'], $store->many(['first', 'second', 'third']));
+        $this->assertGreaterThan(
+            CarbonImmutable::now()->addYears(9)->getTimestamp(),
+            DB::table($this->getCacheTableName())->where('key', $this->withCachePrefix('third'))->value('expiration')
+        );
+    }
+
+    public function testDeleteMultipleRemovesAllKeysInOneQuery(): void
+    {
+        $store = $this->getStore();
+        $this->insertToCacheTable('first', 'a');
+        $this->insertToCacheTable('second', 'b');
+        $this->insertToCacheTable('third', 'c');
+        $this->insertToCacheTable(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'first', 123);
+
+        $queries = $this->countQueries(fn () => $this->assertTrue($store->deleteMultiple(['first', 'second', 'first'])));
+
+        $this->assertSame(1, $queries);
+        $this->assertSame(['first' => null, 'second' => null, 'third' => 'c'], $store->many(['first', 'second', 'third']));
+        $this->assertDatabaseMissing($this->getCacheTableName(), ['key' => $this->withCachePrefix(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'first')]);
+    }
+
+    public function testManyValuesAreWrittenAndDeletedInChunks(): void
+    {
+        $store = $this->getStore();
+        $values = [];
+
+        for ($i = 1; $i <= 600; ++$i) {
+            $values["key-{$i}"] = "value-{$i}";
+        }
+
+        $this->assertSame(3, $this->countQueries(fn () => $this->assertTrue($store->putMany($values))));
+        $this->assertSame(600, DB::table($this->getCacheTableName())->count());
+
+        $this->assertSame(3, $this->countQueries(fn () => $this->assertTrue($store->deleteMultiple(array_keys($values)))));
+        $this->assertSame(0, DB::table($this->getCacheTableName())->count());
+    }
+
+    #[TestWith([DatabaseCacheSingleKeyOverride::class])]
+    #[TestWith([DatabaseCacheBulkOverride::class])]
+    public function testStoreOverridesPreserveMixedPerKeyOutcomes(string $storeClass): void
+    {
+        $repository = new Repository(new $storeClass(app('db'), null, $this->getCacheTableName(), $this->withCachePrefix('')));
+
+        $this->assertFalse($repository->putMany(['reserved' => 'a', 'ordinary' => 'b']));
+        $this->assertSame(['reserved' => null, 'ordinary' => 'b'], $repository->many(['reserved', 'ordinary']));
+
+        $this->insertToCacheTable('reserved', 'original');
+        $this->assertFalse($repository->deleteMultiple(['reserved', 'ordinary']));
+        $this->assertSame(['reserved' => 'original', 'ordinary' => null], $repository->many(['reserved', 'ordinary']));
+    }
+
     public function testResolvingSQLiteConnectionDoesNotThrowExceptions(): void
     {
         $originalConfiguration = config('database');
@@ -339,6 +399,25 @@ class DatabaseCacheStoreTest extends DatabaseTestCase
         return Cache::store('database');
     }
 
+    /**
+     * Count queries on the database cache store's connection.
+     */
+    protected function countQueries(callable $callback): int
+    {
+        $connection = $this->getStore()->getStore()->getConnection();
+
+        $connection->flushQueryLog();
+        $connection->enableQueryLog();
+
+        try {
+            $callback();
+
+            return count($connection->getQueryLog());
+        } finally {
+            $connection->disableQueryLog();
+        }
+    }
+
     protected function getCacheTableName(): string
     {
         return config('cache.stores.database.table');
@@ -376,5 +455,43 @@ class DatabaseCacheStoreTest extends DatabaseTestCase
                     'expiration' => CarbonImmutable::now()->addSeconds($ttl)->getTimestamp(),
                 ]
             );
+    }
+}
+
+class DatabaseCacheSingleKeyOverride extends DatabaseStore
+{
+    /**
+     * Store an item unless its key is reserved.
+     */
+    public function put(string $key, mixed $value, int $seconds): bool
+    {
+        return $key !== 'reserved' && parent::put($key, $value, $seconds);
+    }
+
+    /**
+     * Remove an item unless its key is reserved.
+     */
+    public function forget(string $key): bool
+    {
+        return $key !== 'reserved' && parent::forget($key);
+    }
+}
+
+class DatabaseCacheBulkOverride extends DatabaseStore
+{
+    /**
+     * Store the items unless the batch includes a reserved key.
+     */
+    public function putMany(array $values, int $seconds): bool
+    {
+        return ! array_key_exists('reserved', $values) && parent::putMany($values, $seconds);
+    }
+
+    /**
+     * Remove the items unless the batch includes a reserved key.
+     */
+    protected function forgetMany(array $keys): bool
+    {
+        return ! in_array('reserved', $keys, true) && parent::forgetMany($keys);
     }
 }
