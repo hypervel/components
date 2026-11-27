@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Bus\Redis;
 
 use ArrayObject;
+use Hypervel\Bus\Batch;
 use Hypervel\Bus\BatchFactory;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Bus\Events\BatchFinished;
 use Hypervel\Bus\RedisBatchRepository;
+use Hypervel\Bus\RoutingBatchRepository;
 use Hypervel\Bus\UpdatedBatchJobCounts;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
@@ -22,6 +24,8 @@ use Hypervel\Foundation\Testing\RedisTestConfiguration;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Http\Controllers\BatchesController;
 use Hypervel\Http\Request;
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
@@ -159,6 +163,26 @@ class RedisBatchRepositoryTest extends TestCase
         }
     }
 
+    public function testHorizonSearchLoadsProgressThroughACustomFindMethod(): void
+    {
+        $repository = new class($this->app->make(BatchFactory::class), $this->app->make('db'), 'job_batches', config('database.default'), 'job_batch_results', $this->app, $this->app->make('config')) extends RoutingBatchRepository {
+            public function find(string $batchId): ?Batch
+            {
+                return parent::find($batchId);
+            }
+        };
+        $batch = $repository->store(Bus::batch([])->name('Import users'));
+        $repository->incrementTotalJobs($batch->id, 1);
+        $batch->recordSuccessfulJob('first');
+
+        $search = (new BatchesController($repository))->index(Request::create('/?query=Import'));
+        $batch->delete();
+
+        $snapshot = json_decode(json_encode($search['batches'][0], JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($batch->id, $snapshot['id']);
+        $this->assertSame(100, $snapshot['progress']);
+    }
+
     public function testRedisPaginationKeepsWaitingAndActiveBatchesInCursorOrder(): void
     {
         $repository = $this->app->make(RedisBatchRepository::class);
@@ -168,6 +192,27 @@ class RedisBatchRepositoryTest extends TestCase
         $newer = $repository->store(Bus::batch([]));
 
         $this->assertSame([$newer->id, $older->id], array_column($repository->get(), 'id'));
+    }
+
+    public function testLoadingAPageDoesNotConsumeWatchState(): void
+    {
+        $repository = $this->app->make(BatchRepository::class);
+        foreach (['first', 'second'] as $job) {
+            $batch = $repository->store(Bus::batch([]));
+            $repository->incrementTotalJobs($batch->id, 1);
+            $batch->recordSuccessfulJob($job);
+        }
+        $redis = $this->app->make(RedisFactory::class)->connection('default');
+        $redis->set('batch:watched', 'value');
+
+        $this->assertTrue($redis->watch('batch:watched'));
+        $watched = $this->nativeRedisClient($redis);
+        $this->assertCount(2, $repository->get(50, null));
+
+        $redis->releaseContextConnection();
+
+        // A client that still watches a key must be discarded, or it would abort an unrelated transaction.
+        $this->assertNotSame($watched, $this->nativeRedisClient($redis));
     }
 
     public function testWaitingPageDoesNotLockAndRetainedProgressLoadsOnlyOnce(): void
@@ -474,6 +519,50 @@ class RedisBatchRepositoryTest extends TestCase
         $this->assertFalse($batch->fresh()->finished());
     }
 
+    public function testPruningSeveralUnfinishedBatchesRestoresAnUnprojectedFinishAndDeletesTheRest(): void
+    {
+        $repository = $this->app->make(BatchRepository::class);
+        $finished = $repository->store(Bus::batch([]));
+        $repository->incrementTotalJobs($finished->id, 1);
+        $failure = new RuntimeException('SQL finish could not be written.');
+        $interrupt = true;
+        DB::connection()->beforeExecuting(static function (string $sql) use (&$interrupt, $failure): void {
+            if ($interrupt && str_starts_with($sql, 'update') && str_contains($sql, 'finished_at')) {
+                $interrupt = false;
+                throw $failure;
+            }
+        });
+        try {
+            $finished->recordSuccessfulJob('last');
+            $this->fail('Expected the SQL projection to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+        $this->assertNull(DB::table('job_batches')->where('id', $finished->id)->value('finished_at'));
+        $finishedAt = $finished->fresh()->finishedAt;
+        $this->assertNotNull($finishedAt);
+        $results = $this->app->make(RedisBatchRepository::class);
+        $unfinished = [];
+        foreach (['first', 'second'] as $job) {
+            $batch = $repository->store(Bus::batch([])->allowFailures());
+            $repository->incrementTotalJobs($batch->id, 2);
+            $repository->incrementFailedJobs($batch->id, $job, $job);
+            $this->assertSame([$job], $results->getFailedJobIds($batch->id));
+            $unfinished[] = $batch->id;
+        }
+        DB::table('job_batches')->update(['created_at' => now()->subDays(5)->getTimestamp()]);
+
+        $this->assertSame(2, $repository->pruneUnfinished(now()->subDay()));
+
+        $this->assertSame([$finished->id], DB::table('job_batches')->pluck('id')->all());
+        $this->assertSame($finishedAt->getTimestamp(), (int) DB::table('job_batches')->where('id', $finished->id)->value('finished_at'));
+        $this->assertSame([], DB::table('job_batch_deletions')->pluck('batch_id')->all());
+        foreach ($unfinished as $id) {
+            $this->assertSame([], $results->getFailedJobIds($id));
+        }
+        $this->assertTrue($finished->fresh()->finished());
+    }
+
     public function testReboundRedisDriverHandlesHydratedAndIdOnlyCallsAndRetriesCleanup(): void
     {
         $driver = new class($this->app->make(BatchFactory::class), $this->app->make('db'), 'job_batches', config('database.default'), 'job_batch_results', $this->app->make(RedisFactory::class), 'default', 'job_batch_deletions') extends RedisBatchRepository {
@@ -546,5 +635,10 @@ class RedisBatchRepositoryTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage($batch->id);
         $retained->progress();
+    }
+
+    private function nativeRedisClient(RedisProxy $redis): object
+    {
+        return $redis->withConnection(static fn (RedisConnection $connection): object => $connection->client());
     }
 }

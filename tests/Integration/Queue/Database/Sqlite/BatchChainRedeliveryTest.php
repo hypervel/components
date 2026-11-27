@@ -172,6 +172,21 @@ class BatchChainRedeliveryTest extends TestCase
         $this->assertSame(3, DB::table('job_batch_results')->count());
     }
 
+    public function testAMidChainJobThatAddsItselfCountsItsSuccessorOnce(): void
+    {
+        $this->app->instance(ArrayObject::class, new ArrayObject);
+        $batch = Bus::batch([[new BatchChainJob('head'), new ReenrollingSuccessor, new BatchChainJob('tail')]])->dispatch();
+
+        while ($job = Queue::pop()) {
+            $job->fire();
+        }
+
+        $this->assertSame(4, $batch->fresh()->totalJobs);
+        $this->assertSame(0, $batch->fresh()->pendingJobs);
+        $this->assertTrue($batch->fresh()->finished());
+        $this->assertSame(4, DB::table('job_batch_results')->count());
+    }
+
     public function testReusedHeadsAndSuccessorsKeepTheirOwnRoutesAndChains(): void
     {
         $handled = new ArrayObject;

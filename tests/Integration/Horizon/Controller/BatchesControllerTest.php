@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Controller;
 
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\BatchFactory;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Horizon\Controller\Fixtures\User;
@@ -131,6 +135,24 @@ class BatchesControllerTest extends ControllerTestCase
 
         $response->assertOk();
         $this->assertSame([], $response->original['batches']);
+    }
+
+    public function testSearchUsesACustomRepositoryFindMethod(): void
+    {
+        $this->setupBatchTable();
+        $this->seedBatches();
+        $this->app->instance(BatchRepository::class, new class($this->app->make(BatchFactory::class), $this->app->make('db'), 'job_batches', 'testing', 'job_batch_results') extends DatabaseBatchRepository {
+            public function find(string $batchId): ?Batch
+            {
+                return $batchId === 'batch-1' ? null : parent::find($batchId);
+            }
+        });
+
+        $response = $this->actingAs(new User)
+            ->get('/horizon/api/batches?query=batch-');
+
+        $response->assertOk();
+        $this->assertSame(['batch-3', 'batch-2'], array_column($response->original['batches'], 'id'));
     }
 
     private function setupBatchTable(): void

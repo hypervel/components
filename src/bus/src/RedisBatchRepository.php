@@ -10,12 +10,14 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use LogicException;
 use Redis;
 use RuntimeException;
+use Throwable;
 
 class RedisBatchRepository extends DatabaseBatchRepository
 {
@@ -27,6 +29,13 @@ class RedisBatchRepository extends DatabaseBatchRepository
                 tonumber(state[1]) or 0, tonumber(state[2]) or -1,
                 tonumber(state[3]) or -1, tonumber(state[4]) or -1}
         LUA;
+
+    private const string FINISH_MARKER = <<<'LUA'
+        local f = redis.call('HMGET', KEYS[1], 'finished_total', 'finished_at')
+        return tonumber(f[1]) == tonumber(ARGV[1]) and tonumber(f[2]) or -1
+        LUA;
+
+    private const string INVALIDATE_TOTAL = "return redis.call('HDEL', KEYS[1], 'known_total')";
 
     private const string RECORD = <<<'LUA'
         local job, success = ARGV[1], ARGV[2] == 'success'
@@ -189,7 +198,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
     private function invalidateTotal(string $batchId): void
     {
         $this->withRedis(fn (RedisConnection $redis) => $redis->evalWithShaCache(
-            "return redis.call('HDEL', KEYS[1], 'known_total')",
+            self::INVALIDATE_TOTAL,
             [$this->keys($batchId)[2]]
         ));
     }
@@ -214,7 +223,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
         $row->failed_jobs = $failed;
         $row->previous_first_pass_total = max((int) $row->previous_first_pass_total, $firstPass);
         $row->previous_success_total = max((int) $row->previous_success_total, $successful);
-        if ($finishTotal === (int) $row->total_jobs - $count && $row->previous_finished_total != $finishTotal) {
+        if ($finishTotal === (int) $row->total_jobs - $count && (int) $row->previous_finished_total !== $finishTotal) {
             // A Redis finish may have committed before its SQL projection.
             $row->previous_finished_total = $finishTotal;
             $row->previous_finished_at = $finishTime;
@@ -228,21 +237,20 @@ class RedisBatchRepository extends DatabaseBatchRepository
      */
     protected function recordJobResult(string $batchId, string $jobId, ?string $retryId): ?UpdatedBatchJobCounts
     {
-        $connection = $this->getConnection();
         if ($this->hasOwnerTransaction()) {
             throw new LogicException("Redis results for batch [{$batchId}] cannot be recorded inside its database transaction.");
         }
 
         $keys = $this->keys($batchId);
-        $args = [hash('xxh128', $jobId), $retryId === null ? 'success' : 'failure', $retryId ?? ''];
+        $arguments = [hash('xxh128', $jobId), $retryId === null ? 'success' : 'failure', $retryId ?? ''];
         $result = $this->withRedis(static fn (RedisConnection $redis) => $redis->evalWithShaCache(
             self::RECORD,
             $keys,
-            [...$args, '', '', '', '']
+            [...$arguments, '', '', '', '']
         ));
 
         if ($result === [-1]) {
-            $result = $connection->transaction(function () use ($keys, $args, $batchId) {
+            $result = $this->getConnection()->transaction(function () use ($keys, $arguments, $batchId) {
                 $parent = $this->lockParents([$batchId]);
                 $row = (clone $parent)->first(['total_jobs', 'finished_at', 'options']);
                 if ($row === null) {
@@ -252,7 +260,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
                 $result = $this->withRedis(static fn (RedisConnection $redis) => $redis->evalWithShaCache(
                     self::RECORD,
                     $keys,
-                    [...$args, $row->total_jobs, (int) $allowsFailures, $row->finished_at ?? '', time()]
+                    [...$arguments, $row->total_jobs, (int) $allowsFailures, $row->finished_at ?? '', time()]
                 ));
                 if ($result !== [] && $result[5] !== -1 && $row->finished_at === null) {
                     $parent->update(['finished_at' => $result[5]]);
@@ -318,7 +326,7 @@ class RedisBatchRepository extends DatabaseBatchRepository
     private function finishMarker(string $batchId, int $total): ?int
     {
         $finish = $this->withRedis(fn (RedisConnection $redis) => $redis->evalWithShaCache(
-            "local f = redis.call('HMGET', KEYS[1], 'finished_total', 'finished_at'); return tonumber(f[1]) == tonumber(ARGV[1]) and tonumber(f[2]) or -1",
+            self::FINISH_MARKER,
             [$this->keys($batchId)[2]],
             [$total]
         ));
@@ -338,9 +346,15 @@ class RedisBatchRepository extends DatabaseBatchRepository
         $connection = $this->getConnection();
         return $connection->transaction(function () use ($connection, $query, $ids) {
             $parents = $this->lockParents($ids)->get(['id', 'total_jobs', 'finished_at']);
+            $markers = [];
             foreach ($parents as $row) {
-                if ($row->finished_at === null && ($finish = $this->finishMarker($row->id, (int) $row->total_jobs)) !== null) {
-                    $connection->table($this->table)->where('id', $row->id)->update(['finished_at' => $finish]);
+                if ($row->finished_at === null) {
+                    $markers[$row->id] = [[$this->keys($row->id)[2]], [(int) $row->total_jobs]];
+                }
+            }
+            foreach ($this->evalEach(self::FINISH_MARKER, $markers) as $id => $finish) {
+                if ($finish !== -1) {
+                    $connection->table($this->table)->where('id', $id)->update(['finished_at' => $finish]);
                 }
             }
 
@@ -348,9 +362,11 @@ class RedisBatchRepository extends DatabaseBatchRepository
             if ($eligible === []) {
                 return 0;
             }
+            $totals = [];
             foreach ($eligible as $id) {
-                $this->invalidateTotal($id);
+                $totals[$id] = [[$this->keys($id)[2]], []];
             }
+            $this->evalEach(self::INVALIDATE_TOTAL, $totals);
             $deleted = $connection->table($this->table)->whereIn('id', $eligible)->delete();
             $this->recordResultDeletions($eligible);
 
@@ -363,11 +379,11 @@ class RedisBatchRepository extends DatabaseBatchRepository
      */
     protected function deleteJobResults(array $ids): void
     {
-        $this->withRedis(function (RedisConnection $redis) use ($ids) {
-            foreach ($ids as $id) {
-                $redis->evalWithShaCache("return redis.call('UNLINK', unpack(KEYS))", $this->keys($id));
-            }
-        });
+        $results = [];
+        foreach ($ids as $id) {
+            $results[$id] = [$this->keys($id), []];
+        }
+        $this->evalEach("return redis.call('UNLINK', unpack(KEYS))", $results);
     }
 
     /**
@@ -415,7 +431,9 @@ class RedisBatchRepository extends DatabaseBatchRepository
             $live = $this->getConnection()->table($this->table)->useWritePdo()->whereIn('id', $waiting)->get(['id', 'total_jobs', 'finished_at']);
             foreach ($live as $row) {
                 $id = $row->id;
-                if ((int) $row->total_jobs === (int) $rows[$id]->total_jobs && $row->finished_at == $rows[$id]->finished_at) {
+                $finishedAt = $row->finished_at === null ? null : (int) $row->finished_at;
+                $finishedAtLookup = $rows[$id]->finished_at === null ? null : (int) $rows[$id]->finished_at;
+                if ((int) $row->total_jobs === (int) $rows[$id]->total_jobs && $finishedAt === $finishedAtLookup) {
                     $counts[$id] = $this->snapshotCounts($views[$id], (int) $row->total_jobs, $row->finished_at);
                 } else {
                     $conflicts[] = $id;
@@ -447,33 +465,60 @@ class RedisBatchRepository extends DatabaseBatchRepository
      */
     private function readSnapshots(array $ids): array
     {
-        if ($ids === []) {
+        $snapshots = [];
+        foreach ($ids as $id) {
+            $snapshots[$id] = [$this->keys($id), []];
+        }
+
+        return $this->evalEach(self::SNAPSHOT, $snapshots);
+    }
+
+    /**
+     * Run a script once per batch, sharing one round trip when a single node holds every key.
+     *
+     * @param array<array-key, array{list<string>, list<int|string>}> $calls the keys and arguments keyed by batch ID
+     * @return array<array-key, mixed>
+     */
+    private function evalEach(string $script, array $calls): array
+    {
+        if ($calls === []) {
             return [];
         }
 
-        return $this->withRedis(function (RedisConnection $redis) use ($ids) {
-            if (count($ids) === 1 || $redis->isCluster()) {
-                $views = [];
-                foreach ($ids as $id) {
-                    $views[$id] = $redis->evalWithShaCache(self::SNAPSHOT, $this->keys($id));
+        return $this->withRedis(static function (RedisConnection $redis) use ($script, $calls) {
+            if (count($calls) === 1 || $redis->isCluster()) {
+                $results = [];
+                foreach ($calls as $id => [$keys, $arguments]) {
+                    $results[$id] = $redis->evalWithShaCache($script, $keys, $arguments);
                 }
 
-                return $views;
+                return $results;
             }
 
             // Send EVAL in pipelines so a cold script cache needs no mid-pipeline NOSCRIPT retry.
             $client = $redis->client();
             assert($client instanceof Redis);
+            $client->clearLastError();
             $pipeline = $client->pipeline();
-            foreach ($ids as $id) {
-                $pipeline->eval(self::SNAPSHOT, $this->keys($id), 3);
-            }
-            $results = $pipeline->exec();
-            if ($results === false || in_array(false, $results, true)) {
-                throw new RuntimeException('Unable to load Redis batch progress: ' . $client->getLastError());
+            foreach ($calls as [$keys, $arguments]) {
+                $pipeline->eval($script, [...$keys, ...$arguments], count($keys));
             }
 
-            return array_combine($ids, $results);
+            try {
+                // The connection's own exec() would clear its WATCH tracking, which a pipeline does not consume.
+                $results = $pipeline->exec();
+            } catch (Throwable $exception) {
+                // Keep a client that failed over or lost its transport out of the pool.
+                $redis->invalidate();
+
+                throw $exception;
+            }
+
+            if ($results === false || in_array(false, $results, true)) {
+                throw new LuaScriptException('Unable to run the Redis batch script: ' . $client->getLastError());
+            }
+
+            return array_combine(array_keys($calls), $results);
         });
     }
 
