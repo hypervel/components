@@ -633,15 +633,49 @@ class Builder
      * Truncate the given tables if they contain rows.
      *
      * @param list<string> $tables
+     *
+     * @throws RuntimeException
      */
     public function truncateTables(array $tables): void
     {
-        foreach ($tables as $table) {
-            // A stale read replica must not skip cleanup of rows on the write connection.
-            $query = $this->connection->table($table)->useWritePdo();
+        $chunks = array_chunk($tables, 100);
 
-            if ($query->exists()) {
-                $query->truncate();
+        // Triggers can refill tables checked earlier. One pass per table covers an
+        // acyclic trigger chain, even when it runs in reverse table order.
+        for ($remainingPasses = count($tables);; --$remainingPasses) {
+            $truncated = false;
+
+            foreach ($chunks as $chunk) {
+                // A stale read replica must not skip cleanup of rows on the write connection.
+                $probe = $this->connection->query()->useWritePdo();
+
+                foreach ($chunk as $index => $table) {
+                    $probe->selectSub($this->connection->table($table)->selectRaw('1')->limit(1), (string) $index);
+                }
+
+                $hasRows = (array) $probe->first();
+
+                foreach ($chunk as $index => $table) {
+                    if ($hasRows[$index] === null) {
+                        continue;
+                    }
+
+                    if ($remainingPasses === 0) {
+                        throw new RuntimeException("Table [{$table}] still contains rows after truncation.");
+                    }
+
+                    // A previous truncation may have already emptied this table.
+                    $query = $this->connection->table($table)->useWritePdo();
+
+                    if ($query->exists()) {
+                        $query->truncate();
+                        $truncated = true;
+                    }
+                }
+            }
+
+            if (! $truncated) {
+                return;
             }
         }
     }

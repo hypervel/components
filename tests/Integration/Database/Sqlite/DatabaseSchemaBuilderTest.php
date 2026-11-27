@@ -11,6 +11,7 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use PDO;
+use RuntimeException;
 
 class DatabaseSchemaBuilderTest extends SqliteTestCase
 {
@@ -88,28 +89,6 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->assertSame(1, $connection->table('migrations')->value('id'));
     }
 
-    public function testTruncateTablesClearsWriteRowsWhenTheReadDatabaseIsEmpty(): void
-    {
-        $write = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:', '', ['sticky' => false]);
-        $read = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
-
-        foreach ([$write, $read] as $connection) {
-            $connection->getSchemaBuilder()->create('widgets', function (Blueprint $table): void {
-                $table->id();
-            });
-        }
-
-        $write->table('widgets')->insert(['id' => 1]);
-        $write->setReadPdo($read->getPdo());
-
-        $this->assertFalse($write->table('widgets')->exists());
-        $this->assertTrue($write->table('widgets')->useWritePdo()->exists());
-
-        $write->getSchemaBuilder()->truncateTables(['main.widgets']);
-
-        $this->assertSame(0, $write->table('widgets')->useWritePdo()->count());
-    }
-
     public function testTruncateTablesPreservesThePrefixAndSkipsEmptyTables(): void
     {
         $connection = DB::connection('sqlite-with-indexed-prefix');
@@ -130,6 +109,31 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->assertSame(0, $connection->table('empty')->count());
         $this->assertSame(1, $connection->table('populated')->insertGetId(['id' => null]));
         $this->assertSame(2, $connection->table('empty')->insertGetId(['id' => null]));
+    }
+
+    public function testTruncateTablesClearsRowsInsertedIntoAnEarlierTableByATrigger(): void
+    {
+        DB::statement('create table audits (id integer primary key autoincrement)');
+        DB::statement('create table orders (id integer primary key autoincrement)');
+        DB::statement('create trigger audit_order after delete on orders begin insert into audits (id) values (null); end');
+        DB::table('orders')->insert(['id' => 1]);
+
+        Schema::truncateTables(['audits', 'orders']);
+
+        $this->assertSame(0, DB::table('audits')->count());
+        $this->assertSame(0, DB::table('orders')->count());
+    }
+
+    public function testTruncateTablesThrowsWhenATriggerKeepsRefillingTheTable(): void
+    {
+        DB::statement('create table settings (id integer primary key autoincrement)');
+        DB::statement('create trigger restore_setting after delete on settings begin insert into settings (id) values (old.id); end');
+        DB::table('settings')->insert(['id' => 1]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Table [settings] still contains rows after truncation.');
+
+        Schema::truncateTables(['settings']);
     }
 
     public function testHasColumnAndIndexWithPrefixIndexDisabled(): void

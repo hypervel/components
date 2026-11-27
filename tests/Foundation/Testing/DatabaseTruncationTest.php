@@ -253,6 +253,8 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['public.foo', 'public.bar', 'my_schema.foo', 'my_schema.baz'], $truncatedTables);
     }
 
+    // Database/DatabaseSchemaBuilderTest covers testTruncateTablesInChunks where the row checks run.
+
     public function testTruncationRestoresTheDispatcherWhenItFails(): void
     {
         $failure = new RuntimeException('Truncation failed.');
