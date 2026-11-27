@@ -1019,16 +1019,12 @@ trait ValidatesAttributes
                 }
 
                 $matches = [];
-                $immutableMatches = 0;
 
                 foreach ($candidates as $key => $item) {
-                    // Keep objects live: their comparison with the scalar may change.
-                    if (is_object($item)) {
-                        $matches[$key] = $item;
-                    } elseif ($item == $value) {
+                    if ($item == $value) {
                         $matches[$key] = $item;
 
-                        if (++$immutableMatches === 2) {
+                        if (count($matches) === 2) {
                             break;
                         }
                     }

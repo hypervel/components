@@ -58,7 +58,6 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
-use SimpleXMLElement;
 use SplFileInfo;
 use stdClass;
 use Stringable as StringableInterface;
@@ -5153,14 +5152,11 @@ class ValidationValidatorTest extends TestCase
         $second->id = 1;
         $this->assertFalse($validator->validateDistinct('items.0', $first, []));
 
-        $xml = new SimpleXMLElement('<root><child/></root>');
-        $validator->setData(['items' => [false, $xml]]);
+        $validator->setData(['items' => [false, 'a']]);
         $this->assertTrue($validator->validateDistinct('items.0', false, []));
-        unset($xml->child);
-        $this->assertFalse($validator->validateDistinct('items.0', false, []));
 
-        $validator->setValue('items.1', true);
-        $this->assertTrue($validator->validateDistinct('items.0', false, []));
+        $validator->setValue('items.1', 0);
+        $this->assertFalse($validator->validateDistinct('items.0', false, []));
     }
 
     #[TestWith(['distinct'])]
