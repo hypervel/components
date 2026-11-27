@@ -6,5 +6,6 @@ namespace Hypervel\Mcp\Enums;
 
 enum Extension: string
 {
+    case Skills = 'io.modelcontextprotocol/skills';
     case Ui = 'io.modelcontextprotocol/ui';
 }
