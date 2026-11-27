@@ -115,6 +115,24 @@ class TerminalTest extends TestCase
         $this->assertFalse((new Terminal)->isOutputTty($output));
     }
 
+    public function testInitializesTheTerminalDimensionsWithoutDeprecationNotices(): void
+    {
+        $deprecations = [];
+        set_error_handler(function (int $level, string $message) use (&$deprecations): bool {
+            $deprecations[] = $message;
+
+            return true;
+        }, E_DEPRECATED);
+
+        try {
+            (new Terminal)->initDimensions();
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame([], $deprecations);
+    }
+
     public function testOutputIsCheckedAtItsDestination(): void
     {
         // STDOUT is a terminal here, so outputs written elsewhere must not report it.
