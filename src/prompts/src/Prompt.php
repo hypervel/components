@@ -568,6 +568,13 @@ abstract class Prompt
     {
         $output = static::output();
 
+        if (method_exists($output, 'capturePromptFrame')) {
+            // Capture an undecorated copy so prompt assertions match with or without --ansi.
+            $formatter = clone $output->getFormatter();
+            $formatter->setDecorated(false);
+            $output->capturePromptFrame($formatter->format($frame) ?? '');
+        }
+
         if ($output->isDecorated()) {
             $output->write($frame);
 
@@ -575,12 +582,7 @@ abstract class Prompt
         }
 
         // Formatting restores escaped backslashes that may terminate control sequences.
-        $frame = $output->getFormatter()->format($frame);
-
-        // Console tests distinguish note styles before plain output drops their color.
-        if (method_exists($output, 'capturePromptFrame')) {
-            $output->capturePromptFrame($frame);
-        }
+        $frame = $output->getFormatter()->format($frame) ?? '';
 
         $output->write(Utils::stripTerminalControls($frame), false, OutputInterface::OUTPUT_RAW);
     }

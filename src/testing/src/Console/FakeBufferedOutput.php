@@ -71,6 +71,7 @@ class FakeBufferedOutput extends BufferedOutput
             $this->matchPromptFrame($message);
         }
 
+        // Each expectation requires one occurrence in order. Extra output is allowed unless forbidden.
         if (($i = array_search($message, $this->expected, true)) !== false) {
             unset($this->expected[$i]);
 
@@ -124,6 +125,14 @@ class FakeBufferedOutput extends BufferedOutput
             return 'No output was printed.';
         }
 
+        return $this->unexpectedOutputFailure();
+    }
+
+    /**
+     * Get the first forbidden output written, even if the command did not finish.
+     */
+    public function unexpectedOutputFailure(): ?string
+    {
         if ($this->expectsOutput === false && $this->written !== []) {
             return 'Output "' . $this->written[0] . '" was printed.';
         }

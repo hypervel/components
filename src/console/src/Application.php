@@ -14,6 +14,7 @@ use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Prompts\Prompt;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Defer\DeferredCallback;
@@ -391,7 +392,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
             && ! CoroutineContext::has(self::DEFERRED_CALLBACK_OWNER_CONTEXT_KEY);
 
         if (! $ownsDeferredCallbacks) {
-            return parent::doRunCommand($command, $input, $output);
+            return $this->runResolvedCommand($command, $input, $output);
         }
 
         $container = Container::getInstance();
@@ -402,7 +403,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
         try {
             try {
-                $exitCode = parent::doRunCommand($command, $input, $output);
+                $exitCode = $this->runResolvedCommand($command, $input, $output);
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }
@@ -428,6 +429,18 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
         }
 
         return $exitCode;
+    }
+
+    /**
+     * Run the resolved command, preserving prompt settings for plain Symfony commands.
+     */
+    protected function runResolvedCommand(SymfonyCommand $command, InputInterface $input, OutputInterface $output): int
+    {
+        if ($command instanceof Command) {
+            return parent::doRunCommand($command, $input, $output);
+        }
+
+        return Prompt::withSavedConfiguration(fn (): int => parent::doRunCommand($command, $input, $output));
     }
 
     /**

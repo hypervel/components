@@ -20,10 +20,12 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use Hypervel\Testing\Console\FakeBufferedOutput;
 use Hypervel\Testing\Console\FakeOutputStyle;
+use PHPUnit\Framework\AssertionFailedError;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Throwable;
 
 class PendingCommand
 {
@@ -425,6 +427,12 @@ class PendingCommand
                     ->call($this->command, $this->parameters, $this->consoleOutput);
             } catch (PromptValidationException) {
                 $exitCode = Command::FAILURE;
+            } catch (Throwable $exception) {
+                if ($failure = $this->consoleOutput->getOutput()->unexpectedOutputFailure()) {
+                    throw new AssertionFailedError($failure, 0, $exception);
+                }
+
+                throw $exception;
             }
 
             if ($this->expectedExitCode !== null) {

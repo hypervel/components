@@ -6,10 +6,14 @@ namespace Hypervel\Tests\Integration\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Prompts\Prompt;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Output\NullOutput;
 
 use function Hypervel\Prompts\alert;
 use function Hypervel\Prompts\autocomplete;
@@ -562,6 +566,14 @@ class PromptsAssertionTest extends TestCase
         $this->artisan('test:quiet', ['--quiet' => true])->expectsPromptsInfo('Information');
     }
 
+    public function testDecoratedPromptAssertionsRecognizeInlineStyles(): void
+    {
+        Artisan::command('test:styled', fn () => warning('Check <info>disk</info>'));
+
+        $this->artisan('test:styled', ['--ansi' => true])
+            ->expectsPromptsWarning('Check <info>disk</info>');
+    }
+
     public function testNestedCommandRestoresOuterPromptOutput(): void
     {
         Artisan::command('test:inner', function () {
@@ -576,6 +588,41 @@ class PromptsAssertionTest extends TestCase
         });
 
         $this->artisan('test:outer')->expectsPromptsWarning('Outside')->expectsQuestion('Continue?', 'yes');
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPlainSymfonyCommandsRestoreParentPrompts(bool $throughArtisan): void
+    {
+        $error = new RuntimeException('Child failed');
+        $child = (new SymfonyCommand('test:symfony'))->setCode(function () use ($throughArtisan, $error): int {
+            Prompt::setOutput(new NullOutput);
+            table(['Child'], [['<info>Hidden</info>']]);
+
+            if (! $throughArtisan) {
+                throw $error;
+            }
+
+            return 0;
+        });
+        $this->app->make(Kernel::class)->registerCommand($child);
+
+        $test = $this;
+        Artisan::command('test:parent', function () use ($throughArtisan, $error, $test) {
+            if ($throughArtisan) {
+                Artisan::call('test:symfony');
+            } else {
+                try {
+                    $this->call('test:symfony');
+                } catch (RuntimeException $caught) {
+                    $test->assertSame($error, $caught);
+                }
+            }
+
+            warning('Back in the parent');
+        });
+
+        $this->artisan('test:parent')->expectsPromptsWarning('Back in the parent');
     }
 
     public function testFailingArtisanCallRestoresOuterPrompts(): void

@@ -583,6 +583,27 @@ class ArtisanCommandTest extends TestCase
         $this->artisan('zero-substring')->doesntExpectOutputToContain('0')->run();
     }
 
+    public function testForbiddenOutputIsReportedWhenTheCommandThrows(): void
+    {
+        $error = new RuntimeException('Command failed');
+        Artisan::command('test:throw', function () use ($error) {
+            $this->line('Unexpected output');
+
+            throw $error;
+        });
+
+        try {
+            $this->artisan('test:throw')->doesntExpectOutput()->run();
+        } catch (AssertionFailedError $failure) {
+            $this->assertSame('Output "Unexpected output" was printed.', $failure->getMessage());
+            $this->assertSame($error, $failure->getPrevious());
+
+            return;
+        }
+
+        $this->fail('The forbidden output was not reported.');
+    }
+
     public function testCommandFailureDoesNotLeakExpectationsOrOutputBinding(): void
     {
         Artisan::command('throwing-command', function () {
