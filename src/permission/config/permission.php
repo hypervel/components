@@ -35,8 +35,9 @@ return [
         'team' => null,
 
         /*
-         * The model used when raw IDs are passed to reverse-assignment helpers.
-         * Set to null to use the user model of the role's guard.
+         * When using the "HasAssignedModels" trait and passing raw IDs to
+         * assignToModels, removeFromModels, or syncModels, this model class
+         * will be used to resolve those IDs. If null, defaults to the guard's model.
          */
         'default_model' => null,
     ],

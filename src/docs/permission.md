@@ -1462,7 +1462,16 @@ Enable teams in the permission configuration file before running the package's m
 ],
 ```
 
-The migration creates integer team columns named `team_id`. You may rename them using the `column_names.team_foreign_key` configuration value, and change their type in the published migration if your team keys are UUIDs or ULIDs.
+The migration creates integer team columns named `team_id`. To use a custom foreign key, set it under `column_names` in `config/permission.php`:
+
+```php
+'column_names' => [
+    // ...
+    'team_foreign_key' => 'custom_team_id',
+],
+```
+
+If your team keys are UUIDs or ULIDs, change the column type in the published migration.
 
 <a name="setting-the-current-team"></a>
 ### Setting the Current Team
@@ -1726,7 +1735,16 @@ Schema::table('roles', function (Blueprint $table) {
 });
 ```
 
-Roles and permissions are cached with all of their columns except those listed in the `cache.column_names_except` configuration value. You may add large columns to that list to keep the cache small, but models read from the cache, such as those returned by `findByName`, will not have those columns.
+By default, the package leaves `created_at`, `updated_at`, and `deleted_at` out of the role and permission cache. To also leave out a large `description` column, add it to the list in `config/permission.php`:
+
+```php
+'cache' => [
+    // ...
+    'column_names_except' => ['created_at', 'updated_at', 'deleted_at', 'description'],
+],
+```
+
+Models loaded from the cache omit these attributes. This includes `findByName` and `findById` lookups and permissions retrieved from the catalog for permission checks, direct assignments, and role grants. Query the model directly if you need the excluded values. After changing the list, [reset the cache](#caching) for each affected partition.
 
 <a name="permission-database-connection"></a>
 ### Permission Database Connection
