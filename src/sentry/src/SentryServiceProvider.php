@@ -575,6 +575,8 @@ class SentryServiceProvider extends ServiceProvider
 
     /**
      * Subscribe to framework events for tracing spans.
+     *
+     * @param array<string, mixed> $tracingConfig
      */
     private function bindTracingEvents(array $tracingConfig): void
     {
@@ -597,6 +599,8 @@ class SentryServiceProvider extends ServiceProvider
 
     /**
      * Wrap the view engine to add tracing spans for view rendering.
+     *
+     * @param array<string, mixed> $tracingConfig
      */
     private function bindViewEngine(array $tracingConfig): void
     {
