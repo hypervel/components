@@ -333,6 +333,43 @@ class ToolApprovalResumeTest extends TestCase
         $this->assertSame(['signature-1', 'signature-2'], $signatures);
     }
 
+    public function testASecondResumeReplaysAMixedBatchInTheOrderTheFirstResumeSentIt(): void
+    {
+        config(['ai.conversations.generate_title' => false]);
+
+        Http::fake(['api.anthropic.com/*' => Http::sequence([
+            $this->fakeThinkingResponse([
+                ['type' => 'thinking', 'thinking' => 'Both numbers at once.', 'signature' => 'signature-1'],
+                ['type' => 'tool_use', 'id' => 'toolu_gated', 'name' => 'ApprovableNumberGenerator', 'input' => (object) []],
+                ['type' => 'tool_use', 'id' => 'toolu_fixed', 'name' => 'FixedNumberGenerator', 'input' => (object) []],
+            ], 'tool_use'),
+            $this->fakeThinkingResponse([
+                ['type' => 'thinking', 'thinking' => 'One more gated number.', 'signature' => 'signature-2'],
+                ['type' => 'tool_use', 'id' => 'toolu_gated_again', 'name' => 'ApprovableNumberGenerator', 'input' => (object) []],
+            ], 'tool_use'),
+            $this->fakeTextResponse('All three are 72019.'),
+        ])]);
+
+        $user = (object) ['id' => 1];
+        $paused = (new RememberingMultiStepApprovableAgent)->forUser($user)->prompt('Generate the numbers', provider: 'anthropic');
+        $pausedAgain = (new RememberingMultiStepApprovableAgent)
+            ->continue($paused->conversationId, $user)
+            ->prompt(Decisions::from(['toolu_gated' => true]), provider: 'anthropic');
+
+        (new RememberingMultiStepApprovableAgent)
+            ->continue($paused->conversationId, $user)
+            ->prompt(Decisions::from(['toolu_gated_again' => true]), provider: 'anthropic');
+
+        $resultOrder = fn (int $request): array => collect(Http::recorded()[$request][0]->data()['messages'])
+            ->flatMap(fn (array $message): Collection => collect($message['content'])->pluck('tool_use_id')->filter())
+            ->values()
+            ->all();
+
+        $this->assertSame(['toolu_gated_again'], $pausedAgain->pendingApprovals->pluck('id')->all());
+        $this->assertSame(['toolu_gated', 'toolu_fixed'], $resultOrder(1));
+        $this->assertSame(['toolu_gated', 'toolu_fixed', 'toolu_gated_again'], $resultOrder(2));
+    }
+
     public function testAStreamedMultiStepPauseStoresEveryStepSoTheResumeReplaysEachOneWithItsOwnBlocks(): void
     {
         config(['ai.conversations.generate_title' => false]);

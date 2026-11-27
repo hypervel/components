@@ -29,7 +29,7 @@ trait AnthropicHelpers
     /**
      * Create a response with thinking content.
      */
-    protected function fakeThinkingResponse(array $content): PromiseInterface
+    protected function fakeThinkingResponse(array $content, string $stopReason = 'end_turn'): PromiseInterface
     {
         return Http::response([
             'id' => 'msg_123',
@@ -37,7 +37,7 @@ trait AnthropicHelpers
             'role' => 'assistant',
             'model' => 'claude-sonnet-4-6',
             'content' => $content,
-            'stop_reason' => 'end_turn',
+            'stop_reason' => $stopReason,
             'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
         ]);
     }

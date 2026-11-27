@@ -419,7 +419,9 @@ class TextGenerationLoopTest extends TestCase
         $this->assertSame(1, $gated->calls);
         $this->assertSame(0, $ungated->calls);
         $this->assertFalse($response->hasPendingApprovals());
-        $this->assertSame(['call-ungated', 'call-gated'], $response->toolResults->pluck('id')->all());
+        $this->assertSame(['call-gated', 'call-ungated'], $response->toolResults->pluck('id')->all());
+        $answer = collect($gateway->messages[0])->whereInstanceOf(ToolResultMessage::class)->first();
+        $this->assertSame(['call-gated', 'call-ungated'], $answer->toolResults->pluck('id')->all());
         $this->assertSame('done', $response->text);
     }
 
