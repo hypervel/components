@@ -3724,7 +3724,7 @@ $response->usage->uncachedInputTokens(); // Input tokens that were neither read 
 
 Cache reads, cache writes, and uncached input are billed at different rates, so you should price these three counts separately instead of using the input total alone.
 
-When a text generation step fails, the `StepFailed` event's `usage` property contains the token counts the provider reported, or `null` if none were reported. You can also read these counts from `$exception->usage` when catching a `ProviderResponseException`, or from `$exception->error?->usage` when catching a `StreamErrorException`.
+When a text generation step fails, the `StepFailed` event's `usage` property contains the available provider-reported token counts, or `null` if no counts are available. You can also read these counts from `$exception->usage` when catching a `ProviderResponseException`, or from `$exception->error?->usage` when catching a `StreamErrorException`. If reading an Anthropic or OpenAI-compatible stream fails after the provider reported usage during generation, the `StepFailed` event still receives the last reported counts.
 
 The remaining capabilities return a usage object containing the counts specific to them:
 

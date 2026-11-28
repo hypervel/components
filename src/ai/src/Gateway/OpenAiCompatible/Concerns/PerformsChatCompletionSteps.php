@@ -74,7 +74,10 @@ trait PerformsChatCompletionSteps
                 ->post('chat/completions'),
         );
 
-        return yield from $this->processTextStream($invocationId, $provider, $model, $response->getBody());
+        $streamBody = $response->getBody();
+        $this->trackStreamStep($streamBody, $stepContext);
+
+        return yield from $this->processTextStream($invocationId, $provider, $model, $streamBody);
     }
 
     /**

@@ -133,11 +133,14 @@ class AnthropicGateway implements Gateway, ReplaysFullHistory, StepTextGateway
                 ->post('messages', $body),
         );
 
+        $streamBody = $response->getBody();
+        $this->trackStreamStep($streamBody, $stepContext);
+
         $step = yield from $this->processTextStream(
             $invocationId,
             $provider,
             $model,
-            $response->getBody(),
+            $streamBody,
             $this->pausedContent($messages),
         );
 

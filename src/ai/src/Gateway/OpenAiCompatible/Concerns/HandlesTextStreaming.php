@@ -71,7 +71,7 @@ trait HandlesTextStreaming
 
             if (! $choice) {
                 if (isset($data['usage'])) {
-                    $usage = $this->extractUsage($data);
+                    $usage = $this->recordStreamUsage($streamBody, $this->extractUsage($data));
                 }
 
                 continue;
@@ -173,7 +173,7 @@ trait HandlesTextStreaming
             }
 
             if (isset($data['usage'])) {
-                $usage = $this->extractUsage($data);
+                $usage = $this->recordStreamUsage($streamBody, $this->extractUsage($data));
             }
         }
 

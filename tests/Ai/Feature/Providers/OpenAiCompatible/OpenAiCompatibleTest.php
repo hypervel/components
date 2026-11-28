@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\OpenAiCompatible;
 
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\HasProviderOptions;
 use Hypervel\Ai\Enums\Lab;
+use Hypervel\Ai\Events\StepFailed;
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Responses\Data\TextUsage;
@@ -17,6 +20,7 @@ use Hypervel\Ai\Streaming\Events\ToolInputError;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AttributeAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\AttributeToolChoiceAgent;
@@ -27,6 +31,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ToolChoiceAgent;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 use function Hypervel\Ai\agent;
 use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
@@ -290,6 +295,31 @@ class OpenAiCompatibleTest extends TestCase
         $this->assertSame(50, $response->usage->outputTokens);
         $this->assertSame(40, $response->usage->cacheReadInputTokens);
         $this->assertSame(10, $response->usage->reasoningTokens);
+    }
+
+    public function testReadFailurePreservesContinuousUsageAndTheTransportException(): void
+    {
+        Event::fake([StepFailed::class]);
+        $source = Utils::streamFor('data: ' . json_encode([
+            'choices' => [['index' => 0, 'delta' => ['content' => 'Partial']]],
+            'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 2],
+        ]) . "\n\n");
+        $timeout = new RuntimeException('Read timed out');
+        $body = FnStream::decorate($source, [
+            'eof' => static fn (): bool => false,
+            'read' => static fn (int $length): string => $source->eof() ? throw $timeout : $source->read($length),
+        ]);
+        Http::fake(['*' => Http::response($body)]);
+
+        $caught = null;
+        try {
+            agent()->stream('Hello', provider: 'openai-compatible')->each(fn (): true => true);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($timeout, $caught);
+        Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->exception === $timeout && $event->usage == new TextUsage(10, 2));
     }
 
     #[DataProvider('failedStreams')]

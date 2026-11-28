@@ -9,6 +9,7 @@ use Hypervel\Ai\Gateway\Concerns\StreamsToolInput;
 use Hypervel\Ai\Messages\AssistantMessage;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\UrlCitation;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
@@ -92,6 +93,7 @@ trait HandlesTextStreaming
         }
 
         $messageUsage = [];
+        $usage = null;
         $stopReason = '';
         $container = null;
         $citedUrls = [];
@@ -150,7 +152,7 @@ trait HandlesTextStreaming
                     $data['error']['message'] ?? 'Unknown error',
                     false,
                     time(),
-                    usage: $messageUsage === [] ? null : $this->extractUsage(['usage' => $messageUsage]),
+                    usage: $usage,
                 ))->withInvocationId($invocationId);
 
                 return;
@@ -160,6 +162,10 @@ trait HandlesTextStreaming
                 $streamStartEmitted = true;
 
                 $messageUsage = $data['message']['usage'] ?? [];
+
+                if ($messageUsage !== []) {
+                    $usage = $this->recordStreamUsage($streamBody, $this->extractUsage(['usage' => $messageUsage]));
+                }
 
                 yield (new StreamStart(
                     $this->generateEventId(),
@@ -398,7 +404,12 @@ trait HandlesTextStreaming
                 $container = $data['delta']['container']['id'] ?? $container;
 
                 // Usage on message_delta is cumulative for the whole message...
-                $messageUsage = array_merge($messageUsage, $data['usage'] ?? []);
+                // Preserve message_start counts when a delta reports null for the same field.
+                $messageUsage = array_merge($messageUsage, array_filter($data['usage'] ?? [], static fn (mixed $count): bool => $count !== null));
+
+                if ($messageUsage !== []) {
+                    $usage = $this->recordStreamUsage($streamBody, $this->extractUsage(['usage' => $messageUsage]));
+                }
             }
         }
 
@@ -410,7 +421,7 @@ trait HandlesTextStreaming
                 'The provider stream ended before the response was complete.',
                 false,
                 time(),
-                usage: $messageUsage === [] ? null : $this->extractUsage(['usage' => $messageUsage]),
+                usage: $usage,
             ))->withInvocationId($invocationId);
 
             return;
@@ -431,7 +442,7 @@ trait HandlesTextStreaming
             content: array_values($responseContent),
             provider: $provider,
             model: $model,
-            usage: $this->extractUsage(['usage' => $messageUsage]),
+            usage: $usage ?? new TextUsage(0, 0),
             finishReason: $finishReason,
             structured: false,
             container: $container,

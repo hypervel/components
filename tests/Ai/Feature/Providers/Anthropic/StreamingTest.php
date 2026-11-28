@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
 use Closure;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Attributes\MaxSteps;
 use Hypervel\Ai\Events\StepFailed;
@@ -36,6 +38,7 @@ use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use stdClass;
 
 use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
@@ -887,14 +890,39 @@ class StreamingTest extends TestCase
 
     public function testStreamingErrorAfterAMessageDeltaKeepsItsCumulativeUsage(): void
     {
+        $delta = $this->messageDelta('end_turn', 12);
+        $delta['usage']['input_tokens'] = null;
+
         $error = $this->overloadedErrorAfter([
             $this->messageStart(),
             $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
             $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Partial']),
-            $this->messageDelta('end_turn', 12),
+            $delta,
         ]);
 
         $this->assertEquals(new TextUsage(10, 12), $error->usage);
+    }
+
+    public function testReadFailureKeepsTheReportedUsageAndOriginalException(): void
+    {
+        Event::fake([StepFailed::class]);
+        $source = Utils::streamFor($this->ssePayload([$this->messageStart()]));
+        $timeout = new RuntimeException('Read timed out');
+        $body = FnStream::decorate($source, [
+            'eof' => static fn (): bool => false,
+            'read' => static fn (int $length): string => $source->eof() ? throw $timeout : $source->read($length),
+        ]);
+        Http::fake(['api.anthropic.com/*' => Http::response($body, headers: ['Content-Type' => 'text/event-stream'])]);
+
+        $caught = null;
+        try {
+            $this->collectStreamEvents();
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($timeout, $caught);
+        Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->exception === $timeout && $event->usage == new TextUsage(10, 0));
     }
 
     public function testStreamingErrorBeforeAnyUsageReportsNone(): void

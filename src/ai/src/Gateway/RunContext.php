@@ -229,7 +229,7 @@ class RunContext
                 $exception instanceof StreamErrorException => $exception->error?->usage,
                 $exception instanceof ProviderResponseException => $exception->usage,
                 default => null,
-            },
+            } ?? $step->reportedUsage,
         ));
     }
 
