@@ -55,10 +55,10 @@ class MaintenanceModeTest extends TestCase
      */
     protected function tearDown(): void
     {
-        FailingReloadDownCommand::$reloadAttempted = false;
-        FailingReloadDownCommand::$reloadFailure = null;
-        FailingReloadUpCommand::$reloadAttempted = false;
-        FailingReloadUpCommand::$reloadFailure = null;
+        FailingRecyclingDownCommand::$recycleAttempted = false;
+        FailingRecyclingDownCommand::$recycleFailure = null;
+        FailingRecyclingUpCommand::$recycleAttempted = false;
+        FailingRecyclingUpCommand::$recycleFailure = null;
 
         parent::tearDown();
     }
@@ -415,13 +415,13 @@ class MaintenanceModeTest extends TestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testDownAttemptsReloadAfterEventFailureAndPreservesTheEventFailure(): void
+    public function testDownAttemptsRecyclingAfterEventFailureAndPreservesTheEventFailure(): void
     {
         $eventException = new RuntimeException('event failed');
-        $reloadException = new RuntimeException('reload failed');
+        $recycleException = new RuntimeException('recycle failed');
         $reportException = new RuntimeException('report failed');
-        $command = $this->app->make(FailingReloadDownCommand::class);
-        FailingReloadDownCommand::$reloadFailure = $reloadException;
+        $command = $this->app->make(FailingRecyclingDownCommand::class);
+        FailingRecyclingDownCommand::$recycleFailure = $recycleException;
         $this->app->make(KernelContract::class)->registerCommand($command);
         $this->app->make('events')->listen(
             MaintenanceModeEnabled::class,
@@ -432,49 +432,49 @@ class MaintenanceModeTest extends TestCase
         $handler->expects('report')->with(Argument::same($eventException), [])->throws($reportException);
         $this->app->instance(ExceptionHandler::class, $handler);
 
-        $this->artisan(FailingReloadDownCommand::class)
+        $this->artisan(FailingRecyclingDownCommand::class)
             ->expectsOutputToContain('The application is in maintenance mode, but a follow-up operation failed: event failed.')
             ->doesntExpectOutputToContain('Application is now in maintenance mode.')
             ->assertExitCode(1);
 
-        $this->assertTrue(FailingReloadDownCommand::$reloadAttempted);
+        $this->assertTrue(FailingRecyclingDownCommand::$recycleAttempted);
         $this->assertFileExists(storage_path('framework/down'));
     }
 
-    public function testDownReportsReloadFailureAfterMaintenanceStateIsCommitted(): void
+    public function testDownReportsRecyclingFailureAfterMaintenanceStateIsCommitted(): void
     {
-        $command = $this->app->make(FailingReloadDownCommand::class);
-        FailingReloadDownCommand::$reloadFailure = new RuntimeException('reload failed');
+        $command = $this->app->make(FailingRecyclingDownCommand::class);
+        FailingRecyclingDownCommand::$recycleFailure = new RuntimeException('recycle failed');
         $this->app->make(KernelContract::class)->registerCommand($command);
 
-        $this->artisan(FailingReloadDownCommand::class)
-            ->expectsOutputToContain('The application is in maintenance mode, but a follow-up operation failed: reload failed.')
+        $this->artisan(FailingRecyclingDownCommand::class)
+            ->expectsOutputToContain('The application is in maintenance mode, but a follow-up operation failed: recycle failed.')
             ->doesntExpectOutputToContain('Application is now in maintenance mode.')
             ->assertExitCode(1);
 
-        $this->assertTrue(FailingReloadDownCommand::$reloadAttempted);
+        $this->assertTrue(FailingRecyclingDownCommand::$recycleAttempted);
         $this->assertFileExists(storage_path('framework/down'));
     }
 
-    public function testUpAttemptsReloadAfterEventFailureAndPreservesTheEventFailure(): void
+    public function testUpAttemptsRecyclingAfterEventFailureAndPreservesTheEventFailure(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode(['status' => 503]));
 
         $eventException = new RuntimeException('event failed');
-        $command = $this->app->make(FailingReloadUpCommand::class);
-        FailingReloadUpCommand::$reloadFailure = new RuntimeException('reload failed');
+        $command = $this->app->make(FailingRecyclingUpCommand::class);
+        FailingRecyclingUpCommand::$recycleFailure = new RuntimeException('recycle failed');
         $this->app->make(KernelContract::class)->registerCommand($command);
         $this->app->make('events')->listen(
             MaintenanceModeDisabled::class,
             static fn (): never => throw $eventException,
         );
 
-        $this->artisan(FailingReloadUpCommand::class)
+        $this->artisan(FailingRecyclingUpCommand::class)
             ->expectsOutputToContain('The application is live, but a follow-up operation failed: event failed.')
             ->doesntExpectOutputToContain('Application is now live.')
             ->assertExitCode(1);
 
-        $this->assertTrue(FailingReloadUpCommand::$reloadAttempted);
+        $this->assertTrue(FailingRecyclingUpCommand::$recycleAttempted);
         $this->assertFileDoesNotExist(storage_path('framework/down'));
     }
 
@@ -639,40 +639,40 @@ class MaintenanceModeTest extends TestCase
     }
 }
 
-class FailingReloadDownCommand extends DownCommand
+class FailingRecyclingDownCommand extends DownCommand
 {
-    public static bool $reloadAttempted = false;
+    public static bool $recycleAttempted = false;
 
-    public static ?Throwable $reloadFailure = null;
+    public static ?Throwable $recycleFailure = null;
 
     /**
-     * Simulate a worker reload failure.
+     * Simulate a worker recycle failure.
      */
-    protected function reloadWorkers(): void
+    protected function recycleWorkers(): void
     {
-        static::$reloadAttempted = true;
+        static::$recycleAttempted = true;
 
-        if (static::$reloadFailure !== null) {
-            throw static::$reloadFailure;
+        if (static::$recycleFailure !== null) {
+            throw static::$recycleFailure;
         }
     }
 }
 
-class FailingReloadUpCommand extends UpCommand
+class FailingRecyclingUpCommand extends UpCommand
 {
-    public static bool $reloadAttempted = false;
+    public static bool $recycleAttempted = false;
 
-    public static ?Throwable $reloadFailure = null;
+    public static ?Throwable $recycleFailure = null;
 
     /**
-     * Simulate a worker reload failure.
+     * Simulate a worker recycle failure.
      */
-    protected function reloadWorkers(): void
+    protected function recycleWorkers(): void
     {
-        static::$reloadAttempted = true;
+        static::$recycleAttempted = true;
 
-        if (static::$reloadFailure !== null) {
-            throw static::$reloadFailure;
+        if (static::$recycleFailure !== null) {
+            throw static::$recycleFailure;
         }
     }
 }

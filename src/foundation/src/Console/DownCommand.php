@@ -8,7 +8,7 @@ use Exception;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
+use Hypervel\Foundation\Console\Concerns\RecyclesWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Exceptions\RegisterErrorViewPaths;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -20,7 +20,7 @@ use Throwable;
 #[AsCommand(name: 'down')]
 class DownCommand extends Command
 {
-    use ReloadsWorkers;
+    use RecyclesWorkers;
 
     /**
      * The console command signature.
@@ -69,7 +69,7 @@ class DownCommand extends Command
             }
 
             try {
-                $this->reloadWorkers();
+                $this->recycleWorkers();
             } catch (Throwable $throwable) {
                 $exception = Coroutine::preferCancellation($exception, $throwable);
             }

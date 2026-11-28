@@ -55,7 +55,6 @@ class ReloadCommand extends Command
         return [
             'queue' => 'queue:restart',
             'schedule' => 'schedule:interrupt',
-            'server' => 'server:reload',
             ...ServiceProvider::$reloadCommands,
         ];
     }
