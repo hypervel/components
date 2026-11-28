@@ -46,7 +46,7 @@ trait ConfiguresPrompts
 
         Prompt::validateUsing(fn (Prompt $prompt, mixed $value) => $this->validatePrompt($value, $prompt->validate));
 
-        if (windows_os() || $this->hypervel->runningUnitTests()) {
+        if ($this->hypervel->runningUnitTests()) {
             Prompt::fallbackWhen(true);
         }
 
