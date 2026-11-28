@@ -90,7 +90,7 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
 
 ## HTTP Client
 
-- Extend the [Guzzle connection reuse measurements](../tests/Benchmarks/GuzzleOwnership/results.md#connection-reuse-at-concurrency-8-and-32) using the ownership and Sentry benchmark harnesses: SDK workloads, multiple concurrency levels, sustained traffic, cold/cached startup, execution outside coroutines, individual promise operations, and pending-work memory. Compare independent checkouts with matched dependencies and record CPU, latency, connection reuse and resource cleanup. Profile measured bottlenecks and optimize only where the improvement justifies the complexity. When a Swoole HTTP transport is available, compare it with cURL under concurrent Inertia SSR requests to a local server through the `inertia-ssr` connection.
+- When a Swoole HTTP transport is available, compare it with cURL under concurrent Inertia SSR requests to a local server through the `inertia-ssr` connection.
 
 ## Documentation
 
