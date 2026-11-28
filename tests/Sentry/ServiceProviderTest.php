@@ -425,14 +425,15 @@ class ServiceProviderTest extends TestCase
     {
         $explicitChannel = ['driver' => 'sentry', 'level' => 'error'];
         config([
-            'custom-sentry.logs_channel_level' => 'debug',
-            'logging.channels.sentry' => $explicitChannel,
+            'sentry.logs_channel_level' => 'warning',
+            'custom-sentry.logs_channel_level' => 'info',
+            'logging.channels' => ['sentry' => $explicitChannel],
         ]);
 
         (new CustomRootInspectableSentryServiceProvider($this->app))->registerLogChannelsForTest();
 
         $this->assertSame($explicitChannel, config('logging.channels.sentry'));
-        $this->assertSame(['driver' => 'sentry_logs', 'level' => 'debug'], config('logging.channels.sentry_logs'));
+        $this->assertSame(['driver' => 'sentry_logs', 'level' => 'info'], config('logging.channels.sentry_logs'));
     }
 
     public function testTracingMiddlewareHonorsDisabledAfterResponseContinuation(): void
