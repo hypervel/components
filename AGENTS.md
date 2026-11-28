@@ -833,6 +833,7 @@ Owner-approved exclusions that apply across packages. Package-specific differenc
 
 - Laravel Boost and package-provided Boost resources, including skills and guidelines.
 - Pest integration, including generator options and stubs, test-runner selection and Testbench helpers.
+- Upstream branches and tests that apply only when PHP runs on native Windows.
 
 ### Source workflow
 
