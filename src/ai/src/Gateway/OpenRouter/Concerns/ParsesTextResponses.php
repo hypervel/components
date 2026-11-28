@@ -39,18 +39,22 @@ trait ParsesTextResponses
         if (! $data || isset($data['error']) || ($choice['finish_reason'] ?? null) === 'error') {
             $error = $data['error'] ?? $choice['error'] ?? [];
             $code = $error['code'] ?? null;
-            $exception = match (true) {
-                $code === 429 => RateLimitedException::class,
-                $code === 402 => InsufficientCreditsException::class,
-                in_array($code, $this->overloadedStatusCodes(), true) => ProviderOverloadedException::class,
-                default => ProviderResponseException::class,
-            };
-
-            throw new $exception(sprintf(
+            $message = sprintf(
                 'OpenRouter Error: [%s] %s',
                 $error['type'] ?? $code ?? 'unknown',
                 $error['message'] ?? 'Unknown OpenRouter error.',
-            ), is_int($code) ? $code : 0);
+            );
+
+            throw match (true) {
+                $code === 429 => new RateLimitedException($message, $code),
+                $code === 402 => new InsufficientCreditsException($message, $code),
+                in_array($code, $this->overloadedStatusCodes(), true) => new ProviderOverloadedException($message, $code),
+                default => new ProviderResponseException(
+                    $message,
+                    is_int($code) ? $code : 0,
+                    usage: isset($data['usage']) ? $this->extractUsage($data) : null,
+                ),
+            };
         }
     }
 

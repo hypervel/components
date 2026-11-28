@@ -9,6 +9,7 @@ use Hypervel\Ai\Exceptions\InsufficientCreditsException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
@@ -84,6 +85,10 @@ class ErrorHandlingTest extends TestCase
             ? ['choices' => [['message' => ['role' => 'assistant', 'content' => 'Partial output'], 'finish_reason' => 'error', 'error' => $error]]]
             : ['error' => $error];
 
+        if ($choiceLevel) {
+            $data['usage'] = ['prompt_tokens' => 9, 'completion_tokens' => 3];
+        }
+
         Http::fake(['openrouter.ai/*' => Http::response($data)]);
 
         $exception = null;
@@ -98,6 +103,10 @@ class ErrorHandlingTest extends TestCase
         $this->assertSame($exceptionClass, $exception::class);
         $this->assertSame($error['code'] ?? 0, $exception->getCode());
         $this->assertSame(sprintf('OpenRouter Error: [%s] %s', $error['type'] ?? $error['code'], $error['message']), $exception->getMessage());
+
+        if ($exception instanceof ProviderResponseException) {
+            $this->assertEquals($choiceLevel ? new TextUsage(9, 3) : null, $exception->usage);
+        }
     }
 
     /**
