@@ -258,8 +258,7 @@ class FilesystemTest extends TestCase
         $files = new Filesystem;
         $files->chmod($this->tempDir . '/file.txt', 0755);
         $filePermission = substr(sprintf('%o', fileperms($this->tempDir . '/file.txt')), -4);
-        $expectedPermissions = DIRECTORY_SEPARATOR === '\\' ? '0666' : '0755';
-        $this->assertEquals($expectedPermissions, $filePermission);
+        $this->assertSame('0755', $filePermission);
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
@@ -283,8 +282,7 @@ class FilesystemTest extends TestCase
 
         $files = new Filesystem;
         $filePermission = $files->chmod($this->tempDir . '/file.txt');
-        $expectedPermissions = DIRECTORY_SEPARATOR === '\\' ? '0666' : '0755';
-        $this->assertEquals($expectedPermissions, $filePermission);
+        $this->assertSame('0755', $filePermission);
     }
 
     public function testGetChmodReturnsFalseWhenPermissionsCannotBeRead(): void
@@ -785,6 +783,23 @@ class FilesystemTest extends TestCase
         $this->assertFileDoesNotExist($this->tempDir . '/foo.txt');
     }
 
+    public function testLinkUsesTheExactDestinationWhenSymlinkIsDisabled(): void
+    {
+        mkdir($this->tempDir . '/existing');
+
+        $script = <<<'PHP'
+require $argv[1];
+$files = new Hypervel\Filesystem\Filesystem;
+echo json_encode([$files->link('-target', 'link'), $files->link('source', 'existing')]);
+PHP;
+        $process = new Process([PHP_BINARY, '-d', 'disable_functions=symlink', '-r', $script, dirname(__DIR__, 2) . '/vendor/autoload.php'], $this->tempDir);
+        $process->mustRun();
+
+        $this->assertSame('[true,false]', $process->getOutput());
+        $this->assertSame('-target', readlink($this->tempDir . '/link'));
+        $this->assertSame(['.', '..'], scandir($this->tempDir . '/existing'));
+    }
+
     public function testRelativeLinkThrowsWhenLinkCreationFails(): void
     {
         $filesystem = new StubLinkFilesystem(false);
@@ -795,7 +810,7 @@ class FilesystemTest extends TestCase
         $filesystem->relativeLink('/root/target.txt', '/root/link.txt');
     }
 
-    public function testRelativeLinkAcceptsTheWindowsNullResult(): void
+    public function testRelativeLinkAcceptsANullResultFromAnOverride(): void
     {
         $this->expectNotToPerformAssertions();
 
@@ -902,17 +917,14 @@ class FilesystemTest extends TestCase
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
-        // chmod is noneffective on Windows
-        if (DIRECTORY_SEPARATOR === '\\') {
-            $this->assertTrue($files->isReadable($this->tempDir . '/foo.txt'));
-        } elseif (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
             $this->markTestSkipped('Permission checks are unreliable when running as root.');
-        } else {
-            @chmod($this->tempDir . '/foo.txt', 0000);
-            $this->assertFalse($files->isReadable($this->tempDir . '/foo.txt'));
-            @chmod($this->tempDir . '/foo.txt', 0777);
-            $this->assertTrue($files->isReadable($this->tempDir . '/foo.txt'));
         }
+
+        chmod($this->tempDir . '/foo.txt', 0000);
+        $this->assertFalse($files->isReadable($this->tempDir . '/foo.txt'));
+        chmod($this->tempDir . '/foo.txt', 0777);
+        $this->assertTrue($files->isReadable($this->tempDir . '/foo.txt'));
         $this->assertFalse($files->isReadable($this->tempDir . '/doesnotexist.txt'));
     }
 

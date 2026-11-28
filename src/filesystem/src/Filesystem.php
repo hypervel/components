@@ -353,24 +353,22 @@ class Filesystem
     }
 
     /**
-     * Create a symlink to the target file or directory. On Windows, a hard link is created if the target is a file.
+     * Create a symlink to the target file or directory.
      */
     public function link(string $target, string $link): ?bool
     {
-        if (! windows_os()) {
-            if (function_exists('symlink')) {
-                return symlink($target, $link);
-            }
-            exec('ln -s ' . escapeshellarg($target) . ' ' . escapeshellarg($link), $output, $exitCode);
-
-            return $exitCode === 0;
+        if (function_exists('symlink')) {
+            return symlink($target, $link);
         }
 
-        $mode = $this->isDirectory($target) ? 'J' : 'H';
+        // ln would otherwise create the link inside an existing directory.
+        if (is_dir($link)) {
+            return false;
+        }
 
-        exec("mklink /{$mode} " . escapeshellarg($link) . ' ' . escapeshellarg($target));
+        exec('ln -sn -- ' . escapeshellarg($target) . ' ' . escapeshellarg($link), $output, $exitCode);
 
-        return null;
+        return $exitCode === 0;
     }
 
     /**
