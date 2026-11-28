@@ -563,7 +563,11 @@ When writing or porting source classes that use static properties for caching (e
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
 2. Check whether the subscriber (`src/testing/src/PHPUnit/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
-Framework-owned classes go in `AfterEachTestSubscriber`. First-party optional framework packages must stay in grouped optional methods at the bottom of that subscriber and must be invoked through `callIfExists()`. Third-party packages, private packages, and applications should register cleanup for process-local state that survives application teardown through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber. These callbacks run after the test application is destroyed, so they must not resolve container services; external resources remain owned by their test traits.
+Framework-owned classes go in `AfterEachTestSubscriber`. Use `callIfLoaded()` when changing the state requires loading the listed class. If a wrapper resets another class that can be used independently, cover that path too. For example, when `Avatar` is loaded and `Telescope` is not, reset `Avatar` directly.
+
+If the state can change while the listed class is unloaded, run the reset even when the test never loaded that class. For example, `DumpWatcher` resets `VarDumper`'s global handler, which other code can set. If the reset method belongs to an optional package, use `callIfExists()` so cleanup runs whenever that package is installed. Keep first-party optional package resets grouped at the bottom of the subscriber.
+
+Third-party packages, private packages, and applications should register cleanup for process-local state that survives application teardown through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber. These callbacks run after the test application is destroyed, so they must not resolve container services; external resources remain owned by their test traits.
 
 Do not add `Hypervel\Testing\PHPUnit\AfterEachTestCleanup` itself to `AfterEachTestSubscriber`. Its callbacks are suite-level registrations that must persist for the PHPUnit worker lifetime.
 
