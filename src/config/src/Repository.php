@@ -375,7 +375,7 @@ class Repository implements ArrayAccess, ConfigContract
      *
      * @internal
      */
-    public function setMutationObserver(Closure $observer): void
+    public function setMutationObserver(?Closure $observer): void
     {
         $this->mutationObserver = $observer;
     }

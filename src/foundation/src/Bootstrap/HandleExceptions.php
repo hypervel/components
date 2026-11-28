@@ -10,7 +10,6 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Env;
@@ -206,22 +205,14 @@ class HandleExceptions
             return;
         }
 
-        // A deprecation raised while the server boots must be derived again from each worker's rebuilt configuration.
-        static::$app->make(ConfigMutationTracker::class)->applyAndRecord($config, function (ConfigRepository $config): void {
-            // @phpstan-ignore hypervel.untypedConfigRead (Deprecation handling must inspect partially configured log channels.)
-            if ($config->get('logging.channels.deprecations')) {
-                return;
-            }
+        $options = $config->array('logging.deprecations');
 
-            $options = $config->array('logging.deprecations');
+        $this->ensureNullLogDriverIsConfigured($config);
 
-            $this->ensureNullLogDriverIsConfigured($config);
+        // A declared null channel deliberately selects the null logger.
+        $driver = $options['channel'] ?? 'null';
 
-            // A declared null channel deliberately selects the null logger.
-            $driver = $options['channel'] ?? 'null';
-
-            $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
-        });
+        $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
     }
 
     /**

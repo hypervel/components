@@ -64,7 +64,7 @@ class KeysCommand extends Command
         $this->components->info('Encryption keys generated successfully.');
         $this->components->warn(
             'Restart the server and every other long-running application process, including queue workers and custom server processes, '
-            . 'before issuing tokens with the new key pair. The [php artisan server:reload] command only replaces server workers and is not sufficient.'
+            . 'before issuing tokens with the new key pair.'
         );
 
         return Command::SUCCESS;

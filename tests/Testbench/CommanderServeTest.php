@@ -9,6 +9,7 @@ use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
 use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\Fixtures\ServeMasterReadyServiceProvider;
+use Hypervel\Tests\Testbench\Fixtures\ServeWorkerConfigurationServiceProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\Test;
@@ -74,6 +75,63 @@ class CommanderServeTest extends TestCase
 
     #[Test]
     #[RequiresPhpExtension('pcntl')]
+    public function itRecyclesWorkersWithTheConfigurationTheServerBootedWith(): void
+    {
+        $files = new Filesystem;
+        $directory = ParallelTesting::tempDir('CommanderRecycleWorkers');
+        $skeleton = $directory . '/skeleton';
+        $configFile = $skeleton . '/config/recycling.php';
+        $files->deleteDirectory($directory);
+
+        try {
+            $files->copyDirectory(package_path('src/testbench/hypervel'), $skeleton);
+            $files->link(package_path('vendor'), $directory . '/vendor');
+            $files->put($directory . '/testbench.yaml', "hypervel: ./skeleton\nproviders:\n  - " . ServeWorkerConfigurationServiceProvider::class . "\n");
+            $files->put($configFile, "<?php return ['value' => 'first'];");
+            config(['server.settings.pid_file' => $skeleton . '/storage/framework/hypervel.pid']);
+
+            foreach (['first', 'second'] as $expected) {
+                $port = $this->servePort();
+                $process = $this->startServeProcessIn($directory, $port);
+                $pid = $process->getPid();
+
+                try {
+                    $this->waitForWorkerStarts($process, 1);
+                    [, , $body] = $this->fetchFromServe($port, '/worker-config');
+                    $initial = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+                    $this->assertSame($expected, $initial['snapshot']);
+                    $this->assertSame($expected, $initial['current']);
+
+                    if ($expected === 'first') {
+                        $this->assertGreaterThan(0, $initial['task_pid']);
+                        $files->replace($configFile, "<?php return ['value' => 'second'];");
+                        $this->artisan('server:recycle-workers')->assertSuccessful();
+
+                        $this->waitForWorkerStarts($process, 2);
+
+                        [, , $body] = $this->fetchFromServe($port, '/worker-config');
+                        $worker = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+                        $this->assertNotSame($initial['pid'], $worker['pid']);
+                        $this->assertGreaterThan(0, $worker['task_pid']);
+                        $this->assertNotSame($initial['task_pid'], $worker['task_pid']);
+                        $this->assertSame('first', $worker['snapshot']);
+                        $this->assertSame('first', $worker['current']);
+                    }
+                } finally {
+                    try {
+                        $this->interruptServeProcess($process);
+                    } finally {
+                        $this->stopServeProcessGroup($process, $pid);
+                    }
+                }
+            }
+        } finally {
+            $files->deleteDirectory($directory);
+        }
+    }
+
+    #[Test]
+    #[RequiresPhpExtension('pcntl')]
     public function itRestoresACustomSkeletonWhenTheTerminalInterruptsServe(): void
     {
         $filesystem = new Filesystem;
@@ -118,13 +176,7 @@ class CommanderServeTest extends TestCase
             $this->assertFileDoesNotExist($environmentFile);
             $this->assertFalse(is_link($vendorLink));
         } finally {
-            // Only the serve process can lead a group with its PID, and leftover workers stay in that
-            // group after the master exits, so this reaps every remaining process.
-            if ($pid !== null) {
-                posix_kill(-$pid, SIGKILL);
-            }
-            $process->stop(0);
-            static::$activeServePid = null;
+            $this->stopServeProcessGroup($process, $pid);
             $filesystem->deleteDirectory($workingPath);
         }
     }
@@ -193,11 +245,7 @@ class CommanderServeTest extends TestCase
 
             $this->assertFalse(is_link($reverseLink));
         } finally {
-            if ($pid !== null) {
-                posix_kill(-$pid, SIGKILL);
-            }
-            $process->stop(0);
-            static::$activeServePid = null;
+            $this->stopServeProcessGroup($process, $pid);
             $filesystem->deleteDirectory($workingPath);
         }
     }
@@ -234,6 +282,19 @@ class CommanderServeTest extends TestCase
         static::$activeServePid = $process->getPid();
 
         return $process;
+    }
+
+    /**
+     * Stop any workers left in the process group if serve exited early.
+     */
+    private function stopServeProcessGroup(ProcessDecorator $process, ?int $pid): void
+    {
+        if ($pid !== null) {
+            posix_kill(-$pid, SIGKILL);
+        }
+
+        $process->stop(0);
+        static::$activeServePid = null;
     }
 
     /**
@@ -303,7 +364,6 @@ class CommanderServeTest extends TestCase
         $this->assertStringNotContainsString('The event-loop has already been created', $output);
         $this->assertStringNotContainsString('document_root', $output);
         $this->assertStringNotContainsString('TypeError', $output);
-        $this->assertStringNotContainsString('ReloadDotenvAndConfig', $output);
         $this->assertStringNotContainsString('Cannot assign Hypervel\Support\Facades\Config', $output);
     }
 
@@ -528,6 +588,25 @@ class CommanderServeTest extends TestCase
         } while (microtime(true) < $deadline);
 
         $this->fail("Serve process did not answer HTTP requests on port {$serverPort}.\n{$this->combinedOutput($process)}");
+    }
+
+    /**
+     * Wait for both workers to report startup before querying the fixture.
+     */
+    private function waitForWorkerStarts(ProcessDecorator $process, int $starts): void
+    {
+        $deadline = microtime(true) + 10;
+
+        do {
+            $output = $process->getOutput();
+            if (substr_count($output, 'Worker#0 started.') >= $starts && substr_count($output, 'TaskWorker#1 started.') >= $starts) {
+                return;
+            }
+
+            usleep(50_000);
+        } while ($process->isRunning() && microtime(true) < $deadline);
+
+        $this->fail("The event and task workers did not report startup.\n{$this->combinedOutput($process)}");
     }
 
     /**

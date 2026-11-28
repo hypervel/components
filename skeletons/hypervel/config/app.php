@@ -95,8 +95,6 @@ return [
         | This array determines which log levels are written to stdout. Only
         | messages at these levels will be output. This does not affect the
         | application log stack configured in config/logging.php.
-        | Settings are loaded when each worker starts, so changes take effect
-        | for replacement workers after the server is reloaded.
         |
         */
 

@@ -1881,7 +1881,7 @@ class SupportAgent implements Agent, HasSkills
 
 Sources may be directories, `Skill` instances, or closures returning skills, which are only invoked once the agent needs them. When two skills share a name, the source listed first takes precedence.
 
-Hypervel caches skill definitions from the directories listed in `ai.skills.cached_paths`, which defaults to `[resource_path('skills')]`. To cache other fixed directories, such as `base_path('.agents/skills')`, add them to this list. [Reload your services](/docs/{{version}}/deployment#reloading-services) after changing these definitions. If your application loads skills during boot, restart the full service instead of only reloading its workers. Other directories, closures, and directly supplied skills are not cached across tool instances, and bundled files are read when requested.
+Hypervel caches skill definitions from the directories listed in `ai.skills.cached_paths`, which defaults to `[resource_path('skills')]`. To cache other fixed directories, such as `base_path('.agents/skills')`, add them to this list. Restart the server and any other long-running processes that use these skills after deploying changes to the definitions. Other directories, closures, and directly supplied skills are not cached across tool instances, and bundled files are read when requested.
 
 For skills that change while your application is running, use an uncached directory or a closure. You may also disable discovery caching by setting `ai.skills.cached_paths` to an empty array in your configuration.
 

@@ -8,7 +8,6 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -16,15 +15,12 @@ use Hypervel\Translation\Translator;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
-use WeakReference;
 
 class SupportServiceProviderTest extends TestCase
 {
     use VerifiesDoubles;
 
     protected Application $app;
-
-    protected ConfigMutationTracker $configMutationTracker;
 
     protected function setUp(): void
     {
@@ -39,10 +35,6 @@ class SupportServiceProviderTest extends TestCase
             ]],
         ]);
         $app->instance('config', $config);
-
-        $this->configMutationTracker = new ConfigMutationTracker;
-        $this->configMutationTracker->observe($config);
-        $app->instance(ConfigMutationTracker::class, $this->configMutationTracker);
 
         $one = new ServiceProviderForTestingOne($app);
         $one->boot();
@@ -376,83 +368,6 @@ class SupportServiceProviderTest extends TestCase
         $this->assertArrayHasKey('redis', $stores);
     }
 
-    public function testMergeConfigFromReplaysAgainstFreshApplicationConfig(): void
-    {
-        $masterConfig = new ConfigRepository([
-            'flat' => ['default' => 'master'],
-        ]);
-        $tracker = new ConfigMutationTracker;
-        $tracker->observe($masterConfig);
-        $app = new Application;
-        $app->instance('config_loaded_from_cache', false);
-        $app->instance('config', $masterConfig);
-        $app->instance(ConfigMutationTracker::class, $tracker);
-
-        (new ServiceProviderForTestingFlat($app))->register();
-
-        $workerConfig = new ConfigRepository([
-            'flat' => ['default' => 'worker'],
-        ]);
-        $tracker->replay($workerConfig);
-
-        $this->assertSame('worker', $workerConfig->get('flat.default'));
-        $this->assertSame('package-prefix', $workerConfig->get('flat.prefix'));
-    }
-
-    public function testMergeableOptionsReplayWithoutRetainingTheProvider(): void
-    {
-        $masterConfig = new ConfigRepository;
-        $tracker = new ConfigMutationTracker;
-        $tracker->observe($masterConfig);
-        $app = new Application;
-        $app->instance('config_loaded_from_cache', false);
-        $app->instance('config', $masterConfig);
-        $app->instance(ConfigMutationTracker::class, $tracker);
-
-        $provider = new ServiceProviderForTestingMergeableStores($app);
-        $providerReference = WeakReference::create($provider);
-        $provider->register();
-        unset($provider);
-        gc_collect_cycles();
-
-        $workerConfig = new ConfigRepository([
-            'mergeable_stores' => [
-                'stores' => [
-                    'redis' => ['driver' => 'redis', 'connection' => 'worker'],
-                ],
-            ],
-        ]);
-        $tracker->replay($workerConfig);
-
-        $this->assertNull($providerReference->get());
-        $this->assertSame('worker', $workerConfig->get('mergeable_stores.stores.redis.connection'));
-        $this->assertSame('array', $workerConfig->get('mergeable_stores.stores.array.driver'));
-    }
-
-    public function testReplaceConfigRecursivelyFromReplaysAgainstFreshApplicationConfig(): void
-    {
-        $masterConfig = new ConfigRepository([
-            'flat' => ['default' => 'master'],
-        ]);
-        $tracker = new ConfigMutationTracker;
-        $tracker->observe($masterConfig);
-        $app = new Application;
-        $app->instance('config_loaded_from_cache', false);
-        $app->instance('config', $masterConfig);
-        $app->instance(ConfigMutationTracker::class, $tracker);
-
-        (new ServiceProviderForTestingReplace($app))->register();
-
-        $workerConfig = new ConfigRepository([
-            'flat' => ['default' => 'worker', 'extra' => 'worker-value'],
-        ]);
-        $tracker->replay($workerConfig);
-
-        $this->assertSame('worker', $workerConfig->get('flat.default'));
-        $this->assertSame('worker-value', $workerConfig->get('flat.extra'));
-        $this->assertSame('package-prefix', $workerConfig->get('flat.prefix'));
-    }
-
     public function testMergeableOptionsDefaultsToEmptyArray(): void
     {
         $provider = new ServiceProviderForTestingFlat($this->app);
@@ -467,7 +382,6 @@ class SupportServiceProviderTest extends TestCase
         $app = Double::for(Application::class, override: true)->strict();
         $app->allows('configurationIsCached')->returns(true);
         $app->expects('make')->with('config')->never();
-        $app->expects('make')->with(ConfigMutationTracker::class)->never();
 
         $provider = new ServiceProviderForTestingFlat($app->instance());
         $provider->register();
@@ -479,7 +393,6 @@ class SupportServiceProviderTest extends TestCase
         $app = new Application;
         $app->instance('config_loaded_from_cache', false);
         $app->instance('config', $config);
-        $app->instance(ConfigMutationTracker::class, new ConfigMutationTracker);
 
         $provider = new ServiceProviderForTestingFlat($app);
         $provider->register();
@@ -492,7 +405,6 @@ class SupportServiceProviderTest extends TestCase
         $app = Double::for(Application::class, override: true)->strict();
         $app->allows('configurationIsCached')->returns(true);
         $app->expects('make')->with('config')->never();
-        $app->expects('make')->with(ConfigMutationTracker::class)->never();
 
         $provider = new ServiceProviderForTestingReplace($app->instance());
         $provider->register();
@@ -506,7 +418,6 @@ class SupportServiceProviderTest extends TestCase
         $app = new Application;
         $app->instance('config_loaded_from_cache', false);
         $app->instance('config', $config);
-        $app->instance(ConfigMutationTracker::class, new ConfigMutationTracker);
 
         $provider = new ServiceProviderForTestingReplace($app);
         $provider->register();
@@ -518,25 +429,16 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('package-prefix', $config->get('flat.prefix'));
     }
 
-    public function testConfigureUsingComputesAgainAgainstTheRebuiltConfiguration(): void
+    public function testConfigureUsingComputesValuesFromTheApplicationConfiguration(): void
     {
-        $masterConfig = new ConfigRepository(['computed' => ['record' => 10]]);
-        $tracker = new ConfigMutationTracker;
-        $tracker->observe($masterConfig);
+        $config = new ConfigRepository(['computed' => ['record' => 10]]);
         $app = new Application;
         $app->instance('config_loaded_from_cache', false);
-        $app->instance('config', $masterConfig);
-        $app->instance(ConfigMutationTracker::class, $tracker);
+        $app->instance('config', $config);
 
         (new ServiceProviderForTestingComputed($app))->register();
 
-        $this->assertSame(20, $masterConfig->get('computed.buffer'));
-
-        // A worker whose environment changed the input computes the value from it.
-        $workerConfig = new ConfigRepository(['computed' => ['record' => 15]]);
-        $tracker->replay($workerConfig);
-
-        $this->assertSame(30, $workerConfig->get('computed.buffer'));
+        $this->assertSame(20, $config->get('computed.buffer'));
     }
 
     public function testConfigureUsingSkipsWhenConfigIsCached(): void
@@ -544,9 +446,7 @@ class SupportServiceProviderTest extends TestCase
         $app = Double::for(Application::class, override: true)->strict();
         $app->allows('configurationIsCached')->returns(true);
         $app->expects('make')->with('config')->never();
-        $app->expects('make')->with(ConfigMutationTracker::class)->never();
 
-        // Cached configuration already holds the computed value, so neither the configuration nor the tracker is touched.
         (new ServiceProviderForTestingComputed($app->instance()))->register();
     }
 

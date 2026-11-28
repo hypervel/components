@@ -381,8 +381,6 @@ You should typically run the `php artisan config:cache` command as part of your 
 
 Once the configuration has been cached, your application's `.env` file will not be loaded by the framework during requests or Artisan commands; therefore, the `env` function will only return external, system level environment variables.
 
-If a running server started without cached configuration, reloading its workers applies the new cache, but a full server restart is needed to remove inherited `.env` values from runtime `env` calls.
-
 For this reason, you should ensure you are only calling the `env` function from within your application's configuration (`config`) files. You can see many examples of this by examining Hypervel's default configuration files. Configuration values may be accessed from anywhere in your application using the `config` function [described above](#accessing-configuration-values).
 
 The `config:clear` command may be used to purge the cached configuration:
@@ -390,6 +388,8 @@ The `config:clear` command may be used to purge the cached configuration:
 ```shell
 php artisan config:clear
 ```
+
+Restart the server after rebuilding or clearing the configuration cache.
 
 > [!WARNING]
 > If you execute the `config:cache` command during your deployment process, you should be sure that you are only calling the `env` function from within your configuration files. Once the configuration has been cached, the `.env` file will not be loaded; therefore, the `env` function will only return external, system level environment variables.
@@ -505,7 +505,7 @@ APP_MAINTENANCE_STORE=database
 
 Workers cache maintenance mode state in memory for performance. When using the cache driver, workers on other servers will refresh their cached state within the configured maintenance refresh interval. You may customize this interval in seconds using the `APP_MAINTENANCE_REFRESH_INTERVAL` environment variable; setting it to `0` disables automatic refreshes.
 
-When maintenance mode is enabled or disabled, Hypervel will send a `SIGUSR1` reload signal to the server process listed in your configured `server.settings.pid_file` so workers on the current server refresh their maintenance state immediately. The default PID file is `storage/framework/hypervel.pid`; the signal is only sent when that file exists.
+The `down` and `up` commands also request a [worker recycle](/docs/{{version}}/server#recycling-workers) on the local server. Each replacement worker reads the current maintenance state when it first needs it.
 
 For isolated tests or single-process applications, the `array` driver keeps maintenance state in the current PHP process:
 

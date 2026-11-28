@@ -151,7 +151,7 @@ public function register(): void
 }
 ```
 
-When a configuration value is computed from other configuration values, set it using the `configureUsing` method. Each worker rebuilds its configuration when it starts, so the callback runs again against the rebuilt configuration instead of keeping the value it first computed. When your application's configuration is cached, the cached file already holds the value, so the callback does not run:
+When a configuration value is computed from other configuration values, set it using the `configureUsing` method. When your application's configuration is cached, the cached file already holds the value, so the callback does not run:
 
 ```php
 use Hypervel\Contracts\Config\Repository;

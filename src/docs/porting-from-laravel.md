@@ -678,7 +678,7 @@ Missing authentication for a confidential client returns `invalid_client` with H
 
 Import Laravel data into Hypervel's schema using its migrations, rather than adding only selected columns to the Laravel tables. Client authentication, registration and credential storage require Hypervel's full schema. Set `third_party` to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [installation](/docs/{{version}}/passport#installation) and [consent](/docs/{{version}}/passport#approving-the-request).
 
-Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
+Restart the server and other long-running processes after changing file or environment signing keys. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
 
 Custom guards, controllers, middleware and cookie-factory subclasses must match Hypervel's constructor and protected method signatures. In particular, guards read `RequestContext` instead of accepting `setRequest()`, `CreateFreshApiToken` passes its guard explicitly, and server-building methods live on `ServerFactory`. Consult the package's [API differences](https://github.com/hypervel/passport#differences-from-laravel) and [Passport documentation](/docs/{{version}}/passport) when porting extensions.
 
@@ -1049,7 +1049,7 @@ Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `co
 
 Use Hypervel's migrations for framework tables such as jobs, job batches, sessions, and cache. Bring over migrations for your application's own tables and reapply any customizations to framework tables on top of Hypervel's schema. If you're keeping an existing database, preserve its migration history and keep the skeleton's migrations only for framework tables the database doesn't have yet, since the others would try to create tables that already exist. Then write new migrations for the changes needed to bring its existing framework tables in line with Hypervel's schema. Once those migrations have run, [dump the database schema](/docs/{{version}}/migrations#squashing-migrations) with its migration records. Fresh databases then start from the dump, since no remaining migration creates the framework tables the database already had.
 
-Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [server](/docs/{{version}}/server) and [deployment](/docs/{{version}}/deployment) documentation before adapting web server or process-monitor configuration.
+Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. If your deployment uses `octane:reload`, switch to a graceful server restart to load the new release. Review the [server](/docs/{{version}}/server) and [deployment](/docs/{{version}}/deployment) documentation before adapting web server or process-monitor configuration.
 
 Build production releases with `composer install --no-dev --classmap-authoritative` instead of `--optimize-autoloader`; Doctor fails production checks without an authoritative class map. See [Autoloader Optimization](/docs/{{version}}/deployment#autoloader-optimization).
 

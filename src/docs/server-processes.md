@@ -9,7 +9,7 @@
     - [Registering Process Instances](#registering-process-instances)
 - [Process Lifecycle](#process-lifecycle)
     - [Lifecycle Events](#lifecycle-events)
-    - [Reloading Server Processes](#reloading-server-processes)
+    - [Restarting Server Processes](#restarting-server-processes)
     - [Process Health](#process-health)
     - [Signals](#signals)
 - [Inter-Process Communication](#inter-process-communication)
@@ -162,9 +162,10 @@ Hypervel dispatches a `Hypervel\ServerProcess\Events\BeforeProcessHandle` event 
 You may register listeners for these events in the same way as other Hypervel [event listeners](/docs/{{version}}/events#registering-events-and-listeners).
 
 <a name="reloading-server-processes"></a>
-### Reloading Server Processes
+<a name="restarting-server-processes"></a>
+### Restarting Server Processes
 
-The [`server:reload` command](/docs/{{version}}/server#reloading-workers) reloads the server's event and task workers, but it does not reload custom server processes. Restart the server when server-process code or configuration changes.
+Custom server processes continue running when you [recycle workers](/docs/{{version}}/server#recycling-workers). Restart the server to apply changes to these processes.
 
 <a name="process-health"></a>
 ### Process Health

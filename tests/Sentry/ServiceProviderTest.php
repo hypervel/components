@@ -7,12 +7,10 @@ namespace Hypervel\Tests\Sentry;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\Psr7\Response as PsrResponse;
-use Hypervel\Config\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Facade;
 use Hypervel\Sentry\Features\Feature;
@@ -423,34 +421,19 @@ class ServiceProviderTest extends TestCase
         $this->assertTrue($feature->booted);
     }
 
-    public function testLogChannelsAreComputedAgainAgainstTheRebuiltConfiguration(): void
+    public function testLogChannelsUseTheConfiguredLevelAndRespectExistingChannels(): void
     {
         $explicitChannel = ['driver' => 'sentry', 'level' => 'error'];
-        $masterConfig = new Repository([
-            'custom-sentry' => ['logs_channel_level' => 'debug'],
-            'logging' => ['channels' => ['sentry' => $explicitChannel]],
+        config([
+            'sentry.logs_channel_level' => 'warning',
+            'custom-sentry.logs_channel_level' => 'info',
+            'logging.channels' => ['sentry' => $explicitChannel],
         ]);
-        $tracker = new ConfigMutationTracker;
-        $tracker->observe($masterConfig);
-        $app = Double::for(Application::class, override: true)->strict();
-        $app->allows('configurationIsCached')->returns(false);
-        $app->allows('make')->with('config')->returns($masterConfig);
-        $app->allows('make')->with(ConfigMutationTracker::class)->returns($tracker);
 
-        (new CustomRootInspectableSentryServiceProvider($app->instance()))->registerLogChannelsForTest();
+        (new CustomRootInspectableSentryServiceProvider($this->app))->registerLogChannelsForTest();
 
-        $this->assertSame($explicitChannel, $masterConfig->get('logging.channels.sentry'));
-        $this->assertSame(['driver' => 'sentry_logs', 'level' => 'debug'], $masterConfig->get('logging.channels.sentry_logs'));
-
-        // A worker whose environment changed the level computes the channel from it, keeping the application's channel.
-        $workerConfig = new Repository([
-            'custom-sentry' => ['logs_channel_level' => 'warning'],
-            'logging' => ['channels' => ['sentry' => $explicitChannel]],
-        ]);
-        $tracker->replay($workerConfig);
-
-        $this->assertSame($explicitChannel, $workerConfig->get('logging.channels.sentry'));
-        $this->assertSame(['driver' => 'sentry_logs', 'level' => 'warning'], $workerConfig->get('logging.channels.sentry_logs'));
+        $this->assertSame($explicitChannel, config('logging.channels.sentry'));
+        $this->assertSame(['driver' => 'sentry_logs', 'level' => 'info'], config('logging.channels.sentry_logs'));
     }
 
     public function testTracingMiddlewareHonorsDisabledAfterResponseContinuation(): void

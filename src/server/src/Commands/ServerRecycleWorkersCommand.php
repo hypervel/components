@@ -10,12 +10,12 @@ use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Console\Attribute\AsCommand;
 
-#[AsCommand(name: 'server:reload')]
-class ServerReloadCommand extends Command
+#[AsCommand(name: 'server:recycle-workers')]
+class ServerRecycleWorkersCommand extends Command
 {
-    protected ?string $signature = 'server:reload';
+    protected ?string $signature = 'server:recycle-workers';
 
-    protected string $description = 'Reload the server event and task workers gracefully.';
+    protected string $description = 'Gracefully replace the server\'s event and task workers.';
 
     public function __construct(
         protected Repository $config,
@@ -24,15 +24,17 @@ class ServerReloadCommand extends Command
         parent::__construct();
     }
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): int
     {
         $file = $this->config->string('server.settings.pid_file');
-        $hasTaskWorkers = $this->config->integer('server.settings.task_worker_num') > 0;
 
         try {
             $contents = $this->filesystem->get($file);
         } catch (FileNotFoundException) {
-            $this->warn("Unable to read the server PID file [{$file}].");
+            $this->components->error("Unable to read the server PID file [{$file}].");
 
             return self::FAILURE;
         }
@@ -42,30 +44,19 @@ class ServerReloadCommand extends Command
         ]);
 
         if ($pid === false) {
-            $this->error("The server PID file [{$file}] does not contain a valid process ID.");
+            $this->components->error("The server PID file [{$file}] does not contain a valid process ID.");
 
             return self::FAILURE;
         }
 
-        $this->info('Reloading workers...');
-
+        // SIGUSR1 replaces both event and task workers.
         if (! $this->signalProcess($pid, SIGUSR1)) {
-            $this->warn('Unable to reload workers.');
+            $this->components->error('Unable to signal the server to recycle its workers.');
 
             return self::FAILURE;
         }
 
-        if ($hasTaskWorkers) {
-            $this->info('Reloading task workers...');
-
-            if (! $this->signalProcess($pid, SIGUSR2)) {
-                $this->warn('Unable to reload task workers.');
-
-                return self::FAILURE;
-            }
-        }
-
-        $this->info('Done.');
+        $this->components->info('Worker recycling requested.');
 
         return self::SUCCESS;
     }

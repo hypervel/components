@@ -12649,7 +12649,7 @@ Inertia::version(fn () => $version); // Lazily...
 
 Asset refreshing in Inertia works on the assumption that a full-page visit will trigger your assets to reload. However, Inertia doesn't actually do anything to force this. Typically this is done with some form of cache busting. For example, appending a version query parameter to the end of your asset URLs.
 
-With Hypervel's [Vite integration](/docs/{{version}}/vite), asset versioning is done automatically. The default middleware caches the asset version for the worker lifetime, so [reload your workers](/docs/{{version}}/deployment#reloading-services) after deploying new assets.
+With Hypervel's [Vite integration](/docs/{{version}}/vite), asset versioning is done automatically. The default middleware caches the asset version for the worker lifetime, so [restart the server](/docs/{{version}}/deployment#reloading-services) after deploying new assets.
 
 <a name="asset-versioning-background-requests"></a>
 

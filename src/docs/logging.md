@@ -129,7 +129,7 @@ Hypervel's default logging configuration includes `stdout` and `stderr` channels
 
 The `stdout` channel writes messages to `php://stdout`, while the `stderr` channel writes messages to `php://stderr`. You may customize their formatters using the `LOG_STDOUT_FORMATTER` and `LOG_STDERR_FORMATTER` environment variables.
 
-Hypervel also uses a separate low-level stdout logger for server infrastructure such as connection pools and server lifecycle messages. Configure its enabled levels using `app.stdout_log.level` and its output format using the `STDOUT_LOG_FORMAT` environment variable. Supported formats are `line` and `json`. Each worker loads these settings when it starts, so reload the server after changing them.
+Hypervel also uses a separate low-level stdout logger for server infrastructure such as connection pools and server lifecycle messages. Configure its enabled levels using `app.stdout_log.level` and its output format using the `STDOUT_LOG_FORMAT` environment variable. Supported formats are `line` and `json`. Restart the server after changing these settings.
 
 <a name="logging-deprecation-warnings"></a>
 ### Logging Deprecation Warnings

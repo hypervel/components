@@ -208,14 +208,7 @@ abstract class ServiceProvider
     }
 
     /**
-     * Change the configuration with a callback, again whenever a worker rebuilds its configuration.
-     *
-     * Use it for values computed from other configuration. Configuration can
-     * depend on the worker environment, so the callback is replayed against
-     * the rebuilt configuration rather than its first result kept. Cached
-     * configuration already holds the result, so the callback does not run.
-     *
-     * Called later, the change reaches configuration every request in the worker shares, and is not replayed.
+     * Configure values during boot unless the cached configuration already includes them.
      *
      * @param Closure(Repository): void $callback
      */
@@ -226,7 +219,13 @@ abstract class ServiceProvider
             return;
         }
 
-        $this->app->make(ConfigMutationTracker::class)->applyAndRecord($this->app->make('config'), $callback);
+        $config = $this->app->make('config');
+
+        if ($this->app->bound(ConfigMutationTracker::class)) {
+            $this->app->make(ConfigMutationTracker::class)->withoutRecording($config, $callback);
+        } else {
+            $callback($config);
+        }
     }
 
     /**

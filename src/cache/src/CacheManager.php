@@ -632,8 +632,8 @@ class CacheManager implements FactoryContract
      * Register classes that cache stores may unserialize.
      *
      * The resolver contributes to the worker-lifetime cache policy and is
-     * evaluated when the application finishes booting in console processes, after
-     * configuration reload in Swoole workers, or before a custom server process
+     * evaluated when the application finishes booting in console processes, when
+     * a Swoole worker starts, or before a custom server process
      * starts handling work. An earlier cache read evaluates the current
      * contributions without memoizing them.
      *

@@ -8,7 +8,7 @@ use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnManagerStart;
 use Hypervel\Core\Events\OnStart;
 use Hypervel\Core\Events\OnWorkerExit;
-use Hypervel\Server\Commands\ServerReloadCommand;
+use Hypervel\Server\Commands\ServerRecycleWorkersCommand;
 use Hypervel\Server\Commands\ServerStartCommand;
 use Hypervel\Server\Listeners\AfterWorkerStartListener;
 use Hypervel\Server\Listeners\InitProcessTitleListener;
@@ -27,7 +27,7 @@ class ServerServiceProvider extends ServiceProvider
         $this->app->singleton(SwooleServer::class, fn ($app) => $app->make(SwooleServerFactory::class)($app));
 
         $this->commands([
-            ServerReloadCommand::class,
+            ServerRecycleWorkersCommand::class,
             ServerStartCommand::class,
         ]);
     }

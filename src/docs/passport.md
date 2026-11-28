@@ -141,7 +141,7 @@ Keys default to 4096 bits. You may choose a different length with `--length`; th
 php artisan passport:keys --length=2048
 ```
 
-The `passport:install` command also accepts `--length`, as does `passport:keys:rotate` when using the [database key store](#database-signing-keys). Keys are parsed and retained by each worker. After changing file or environment keys, restart the server and every other long-running process that issues or verifies tokens, including queue workers. `server:reload` is not sufficient.
+The `passport:install` command also accepts `--length`, as does `passport:keys:rotate` when using the [database key store](#database-signing-keys). Keys are parsed and retained by each worker. After changing file or environment keys, restart the server and every other long-running process that issues or verifies tokens, including queue workers.
 
 If necessary, you may define the path where Passport's keys should be loaded from. You may use the `Passport::loadKeysFrom` method to accomplish this. Typically, this method should be called from the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 

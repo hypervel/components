@@ -65,7 +65,6 @@ class CacheServiceProvider extends ServiceProvider
             return;
         }
 
-        // Workers finalize after configuration reload; custom processes inherit the master's configuration.
         $events->listen([AfterWorkerStart::class, BeforeProcessHandle::class], function (): void {
             $this->app->make(CacheManager::class)->finalizeSerializableClasses();
         });

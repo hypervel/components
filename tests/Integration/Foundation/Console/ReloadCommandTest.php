@@ -43,7 +43,7 @@ class ReloadCommandTest extends TestCase
             ->assertSuccessful()
             ->expectsOutputToContain('queue')
             ->expectsOutputToContain('schedule')
-            ->expectsOutputToContain('server');
+            ->doesntExpectOutputToContain('server');
     }
 }
 
