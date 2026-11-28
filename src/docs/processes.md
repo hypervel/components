@@ -188,16 +188,13 @@ The `tty` method may be used to enable TTY mode for your process. TTY mode conne
 Process::forever()->tty()->run('vim');
 ```
 
-You may use the `supportsTty` method to determine if TTY mode is supported by the current operating system:
+You may use the `supportsTty` method to determine if TTY mode is available in the current environment:
 
 ```php
 if (Process::supportsTty()) {
     Process::forever()->tty()->run('vim');
 }
 ```
-
-> [!WARNING]
-> TTY mode is not supported on Windows.
 
 <a name="extending-pending-processes"></a>
 ### Extending Pending Processes
