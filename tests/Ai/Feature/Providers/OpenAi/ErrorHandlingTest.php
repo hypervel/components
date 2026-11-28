@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\OpenAi;
 
+use Hypervel\Ai\Events\StepFailed;
 use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\InsufficientCreditsException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\TestCase;
@@ -103,8 +106,9 @@ class ErrorHandlingTest extends TestCase
 
     public function testFailedStatusResponseThrowsAiException(): void
     {
-        $this->expectException(AiException::class);
-        $this->expectExceptionMessage('OpenAI Error');
+        Event::fake([StepFailed::class]);
+        $this->expectException(ProviderResponseException::class);
+        $this->expectExceptionMessage('OpenAI Error: [unknown] The response failed without an error message.');
         Http::fake([
             'api.openai.com/*' => Http::response([
                 'id' => 'resp_123',
@@ -114,11 +118,16 @@ class ErrorHandlingTest extends TestCase
             ], 200),
         ]);
 
-        (new AssistantAgent)->prompt('Hi', provider: 'openai');
+        try {
+            (new AssistantAgent)->prompt('Hi', provider: 'openai');
+        } finally {
+            Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->usage === null);
+        }
     }
 
     public function testFailedResponsePreservesTheProviderErrorCode(): void
     {
+        Event::fake([StepFailed::class]);
         $this->expectException(AiException::class);
         $this->expectExceptionMessage('OpenAI Error: [server_error] The response failed.');
         Http::fake([
@@ -128,9 +137,14 @@ class ErrorHandlingTest extends TestCase
                 'model' => 'gpt-5.4',
                 'output' => [],
                 'error' => ['code' => 'server_error', 'message' => 'The response failed.'],
+                'usage' => ['input_tokens' => 12, 'output_tokens' => 2],
             ]),
         ]);
 
-        (new AssistantAgent)->prompt('Hi', provider: 'openai');
+        try {
+            (new AssistantAgent)->prompt('Hi', provider: 'openai');
+        } finally {
+            Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->usage?->totalTokens() === 14);
+        }
     }
 }

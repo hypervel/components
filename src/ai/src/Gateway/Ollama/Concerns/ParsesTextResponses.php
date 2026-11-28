@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\Ollama\Concerns;
 
-use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
@@ -21,12 +21,12 @@ trait ParsesTextResponses
     /**
      * Validate the Ollama response data.
      *
-     * @throws AiException
+     * @throws ProviderResponseException
      */
     protected function validateTextResponse(array $data): void
     {
         if (! $data || isset($data['error'])) {
-            throw new AiException(sprintf(
+            throw new ProviderResponseException(sprintf(
                 'Ollama Error: %s',
                 $data['error'] ?? 'Unknown Ollama error.',
             ));

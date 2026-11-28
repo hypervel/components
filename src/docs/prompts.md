@@ -1716,12 +1716,10 @@ For any prompts that accept the `scroll` argument, the configured value will aut
 <a name="fallbacks"></a>
 ## Unsupported Environments and Fallbacks
 
-Hypervel Prompts supports macOS, Linux, and Windows with WSL. Due to limitations in the Windows version of PHP, it is not currently possible to use Hypervel Prompts on Windows outside of WSL.
-
-For this reason, Hypervel Prompts supports falling back to an alternative implementation such as the [Symfony Console Question Helper](https://symfony.com/doc/current/components/console/helpers/questionhelper.html).
+Hypervel Prompts supports macOS, Linux, and Windows with WSL. If your terminal does not support interactive prompts, you can configure an alternative implementation such as the [Symfony Console Question Helper](https://symfony.com/doc/current/components/console/helpers/questionhelper.html).
 
 > [!NOTE]
-> When using Hypervel Prompts with the Hypervel framework, fallbacks for each prompt have been configured for you and will be automatically enabled in unsupported environments.
+> When using Hypervel Prompts with the Hypervel framework, fallbacks for each prompt have been configured for you and are enabled during tests or if terminal setup fails.
 
 <a name="fallback-conditions"></a>
 #### Fallback Conditions
@@ -1732,7 +1730,7 @@ If you are not using Hypervel or need to customize when the fallback behavior is
 use Hypervel\Prompts\Prompt;
 
 Prompt::fallbackWhen(
-    ! $input->isInteractive() || windows_os() || app()->runningUnitTests()
+    ! $input->isInteractive() || app()->runningUnitTests()
 );
 ```
 

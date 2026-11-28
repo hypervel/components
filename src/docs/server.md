@@ -446,6 +446,10 @@ use Hypervel\Server\Event;
 ],
 ```
 
+When a worker exhausts PHP's memory limit, any requests it is handling are interrupted. Hypervel attempts to [report the fatal error](/docs/{{version}}/errors#reporting-exceptions) as the worker shuts down. If the operating system kills the worker with `SIGKILL`, for example when a container runs out of memory, the worker cannot run PHP shutdown handlers. To detect either kind of exit, enable `WorkerErrorCallback` as shown above and listen for `OnWorkerError`. Swoole's manager process dispatches this event when it survives the worker, so your listener can log the worker's PID, exit code, and signal. Use host or container monitoring to detect an out-of-memory kill that also terminates the manager.
+
+All coroutines in a worker share its memory limit. Run memory-intensive jobs on a [separate queue worker](/docs/{{version}}/queues#running-the-queue-worker) so they cannot exhaust an HTTP worker's PHP memory limit.
+
 <a name="http-request-events"></a>
 ### HTTP Request Events
 

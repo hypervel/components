@@ -28,9 +28,7 @@ class QuestionHelper extends SymfonyQuestionHelper
         $default = $question->getDefault();
 
         if ($question->isMultiline()) {
-            $text .= sprintf(' (press %s to continue)', PHP_OS_FAMILY === 'Windows'
-                ? '<comment>Ctrl+Z</comment> then <comment>Enter</comment>'
-                : '<comment>Ctrl+D</comment>');
+            $text .= ' (press <comment>Ctrl+D</comment> to continue)';
         }
 
         switch (true) {

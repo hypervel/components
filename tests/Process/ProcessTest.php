@@ -49,7 +49,7 @@ class ProcessTest extends TestCase
     public function testSuccessfulProcess(): void
     {
         $factory = new Factory;
-        $result = $factory->path(__DIR__)->run($this->ls());
+        $result = $factory->path(__DIR__)->run('ls');
 
         $this->assertInstanceOf(ProcessResult::class, $result);
         $this->assertTrue($result->successful());
@@ -68,8 +68,8 @@ class ProcessTest extends TestCase
 
         $pool = $factory->pool(function (Pool $pool): array {
             return [
-                $pool->path(__DIR__)->command($this->ls()),
-                $pool->path(__DIR__)->command($this->ls()),
+                $pool->path(__DIR__)->command('ls'),
+                $pool->path(__DIR__)->command('ls'),
             ];
         });
 
@@ -184,7 +184,7 @@ class ProcessTest extends TestCase
 
         $pool = $factory->pool(function ($pool) {
             return [
-                $pool->path(__DIR__)->command($this->ls()),
+                $pool->path(__DIR__)->command('ls'),
                 $pool->path(__DIR__)->command('cat test'),
             ];
         });
@@ -203,8 +203,8 @@ class ProcessTest extends TestCase
 
         $pool = $factory->pool(function ($pool) {
             return [
-                $pool->path(__DIR__)->command($this->ls()),
-                $pool->path(__DIR__)->command($this->ls()),
+                $pool->path(__DIR__)->command('ls'),
+                $pool->path(__DIR__)->command('ls'),
             ];
         })->start();
 
@@ -431,8 +431,8 @@ class ProcessTest extends TestCase
 
         $pool = $factory->pool(function (Pool $pool): array {
             return [
-                $pool->path(__DIR__)->command($this->ls()),
-                $pool->path(__DIR__)->command($this->ls()),
+                $pool->path(__DIR__)->command('ls'),
+                $pool->path(__DIR__)->command('ls'),
             ];
         })->start(function (string $type, string $buffer, int|string $key) use (&$output): void {
             $output[$key][$type][] = $buffer;
@@ -454,8 +454,8 @@ class ProcessTest extends TestCase
 
         $pool = $factory->pool(function (Pool $pool): array {
             return [
-                $pool->as('first')->path(__DIR__)->command($this->ls()),
-                $pool->as('second')->path(__DIR__)->command($this->ls()),
+                $pool->as('first')->path(__DIR__)->command('ls'),
+                $pool->as('second')->path(__DIR__)->command('ls'),
             ];
         })->start();
 
@@ -476,8 +476,8 @@ class ProcessTest extends TestCase
 
         $results = $factory->pool(function (Pool $pool): array {
             return [
-                $pool->as('first')->path(__DIR__)->command($this->ls()),
-                $pool->as('second')->path(__DIR__)->command($this->ls()),
+                $pool->as('first')->path(__DIR__)->command('ls'),
+                $pool->as('second')->path(__DIR__)->command('ls'),
             ];
         })->wait();
 
@@ -496,8 +496,8 @@ class ProcessTest extends TestCase
 
         $pool = $factory->pool(function (Pool $pool): array {
             return [
-                $pool->as('first')->path(__DIR__)->command($this->ls()),
-                $pool->as('second')->path(__DIR__)->command($this->ls()),
+                $pool->as('first')->path(__DIR__)->command('ls'),
+                $pool->as('second')->path(__DIR__)->command('ls'),
             ];
         })->wait();
 
@@ -514,7 +514,7 @@ class ProcessTest extends TestCase
 
         $output = [];
 
-        $process = $factory->path(__DIR__)->start($this->ls(), function (string $type, string $buffer) use (&$output): void {
+        $process = $factory->path(__DIR__)->start('ls', function (string $type, string $buffer) use (&$output): void {
             $output[] = $buffer;
         });
 
@@ -529,7 +529,7 @@ class ProcessTest extends TestCase
 
         $output = [];
 
-        $process = $factory->path(__DIR__)->start($this->ls());
+        $process = $factory->path(__DIR__)->start('ls');
 
         $process->wait(function (string $type, string $buffer) use (&$output): void {
             $output[] = $buffer;
@@ -1114,7 +1114,7 @@ class ProcessTest extends TestCase
             'cat *' => 'cat command',
         ]);
 
-        $result = $factory->path(__DIR__)->run($this->ls());
+        $result = $factory->path(__DIR__)->run('ls');
         $this->assertStringContainsString('ProcessTest.php', $result->output());
     }
 
@@ -1163,7 +1163,7 @@ class ProcessTest extends TestCase
 
         $factory->fake(fn () => $factory->result(exitCode: 1));
 
-        $result = $factory->path(__DIR__)->run($this->ls());
+        $result = $factory->path(__DIR__)->run('ls');
         $result->throw();
     }
 
@@ -1175,7 +1175,7 @@ class ProcessTest extends TestCase
 
         $factory->fake(fn () => $factory->result(exitCode: 1));
 
-        $result = $factory->path(__DIR__)->run($this->ls());
+        $result = $factory->path(__DIR__)->run('ls');
         $result->throwIf(true);
     }
 
@@ -1185,7 +1185,7 @@ class ProcessTest extends TestCase
 
         $factory->fake(fn () => $factory->result(exitCode: 1));
 
-        $result = $factory->path(__DIR__)->run($this->ls());
+        $result = $factory->path(__DIR__)->run('ls');
         $this->assertSame($result, $result->throwIf(false));
     }
 
@@ -2370,11 +2370,6 @@ class ProcessTest extends TestCase
         }
 
         gc_collect_cycles();
-    }
-
-    protected function ls(): string
-    {
-        return windows_os() ? 'dir' : 'ls';
     }
 }
 

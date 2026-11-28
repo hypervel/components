@@ -112,13 +112,12 @@ class QueueListenerTest extends TestCase
         $options->memory = $memory;
         $options->timeout = 3;
         $process = $listener->makeProcess('connection', 'queue', $options);
-        $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
-        $artisanBinary = artisan_binary();
+        $artisan = escapeshellarg(php_binary()) . ' ' . escapeshellarg(artisan_binary());
 
         $this->assertInstanceOf(Process::class, $process);
         $this->assertSame(__DIR__, $process->getWorkingDirectory());
         $this->assertSame(3.0, $process->getTimeout());
-        $this->assertSame($escape . php_binary() . $escape . " {$escape}{$artisanBinary}{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory={$memory}{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape}", $process->getCommandLine());
+        $this->assertSame("{$artisan} 'queue:work' 'connection' '--once' '--name=default' '--queue=queue' '--backoff=1' '--memory={$memory}' '--sleep=3' '--tries=1'", $process->getCommandLine());
     }
 
     public function testMakeProcessCorrectlyFormatsCommandLineWithAnEnvironmentSpecified(): void
@@ -129,13 +128,12 @@ class QueueListenerTest extends TestCase
         $options->memory = 2;
         $options->timeout = 3;
         $process = $listener->makeProcess('connection', 'queue', $options);
-        $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
-        $artisanBinary = artisan_binary();
+        $artisan = escapeshellarg(php_binary()) . ' ' . escapeshellarg(artisan_binary());
 
         $this->assertInstanceOf(Process::class, $process);
         $this->assertSame(__DIR__, $process->getWorkingDirectory());
         $this->assertSame(3.0, $process->getTimeout());
-        $this->assertSame($escape . php_binary() . $escape . " {$escape}{$artisanBinary}{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape} {$escape}--env=test{$escape}", $process->getCommandLine());
+        $this->assertSame("{$artisan} 'queue:work' 'connection' '--once' '--name=default' '--queue=queue' '--backoff=1' '--memory=2' '--sleep=3' '--tries=1' '--env=test'", $process->getCommandLine());
     }
 
     public function testMakeProcessCorrectlyFormatsCommandLineWhenTheConnectionIsNotSpecified(): void
@@ -146,21 +144,19 @@ class QueueListenerTest extends TestCase
         $options->memory = 2;
         $options->timeout = 3;
         $process = $listener->makeProcess(null, 'queue', $options);
-        $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
-        $artisanBinary = artisan_binary();
+        $artisan = escapeshellarg(php_binary()) . ' ' . escapeshellarg(artisan_binary());
 
         $this->assertInstanceOf(Process::class, $process);
         $this->assertSame(__DIR__, $process->getWorkingDirectory());
         $this->assertSame(3.0, $process->getTimeout());
-        $this->assertSame($escape . php_binary() . $escape . " {$escape}{$artisanBinary}{$escape} {$escape}queue:work{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape} {$escape}--env=test{$escape}", $process->getCommandLine());
+        $this->assertSame("{$artisan} 'queue:work' '--once' '--name=default' '--queue=queue' '--backoff=1' '--memory=2' '--sleep=3' '--tries=1' '--env=test'", $process->getCommandLine());
     }
 
     public function testMakeProcessPassesABackoffScheduleToTheWorker(): void
     {
         $listener = new Listener(__DIR__);
         $process = $listener->makeProcess('connection', 'queue', new ListenerOptions(backoff: [1, 5, 10]));
-        $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
 
-        $this->assertStringContainsString(" {$escape}--backoff=1,5,10{$escape} ", $process->getCommandLine());
+        $this->assertStringContainsString(" '--backoff=1,5,10' ", $process->getCommandLine());
     }
 }

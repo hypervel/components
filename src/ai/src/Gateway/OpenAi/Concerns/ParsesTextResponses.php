@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\OpenAi\Concerns;
 
 use Hypervel\Ai\Concerns\JoinsReasoning;
-use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
@@ -26,26 +26,26 @@ trait ParsesTextResponses
     /**
      * Validate the OpenAI response data.
      *
-     * @throws AiException
+     * @throws ProviderResponseException
      */
     protected function validateTextResponse(array $data): void
     {
         if (! $data || isset($data['error'])) {
-            throw new AiException(sprintf(
-                'OpenAI Error: [%s] %s',
-                $data['error']['type'] ?? $data['error']['code'] ?? 'unknown',
-                $data['error']['message'] ?? 'Unknown OpenAI error.',
-            ));
+            throw new ProviderResponseException(
+                sprintf(
+                    'OpenAI Error: [%s] %s',
+                    $data['error']['type'] ?? $data['error']['code'] ?? 'unknown',
+                    $data['error']['message'] ?? 'Unknown OpenAI error.',
+                ),
+                usage: isset($data['usage']) ? $this->extractUsage($data) : null,
+            );
         }
 
         if (($data['status'] ?? '') === 'failed') {
-            $error = $data['error'] ?? [];
-
-            throw new AiException(sprintf(
-                'OpenAI Error: [%s] %s',
-                $error['code'] ?? 'unknown',
-                $error['message'] ?? 'The response failed without an error message.',
-            ));
+            throw new ProviderResponseException(
+                'OpenAI Error: [unknown] The response failed without an error message.',
+                usage: isset($data['usage']) ? $this->extractUsage($data) : null,
+            );
         }
     }
 

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Cohere;
 
 use Hypervel\Ai\Embeddings;
-use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Reranking;
 use Hypervel\Contracts\Foundation\Application;
@@ -118,7 +118,7 @@ class ErrorHandlingTest extends TestCase
 
     public function testTextResponseWithoutAMessageThrowsAiException(): void
     {
-        $this->expectException(AiException::class);
+        $this->expectException(ProviderResponseException::class);
         $this->expectExceptionMessage('Cohere Error: Something went wrong');
         Http::fake([
             'api.cohere.com/*' => Http::response(['id' => 'abc', 'message' => 'Something went wrong'], 200),

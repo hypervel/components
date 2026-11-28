@@ -374,9 +374,6 @@ class ScheduleTest extends TestCase
 
     public function testExecCreatesNewCommand(): void
     {
-        $escape = '\\' === DIRECTORY_SEPARATOR ? '"' : '\'';
-        $escapeReal = '\\' === DIRECTORY_SEPARATOR ? '\"' : '"';
-
         $schedule = new Schedule;
         $schedule->exec('path/to/command');
         $schedule->exec('path/to/command -f --foo="bar"');
@@ -389,19 +386,21 @@ class ScheduleTest extends TestCase
         $schedule->exec('path/to/command', ['foo' => ['bar', 'baz']]);
         $schedule->exec('path/to/command', ['--foo' => ['bar', 'baz']]);
         $schedule->exec('path/to/command', ['-F' => ['bar', 'baz']]);
+        $schedule->exec('path/to/command', ['--id' => [1, 2]]);
 
         $events = $schedule->events();
         $this->assertSame('path/to/command', $events[0]->command);
         $this->assertSame('path/to/command -f --foo="bar"', $events[1]->command);
         $this->assertSame('path/to/command -f', $events[2]->command);
-        $this->assertSame("path/to/command --foo={$escape}bar{$escape}", $events[3]->command);
-        $this->assertSame("path/to/command -f --foo={$escape}bar{$escape}", $events[4]->command);
-        $this->assertSame("path/to/command --title={$escape}A {$escapeReal}real{$escapeReal} test{$escape}", $events[5]->command);
-        $this->assertSame("path/to/command {$escape}one{$escape} {$escape}two{$escape}", $events[6]->command);
-        $this->assertSame("path/to/command {$escape}-1 minute{$escape}", $events[7]->command);
-        $this->assertSame("path/to/command {$escape}bar{$escape} {$escape}baz{$escape}", $events[8]->command);
-        $this->assertSame("path/to/command --foo={$escape}bar{$escape} --foo={$escape}baz{$escape}", $events[9]->command);
-        $this->assertSame("path/to/command -F {$escape}bar{$escape} -F {$escape}baz{$escape}", $events[10]->command);
+        $this->assertSame("path/to/command --foo='bar'", $events[3]->command);
+        $this->assertSame("path/to/command -f --foo='bar'", $events[4]->command);
+        $this->assertSame("path/to/command --title='A \"real\" test'", $events[5]->command);
+        $this->assertSame("path/to/command 'one' 'two'", $events[6]->command);
+        $this->assertSame("path/to/command '-1 minute'", $events[7]->command);
+        $this->assertSame("path/to/command 'bar' 'baz'", $events[8]->command);
+        $this->assertSame("path/to/command --foo='bar' --foo='baz'", $events[9]->command);
+        $this->assertSame("path/to/command -F 'bar' -F 'baz'", $events[10]->command);
+        $this->assertSame("path/to/command --id='1' --id='2'", $events[11]->command);
     }
 
     public function testExecCreatesNewCommandWithTimezone(): void

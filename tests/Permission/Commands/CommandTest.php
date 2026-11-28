@@ -42,12 +42,17 @@ class CommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testItCanCreateARole(): void
+    #[TestWith([null])]
+    #[TestWith([42])]
+    public function testItCanCreateARole(?int $teamId): void
     {
+        setPermissionsTeamId($teamId);
+
         Artisan::call('permission:create-role', ['name' => 'new-role']);
 
         $this->assertCount(1, Role::where('name', 'new-role')->get());
         $this->assertCount(0, Role::where('name', 'new-role')->first()->permissions);
+        $this->assertSame($teamId, getPermissionsTeamId());
     }
 
     public function testItCanCreateARoleWithASpecificGuard(): void
@@ -393,6 +398,17 @@ class CommandTest extends TestCase
 
         $this->assertStringContainsString('Teams feature disabled, argument --team-id has no effect', $output);
         $this->assertCount(0, Role::where('name', 'new-role')->get());
+    }
+
+    #[TestWith([null])]
+    #[TestWith([42])]
+    public function testItDoesNotChangeTheTeamIdWhenCreatingARoleWithTeamIdButTeamsDisabled(?int $currentTeamId): void
+    {
+        setPermissionsTeamId($currentTeamId);
+
+        Artisan::call('permission:create-role', ['name' => 'new-role', '--team-id' => 7]);
+
+        $this->assertSame($currentTeamId, getPermissionsTeamId());
     }
 
     #[DefineEnvironment('usesTeams')]

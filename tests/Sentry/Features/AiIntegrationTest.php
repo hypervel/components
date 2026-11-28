@@ -492,15 +492,16 @@ class AiIntegrationTest extends TestCase
         $this->dispatchHypervelEvent(new AgentPrompted('inv-orphan', $prompt, $response));
         $this->dispatchHypervelEvent(new ToolInvoked('inv-orphan', 'tool-orphan', new TestAgent, new WeatherLookup, [], 'result', 0.0));
         $this->assertCount(1, $transaction->getSpanRecorder()->getSpans());
-        // Connection failure finishes chat span with error
+        // A failed step retains reported usage on its chat span.
         $transaction = $this->startTransaction();
         [$prompt, $response] = $this->makePromptAndResponse();
         $this->dispatchHypervelEvent(new PromptingAgent('inv-f', $prompt));
         $this->dispatchStartingStep('inv-f', $prompt, $response);
-        $this->dispatchHypervelEvent(new StepFailed('inv-f', 0, $prompt->agent, $prompt->provider, $prompt->model, true, new ConnectionException('timeout'), 0.0));
+        $this->dispatchHypervelEvent(new StepFailed('inv-f', 0, $prompt->agent, $prompt->provider, $prompt->model, true, new RuntimeException('Generation failed'), 0.0, new TextUsage(10, 2)));
         $chatSpans = $this->findAllSpansByOp($transaction, 'gen_ai.chat');
         $this->assertCount(1, $chatSpans);
         $this->assertEquals(SpanStatus::internalError(), $chatSpans[0]->getStatus());
+        $this->assertSame(12, $chatSpans[0]->getData()['gen_ai.usage.total_tokens']);
     }
 
     public function testConnectionFailureRestoresAgentSpan(): void

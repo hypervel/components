@@ -505,7 +505,7 @@ class BroadcastingInstallCommand extends Command
             ->path($this->hypervel->basePath());
 
         // Gate TTY on real support; the installer can run in containers or CI without a usable /dev/tty.
-        if (! windows_os() && $command->supportsTty()) {
+        if ($command->supportsTty()) {
             $command->tty(true);
         }
 

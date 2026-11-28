@@ -378,7 +378,7 @@ The AI SDK supports a variety of providers across its features. The following ta
 | STT | OpenAI, OpenAI Compatible, ElevenLabs, Groq, Mistral, Gemini, OpenRouter |
 | Embeddings | OpenAI, OpenAI Compatible, Gemini, Azure, Bedrock, Cohere, Mistral, Jina, VoyageAI, Ollama, OpenRouter |
 | Reranking | Cohere, Jina, VoyageAI, Bedrock, OpenRouter |
-| Classification | TypeSafe, OpenAI, OpenAI Compatible, Gemini, OpenRouter |
+| Classification | OpenAI, OpenAI Compatible, Gemini, TypeSafe, OpenRouter |
 | Files | OpenAI, Anthropic, Gemini, Azure, OpenRouter |
 | Vector Stores | OpenAI, Gemini, Azure |
 
@@ -536,9 +536,17 @@ foreach ($response->steps as $step) {
 }
 ```
 
-[Image](#images), [transcription](#transcription), [embeddings](#embeddings), [reranking](#reranking), and [classification](#classification) responses also expose the provider's raw HTTP response through their `raw` property. Embeddings served entirely from the [cache](#caching-embeddings) have no raw response.
+[Image](#images), [transcription](#transcription), [embeddings](#embeddings), [reranking](#reranking), [classification](#classification), and file responses expose the same `raw` property. For example, you may read the cost that OpenRouter reports for a request:
 
-> **Note:** The `raw` property is `null` when streaming a response, when using the Bedrock provider, and on faked responses unless one is provided explicitly via `withRawResponse`.
+```php
+use Hypervel\Ai\Embeddings;
+
+$response = Embeddings::for(['Hello world'])->generate(provider: 'openrouter');
+
+$response->raw?->json('usage.cost');
+```
+
+> **Note:** The `raw` property is `null` when streaming a response, when using the Bedrock provider (which performs its API calls via the AWS SDK instead of an HTTP client), on embeddings that were entirely served from the [cache](#caching-embeddings), on serialized responses, and on faked responses unless one is provided explicitly via `withRawResponse`.
 
 <a name="conversation-context"></a>
 ### Conversation Context
@@ -1567,8 +1575,6 @@ public function handle(Request $request): Stringable|string
 
 When validation fails, the validation messages are returned to the model as the tool's result, allowing it to correct the arguments and call the tool again.
 
-Likewise, when a tool throws an exception, the run continues. The exception is reported to your application's exception handler, and the model receives "The tool call failed." as the tool's result, so it can explain the failure or try another approach. When your application's `debug` configuration option is enabled, the result also includes the exception message. Exception messages may contain sensitive details such as query bindings or server paths, so return a string from your tool when the model should know why an expected failure occurred.
-
 <a name="strict-schemas"></a>
 #### Strict Schemas
 
@@ -1618,6 +1624,21 @@ class SupportAgent implements Agent, HasTools
 ```
 
 When Hypervel derives the maximum number of steps automatically, this attribute adds one step for the repaired call. Explicit `MaxSteps` limits are unchanged.
+
+<a name="handling-tool-failures"></a>
+#### Handling Tool Failures
+
+When a tool throws an exception, the agent's run continues. The exception is reported to your application's exception handler, a `ToolFailed` [event](#events) is dispatched, and the model receives the failure as the tool's result, allowing it to explain what went wrong or try another approach.
+
+By default, the model receives `The tool call failed.` When `app.debug` is enabled, the result also includes the exception message. For example, if a tool throws an exception with the message "Order 1234 can no longer be refunded.", the model receives:
+
+```text
+The tool call failed: Order 1234 can no longer be refunded.
+```
+
+Exception messages may contain sensitive details such as query bindings or server paths. Return a string from your tool when the model should know why an expected failure occurred.
+
+The failed result is available through the response's `toolResults`, and streamed responses emit it as a failed `tool_result` event. [Sub-agents](#sub-agents) used as tools are handled the same way when they throw.
 
 <a name="similarity-search"></a>
 #### Similarity Search
@@ -1749,7 +1770,7 @@ return FileStorage::all('s3')
     ->reject(fn ($tool) => $tool instanceof DeleteFile);
 ```
 
-File storage tools return a description of the failed operation. As with other [tool failures](#validating-tool-arguments), raw exception messages are only included when your application's `debug` configuration option is enabled.
+File storage tools return a description of the failed operation. As with other [tool failures](#handling-tool-failures), raw exception messages are only included when your application's `debug` configuration option is enabled.
 
 <a name="mcp-tools"></a>
 ### MCP Tools
@@ -2084,7 +2105,7 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 
 If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
 
-If a sub-agent throws an exception, it is handled like any other [tool failure](#validating-tool-arguments): the parent agent's run continues, the exception is reported to your application's exception handler, and the parent agent receives a failed tool result.
+If a sub-agent throws an exception, it is handled like any other [tool failure](#handling-tool-failures): the parent agent's run continues, the exception is reported to your application's exception handler, and the parent agent receives a failed tool result.
 
 > [!WARNING]
 > Sub-agents do not currently support tools that require [human approval](#human-tool-approval). If a sub-agent's tool requires approval, the sub-agent pauses. However, the parent agent receives a normal tool result and continues its run without notifying your application of the pending approval. Register tools that require approval on the top-level agent.
@@ -3329,7 +3350,7 @@ $result->meta->provider;
 <a name="classifying-images"></a>
 ### Classifying Images
 
-When using OpenAI, an OpenAI-compatible provider, Gemini, TypeSafe, or OpenRouter, images may be classified alongside the given content by passing them as the second argument to the `of` method. Images may be created using the same [file classes used for attachments](#attachments):
+When using the OpenAI, OpenAI-compatible, Gemini, TypeSafe, or OpenRouter providers, images may be classified alongside the given content by passing them as the second argument to the `of` method. Images may be created using the same [file classes used for attachments](#attachments):
 
 ```php
 use Hypervel\Ai\Classification;
@@ -3702,6 +3723,8 @@ $response->usage->uncachedInputTokens(); // Input tokens that were neither read 
 ```
 
 Cache reads, cache writes, and uncached input are billed at different rates, so you should price these three counts separately instead of using the input total alone.
+
+When a text generation step fails, the `StepFailed` event's `usage` property contains the available provider-reported token counts, or `null` if no counts are available. You can also read these counts from `$exception->usage` when catching a `ProviderResponseException`, or from `$exception->error?->usage` when catching a `StreamErrorException`. If reading an Anthropic or OpenAI-compatible stream fails after the provider reported usage during generation, the `StepFailed` event still receives the last reported counts.
 
 The remaining capabilities return a usage object containing the counts specific to them:
 

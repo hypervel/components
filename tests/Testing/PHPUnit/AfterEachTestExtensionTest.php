@@ -81,7 +81,7 @@ class AfterEachTestExtensionTest extends TestCase
         $this->assertStringNotContainsString('abandoned-callback-ran', $process->getOutput());
     }
 
-    public function testSerialCleanupDoesNotLoadTheParallelRunner(): void
+    public function testSerialCleanupResetsLoadedStateWithoutLoadingUnusedClasses(): void
     {
         $process = $this->runFixture('SerialCleanupFixture.php', []);
 
@@ -99,6 +99,8 @@ class AfterEachTestExtensionTest extends TestCase
             command: [
                 PHP_BINARY,
                 'vendor/bin/phpunit',
+                '--configuration',
+                'phpunit.xml.dist',
                 '--no-progress',
                 'tests/Testing/PHPUnit/Fixtures/' . $fixture,
             ],

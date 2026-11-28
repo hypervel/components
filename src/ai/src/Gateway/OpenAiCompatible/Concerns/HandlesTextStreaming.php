@@ -61,6 +61,7 @@ trait HandlesTextStreaming
                     $data['error']['message'] ?? 'Unknown error',
                     false,
                     time(),
+                    usage: $usage,
                 ))->withInvocationId($invocationId);
 
                 return null;
@@ -70,7 +71,7 @@ trait HandlesTextStreaming
 
             if (! $choice) {
                 if (isset($data['usage'])) {
-                    $usage = $this->extractUsage($data);
+                    $usage = $this->recordStreamUsage($streamBody, $this->extractUsage($data));
                 }
 
                 continue;
@@ -172,7 +173,7 @@ trait HandlesTextStreaming
             }
 
             if (isset($data['usage'])) {
-                $usage = $this->extractUsage($data);
+                $usage = $this->recordStreamUsage($streamBody, $this->extractUsage($data));
             }
         }
 
@@ -184,6 +185,7 @@ trait HandlesTextStreaming
                 'The provider stream ended before the response was complete.',
                 false,
                 time(),
+                usage: $usage,
             ))->withInvocationId($invocationId);
 
             return null;

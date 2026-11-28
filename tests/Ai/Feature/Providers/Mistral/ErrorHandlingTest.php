@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Mistral;
 
-use Hypervel\Ai\Exceptions\AiException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\RequestException;
@@ -69,7 +69,7 @@ class ErrorHandlingTest extends TestCase
     #[DataProvider('errorResponses')]
     public function testErrorIn200ResponseThrowsAiException(array $response): void
     {
-        $this->expectException(AiException::class);
+        $this->expectException(ProviderResponseException::class);
         $this->expectExceptionMessage('Mistral Error: [server_error] Internal server error');
         Http::fake([
             '*' => Http::response($response, 200),

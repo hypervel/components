@@ -21,7 +21,7 @@ final class DeleteVendorSymlink
     {
         tap($app->basePath('vendor'), static function (string $appVendorPath): void {
             if (is_symlink($appVendorPath)) {
-                $deleted = windows_os() ? @rmdir($appVendorPath) : @unlink($appVendorPath);
+                $deleted = @unlink($appVendorPath);
                 clearstatcache(false, $appVendorPath);
 
                 if (! $deleted || is_symlink($appVendorPath) || file_exists($appVendorPath)) {

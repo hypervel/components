@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Concerns;
 
 use Generator;
+use Hypervel\Ai\Gateway\StepContext;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Http\Client\LineReader;
 use Psr\Http\Message\StreamInterface;
 use WeakMap;
@@ -17,6 +19,34 @@ trait ParsesServerSentEvents
      * @var null|WeakMap<StreamInterface, LineReader>
      */
     private ?WeakMap $lineReaders = null;
+
+    /**
+     * The generation attempt for each active response body.
+     *
+     * @var null|WeakMap<StreamInterface, StepContext>
+     */
+    private ?WeakMap $streamSteps = null;
+
+    /**
+     * Associate the attempt with its response body without changing the protected parser signature.
+     */
+    private function trackStreamStep(StreamInterface $stream, StepContext $step): void
+    {
+        $this->streamSteps ??= new WeakMap;
+        $this->streamSteps[$stream] = $step;
+    }
+
+    /**
+     * Keep the last reported counts available if a later stream read fails.
+     */
+    private function recordStreamUsage(StreamInterface $stream, TextUsage $usage): TextUsage
+    {
+        if (isset($this->streamSteps[$stream])) {
+            $this->streamSteps[$stream]->reportedUsage = $usage;
+        }
+
+        return $usage;
+    }
 
     /**
      * Parse an SSE stream body into decoded JSON data objects.

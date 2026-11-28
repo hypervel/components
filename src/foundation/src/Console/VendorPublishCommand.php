@@ -24,7 +24,6 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Finder\SplFileInfo;
 
 use function Hypervel\Prompts\search;
-use function Hypervel\Prompts\select;
 
 #[AsCommand(name: 'vendor:publish')]
 class VendorPublishCommand extends Command
@@ -110,21 +109,15 @@ class VendorPublishCommand extends Command
     {
         $choices = $this->publishableChoices();
 
-        $choice = windows_os()
-            ? select(
-                "Which provider or tag's files would you like to publish?",
+        $choice = search(
+            label: "Which provider or tag's files would you like to publish?",
+            options: fn ($search) => array_values(array_filter(
                 $choices,
-                scroll: 15,
-            )
-            : search(
-                label: "Which provider or tag's files would you like to publish?",
-                options: fn ($search) => array_values(array_filter(
-                    $choices,
-                    fn ($choice) => str_contains(strtolower($choice), strtolower($search))
-                )),
-                placeholder: 'Search...',
-                scroll: 15,
-            );
+                fn ($choice) => str_contains(strtolower($choice), strtolower($search))
+            )),
+            placeholder: 'Search...',
+            scroll: 15,
+        );
 
         if ($choice === $choices[0]) {
             return;

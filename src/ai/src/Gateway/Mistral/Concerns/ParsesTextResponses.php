@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Mistral\Concerns;
 
 use Hypervel\Ai\Concerns\JoinsReasoning;
-use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
 use Hypervel\Ai\Gateway\Concerns\DecodesStructuredOutput;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Providers\Provider;
@@ -22,12 +22,12 @@ trait ParsesTextResponses
     /**
      * Validate the Mistral response data.
      *
-     * @throws AiException
+     * @throws ProviderResponseException
      */
     protected function validateTextResponse(array $data): void
     {
         if (! $data || isset($data['error']) || ($data['object'] ?? null) === 'error') {
-            throw new AiException(sprintf(
+            throw new ProviderResponseException(sprintf(
                 'Mistral Error: [%s] %s',
                 $data['error']['type'] ?? $data['type'] ?? 'unknown',
                 $data['error']['message'] ?? $data['message'] ?? 'Unknown Mistral error.',

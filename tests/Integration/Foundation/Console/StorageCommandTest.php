@@ -160,7 +160,7 @@ class StorageCommandTest extends TestCase
         $this->artisan('storage:link');
     }
 
-    public function testStorageLinkAcceptsWindowsCompatibleNullAfterCreation(): void
+    public function testStorageLinkAcceptsANullResultAfterAnOverrideCreatesTheLink(): void
     {
         $link = $this->app->publicPath('storage');
         $target = $this->app->storagePath('app/public');

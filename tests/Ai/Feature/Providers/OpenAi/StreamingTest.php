@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\OpenAi;
 
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Responses\Data\FinishReason;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ProviderToolEvent;
@@ -338,32 +339,54 @@ class StreamingTest extends TestCase
         ];
     }
 
-    public function testFailedResponseStopsTheStreamWithItsProviderError(): void
+    public function testStreamingFailedResponseKeepsItsUsage(): void
     {
-        Http::fake([
-            'api.openai.com/*' => Http::response(
-                body: $this->ssePayload([
-                    $this->responseCreated(),
-                    $this->outputTextDelta('Partial'),
-                    ['type' => 'response.failed', 'response' => [
-                        'id' => 'resp_1', 'status' => 'failed',
-                        'error' => ['code' => 'server_error', 'message' => 'Generation failed'],
-                    ]],
-                ]),
-                headers: ['Content-Type' => 'text/event-stream'],
-            ),
+        $error = $this->failedResponseError([
+            $this->responseCreated(),
+            $this->outputTextDelta('Partial'),
+        ], [
+            'input_tokens' => 42, 'output_tokens' => 7,
+            'input_tokens_details' => ['cached_tokens' => 0],
+            'output_tokens_details' => ['reasoning_tokens' => 0],
         ]);
-        $error = null;
+
+        $this->assertSame('server_error', $error->type);
+        $this->assertEquals(new TextUsage(42, 7, 0, null, 0), $error->usage);
+    }
+
+    public function testStreamingFailedResponseWithoutUsageReportsNone(): void
+    {
+        $error = $this->failedResponseError([$this->responseCreated()], null);
+
+        $this->assertSame('Server overloaded', $error->message);
+        $this->assertNull($error->usage);
+    }
+
+    /**
+     * Return the error from a stream ending with a failed response.
+     */
+    private function failedResponseError(array $chunks, ?array $usage): Error
+    {
+        $chunks[] = ['type' => 'response.failed', 'response' => [
+            'id' => 'resp_1',
+            'status' => 'failed',
+            'error' => ['code' => 'server_error', 'message' => 'Server overloaded'],
+            'usage' => $usage,
+        ]];
+
+        Http::fake(['api.openai.com/*' => Http::response(
+            body: $this->ssePayload($chunks),
+            headers: ['Content-Type' => 'text/event-stream'],
+        )]);
 
         try {
             $this->collectStreamEvents();
+            $this->fail('Expected the stream to fail.');
         } catch (StreamErrorException $exception) {
-            $error = $exception->error;
-        }
+            $this->assertInstanceOf(Error::class, $exception->error);
 
-        $this->assertInstanceOf(Error::class, $error);
-        $this->assertSame('server_error', $error->type);
-        $this->assertSame('Generation failed', $error->message);
+            return $exception->error;
+        }
     }
 
     public function testStreamingWithoutATerminalResponseThrows(): void

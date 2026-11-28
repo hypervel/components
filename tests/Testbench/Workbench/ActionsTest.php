@@ -165,7 +165,7 @@ class ActionsTest extends TestCase
             $this->assertSame('original', file_get_contents(join_paths($externalPath, 'assets', 'original.txt')));
         } finally {
             if (is_symlink($linkPath)) {
-                windows_os() ? @rmdir($linkPath) : $this->filesystem->delete($linkPath);
+                $this->filesystem->delete($linkPath);
             }
 
             $this->filesystem->deleteDirectory($externalPath);
@@ -341,7 +341,7 @@ class ActionsTest extends TestCase
     {
         foreach ([$this->destinationPath, $this->secondDestinationPath(), $this->stagedPath(), $this->backupPath()] as $path) {
             if (is_symlink($path)) {
-                windows_os() ? @rmdir($path) : $this->filesystem->delete($path);
+                $this->filesystem->delete($path);
             } elseif ($this->filesystem->isDirectory($path)) {
                 $this->filesystem->deleteDirectory($path);
             } elseif ($this->filesystem->exists($path)) {

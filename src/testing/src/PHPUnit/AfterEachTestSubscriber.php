@@ -88,7 +88,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         }
 
         try {
-            DatabaseConnectionResolver::flushCachedConnections();
+            if (class_exists(DatabaseConnectionResolver::class, false)) {
+                DatabaseConnectionResolver::flushCachedConnections();
+            }
         } catch (Throwable $throwable) {
             $exception = Coroutine::preferCancellation($exception, $throwable);
         }
@@ -110,17 +112,23 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     protected function flushFrameworkState(): void
     {
         // Cancel while the owning context still exists.
-        \Hypervel\Http\Client\Guzzle\CoroutineState::current()?->cancel();
+        if (class_exists(\Hypervel\Http\Client\Guzzle\CoroutineState::class, false)) {
+            \Hypervel\Http\Client\Guzzle\CoroutineState::current()?->cancel();
+        }
         $queue = \GuzzleHttp\Promise\Utils::queue();
         if ($queue instanceof \Hypervel\Http\Client\Guzzle\CoroutineTaskQueue) {
             $queue->resetOutside();
         }
 
-        \Carbon\Carbon::resetMacros();
-        \Carbon\Carbon::resetToStringFormat();
-        \Carbon\FactoryImmutable::getDefaultInstance()->serializeUsing(null);
-        \Carbon\FactoryImmutable::getDefaultInstance()->useStrictMode();
-        \Carbon\Carbon::setTestNow();
+        // Mutable and immutable Carbon dates share the default factory.
+        if (class_exists(\Carbon\FactoryImmutable::class, false)) {
+            $factory = \Carbon\FactoryImmutable::getDefaultInstance();
+            $factory->resetMacros();
+            $factory->resetToStringFormat();
+            $factory->serializeUsing(null);
+            $factory->useStrictMode();
+            $factory->setTestNow();
+        }
 
         if (class_exists(\Laravel\SerializableClosure\SerializableClosure::class)) {
             \Laravel\SerializableClosure\SerializableClosure::setSecretKey(null);
@@ -128,212 +136,226 @@ class AfterEachTestSubscriber implements FinishedSubscriber
             \Laravel\SerializableClosure\SerializableClosure::resolveUseVariablesUsing(null);
         }
 
-        \Hypervel\Auth\Access\Gate::flushState();
-        \Hypervel\Auth\AuthenticationException::flushState();
-        \Hypervel\Auth\EloquentUserProvider::flushState();
-        \Hypervel\Auth\Middleware\Authenticate::flushState();
-        \Hypervel\Auth\Middleware\RedirectIfAuthenticated::flushState();
-        \Hypervel\Auth\Notifications\ResetPassword::flushState();
-        \Hypervel\Auth\Notifications\VerifyEmail::flushState();
-        \Hypervel\Auth\RequestGuard::flushState();
-        \Hypervel\Auth\SessionGuard::flushState();
-        \Hypervel\Auth\TokenGuard::flushState();
-        \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushState();
-        \Hypervel\Bus\DispatchLockContext::flushState();
-        \Hypervel\Bus\PendingBatch::flushState();
-        \Hypervel\Cache\Console\ClearCommand::flushState();
-        \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
-        \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
-        \Hypervel\Cache\Repository::flushState();
-        \Hypervel\Config\Repository::flushState();
-        \Hypervel\Console\Application::forgetBootstrappers();
-        \Hypervel\Console\Command::flushState();
-        \Hypervel\Console\Commands\ScheduleListCommand::flushState();
-        \Hypervel\Console\Scheduling\Event::flushState();
-        \Hypervel\Console\Scheduling\Schedule::flushState();
-        \Hypervel\Container\BoundMethod::flushState();
-        \Hypervel\Container\Container::flushState();
-        \Hypervel\Container\Container::setInstance(null);
-        \Hypervel\Context\CoroutineContext::flush();
-        \Hypervel\Contracts\Database\ModelIdentifier::flushState();
-        \Hypervel\Cookie\CookieJar::flushState();
-        \Hypervel\Cookie\Middleware\EncryptCookies::flushState();
-        \Hypervel\Coordinator\CoordinatorManager::flushState();
-        \Hypervel\Coordinator\Timer::flushState();
-        \Hypervel\Coroutine\Channel\Pool::flushState();
-        \Hypervel\Coroutine\Coroutine::flushState();
-        \Hypervel\Coroutine\Locker::flushState();
-        \Hypervel\Coroutine\Mutex::flushState();
-        \Hypervel\Database\Capsule\Manager::flushState();
-        \Hypervel\Database\PdoConnection::flushState();
-        \Hypervel\Database\Console\DumpCommand::flushState();
-        \Hypervel\Database\Console\Migrations\FreshCommand::flushState();
-        \Hypervel\Database\Console\Migrations\RefreshCommand::flushState();
-        \Hypervel\Database\Console\Migrations\ResetCommand::flushState();
-        \Hypervel\Database\Console\Migrations\RollbackCommand::flushState();
-        \Hypervel\Database\Console\Seeds\SeedCommand::flushState();
-        \Hypervel\Database\Console\WipeCommand::flushState();
-        \Hypervel\Database\DatabaseManager::flushState();
-        \Hypervel\Database\Eloquent\Builder::flushState();
-        \Hypervel\Database\Eloquent\Casts\Json::flushState();
-        \Hypervel\Database\Eloquent\Factories\Factory::flushState();
-        \Hypervel\Database\Eloquent\Model::flushState();
-        \Hypervel\Database\Eloquent\Relations\Relation::flushState();
-        \Hypervel\Database\Grammar::flushState();
-        \Hypervel\Database\LostConnectionDetector::flushState();
-        \Hypervel\Database\Migrations\Migrator::flushState();
-        \Hypervel\Database\Query\Builder::flushState();
-        \Hypervel\Database\Query\Grammars\PostgresGrammar::flushState();
-        \Hypervel\Database\Schema\Blueprint::flushState();
-        \Hypervel\Database\Schema\Builder::flushState();
-        \Hypervel\Di\Aop\AspectCollector::flushState();
-        \Hypervel\Di\Aop\AspectManager::flushState();
-        \Hypervel\Di\Aop\AstVisitorRegistry::flushState();
-        \Hypervel\Di\ClassMap\ClassMapManager::flushState();
-        \Hypervel\Encryption\Commands\KeyGenerateCommand::flushState();
-        \Hypervel\Events\Dispatcher::flushState();
-        \Hypervel\Filesystem\Filesystem::flushState();
-        \Hypervel\Filesystem\FilesystemAdapter::flushState();
-        \Hypervel\Filesystem\FilesystemManager::flushState();
-        \Hypervel\Foundation\Application::flushState();
-        \Hypervel\Foundation\Bootstrap\LoadConfiguration::flushState();
-        \Hypervel\Foundation\Bootstrap\RegisterProviders::flushState();
-        \Hypervel\Foundation\Console\AboutCommand::flushState();
-        \Hypervel\Foundation\Console\ChannelListCommand::flushState();
-        \Hypervel\Foundation\Console\CliDumper::flushState();
-        \Hypervel\Foundation\Console\DevCommand::flushState();
-        \Hypervel\Foundation\Console\EventListCommand::flushState();
-        \Hypervel\Foundation\Console\RouteListCommand::flushState();
-        \Hypervel\Foundation\Console\VendorPublishCommand::flushState();
-        \Hypervel\Foundation\DevCommands::flushState();
-        \Hypervel\Foundation\Events\DiscoverEvents::flushState();
-        \Hypervel\Foundation\Http\FormRequest::flushState();
-        \Hypervel\Foundation\Http\HtmlDumper::flushState();
-        \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::flushState();
-        \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::flushState();
-        \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::flushState();
-        \Hypervel\Foundation\Http\Middleware\TrimStrings::flushState();
-        \Hypervel\Foundation\PackageManifest::flushState();
-        \Hypervel\Foundation\Support\Providers\EventServiceProvider::flushState();
-        \Hypervel\Foundation\Support\Providers\RouteServiceProvider::flushState();
-        \Hypervel\Foundation\Vite::flush();
-        \Hypervel\Foundation\WorkerCachedMaintenanceMode::flushCache();
-        \Hypervel\Http\Client\Destinations\CurlCapabilities::flushState();
-        \Hypervel\Http\Client\Factory::flushState();
-        \Hypervel\Http\Client\PendingRequest::flushState();
-        \Hypervel\Http\Client\Request::flushState();
-        \Hypervel\Http\Client\RequestException::flushState();
-        \Hypervel\Http\Client\Response::flushState();
-        \Hypervel\Http\Client\ResponseSequence::flushState();
-        \Hypervel\Http\JsonResponse::flushState();
-        \Hypervel\Http\Middleware\HandleCors::flushState();
-        \Hypervel\Http\Middleware\TrustHosts::flushState();
-        \Hypervel\Http\Middleware\TrustProxies::flushState();
-        \Hypervel\Http\RedirectResponse::flushState();
-        \Hypervel\Http\Request::flushState();
-        \Hypervel\Http\Resources\Json\JsonResource::flushState();
-        \Hypervel\Http\Resources\JsonApi\JsonApiResource::flushState();
-        \Hypervel\Http\Response::flushState();
-        \Hypervel\Http\UploadedFile::flushState();
-        \Hypervel\Log\Context\Repository::flushState();
-        \Hypervel\Mail\Attachment::flushState();
-        \Hypervel\Mail\Mailable::flushState();
-        \Hypervel\Mail\Mailer::flushState();
-        \Hypervel\Mail\Markdown::flushState();
-        \Hypervel\Notifications\ChannelManager::flushState();
-        \Hypervel\Pagination\AbstractCursorPaginator::flushState();
-        \Hypervel\Pagination\AbstractPaginator::flushState();
-        \Hypervel\Pipeline\Pipeline::flushState();
-        \Hypervel\Process\Factory::flushState();
-        \Hypervel\Process\InvokedProcess::flushState();
-        \Hypervel\Process\PendingProcess::flushState();
-        \Hypervel\Prompts\Prompt::flushState();
-        \Hypervel\Prompts\Terminal::flushState();
-        \Hypervel\Queue\Capsule\Manager::flushState();
-        \Hypervel\Queue\Console\ClearCommand::flushState();
-        \Hypervel\Queue\Console\FlushFailedCommand::flushState();
-        \Hypervel\Queue\Console\WorkCommand::flushState();
-        \Hypervel\Queue\Queue::flushState();
-        \Hypervel\Queue\Worker::flushState();
-        \Hypervel\RateLimiter\RateLimiter::flushState();
-        \Hypervel\Redis\RedisConnection::flushMacros();
-        \Hypervel\Routing\CallableDispatcher::flushState();
-        \Hypervel\Routing\ControllerDispatcher::flushState();
-        \Hypervel\Routing\ImplicitRouteBinding::flushCache();
-        \Hypervel\Routing\Middleware\ValidateSignature::flushState();
-        \Hypervel\Routing\PendingResourceRegistration::flushState();
-        \Hypervel\Routing\PendingSingletonResourceRegistration::flushState();
-        \Hypervel\Routing\Redirector::flushState();
-        \Hypervel\Routing\ResourceRegistrar::flushState();
-        \Hypervel\Routing\ResponseFactory::flushState();
-        \Hypervel\Routing\Route::flushState();
-        \Hypervel\Routing\RouteRegistrar::flushState();
-        \Hypervel\Routing\RouteSignatureParameters::flushCache();
-        \Hypervel\Routing\Router::flushState();
-        \Hypervel\Routing\SortedMiddleware::flushCache();
-        \Hypervel\Routing\UrlGenerator::flushState();
-        \Hypervel\Server\ServerManager::flushState();
-        \Hypervel\Server\ResponseCancellation::flushState();
-        \Hypervel\ServerProcess\ProcessCollector::flushState();
-        \Hypervel\ServerProcess\ProcessManager::flushState();
-        \Hypervel\Session\Middleware\AuthenticateSession::flushState();
-        \Hypervel\Session\Middleware\StartSession::flushState();
-        \Hypervel\Session\Store::flushState();
-        \Hypervel\Support\Arr::flushState();
-        \Hypervel\Support\Aws\SerializedCredentialProvider::flushState();
-        \Hypervel\Support\Benchmark::flushState();
-        \Hypervel\Support\BinaryCodec::flushState();
-        \Hypervel\Support\ClassMetadataCache::flushState();
-        \Hypervel\Support\ClearStatCache::flushState();
-        \Hypervel\Support\Collection::flushState();
-        \Hypervel\Support\Composer::flushState();
-        \Hypervel\Support\ConfigurationUrlParser::flushState();
-        \Hypervel\Support\DateFactory::flushState();
-        \Hypervel\Support\DotenvManager::flushState();
-        \Hypervel\Support\EncodedHtmlString::flushState();
-        \Hypervel\Support\Env::flushState();
-        \Hypervel\Support\Facades\Facade::clearResolvedInstances();
-        \Hypervel\Support\Facades\Facade::setFacadeApplication(null);
-        \Hypervel\Support\Fluent::flushState();
-        \Hypervel\Support\LazyCollection::flushState();
-        \Hypervel\Support\Lottery::flushState();
-        \Hypervel\Support\Number::flushState();
-        \Hypervel\Support\Optional::flushState();
-        \Hypervel\Support\Pluralizer::flushState();
-        \Hypervel\Support\ServiceProvider::flushState();
-        \Hypervel\Support\Sleep::flushState();
-        \Hypervel\Support\Str::flushState();
-        \Hypervel\Support\StrCache::flushState();
-        \Hypervel\Support\Stringable::flushState();
-        \Hypervel\Support\Testing\Fakes\NotificationFake::flushState();
-        \Hypervel\Support\Uri::flushState();
-        \Hypervel\Testing\Fluent\AssertableJson::flushState();
-        // Serial test suites may not have the optional ParaTest dependency installed.
-        if (class_exists(\Hypervel\Testing\ParallelRunner::class, false)) {
-            \Hypervel\Testing\ParallelRunner::flushState();
+        $this->callIfLoaded(\Hypervel\Auth\Access\Gate::class);
+        $this->callIfLoaded(\Hypervel\Auth\AuthenticationException::class);
+        $this->callIfLoaded(\Hypervel\Auth\EloquentUserProvider::class);
+        $this->callIfLoaded(\Hypervel\Auth\Middleware\Authenticate::class);
+        $this->callIfLoaded(\Hypervel\Auth\Middleware\RedirectIfAuthenticated::class);
+        $this->callIfLoaded(\Hypervel\Auth\Notifications\ResetPassword::class);
+        $this->callIfLoaded(\Hypervel\Auth\Notifications\VerifyEmail::class);
+        $this->callIfLoaded(\Hypervel\Auth\RequestGuard::class);
+        $this->callIfLoaded(\Hypervel\Auth\SessionGuard::class);
+        $this->callIfLoaded(\Hypervel\Auth\TokenGuard::class);
+        $this->callIfLoaded(\Hypervel\Broadcasting\Broadcasters\Broadcaster::class);
+        $this->callIfLoaded(\Hypervel\Bus\DispatchLockContext::class);
+        $this->callIfLoaded(\Hypervel\Bus\PendingBatch::class);
+        $this->callIfLoaded(\Hypervel\Cache\Console\ClearCommand::class);
+        $this->callIfLoaded(\Hypervel\Cache\Redis\Console\BenchmarkCommand::class);
+        $this->callIfLoaded(\Hypervel\Cache\Redis\Console\DoctorCommand::class);
+        $this->callIfLoaded(\Hypervel\Cache\Repository::class);
+        $this->callIfLoaded(\Hypervel\Config\Repository::class);
+        $this->callIfLoaded(\Hypervel\Console\Application::class, 'forgetBootstrappers');
+        $this->callIfLoaded(\Hypervel\Console\Command::class);
+        $this->callIfLoaded(\Hypervel\Console\Commands\ScheduleListCommand::class);
+        $this->callIfLoaded(\Hypervel\Console\Scheduling\Event::class);
+        $this->callIfLoaded(\Hypervel\Console\Scheduling\Schedule::class);
+        $this->callIfLoaded(\Hypervel\Container\BoundMethod::class);
+        if (class_exists(\Hypervel\Container\Container::class, false)) {
+            \Hypervel\Container\Container::flushState();
+            \Hypervel\Container\Container::setInstance(null);
         }
-        \Hypervel\Testing\PendingCommand::flushState();
-        \Hypervel\Testing\TestComponent::flushState();
-        \Hypervel\Testing\TestResponse::flushState();
-        \Hypervel\Testing\TestView::flushState();
-        \Hypervel\Translation\Translator::flushState();
-        \Hypervel\Validation\Rule::flushState();
-        \Hypervel\Validation\Rules\Date::flushState();
-        \Hypervel\Validation\Rules\Email::flushState();
-        \Hypervel\Validation\Rules\File::flushState();
-        \Hypervel\Validation\Rules\Password::flushState();
-        \Hypervel\Validation\RulePlanCache::flushState();
-        \Hypervel\Validation\ValidationData::flushState();
-        \Hypervel\Validation\ValidationRuleParser::flushState();
-        \Hypervel\Validation\Validator::flushState();
-        \Hypervel\View\Component::flushState();
-        \Hypervel\View\ComponentAttributeBag::flushState();
-        \Hypervel\View\DynamicComponent::flushState();
-        \Hypervel\View\Engines\CompilerEngine::flushState();
-        \Hypervel\View\Factory::flushMacros();
-        \Hypervel\View\View::flushState();
-        \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
-        \Hypervel\WebSocketServer\Context::flushState();
+        \Hypervel\Context\CoroutineContext::flush();
+        $this->callIfLoaded(\Hypervel\Contracts\Database\ModelIdentifier::class);
+        $this->callIfLoaded(\Hypervel\Cookie\CookieJar::class);
+        $this->callIfLoaded(\Hypervel\Cookie\Middleware\EncryptCookies::class);
+        $this->callIfLoaded(\Hypervel\Coordinator\CoordinatorManager::class);
+        $this->callIfLoaded(\Hypervel\Coordinator\Timer::class);
+        $this->callIfLoaded(\Hypervel\Coroutine\Channel\Pool::class);
+        $this->callIfLoaded(\Hypervel\Coroutine\Coroutine::class);
+        $this->callIfLoaded(\Hypervel\Coroutine\Locker::class);
+        $this->callIfLoaded(\Hypervel\Coroutine\Mutex::class);
+        $this->callIfLoaded(\Hypervel\Database\Capsule\Manager::class);
+        // Other drivers can change the parent state that the PDO reset normally clears.
+        if (class_exists(\Hypervel\Database\PdoConnection::class, false)) {
+            \Hypervel\Database\PdoConnection::flushState();
+        } else {
+            $this->callIfLoaded(\Hypervel\Database\Connection::class);
+        }
+        $this->callIfLoaded(\Hypervel\Database\Console\DumpCommand::class);
+        $this->callIfLoaded(\Hypervel\Database\Console\Migrations\FreshCommand::class);
+        $this->callIfLoaded(\Hypervel\Database\Console\Migrations\RefreshCommand::class);
+        $this->callIfLoaded(\Hypervel\Database\Console\Migrations\ResetCommand::class);
+        $this->callIfLoaded(\Hypervel\Database\Console\Migrations\RollbackCommand::class);
+        $this->callIfLoaded(\Hypervel\Database\Console\Seeds\SeedCommand::class);
+        $this->callIfLoaded(\Hypervel\Database\Console\WipeCommand::class);
+        $this->callIfLoaded(\Hypervel\Database\DatabaseManager::class);
+        $this->callIfLoaded(\Hypervel\Database\Eloquent\Builder::class);
+        $this->callIfLoaded(\Hypervel\Database\Eloquent\Casts\Json::class);
+        $this->callIfLoaded(\Hypervel\Database\Eloquent\Factories\Factory::class);
+        $this->callIfLoaded(\Hypervel\Database\Eloquent\Model::class);
+        $this->callIfLoaded(\Hypervel\Database\Eloquent\Relations\Relation::class);
+        $this->callIfLoaded(\Hypervel\Database\Grammar::class);
+        $this->callIfLoaded(\Hypervel\Database\LostConnectionDetector::class);
+        $this->callIfLoaded(\Hypervel\Database\Migrations\Migrator::class);
+        $this->callIfLoaded(\Hypervel\Database\Query\Builder::class);
+        $this->callIfLoaded(\Hypervel\Database\Query\Grammars\PostgresGrammar::class);
+        $this->callIfLoaded(\Hypervel\Database\Schema\Blueprint::class);
+        $this->callIfLoaded(\Hypervel\Database\Schema\Builder::class);
+        $this->callIfLoaded(\Hypervel\Di\Aop\AspectCollector::class);
+        $this->callIfLoaded(\Hypervel\Di\Aop\AspectManager::class);
+        $this->callIfLoaded(\Hypervel\Di\Aop\AstVisitorRegistry::class);
+        $this->callIfLoaded(\Hypervel\Di\ClassMap\ClassMapManager::class);
+        $this->callIfLoaded(\Hypervel\Encryption\Commands\KeyGenerateCommand::class);
+        $this->callIfLoaded(\Hypervel\Events\Dispatcher::class);
+        $this->callIfLoaded(\Hypervel\Filesystem\Filesystem::class);
+        $this->callIfLoaded(\Hypervel\Filesystem\FilesystemAdapter::class);
+        $this->callIfLoaded(\Hypervel\Filesystem\FilesystemManager::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Application::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Bootstrap\LoadConfiguration::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Bootstrap\RegisterProviders::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Console\AboutCommand::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Console\ChannelListCommand::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Console\CliDumper::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Console\DevCommand::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Console\EventListCommand::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Console\RouteListCommand::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Console\VendorPublishCommand::class);
+        $this->callIfLoaded(\Hypervel\Foundation\DevCommands::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Events\DiscoverEvents::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Http\FormRequest::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Http\HtmlDumper::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Http\Middleware\TrimStrings::class);
+        $this->callIfLoaded(\Hypervel\Foundation\PackageManifest::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Support\Providers\EventServiceProvider::class);
+        $this->callIfLoaded(\Hypervel\Foundation\Support\Providers\RouteServiceProvider::class);
+        // Vite also clears the font manifests, which ViteFonts can cache independently.
+        if (class_exists(\Hypervel\Foundation\Vite::class, false)) {
+            \Hypervel\Foundation\Vite::flush();
+        } else {
+            $this->callIfLoaded(\Hypervel\Foundation\ViteFonts::class, 'flush');
+        }
+        $this->callIfLoaded(\Hypervel\Foundation\WorkerCachedMaintenanceMode::class, 'flushCache');
+        $this->callIfLoaded(\Hypervel\Http\Client\Destinations\CurlCapabilities::class);
+        $this->callIfLoaded(\Hypervel\Http\Client\Factory::class);
+        $this->callIfLoaded(\Hypervel\Http\Client\PendingRequest::class);
+        $this->callIfLoaded(\Hypervel\Http\Client\Request::class);
+        $this->callIfLoaded(\Hypervel\Http\Client\RequestException::class);
+        $this->callIfLoaded(\Hypervel\Http\Client\Response::class);
+        $this->callIfLoaded(\Hypervel\Http\Client\ResponseSequence::class);
+        $this->callIfLoaded(\Hypervel\Http\JsonResponse::class);
+        $this->callIfLoaded(\Hypervel\Http\Middleware\HandleCors::class);
+        $this->callIfLoaded(\Hypervel\Http\Middleware\TrustHosts::class);
+        $this->callIfLoaded(\Hypervel\Http\Middleware\TrustProxies::class);
+        $this->callIfLoaded(\Hypervel\Http\RedirectResponse::class);
+        // Hypervel's reset also clears settings on the Symfony request.
+        if (class_exists(\Symfony\Component\HttpFoundation\Request::class, false)) {
+            \Hypervel\Http\Request::flushState();
+        }
+        $this->callIfLoaded(\Hypervel\Http\Resources\Json\JsonResource::class);
+        $this->callIfLoaded(\Hypervel\Http\Resources\JsonApi\JsonApiResource::class);
+        $this->callIfLoaded(\Hypervel\Http\Response::class);
+        $this->callIfLoaded(\Hypervel\Http\UploadedFile::class);
+        $this->callIfLoaded(\Hypervel\Log\Context\Repository::class);
+        $this->callIfLoaded(\Hypervel\Mail\Attachment::class);
+        $this->callIfLoaded(\Hypervel\Mail\Mailable::class);
+        $this->callIfLoaded(\Hypervel\Mail\Mailer::class);
+        $this->callIfLoaded(\Hypervel\Mail\Markdown::class);
+        $this->callIfLoaded(\Hypervel\Notifications\ChannelManager::class);
+        $this->callIfLoaded(\Hypervel\Pagination\AbstractCursorPaginator::class);
+        $this->callIfLoaded(\Hypervel\Pagination\AbstractPaginator::class);
+        $this->callIfLoaded(\Hypervel\Pipeline\Pipeline::class);
+        $this->callIfLoaded(\Hypervel\Process\Factory::class);
+        $this->callIfLoaded(\Hypervel\Process\InvokedProcess::class);
+        $this->callIfLoaded(\Hypervel\Process\PendingProcess::class);
+        $this->callIfLoaded(\Hypervel\Prompts\Prompt::class);
+        $this->callIfLoaded(\Hypervel\Prompts\Terminal::class);
+        $this->callIfLoaded(\Hypervel\Queue\Capsule\Manager::class);
+        $this->callIfLoaded(\Hypervel\Queue\Console\ClearCommand::class);
+        $this->callIfLoaded(\Hypervel\Queue\Console\FlushFailedCommand::class);
+        $this->callIfLoaded(\Hypervel\Queue\Console\WorkCommand::class);
+        $this->callIfLoaded(\Hypervel\Queue\Queue::class);
+        $this->callIfLoaded(\Hypervel\Queue\Worker::class);
+        $this->callIfLoaded(\Hypervel\RateLimiter\RateLimiter::class);
+        $this->callIfLoaded(\Hypervel\Redis\RedisConnection::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Routing\CallableDispatcher::class);
+        $this->callIfLoaded(\Hypervel\Routing\ControllerDispatcher::class);
+        $this->callIfLoaded(\Hypervel\Routing\ImplicitRouteBinding::class, 'flushCache');
+        $this->callIfLoaded(\Hypervel\Routing\Middleware\ValidateSignature::class);
+        $this->callIfLoaded(\Hypervel\Routing\PendingResourceRegistration::class);
+        $this->callIfLoaded(\Hypervel\Routing\PendingSingletonResourceRegistration::class);
+        $this->callIfLoaded(\Hypervel\Routing\Redirector::class);
+        $this->callIfLoaded(\Hypervel\Routing\ResourceRegistrar::class);
+        $this->callIfLoaded(\Hypervel\Routing\ResponseFactory::class);
+        $this->callIfLoaded(\Hypervel\Routing\Route::class);
+        $this->callIfLoaded(\Hypervel\Routing\RouteRegistrar::class);
+        $this->callIfLoaded(\Hypervel\Routing\RouteSignatureParameters::class, 'flushCache');
+        $this->callIfLoaded(\Hypervel\Routing\Router::class);
+        $this->callIfLoaded(\Hypervel\Routing\SortedMiddleware::class, 'flushCache');
+        $this->callIfLoaded(\Hypervel\Routing\UrlGenerator::class);
+        $this->callIfLoaded(\Hypervel\Server\ServerManager::class);
+        $this->callIfLoaded(\Hypervel\Server\ResponseCancellation::class);
+        $this->callIfLoaded(\Hypervel\ServerProcess\ProcessCollector::class);
+        $this->callIfLoaded(\Hypervel\ServerProcess\ProcessManager::class);
+        $this->callIfLoaded(\Hypervel\Session\Middleware\AuthenticateSession::class);
+        $this->callIfLoaded(\Hypervel\Session\Middleware\StartSession::class);
+        $this->callIfLoaded(\Hypervel\Session\Store::class);
+        $this->callIfLoaded(\Hypervel\Support\Arr::class);
+        $this->callIfLoaded(\Hypervel\Support\Aws\SerializedCredentialProvider::class);
+        $this->callIfLoaded(\Hypervel\Support\Benchmark::class);
+        $this->callIfLoaded(\Hypervel\Support\BinaryCodec::class);
+        $this->callIfLoaded(\Hypervel\Support\ClassMetadataCache::class);
+        $this->callIfLoaded(\Hypervel\Support\ClearStatCache::class);
+        $this->callIfLoaded(\Hypervel\Support\Collection::class);
+        $this->callIfLoaded(\Hypervel\Support\Composer::class);
+        $this->callIfLoaded(\Hypervel\Support\ConfigurationUrlParser::class);
+        $this->callIfLoaded(\Hypervel\Support\DateFactory::class);
+        $this->callIfLoaded(\Hypervel\Support\DotenvManager::class);
+        $this->callIfLoaded(\Hypervel\Support\EncodedHtmlString::class);
+        $this->callIfLoaded(\Hypervel\Support\Env::class);
+        if (class_exists(\Hypervel\Support\Facades\Facade::class, false)) {
+            \Hypervel\Support\Facades\Facade::clearResolvedInstances();
+            \Hypervel\Support\Facades\Facade::setFacadeApplication(null);
+        }
+        $this->callIfLoaded(\Hypervel\Support\Fluent::class);
+        $this->callIfLoaded(\Hypervel\Support\LazyCollection::class);
+        $this->callIfLoaded(\Hypervel\Support\Lottery::class);
+        $this->callIfLoaded(\Hypervel\Support\Number::class);
+        $this->callIfLoaded(\Hypervel\Support\Optional::class);
+        $this->callIfLoaded(\Hypervel\Support\Pluralizer::class);
+        $this->callIfLoaded(\Hypervel\Support\ServiceProvider::class);
+        $this->callIfLoaded(\Hypervel\Support\Sleep::class);
+        $this->callIfLoaded(\Hypervel\Support\Str::class);
+        $this->callIfLoaded(\Hypervel\Support\StrCache::class);
+        $this->callIfLoaded(\Hypervel\Support\Stringable::class);
+        $this->callIfLoaded(\Hypervel\Support\Testing\Fakes\NotificationFake::class);
+        $this->callIfLoaded(\Hypervel\Support\Uri::class);
+        $this->callIfLoaded(\Hypervel\Testing\Fluent\AssertableJson::class);
+        $this->callIfLoaded(\Hypervel\Testing\ParallelRunner::class);
+        $this->callIfLoaded(\Hypervel\Testing\PendingCommand::class);
+        $this->callIfLoaded(\Hypervel\Testing\TestComponent::class);
+        $this->callIfLoaded(\Hypervel\Testing\TestResponse::class);
+        $this->callIfLoaded(\Hypervel\Testing\TestView::class);
+        $this->callIfLoaded(\Hypervel\Translation\Translator::class);
+        $this->callIfLoaded(\Hypervel\Validation\Rule::class);
+        $this->callIfLoaded(\Hypervel\Validation\Rules\Date::class);
+        $this->callIfLoaded(\Hypervel\Validation\Rules\Email::class);
+        $this->callIfLoaded(\Hypervel\Validation\Rules\File::class);
+        $this->callIfLoaded(\Hypervel\Validation\Rules\Password::class);
+        $this->callIfLoaded(\Hypervel\Validation\RulePlanCache::class);
+        $this->callIfLoaded(\Hypervel\Validation\ValidationData::class);
+        $this->callIfLoaded(\Hypervel\Validation\ValidationRuleParser::class);
+        $this->callIfLoaded(\Hypervel\Validation\Validator::class);
+        $this->callIfLoaded(\Hypervel\View\Component::class);
+        $this->callIfLoaded(\Hypervel\View\ComponentAttributeBag::class);
+        $this->callIfLoaded(\Hypervel\View\DynamicComponent::class);
+        $this->callIfLoaded(\Hypervel\View\Engines\CompilerEngine::class);
+        $this->callIfLoaded(\Hypervel\View\Factory::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\View\View::class);
+        $this->callIfLoaded(\Hypervel\WebSocketServer\Collector\FdCollector::class);
+        $this->callIfLoaded(\Hypervel\WebSocketServer\Context::class);
 
         $this->flushAiState();
         $this->flushDataState();
@@ -365,9 +387,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushAiState(): void
     {
-        $this->callIfExists(\Hypervel\Ai\Files\UntrustedUrl::class, 'flushState');
-        $this->callIfExists(\Hypervel\Ai\Tools\LoadSkill::class, 'flushState');
-        $this->callIfExists(\Hypervel\Ai\Tools\Request::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Ai\Files\UntrustedUrl::class);
+        $this->callIfLoaded(\Hypervel\Ai\Tools\LoadSkill::class);
+        $this->callIfLoaded(\Hypervel\Ai\Tools\Request::class, 'flushMacros');
     }
 
     /**
@@ -375,10 +397,10 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushDataState(): void
     {
-        $this->callIfExists(\Hypervel\Data\CursorPaginatedDataCollection::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Data\DataCollection::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Data\Lazy::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Data\PaginatedDataCollection::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Data\CursorPaginatedDataCollection::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Data\DataCollection::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Data\Lazy::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Data\PaginatedDataCollection::class, 'flushMacros');
     }
 
     /**
@@ -386,7 +408,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushDoctorState(): void
     {
-        $this->callIfExists(\Hypervel\Doctor\DiagnosticSource::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Doctor\DiagnosticSource::class);
     }
 
     /**
@@ -394,7 +416,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushFortifyState(): void
     {
-        $this->callIfExists(\Hypervel\Fortify\Fortify::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Fortify\Fortify::class);
     }
 
     /**
@@ -402,9 +424,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushHeadState(): void
     {
-        $this->callIfExists(\Hypervel\Head\Tags\Canonical::class, 'flushState');
-        $this->callIfExists(\Hypervel\Head\Schema\SchemaObject::class, 'flushState');
-        $this->callIfExists(\Hypervel\Head\HeadManager::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Head\Tags\Canonical::class);
+        $this->callIfLoaded(\Hypervel\Head\Schema\SchemaObject::class);
+        $this->callIfLoaded(\Hypervel\Head\HeadManager::class, 'flushMacros');
     }
 
     /**
@@ -412,11 +434,11 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushHorizonState(): void
     {
-        $this->callIfExists(\Hypervel\Horizon\Horizon::class, 'flushState');
-        $this->callIfExists(\Hypervel\Horizon\MasterSupervisor::class, 'flushState');
-        $this->callIfExists(\Hypervel\Horizon\SupervisorCommandString::class, 'flushState');
-        $this->callIfExists(\Hypervel\Horizon\SystemProcessCounter::class, 'flushState');
-        $this->callIfExists(\Hypervel\Horizon\WorkerCommandString::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Horizon\Horizon::class);
+        $this->callIfLoaded(\Hypervel\Horizon\MasterSupervisor::class);
+        $this->callIfLoaded(\Hypervel\Horizon\SupervisorCommandString::class);
+        $this->callIfLoaded(\Hypervel\Horizon\SystemProcessCounter::class);
+        $this->callIfLoaded(\Hypervel\Horizon\WorkerCommandString::class);
     }
 
     /**
@@ -424,7 +446,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushImageState(): void
     {
-        $this->callIfExists(\Hypervel\Image\Image::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Image\Image::class);
     }
 
     /**
@@ -432,12 +454,12 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushInertiaState(): void
     {
-        $this->callIfExists(\Hypervel\Inertia\DevTools\EntryStore::class, 'flushState');
-        $this->callIfExists(\Hypervel\Inertia\Middleware::class, 'flushState');
-        $this->callIfExists(\Hypervel\Inertia\Response::class, 'flushState');
-        $this->callIfExists(\Hypervel\Inertia\ResponseFactory::class, 'flushState');
-        $this->callIfExists(\Hypervel\Inertia\Ssr\BundleDetector::class, 'flushState');
-        $this->callIfExists(\Hypervel\Inertia\Ssr\HttpGateway::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Inertia\DevTools\EntryStore::class);
+        $this->callIfLoaded(\Hypervel\Inertia\Middleware::class);
+        $this->callIfLoaded(\Hypervel\Inertia\Response::class);
+        $this->callIfLoaded(\Hypervel\Inertia\ResponseFactory::class);
+        $this->callIfLoaded(\Hypervel\Inertia\Ssr\BundleDetector::class);
+        $this->callIfLoaded(\Hypervel\Inertia\Ssr\HttpGateway::class);
     }
 
     /**
@@ -445,8 +467,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushJwtState(): void
     {
-        $this->callIfExists(\Hypervel\Jwt\ClaimFactory::class, 'flushState');
-        $this->callIfExists(\Hypervel\Jwt\JwtGuard::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Jwt\ClaimFactory::class);
+        $this->callIfLoaded(\Hypervel\Jwt\JwtGuard::class);
     }
 
     /**
@@ -454,18 +476,18 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushMcpState(): void
     {
-        $this->callIfExists(\Hypervel\Mcp\Server::class, 'flushState');
-        $this->callIfExists(\Hypervel\Mcp\Server\Middleware\AddWwwAuthenticateHeader::class, 'flushState');
-        $this->callIfExists(\Hypervel\Mcp\Server\Primitive::class, 'flushState');
-        $this->callIfExists(\Hypervel\Mcp\Server\Skill::class, 'flushState');
-        $this->callIfExists(\Hypervel\Mcp\Request::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Mcp\Response::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Mcp\ResponseFactory::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Mcp\Client\ClientManager::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Mcp\Client\OAuth\AuthServerDiscovery::class, 'flushState');
-        $this->callIfExists(\Hypervel\Mcp\Server\Registrar::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestResponse::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Mcp\Server\Testing\TestListResponse::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Mcp\Server::class);
+        $this->callIfLoaded(\Hypervel\Mcp\Server\Middleware\AddWwwAuthenticateHeader::class);
+        $this->callIfLoaded(\Hypervel\Mcp\Server\Primitive::class);
+        $this->callIfLoaded(\Hypervel\Mcp\Server\Skill::class);
+        $this->callIfLoaded(\Hypervel\Mcp\Request::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Mcp\Response::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Mcp\ResponseFactory::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Mcp\Client\ClientManager::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Mcp\Client\OAuth\AuthServerDiscovery::class);
+        $this->callIfLoaded(\Hypervel\Mcp\Server\Registrar::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Mcp\Server\Testing\TestResponse::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Mcp\Server\Testing\TestListResponse::class, 'flushMacros');
     }
 
     /**
@@ -473,7 +495,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushNestedSetState(): void
     {
-        $this->callIfExists(\Hypervel\NestedSet\NestedSet::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\NestedSet\NestedSet::class);
     }
 
     /**
@@ -481,9 +503,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushPasskeysState(): void
     {
-        $this->callIfExists(\Hypervel\Passkeys\Passkeys::class, 'flushState');
-        $this->callIfExists(\Hypervel\Passkeys\Support\Aaguids::class, 'flushState');
-        $this->callIfExists(\Hypervel\Passkeys\Support\WebAuthn::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Passkeys\Passkeys::class);
+        $this->callIfLoaded(\Hypervel\Passkeys\Support\Aaguids::class);
+        $this->callIfLoaded(\Hypervel\Passkeys\Support\WebAuthn::class);
     }
 
     /**
@@ -491,8 +513,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushPassportState(): void
     {
-        $this->callIfExists(\Hypervel\Passport\Passport::class, 'flushState');
-        $this->callIfExists(\Hypervel\Passport\Guards\TokenGuard::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Passport\Passport::class);
+        $this->callIfLoaded(\Hypervel\Passport\Guards\TokenGuard::class);
     }
 
     /**
@@ -500,8 +522,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushPennantState(): void
     {
-        $this->callIfExists(\Hypervel\Pennant\Drivers\Decorator::class, 'flushMacros');
-        $this->callIfExists(\Hypervel\Pennant\Middleware\EnsureFeaturesAreActive::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Pennant\Drivers\Decorator::class, 'flushMacros');
+        $this->callIfLoaded(\Hypervel\Pennant\Middleware\EnsureFeaturesAreActive::class);
     }
 
     /**
@@ -509,8 +531,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushPermissionState(): void
     {
-        $this->callIfExists(\Hypervel\Permission\Guard::class, 'flushState');
-        $this->callIfExists(\Hypervel\Permission\PermissionRegistrar::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Permission\Guard::class);
+        $this->callIfLoaded(\Hypervel\Permission\PermissionRegistrar::class);
     }
 
     /**
@@ -518,8 +540,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushReverbState(): void
     {
-        $this->callIfExists(\Hypervel\Reverb\Loggers\Log::class, 'flushState');
-        $this->callIfExists(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Reverb\Loggers\Log::class);
+        $this->callIfLoaded(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class);
     }
 
     /**
@@ -527,11 +549,11 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSaloonState(): void
     {
-        $this->callIfExists(\Hypervel\Saloon\OAuthAccounts::class, 'flushState');
-        $this->callIfExists(\Hypervel\Saloon\Http\Connector::class, 'flushState');
-        $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest::class, 'flushState');
-        $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest\BootPlugins::class, 'flushState');
-        $this->callIfExists(\Hypervel\Saloon\Http\Request::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Saloon\OAuthAccounts::class);
+        $this->callIfLoaded(\Hypervel\Saloon\Http\Connector::class);
+        $this->callIfLoaded(\Hypervel\Saloon\Http\PendingRequest::class);
+        $this->callIfLoaded(\Hypervel\Saloon\Http\PendingRequest\BootPlugins::class);
+        $this->callIfLoaded(\Hypervel\Saloon\Http\Request::class);
     }
 
     /**
@@ -539,9 +561,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSanctumState(): void
     {
-        $this->callIfExists(\Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class, 'flushState');
-        $this->callIfExists(\Hypervel\Sanctum\Sanctum::class, 'flushState');
-        $this->callIfExists(\Hypervel\Sanctum\SanctumGuard::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class);
+        $this->callIfLoaded(\Hypervel\Sanctum\Sanctum::class);
+        $this->callIfLoaded(\Hypervel\Sanctum\SanctumGuard::class);
     }
 
     /**
@@ -549,8 +571,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushScoutState(): void
     {
-        $this->callIfExists(\Hypervel\Scout\Builder::class, 'flushState');
-        $this->callIfExists(\Hypervel\Scout\Scout::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Scout\Builder::class);
+        $this->callIfLoaded(\Hypervel\Scout\Scout::class);
     }
 
     /**
@@ -559,8 +581,10 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     protected function flushSentryState(): void
     {
         $this->callIfExists(\Hypervel\Sentry\Features\HttpClientIntegration::class, 'flushState');
-        $this->callIfExists(\Sentry\SentrySdk::class, 'setRuntimeContextStorage', null);
-        $this->callIfExists(\Sentry\SentrySdk::class, 'init');
+        if (class_exists(\Sentry\SentrySdk::class, false)) {
+            \Sentry\SentrySdk::setRuntimeContextStorage(null);
+            \Sentry\SentrySdk::init();
+        }
     }
 
     /**
@@ -568,10 +592,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushTelescopeState(): void
     {
-        $this->callIfExists(\Hypervel\Telescope\Telescope::class, 'flushState');
+        // Avatar's callback can be registered directly or through Telescope.
+        if (class_exists(\Hypervel\Telescope\Telescope::class, false)) {
+            \Hypervel\Telescope\Telescope::flushState();
+        } else {
+            $this->callIfLoaded(\Hypervel\Telescope\Avatar::class);
+        }
         $this->callIfExists(\Hypervel\Telescope\Watchers\ClientRequestWatcher::class, 'flushState');
         $this->callIfExists(\Hypervel\Telescope\Watchers\DumpWatcher::class, 'flushState');
-        $this->callIfExists(\Hypervel\Telescope\Watchers\RedisWatcher::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Telescope\Watchers\RedisWatcher::class);
     }
 
     /**
@@ -579,11 +608,11 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushTestbenchState(): void
     {
-        $this->callIfExists(\Hypervel\Testbench\Bootstrapper::class, 'flushState');
-        $this->callIfExists(\Hypervel\Testbench\Factories\UserFactory::class, 'flushState');
-        $this->callIfExists(\Hypervel\Testbench\Foundation\Config::class, 'flushState');
-        $this->callIfExists(\Hypervel\Testbench\Foundation\Console\TerminatingConsole::class, 'flush');
-        $this->callIfExists(\Hypervel\Testbench\Workbench\Workbench::class, 'flush');
+        $this->callIfLoaded(\Hypervel\Testbench\Bootstrapper::class);
+        $this->callIfLoaded(\Hypervel\Testbench\Factories\UserFactory::class);
+        $this->callIfLoaded(\Hypervel\Testbench\Foundation\Config::class);
+        $this->callIfLoaded(\Hypervel\Testbench\Foundation\Console\TerminatingConsole::class, 'flush');
+        $this->callIfLoaded(\Hypervel\Testbench\Workbench\Workbench::class, 'flush');
     }
 
     /**
@@ -591,7 +620,19 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushWayfinderState(): void
     {
-        $this->callIfExists(\Hypervel\Wayfinder\BindingResolver::class, 'flushState');
+        $this->callIfLoaded(\Hypervel\Wayfinder\BindingResolver::class);
+    }
+
+    /**
+     * Reset class-owned state without autoloading unused classes during teardown.
+     *
+     * @param class-string $class
+     */
+    protected function callIfLoaded(string $class, string $method = 'flushState'): void
+    {
+        if (class_exists($class, false)) {
+            $class::$method();
+        }
     }
 
     /**

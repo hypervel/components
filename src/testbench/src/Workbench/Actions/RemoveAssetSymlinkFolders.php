@@ -54,7 +54,7 @@ final class RemoveAssetSymlinkFolders
 
                 if ($this->linkPointsTo($to, $from)) {
                     return [$to, function (string $path): void {
-                        $deleted = windows_os() ? @rmdir($path) : $this->files->delete($path);
+                        $deleted = $this->files->delete($path);
                         clearstatcache(false, $path);
 
                         if (! $deleted || is_symlink($path) || $this->files->exists($path)) {

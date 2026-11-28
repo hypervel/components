@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
 use Closure;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\Ai\Ai;
 use Hypervel\Ai\Attributes\MaxSteps;
+use Hypervel\Ai\Events\StepFailed;
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\Messages\UserMessage;
 use Hypervel\Ai\PendingStep;
 use Hypervel\Ai\Responses\Data\FinishReason;
+use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ProviderToolEvent;
@@ -27,12 +31,14 @@ use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\JsonSchema\JsonSchema;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\ProviderOptionsWithToolsAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use stdClass;
 
 use function Hypervel\Tests\Ai\Fixtures\toolInputEvents;
@@ -855,27 +861,97 @@ class StreamingTest extends TestCase
 
     public function testStreamingErrorEventStopsStream(): void
     {
-        Http::fake([
-            'api.anthropic.com/*' => Http::response(
-                body: $this->ssePayload([
-                    ['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'Server overloaded']],
-                ]),
-                status: 200,
-                headers: ['Content-Type' => 'text/event-stream'],
-            ),
+        $error = $this->overloadedErrorAfter([]);
+
+        $this->assertSame('overloaded_error', $error->type);
+        $this->assertSame('Server overloaded', $error->message);
+    }
+
+    public function testStreamingErrorKeepsTheUsageReportedBeforeIt(): void
+    {
+        Event::fake([StepFailed::class]);
+
+        $error = $this->overloadedErrorAfter([
+            $this->messageStart(),
+            $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+            $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Partial']),
         ]);
 
-        $error = null;
+        $this->assertEquals(new TextUsage(10, 0), $error->usage);
+        $this->assertSame([
+            'input_tokens' => 10,
+            'output_tokens' => 0,
+            'cache_read_input_tokens' => null,
+            'cache_write_input_tokens' => null,
+            'reasoning_tokens' => null,
+        ], $error->toArray()['usage']);
+        Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->usage === $error->usage);
+    }
+
+    public function testStreamingErrorAfterAMessageDeltaKeepsItsCumulativeUsage(): void
+    {
+        $delta = $this->messageDelta('end_turn', 12);
+        $delta['usage']['input_tokens'] = null;
+
+        $error = $this->overloadedErrorAfter([
+            $this->messageStart(),
+            $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+            $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Partial']),
+            $delta,
+        ]);
+
+        $this->assertEquals(new TextUsage(10, 12), $error->usage);
+    }
+
+    public function testReadFailureKeepsTheReportedUsageAndOriginalException(): void
+    {
+        Event::fake([StepFailed::class]);
+        $source = Utils::streamFor($this->ssePayload([$this->messageStart()]));
+        $timeout = new RuntimeException('Read timed out');
+        $body = FnStream::decorate($source, [
+            'eof' => static fn (): bool => false,
+            'read' => static fn (int $length): string => $source->eof() ? throw $timeout : $source->read($length),
+        ]);
+        Http::fake(['api.anthropic.com/*' => Http::response($body, headers: ['Content-Type' => 'text/event-stream'])]);
+
+        $caught = null;
+        try {
+            $this->collectStreamEvents();
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($timeout, $caught);
+        Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->exception === $timeout && $event->usage == new TextUsage(10, 0));
+    }
+
+    public function testStreamingErrorBeforeAnyUsageReportsNone(): void
+    {
+        Event::fake([StepFailed::class]);
+
+        $this->assertNull($this->overloadedErrorAfter([])->usage);
+        Event::assertDispatched(StepFailed::class, fn (StepFailed $event): bool => $event->usage === null);
+    }
+
+    /**
+     * Return the provider error that terminates the supplied stream.
+     */
+    private function overloadedErrorAfter(array $chunks): Error
+    {
+        $chunks[] = ['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'Server overloaded']];
+        Http::fake(['api.anthropic.com/*' => Http::response(
+            body: $this->ssePayload($chunks),
+            headers: ['Content-Type' => 'text/event-stream'],
+        )]);
 
         try {
             $this->collectStreamEvents();
+            $this->fail('Expected the stream to fail.');
         } catch (StreamErrorException $exception) {
-            $error = $exception->error;
-        }
+            $this->assertInstanceOf(Error::class, $exception->error);
 
-        $this->assertInstanceOf(Error::class, $error);
-        $this->assertSame('overloaded_error', $error->type);
-        $this->assertSame('Server overloaded', $error->message);
+            return $exception->error;
+        }
     }
 
     public function testStreamEndingBeforeTheCompletionEventThrows(): void
@@ -889,10 +965,13 @@ class StreamingTest extends TestCase
             headers: ['Content-Type' => 'text/event-stream'],
         )]);
 
-        $this->expectException(StreamErrorException::class);
-        $this->expectExceptionMessage('The provider stream ended before the response was complete.');
-
-        $this->collectStreamEvents();
+        try {
+            $this->collectStreamEvents();
+            $this->fail('Expected an incomplete stream.');
+        } catch (StreamErrorException $exception) {
+            $this->assertSame('The provider stream ended before the response was complete.', $exception->getMessage());
+            $this->assertEquals(new TextUsage(10, 0), $exception->error?->usage);
+        }
     }
 
     public function testStreamingCapturesInputTokensFromMessageStart(): void

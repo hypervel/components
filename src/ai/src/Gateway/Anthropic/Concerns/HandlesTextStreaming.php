@@ -152,6 +152,7 @@ trait HandlesTextStreaming
                     $data['error']['message'] ?? 'Unknown error',
                     false,
                     time(),
+                    usage: $usage,
                 ))->withInvocationId($invocationId);
 
                 return;
@@ -161,6 +162,10 @@ trait HandlesTextStreaming
                 $streamStartEmitted = true;
 
                 $messageUsage = $data['message']['usage'] ?? [];
+
+                if ($messageUsage !== []) {
+                    $usage = $this->recordStreamUsage($streamBody, $this->extractUsage(['usage' => $messageUsage]));
+                }
 
                 yield (new StreamStart(
                     $this->generateEventId(),
@@ -399,7 +404,12 @@ trait HandlesTextStreaming
                 $container = $data['delta']['container']['id'] ?? $container;
 
                 // Usage on message_delta is cumulative for the whole message...
-                $usage = $this->extractUsage(['usage' => array_merge($messageUsage, $data['usage'] ?? [])]);
+                // Preserve message_start counts when a delta reports null for the same field.
+                $messageUsage = array_merge($messageUsage, array_filter($data['usage'] ?? [], static fn (mixed $count): bool => $count !== null));
+
+                if ($messageUsage !== []) {
+                    $usage = $this->recordStreamUsage($streamBody, $this->extractUsage(['usage' => $messageUsage]));
+                }
             }
         }
 
@@ -411,6 +421,7 @@ trait HandlesTextStreaming
                 'The provider stream ended before the response was complete.',
                 false,
                 time(),
+                usage: $usage,
             ))->withInvocationId($invocationId);
 
             return;

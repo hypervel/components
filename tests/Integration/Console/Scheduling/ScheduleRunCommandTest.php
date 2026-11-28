@@ -139,8 +139,7 @@ class ScheduleRunCommandTest extends TestCase
 
         // Create a schedule and add the command that just performs an action without explicit exit
         $schedule = $this->app->make(Schedule::class);
-        $command = PHP_OS_FAMILY === 'Windows' ? 'cmd /c exit 0' : 'true';
-        $task = $schedule->exec($command)
+        $task = $schedule->exec('true')
             ->everyMinute();
 
         // Allow the task through its filters.
@@ -275,8 +274,7 @@ class ScheduleRunCommandTest extends TestCase
 
         // Create a schedule and add the command that just performs an action without explicit exit
         $schedule = $this->app->make(Schedule::class);
-        $command = PHP_OS_FAMILY === 'Windows' ? 'cmd /c exit 0' : 'true';
-        $task = $schedule->exec($command)
+        $task = $schedule->exec('true')
             ->everyMinute()
             ->runInBackground();
 

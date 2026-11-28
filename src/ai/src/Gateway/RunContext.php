@@ -17,6 +17,8 @@ use Hypervel\Ai\Events\StepFailed;
 use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
 use Hypervel\Ai\Exceptions\ApprovalMismatchException;
+use Hypervel\Ai\Exceptions\ProviderResponseException;
+use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Providers\Tools\ProviderTool;
 use Hypervel\Ai\Responses\AgentResponse;
@@ -223,6 +225,11 @@ class RunContext
             $step->isFinalStep,
             $exception,
             $time,
+            match (true) {
+                $exception instanceof StreamErrorException => $exception->error?->usage,
+                $exception instanceof ProviderResponseException => $exception->usage,
+                default => null,
+            } ?? $step->reportedUsage,
         ));
     }
 

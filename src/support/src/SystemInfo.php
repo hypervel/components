@@ -15,7 +15,7 @@ class SystemInfo
     /**
      * Get the number of CPU cores available.
      *
-     * Supports Linux (/proc/cpuinfo), macOS (sysctl), and Windows (environment variable).
+     * Uses /proc/cpuinfo on Linux and sysctl on macOS.
      */
     public function getCpuCores(): ?int
     {
@@ -23,7 +23,7 @@ class SystemInfo
             $cpuinfo = @file_get_contents('/proc/cpuinfo');
 
             if ($cpuinfo) {
-                $count = substr_count($cpuinfo, 'processor');
+                $count = preg_match_all('/^processor(?:\h+\d+)?\h*:/m', $cpuinfo);
 
                 return $count > 0 ? $count : null;
             }
@@ -33,12 +33,6 @@ class SystemInfo
             if ($output) {
                 return (int) trim($output);
             }
-        } elseif (PHP_OS_FAMILY === 'Windows') {
-            $cores = getenv('NUMBER_OF_PROCESSORS');
-
-            if ($cores) {
-                return (int) $cores;
-            }
         }
 
         return null;
@@ -47,7 +41,7 @@ class SystemInfo
     /**
      * Get total system memory as a human-readable string.
      *
-     * Supports Linux (/proc/meminfo), macOS (sysctl), and Windows (wmic).
+     * Uses /proc/meminfo on Linux and sysctl on macOS.
      */
     public function getTotalMemory(): ?string
     {
@@ -64,12 +58,6 @@ class SystemInfo
 
             if ($output) {
                 return Number::fileSize((int) trim($output), precision: 1);
-            }
-        } elseif (PHP_OS_FAMILY === 'Windows') {
-            $output = @shell_exec('wmic computersystem get totalphysicalmemory 2>nul');
-
-            if ($output && preg_match('/\d+/', $output, $matches)) {
-                return Number::fileSize((int) $matches[0], precision: 1);
             }
         }
 
