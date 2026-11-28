@@ -36,8 +36,8 @@ return [
 
         /*
          * When using the "HasAssignedModels" trait and passing raw IDs to
-         * assignToModels, removeFromModels, or syncModels, this model class
-         * will be used to resolve those IDs. If null, defaults to the guard's model.
+         * assignToModels, removeFromModels, or syncModels without an explicit
+         * model class, this class resolves those IDs. If null, the guard's model is used.
          */
         'default_model' => null,
     ],

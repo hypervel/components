@@ -1946,7 +1946,7 @@ Icons defined via the attribute and the `icons` method are combined automaticall
 <a name="client-capabilities"></a>
 ## Client Capabilities
 
-MCP clients advertise their capabilities during initialization and include them on requests. Inside any tool, prompt, or resource handler, you may inspect whether the connected client declared a capability using the `clientSupports` method on the `Hypervel\Mcp\Request` instance, using dot notation for nested capabilities:
+Inside any tool, prompt, or resource handler, you may use the `clientSupports` method on the `Hypervel\Mcp\Request` instance to inspect the capabilities declared in the current request's metadata. The following handler uses dot notation to check for `sampling.tools`.
 
 ```php
 use Hypervel\Mcp\Request;
@@ -1965,7 +1965,7 @@ public function handle(Request $request): Response
 }
 ```
 
-Capability objects declared as arrays (including empty objects such as `['sampling' => ['tools' => []]]`) evaluate to `true`. Boolean capability flags are returned as declared, so `['roots' => ['listChanged' => true]]` returns `true` for `roots.listChanged` while `['sampling' => ['enabled' => false]]` returns `false` for `sampling.enabled`.
+Capability objects declared as arrays (including empty objects such as `['sampling' => ['tools' => []]]`) evaluate to `true`. Boolean capability flags are returned as declared, so `['roots' => ['listChanged' => true]]` returns `true` for `roots.listChanged` while `['sampling' => ['enabled' => false]]` returns `false` for `sampling.enabled`. If a legacy client declares a capability only during initialization, `clientSupports` returns `false` for that capability on later requests.
 
 <a name="authentication"></a>
 ## Authentication

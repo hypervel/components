@@ -1471,7 +1471,7 @@ The migration creates integer team columns named `team_id`. To use a custom fore
 ],
 ```
 
-If your team keys are UUIDs or ULIDs, change the column type in the published migration.
+If your team keys are UUIDs or ULIDs, use the matching column type for each team key in the migration you will run. If you generated the migration with `permission:setup-teams`, also replace the model pivot tables' `default(1)` with a valid team key or backfill existing assignments before making the columns required.
 
 <a name="setting-the-current-team"></a>
 ### Setting the Current Team
