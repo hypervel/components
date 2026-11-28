@@ -99,6 +99,8 @@ class AfterEachTestExtensionTest extends TestCase
             command: [
                 PHP_BINARY,
                 'vendor/bin/phpunit',
+                '--configuration',
+                'phpunit.xml.dist',
                 '--no-progress',
                 'tests/Testing/PHPUnit/Fixtures/' . $fixture,
             ],

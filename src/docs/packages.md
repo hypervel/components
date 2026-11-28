@@ -198,6 +198,8 @@ class TestState
 
 Use your Composer package name as the callback name. Registrar classes are discovered when Hypervel's [PHPUnit extension](/docs/{{version}}/testing#test-state-cleanup) boots, so package cleanup runs even in workers that only execute unit tests and never boot a Hypervel application.
 
+If an application excludes your package through `dont-discover` and registers its service provider manually, it can list your registrar under `extra.hypervel.test-state` in its root `composer.json`.
+
 Test-state callbacks run after the test application has been destroyed. Use them for process-local state that can be reset directly, not cleanup that resolves container services. Use the appropriate testing trait to clean up external resources.
 
 <a name="package-uninstallation"></a>
