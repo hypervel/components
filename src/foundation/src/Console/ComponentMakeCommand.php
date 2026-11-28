@@ -59,14 +59,8 @@ class ComponentMakeCommand extends GeneratorCommand
      */
     protected function writeView(): void
     {
-        $separator = '/';
-
-        if (windows_os()) {
-            $separator = '\\';
-        }
-
         $path = $this->viewPath(
-            str_replace('.', $separator, $this->getView()) . '.blade.php'
+            str_replace('.', '/', $this->getView()) . '.blade.php'
         );
 
         $this->files->ensureDirectoryExists(dirname($path), 0777);

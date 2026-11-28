@@ -223,10 +223,6 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
             $this->handleTestCreation($path); // @phpstan-ignore method.notFound (provided by CreatesMatchingTest, checked above)
         }
 
-        if (windows_os()) {
-            $path = str_replace('/', '\\', $path);
-        }
-
         $this->components->info(sprintf('%s [%s] created successfully.', $info, $path));
 
         return self::SUCCESS;
