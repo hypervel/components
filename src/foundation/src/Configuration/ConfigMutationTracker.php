@@ -10,84 +10,80 @@ use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Support\Attributes\BootOnly;
 
 /**
- * Tracks configuration mutations made during application boot for worker replay.
+ * Record directly written configuration keys during static analysis bootstrap.
  *
- * This is framework boot infrastructure rather than a userland extension point.
+ * @internal
  */
 class ConfigMutationTracker
 {
     /**
-     * The ordered configuration mutations made during application boot.
+     * The configuration keys written directly during bootstrap.
      *
-     * @var list<array<array-key, mixed>|Closure(RepositoryContract): void>
+     * @var array<array-key, true>
      */
-    protected array $mutations = [];
+    protected array $keys = [];
 
     /**
-     * Whether configuration mutations should be recorded.
+     * Whether direct writes are being recorded.
      */
     protected bool $recording = true;
 
     /**
-     * Observe configuration mutations made during application boot.
-     *
-     * Calling this outside application bootstrap replaces Foundation's
-     * mutation observer and can track the wrong lifecycle.
+     * The repository to detach from when analysis bootstrap finishes.
+     */
+    protected ?Repository $repository = null;
+
+    /**
+     * Observe configuration writes after the configuration files have loaded.
      */
     #[BootOnly]
     public function observe(Repository $config): void
     {
+        $this->repository = $config;
         $config->setMutationObserver(function (array $values): void {
             if ($this->recording) {
-                $this->mutations[] = $values;
+                foreach ($values as $key => $value) {
+                    $this->keys[$key] = true;
+                }
             }
         });
     }
 
     /**
-     * Apply and record a configuration operation for worker replay.
-     *
-     * The operation is retained for worker-start replay and is
-     * re-evaluated against the freshly rebuilt configuration repository.
-     *
-     * @param Closure(RepositoryContract): void $mutation
+     * Detach from the observed repository when analysis bootstrap finishes.
      */
     #[BootOnly]
-    public function applyAndRecord(RepositoryContract $config, Closure $mutation): void
+    public function stopObserving(): void
+    {
+        $this->repository?->setMutationObserver(null);
+        $this->repository = null;
+    }
+
+    /**
+     * Apply a provider operation whose configuration sources are analyzed separately.
+     *
+     * @param Closure(RepositoryContract): void $callback
+     */
+    #[BootOnly]
+    public function withoutRecording(RepositoryContract $config, Closure $callback): void
     {
         $wasRecording = $this->recording;
         $this->recording = false;
 
         try {
-            $mutation($config);
+            $callback($config);
         } finally {
             $this->recording = $wasRecording;
-        }
-
-        if ($wasRecording) {
-            $this->mutations[] = $mutation;
         }
     }
 
     /**
-     * Replay the recorded mutations and stop tracking changes in this worker.
+     * Get the keys written directly during bootstrap.
      *
-     * Calling this outside the before-worker-start boundary
-     * permanently stops recording and can omit later boot mutations.
+     * @return list<string>
      */
-    #[BootOnly]
-    public function replay(Repository $config): void
+    public function keys(): array
     {
-        $this->recording = false;
-
-        foreach ($this->mutations as $mutation) {
-            if ($mutation instanceof Closure) {
-                $mutation($config);
-
-                continue;
-            }
-
-            $config->set($mutation);
-        }
+        return array_map(strval(...), array_keys($this->keys));
     }
 }

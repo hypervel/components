@@ -94,7 +94,7 @@ class SanctumServiceProvider extends ServiceProvider
                 fn () => $this->validateCacheConfiguration($cache, $config),
             );
         } else {
-            // Worker configuration is reloaded during BeforeWorkerStart.
+            // Swoole cache tables are available after the server forks.
             $events = $this->app->make('events');
             $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
                 $this->validateCacheConfiguration(

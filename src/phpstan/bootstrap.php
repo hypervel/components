@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\PHPStan\ApplicationResolver;
 use Hypervel\PHPStan\Support\BootstrapErrorHandler;
 use Hypervel\PHPStan\Support\EnvironmentSnapshot;
@@ -41,7 +42,12 @@ try {
     // Testbench's package application loads no environment file, only its YAML env.
     $environmentFile = $packageApplication ? null : $app->environmentFilePath();
 
+    if (! $packageApplication) {
+        $app->instance(ConfigMutationTracker::class, new ConfigMutationTracker);
+    }
+
     $app->make(Kernel::class)->bootstrap();
+    $app->make(ConfigMutationTracker::class)->stopObserving();
 
     RuntimeInputs::captureBoot($app, $environmentFile, $packageApplication);
 } catch (Throwable $throwable) {

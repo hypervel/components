@@ -11,126 +11,30 @@ use RuntimeException;
 
 class ConfigMutationTrackerTest extends TestCase
 {
-    public function testReplaysRawAndSemanticMutationsInTheirOriginalOrder(): void
+    public function testCollectsDistinctDirectKeysAndIgnoresProviderConfiguration(): void
     {
         $tracker = new ConfigMutationTracker;
-        $master = new Repository(['worker' => 'master']);
-        $tracker->observe($master);
+        $config = new Repository;
+        $tracker->observe($config);
+        $config->set('app.name', 'first');
+        $config->set('app.name', 'second');
 
-        $master->set('package', ['value' => 'raw']);
-        $tracker->applyAndRecord($master, static function (Repository $config): void {
-            $config->set('package.value', $config->string('worker'));
-        });
-        $master->set('package.value', 'final');
-
-        $worker = new Repository(['worker' => 'worker']);
-        $tracker->replay($worker);
-
-        $this->assertSame('final', $worker->get('package.value'));
-    }
-
-    public function testSemanticMutationUsesFreshRepositoryState(): void
-    {
-        $tracker = new ConfigMutationTracker;
-        $master = new Repository(['environment' => 'master']);
-        $tracker->observe($master);
-
-        $tracker->applyAndRecord($master, static function (Repository $config): void {
-            $config->set('package.environment', $config->string('environment'));
-        });
-
-        $this->assertSame('master', $master->get('package.environment'));
-
-        $worker = new Repository(['environment' => 'worker']);
-        $tracker->replay($worker);
-
-        $this->assertSame('worker', $worker->get('package.environment'));
-    }
-
-    public function testSemanticMutationDoesNotRecordItsInternalSet(): void
-    {
-        $tracker = new ConfigMutationTracker;
-        $master = new Repository(['environment' => 'master']);
-        $tracker->observe($master);
-
-        $tracker->applyAndRecord($master, static function (Repository $config): void {
-            $config->set('package.environment', $config->string('environment'));
-        });
-
-        $worker = new Repository(['environment' => 'worker']);
-        $setCalls = 0;
-        $worker->setMutationObserver(static function () use (&$setCalls): void {
-            ++$setCalls;
-        });
-        $tracker->replay($worker);
-
-        $this->assertSame('worker', $worker->get('package.environment'));
-        $this->assertSame(1, $setCalls);
-    }
-
-    public function testReplayDoesNotGrowTheMutationLog(): void
-    {
-        $tracker = new ConfigMutationTracker;
-        $master = new Repository;
-        $tracker->observe($master);
-        $runs = 0;
-
-        $tracker->applyAndRecord($master, static function (Repository $config) use (&$runs): void {
-            ++$runs;
-            $config->set('package.runs', $runs);
-        });
-
-        $firstWorker = new Repository;
-        $tracker->replay($firstWorker);
-        $secondWorker = new Repository;
-        $tracker->replay($secondWorker);
-
-        $this->assertSame(3, $runs);
-        $this->assertSame(3, $secondWorker->get('package.runs'));
-    }
-
-    public function testFailedSemanticMutationRestoresRecordingAndIsNotAppended(): void
-    {
-        $tracker = new ConfigMutationTracker;
-        $master = new Repository;
-        $tracker->observe($master);
-        $exception = null;
-
+        $exception = new RuntimeException('Invalid package configuration.');
         try {
-            $tracker->applyAndRecord($master, static function (Repository $config): void {
-                $config->set('package.partial', true);
-
-                throw new RuntimeException('Failed operation.');
+            $tracker->withoutRecording($config, function (Repository $repository) use ($tracker, $exception): void {
+                $tracker->withoutRecording($repository, fn () => $repository->set('inner', 1));
+                $repository->set('outer', 2);
+                throw $exception;
             });
+            $this->fail('Provider configuration should have failed.');
         } catch (RuntimeException $caught) {
-            $exception = $caught;
+            $this->assertSame($exception, $caught);
         }
 
-        $this->assertInstanceOf(RuntimeException::class, $exception);
-        $this->assertSame('Failed operation.', $exception->getMessage());
+        $config->set(['testing.value' => 1, 'app.name' => 'final']);
+        $tracker->stopObserving();
+        $config->set('runtime', true);
 
-        $master->set('package.recorded', true);
-
-        $worker = new Repository;
-        $tracker->replay($worker);
-
-        $this->assertNull($worker->get('package.partial'));
-        $this->assertTrue($worker->boolean('package.recorded'));
-    }
-
-    public function testMutationsAfterReplayAreNotRecorded(): void
-    {
-        $tracker = new ConfigMutationTracker;
-        $master = new Repository;
-        $tracker->observe($master);
-        $master->set('package.value', 'boot');
-
-        $tracker->replay(new Repository);
-        $master->set('package.value', 'runtime');
-
-        $worker = new Repository;
-        $tracker->replay($worker);
-
-        $this->assertSame('boot', $worker->get('package.value'));
+        $this->assertSame(['app.name', 'testing.value'], $tracker->keys());
     }
 }

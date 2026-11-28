@@ -65,22 +65,22 @@ class InitProcessTitleListenerTest extends TestCase
         }
     }
 
-    public function testProcessNameUsesTheReloadedConfigRepository(): void
+    public function testProcessNameUsesTheCurrentApplicationName(): void
     {
         $config = new ConfigRepository([
-            'app' => ['name' => 'BeforeReload'],
+            'app' => ['name' => 'Initial'],
         ]);
         $listener = new InitProcessTitleListenerStub($config);
         $process = $this->process();
 
         $listener->handle(new BeforeProcessHandle($process, 0));
-        $config->set('app.name', 'AfterReload');
+        $config->set('app.name', 'Renamed');
         $listener->handle(new BeforeProcessHandle($process, 0));
 
         if (! $listener->isSupportedOS()) {
             $this->assertNull(CoroutineContext::get('test.server.process.title'));
         } else {
-            $this->assertSame('AfterReload.test.demo.0', CoroutineContext::get('test.server.process.title'));
+            $this->assertSame('Renamed.test.demo.0', CoroutineContext::get('test.server.process.title'));
         }
     }
 

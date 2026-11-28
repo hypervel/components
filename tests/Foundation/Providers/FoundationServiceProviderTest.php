@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Foundation\Providers;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\ArrayMaintenanceMode;
 use Hypervel\Foundation\Console\CliDumper;
@@ -20,18 +21,24 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\DateFactory;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionProperty;
+use Swoole\Server;
 use Symfony\Component\VarDumper\VarDumper;
 
 class FoundationServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRequestHasValidSignatureMacroIsRegistered(): void
     {
         $this->assertTrue(Request::hasMacro('hasValidSignature'));
@@ -154,6 +161,19 @@ class FoundationServiceProviderTest extends TestCase
             11,
             (new ReflectionClass($mode))->getProperty('refreshInterval')->getValue($mode)
         );
+    }
+
+    #[WithConfig('app.maintenance.driver', 'array')]
+    #[WithConfig('app.maintenance.refresh_interval', 0)]
+    public function testWorkerStartupDiscardsMaintenanceStateReadDuringBoot(): void
+    {
+        $this->assertFalse($this->app->isDownForMaintenance());
+        $driver = $this->app->make(MaintenanceModeManager::class)->driver();
+        $driver->activate(['retry' => 5]);
+
+        $this->app->make('events')->dispatch(new BeforeWorkerStart(Double::for(Server::class)->strict()->instance(), 0));
+
+        $this->assertTrue($this->app->isDownForMaintenance());
     }
 
     public function testArrayMaintenanceModeDriverIsAvailable(): void

@@ -85,7 +85,6 @@ use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Foundation\Http\HtmlDumper;
-use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Foundation\MaintenanceModeManager;
 use Hypervel\Foundation\Precognition;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
@@ -125,8 +124,9 @@ class FoundationServiceProvider extends ServiceProvider
 
         $events = $this->app->make('events');
 
-        $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
-            $this->app->make(ReloadDotenvAndConfig::class)->handle($event);
+        $events->listen(BeforeWorkerStart::class, static function (): void {
+            // A provider may have read maintenance state before the server forked.
+            WorkerCachedMaintenanceMode::flushCache();
         });
 
         if ($this->app->hasDebugModeEnabled() && ! $this->app->has(ExceptionRenderer::class)) {

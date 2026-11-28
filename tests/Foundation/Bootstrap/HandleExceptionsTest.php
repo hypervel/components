@@ -11,7 +11,6 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
-use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
 use Hypervel\Testing\ParallelTesting;
@@ -387,40 +386,6 @@ class HandleExceptionsTest extends TestCase
             CustomNullHandler::class,
             $this->config->get('logging.channels.deprecations.handler')
         );
-    }
-
-    public function testDeprecationsDriverIsDerivedAgainFromTheRebuiltConfiguration(): void
-    {
-        $logger = Double::for(LogManager::class)->strict();
-        $this->app->instance(LogManager::class, $logger);
-
-        $logger->expects('channel')->with('deprecations')->returns($logger);
-        $logger->expects('warning');
-
-        $this->config->set('logging.channels.single', ['driver' => 'single']);
-        $this->config->set('logging.deprecations', [
-            'channel' => 'single',
-            'trace' => false,
-        ]);
-
-        $this->handleExceptions()->handleError(E_USER_DEPRECATED, 'Deprecated while booting', '/app/boot.php', 1);
-
-        $tracker = $this->app->make(ConfigMutationTracker::class);
-        $workerConfig = new Config(['logging' => [
-            'deprecations' => ['channel' => 'stderr'],
-            'channels' => ['stderr' => ['driver' => 'monolog']],
-        ]]);
-        $explicitWorkerConfig = new Config(['logging' => [
-            'deprecations' => ['channel' => 'stderr'],
-            'channels' => ['deprecations' => ['driver' => 'daily']],
-        ]]);
-
-        $tracker->replay($workerConfig);
-        $tracker->replay($explicitWorkerConfig);
-
-        $this->assertSame(['driver' => 'monolog'], $workerConfig->get('logging.channels.deprecations'));
-        $this->assertSame(NullHandler::class, $workerConfig->get('logging.channels.null.handler'));
-        $this->assertSame(['driver' => 'daily'], $explicitWorkerConfig->get('logging.channels.deprecations'));
     }
 
     public function testNoDeprecationsDriverIfNoDeprecationsHereSend(): void

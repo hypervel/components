@@ -77,7 +77,7 @@ class AuthServiceProvider extends ServiceProvider
             return;
         }
 
-        // Worker configuration is reloaded during BeforeWorkerStart.
+        // Swoole cache tables are available after the server forks.
         $events = $this->app->make('events');
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
             $this->validateCachedEloquentProviders(

@@ -14,7 +14,6 @@ use Hypervel\Support\Collection;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Finder\Finder;
-use Throwable;
 
 class LoadConfiguration
 {
@@ -26,22 +25,10 @@ class LoadConfiguration
     protected static ?Closure $alwaysUseConfig = null;
 
     /**
-     * Bootstrap the given application while preserving its configuration repository.
-     *
-     * Reloads are evaluated against a temporary repository so a failed rebuild can
-     * restore the previous binding. Successful rebuilds copy their contents into
-     * the existing repository before boot-mutation tracking is attached.
+     * Bootstrap the given application.
      */
     public function bootstrap(Application $app): void
     {
-        $previousConfig = $app->bound('config')
-            ? $app->make('config')
-            : null;
-
-        $previousConfig = $previousConfig instanceof Repository
-            ? $previousConfig
-            : null;
-
         $items = [];
 
         // First we will see if we have a cache configuration file. If we do, we'll load
@@ -66,37 +53,24 @@ class LoadConfiguration
         // options available to the developer for use in various parts of this app.
         $app->instance('config', $config = new Repository($items));
 
-        try {
-            if (! $loadedFromCache) {
-                $this->loadConfigurationFiles($app, $config);
-            }
-
-            // Finally, we will set the application's environment based on the configuration
-            // values that were loaded. We will pass a callback which will be used to get
-            // the environment in a web context where an "--env" switch is not present.
-            $app->detectEnvironment(fn () => $config->string('app.env'));
-
-            $app->resolveEnvironmentUsing($app->environment(...));
-
-            date_default_timezone_set($config->string('app.timezone'));
-
-            mb_internal_encoding('UTF-8');
-        } catch (Throwable $exception) {
-            if ($previousConfig !== null) {
-                $app->instance('config', $previousConfig);
-            }
-
-            throw $exception;
+        if (! $loadedFromCache) {
+            $this->loadConfigurationFiles($app, $config);
         }
 
-        if ($previousConfig !== null) {
-            // Long-lived services retain this object, so reload its contents instead of
-            // publishing a replacement that those services would never observe.
-            $previousConfig->replaceItems($config->all());
-            $app->instance('config', $config = $previousConfig);
-        }
+        // Finally, we will set the application's environment based on the configuration
+        // values that were loaded. We will pass a callback which will be used to get
+        // the environment in a web context where an "--env" switch is not present.
+        $app->detectEnvironment(fn () => $config->string('app.env'));
 
-        $app->make(ConfigMutationTracker::class)->observe($config);
+        $app->resolveEnvironmentUsing($app->environment(...));
+
+        date_default_timezone_set($config->string('app.timezone'));
+
+        mb_internal_encoding('UTF-8');
+
+        if ($app->bound(ConfigMutationTracker::class)) {
+            $app->make(ConfigMutationTracker::class)->observe($config);
+        }
     }
 
     /**

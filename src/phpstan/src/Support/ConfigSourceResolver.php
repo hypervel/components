@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Support;
 
-use Closure;
 use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
@@ -65,8 +64,8 @@ use ReflectionProperty;
 
 use function array_any;
 use function array_fill_keys;
-use function array_keys;
 use function array_map;
+use function array_merge;
 use function array_slice;
 use function array_unique;
 use function array_values;
@@ -428,17 +427,7 @@ class ConfigSourceResolver
             }
         }
 
-        // Direct writes after LoadConfiguration are recorded, such as Testbench's testing
-        // connection and provider set() calls. Only their keys are read.
-        $mutations = (fn (): array => $this->mutations)->call($app->make(ConfigMutationTracker::class));
-
-        foreach ($mutations as $mutation) {
-            if (! $mutation instanceof Closure) {
-                foreach (array_keys($mutation) as $key) {
-                    $writtenKeys[] = (string) $key;
-                }
-            }
-        }
+        $writtenKeys = array_merge($writtenKeys, $app->make(ConfigMutationTracker::class)->keys());
 
         $packageFiles = array_fill_keys($mergedFiles, true);
         $packageDirectories = [];
@@ -626,7 +615,7 @@ class ConfigSourceResolver
     /**
      * Collect the keys a configureUsing() callback writes.
      *
-     * The tracker records only the callback, so every write it can make must be found here.
+     * The tracker ignores configureUsing() callbacks, so every write they can make must be found here.
      * Returns false when one cannot be: the callback is not a closure, as when
      * configureUsing(...) creates a callable, or its repository escapes or receives an
      * unknown call.
