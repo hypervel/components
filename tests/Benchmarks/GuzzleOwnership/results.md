@@ -81,3 +81,30 @@ php -d opcache.enable_cli=1 -d opcache.jit=disable \
 ```
 
 Run the same current harness against both worktrees. Alternate before/after, after/before, before/after. No profiler was enabled and no production code was changed during measurement. Broader workloads, startup comparisons and profiling are tracked separately in `docs/todo.md`.
+
+## Connection reuse at concurrency 8 and 32
+
+On November 28, 2026, the current fork used just 8 or 32 client ports to complete each 512-request sample in bursts of 8 or 32 concurrent requests. It retained more file descriptors between bursts. Both implementations returned to their starting count of six descriptors after the owning coroutine exited.
+
+| Concurrency | Implementation | Distinct local ports per 512 requests | CPU µs/request (min–max) | p95 latency (ms) | Open descriptors after sample GC |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 8 | Upstream with AOP | 323 | 381 (364–398) | 2.02 | 18 |
+| 8 | Hypervel fork | 8 | 275 (266–292) | 1.53 | 33 |
+| 32 | Upstream with AOP | 467 | 383 (362–410) | 8.17 | 18 |
+| 32 | Hypervel fork | 32 | 264 (240–288) | 5.69 | 105 |
+
+Values are medians of nine measured samples per row. The fork used 28% less client CPU at concurrency 8 and 31% less at concurrency 32. The comparison includes both the framework integration and the Guzzle handler's idle-handle policy. Port counts measure reuse within a sample, including connections retained from warmup.
+
+**Reproduction.** Use the harness at `7e8080f68` and the [local origin](README.md). The baseline checkout was `f2ebe434d` with Guzzle 8.6.0 and promises 3.2.0. The current checkout was `7e8080f68` with hypervel/guzzle 8.6.0.1 and hypervel/guzzle-promises 3.2.0.1. In a disposable baseline checkout, use the current Composer dependency constraints and lock file, retaining the baseline's autoload mappings and substituting the two upstream packages. All other installed dependency versions and source references matched, including PSR-7 3.6.0. Both checkouts had equal-length paths and optimized, non-authoritative autoloaders.
+
+Run the following with `CONCURRENCY` set to 8 and 32. Give each checkout its own storage directory, warm both once, and allow the two-second OPcache protection interval to elapse. Run three process pairs per concurrency, reversing their order for the middle pair. Each process ran a 32-request warmup and three measured samples.
+
+```sh
+php -d opcache.enable_cli=1 -d opcache.jit=disable \
+  tests/Benchmarks/GuzzleOwnership/benchmark.php \
+  --root="$CHECKOUT" --endpoint="http://127.0.0.1:$PORT" \
+  --scenario=direct-parallel --operations=512 --concurrency="$CONCURRENCY" \
+  --samples=3 --storage="$STORAGE"
+```
+
+The KVM guest ran Linux 6.8 x86-64 with six logical CPUs reporting Intel Core i7-7700, PHP 8.4.28, Swoole 6.3.0, cURL 8.5.0 and GC enabled. The origin ran in a separate process. CPU figures cover the client process only.
