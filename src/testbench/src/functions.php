@@ -233,16 +233,12 @@ function join_paths(?string $basePath, string ...$paths): string
 }
 
 /**
- * Determine if the path is a symlink for both Unix and Windows environments.
+ * Determine if the path is a symlink.
  *
  * @phpstan-impure
  */
 function is_symlink(string $path): bool
 {
-    if (windows_os() && is_dir($path) && readlink($path) !== $path) {
-        return true;
-    }
-
     return is_link($path);
 }
 

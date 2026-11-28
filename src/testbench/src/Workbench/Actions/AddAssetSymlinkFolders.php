@@ -212,7 +212,7 @@ final class AddAssetSymlinkFolders
      */
     private function removeSymlink(string $link): void
     {
-        $deleted = windows_os() ? @rmdir($link) : $this->files->delete($link);
+        $deleted = $this->files->delete($link);
         clearstatcache(false, $link);
 
         if (! $deleted || is_symlink($link) || $this->files->exists($link)) {
@@ -226,7 +226,7 @@ final class AddAssetSymlinkFolders
     private function deletePath(string $path): void
     {
         $deleted = match (true) {
-            is_symlink($path) => windows_os() ? @rmdir($path) : $this->files->delete($path),
+            is_symlink($path) => $this->files->delete($path),
             $this->files->isDirectory($path) => $this->files->deleteDirectory($path),
             default => $this->files->delete($path),
         };
