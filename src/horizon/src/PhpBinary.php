@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
+use Hypervel\Support\ProcessUtils;
+
 class PhpBinary
 {
     /**
@@ -11,8 +13,6 @@ class PhpBinary
      */
     public static function path(): string
     {
-        $escape = '\\' === DIRECTORY_SEPARATOR ? '"' : '\'';
-
-        return $escape . PHP_BINARY . $escape;
+        return ProcessUtils::escapeArgument(PHP_BINARY);
     }
 }

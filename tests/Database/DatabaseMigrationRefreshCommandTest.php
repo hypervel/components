@@ -46,10 +46,9 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->returns(true);
         $dispatcher->expects('dispatch')->with(Argument::type(DatabaseRefreshed::class));
 
-        $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
         $resetCommand->expects('setApplication')->with(Argument::same($console));
         $resetCommand->expects('setHypervel')->with(Argument::same($app));
-        $resetCommand->expects('run')->with(Argument::satisfies(fn (ArrayInput $input): bool => (string) $input === "--force=1 {$quote}migrate:reset{$quote}"), Argument::any());
+        $resetCommand->expects('run')->with(Argument::satisfies(fn (ArrayInput $input): bool => (string) $input === "--force=1 'migrate:reset'"), Argument::any());
         $migrateCommand->expects('setApplication')->with(Argument::same($console));
         $migrateCommand->expects('setHypervel')->with(Argument::same($app));
         $migrateCommand->expects('run')->with(Argument::satisfies(fn (ArrayInput $input): bool => (string) $input === '--force=1 migrate'), Argument::any());
@@ -77,10 +76,9 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->returns(true);
         $dispatcher->expects('dispatch')->with(Argument::type(DatabaseRefreshed::class));
 
-        $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
         $rollbackCommand->expects('setApplication')->with(Argument::same($console));
         $rollbackCommand->expects('setHypervel')->with(Argument::same($app));
-        $rollbackCommand->expects('run')->with(Argument::satisfies(fn (ArrayInput $input): bool => (string) $input === "--step=2 --force=1 {$quote}migrate:rollback{$quote}"), Argument::any());
+        $rollbackCommand->expects('run')->with(Argument::satisfies(fn (ArrayInput $input): bool => (string) $input === "--step=2 --force=1 'migrate:rollback'"), Argument::any());
         $migrateCommand->expects('setApplication')->with(Argument::same($console));
         $migrateCommand->expects('setHypervel')->with(Argument::same($app));
         $migrateCommand->expects('run')->with(Argument::satisfies(fn (ArrayInput $input): bool => (string) $input === '--force=1 migrate'), Argument::any());
