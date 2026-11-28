@@ -108,3 +108,26 @@ php -d opcache.enable_cli=1 -d opcache.jit=disable \
 ```
 
 The KVM guest ran Linux 6.8 x86-64 with six logical CPUs reporting Intel Core i7-7700, PHP 8.4.28, Swoole 6.3.0, cURL 8.5.0 and GC enabled. The origin ran in a separate process. CPU figures cover the client process only.
+
+## Shared credential provider at concurrency 1 and 8
+
+The `credentials` scenario gives every caller the same provider. Each invocation makes a fresh HTTP request to a loopback endpoint with a 1 ms server delay. Both checkouts serialize calls to this provider. Latency includes waiting for the lock, the fetch and promise completion. This workload measures neither AWS service latency nor the cache-hit rate of a memoized provider.
+
+| Checkout | Concurrent callers | p50 (ms) | p95 (ms, min–max) | Calls/sec | Client CPU (µs/call) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Upstream with AOP | 1 | 1.54 | 1.61 (1.59–1.70) | 640 | 381 |
+| Upstream with AOP | 8 | 6.46 | 12.37 (12.19–14.31) | 635 | 391 |
+| Hypervel fork | 1 | 1.50 | 1.58 (1.57–1.67) | 654 | 349 |
+| Hypervel fork | 8 | 6.46 | 12.07 (11.93–12.13) | 647 | 365 |
+
+On the fork, eight callers sustained nearly the same throughput as one. Their p95 of 12.07 ms was approximately eight single-caller fetches at the 1.50 ms median. This is consistent with callers taking turns. The wrapper must allow each caller to get its own result. When a provider explicitly memoizes credentials, the [provider tests](../../Support/SerializedCredentialProviderTest.php) verify that concurrent callers reuse the completed result after one fetch. These results support keeping the current serialization and leaving memoization to the provider.
+
+**Reproduction.** Use the same checkout preparation, versions, warmup and alternating process pairs as the [connection reuse comparison](#connection-reuse-at-concurrency-8-and-32), with current revision `252d6aae5` and baseline `f2ebe434d`. Run the command below at concurrency 1 and 8, using separate storage per checkout. Each row reports medians from nine measured samples of 128 calls, excluding each process's 32-call warmup. The p95 range spans those nine sample percentiles.
+
+```sh
+php -d opcache.enable_cli=1 -d opcache.jit=disable \
+  tests/Benchmarks/GuzzleOwnership/benchmark.php \
+  --root="$CHECKOUT" --endpoint="http://127.0.0.1:$PORT?delay_us=1000" \
+  --scenario=credentials --operations=128 --concurrency="$CONCURRENCY" \
+  --samples=3 --storage="$STORAGE"
+```
