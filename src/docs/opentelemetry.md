@@ -142,7 +142,7 @@ OTEL_RESOURCE_ATTRIBUTES=service.version=2026.08,deployment.environment.name=pro
 
 `OTEL_SERVICE_NAME` takes precedence over `service.name` inside `OTEL_RESOURCE_ATTRIBUTES`. Explicit resource attributes take precedence over the corresponding `APP_*` defaults.
 
-Hypervel appends the producing process type, stable worker or process identity, and process ID to the configured `service.instance.id` base. This keeps event workers, task workers, CLI processes, and custom server processes distinct across reloads. A complete provider override owns its own resource and must create an equally unique `service.instance.id`.
+Hypervel appends the producing process type, stable worker or process identity, and process ID to the configured `service.instance.id` base. This keeps event workers, task workers, CLI processes, and custom server processes distinct across process restarts and worker replacements. A complete provider override owns its own resource and must create an equally unique `service.instance.id`.
 
 <a name="configuration-lifecycle"></a>
 ### Configuration Lifecycle
@@ -157,7 +157,7 @@ The SDK reads resource-detector settings and signal-specific span and log limits
 
 The current PHP SDK does not use the generic `OTEL_ATTRIBUTE_COUNT_LIMIT` and `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT` values as fallbacks for its trace and log builders. Configure the signal-specific values instead.
 
-The package's `enabled`, `propagators`, and `response_propagators` settings establish process-global OpenTelemetry context in the master process and require a full server restart. Event and task workers consume their signal, exporter, sampler, view, processor, and instrumentation settings after Hypervel reloads worker configuration. Standalone commands use startup configuration. Custom server processes inherit startup configuration and also require a full restart for changes.
+Restart the server after changing OpenTelemetry configuration. Standalone commands read the configuration when they start.
 
 The current PHP SDK does not enforce `OTEL_BSP_EXPORT_TIMEOUT`, `OTEL_BLRP_EXPORT_TIMEOUT`, `OTEL_METRIC_EXPORT_TIMEOUT`, or `OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION`. These settings are intentionally absent from the published configuration. Supply a complete provider override when another behavior is required.
 
@@ -631,8 +631,6 @@ class TelemetryServiceProvider extends ServiceProvider
     }
 }
 ```
-
-Hypervel reapplies these defaults when workers rebuild their configuration.
 
 <a name="metric-views"></a>
 ### Metric Views

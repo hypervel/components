@@ -67,7 +67,7 @@ class JwtSecretCommandTest extends TestCase
         $this->artisan('jwt:secret', ['--force' => true])
             ->expectsOutputToContain(
                 'Restart the server and every other long-running application process, including queue workers and custom server processes, '
-                . 'before issuing tokens with the new secret. The [php artisan server:reload] command only replaces server workers and is not sufficient.'
+                . 'before issuing tokens with the new secret.'
             )
             ->assertSuccessful();
 

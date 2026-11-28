@@ -150,7 +150,7 @@ public function handle(): void
 
 Any blocking work within the loop must return periodically so the running state can be checked. If your process needs more time to finish its current work, increase the server's [graceful shutdown allowance](/docs/{{version}}/server#graceful-shutdown).
 
-The [`server:reload` command](/docs/{{version}}/server#reloading-workers) reloads event and task workers, but it does not reload custom server processes. Restart the server when server-process code or configuration changes.
+Custom server processes continue running when you [recycle workers](/docs/{{version}}/server#recycling-workers). Restart the server to apply changes to these processes.
 
 <a name="native-signal-limitations"></a>
 ## Native Signal Limitations

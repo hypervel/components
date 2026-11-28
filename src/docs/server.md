@@ -14,8 +14,7 @@
     - [TLS / HTTPS](#tls-https)
 - [HTTP/2](#http2)
     - [Stream Cancellation](#http2-stream-cancellation)
-- [Reloading Workers](#reloading-workers)
-    - [When a Full Restart Is Required](#when-a-full-restart-is-required)
+- [Recycling Workers](#recycling-workers)
 - [Graceful Shutdown](#graceful-shutdown)
 - [Lifecycle Events](#lifecycle-events)
     - [Startup and Fork Events](#startup-and-fork-events)
@@ -143,7 +142,7 @@ The `settings` array in `config/server.php` is passed directly to Swoole's `$ser
 | `Constant::OPTION_MAX_COROUTINE`       | `100000`                                 | Maximum concurrent coroutines allowed per worker.                                     |
 | `Constant::OPTION_TASK_WORKER_NUM`     | `0`                                      | Number of Swoole [task workers](#task-workers) to spawn.                              |
 | `Constant::OPTION_TASK_ENABLE_COROUTINE` | `false`                                | Enables coroutine mode inside task workers.                                           |
-| `Constant::OPTION_PID_FILE`            | `storage_path('framework/hypervel.pid')` | File where Swoole writes the master PID (read by `server:reload`).                    |
+| `Constant::OPTION_PID_FILE`            | `storage_path('framework/hypervel.pid')` | File where Swoole writes the master PID (read by `server:recycle-workers`).                    |
 | `Constant::OPTION_DAEMONIZE`           | `false`                                  | Runs the server in the background as a daemon process.                                |
 | `Constant::OPTION_OPEN_TCP_NODELAY`    | `true`                                   | Disables Nagle's algorithm to reduce small-response latency.                          |
 | `Constant::OPTION_SOCKET_BUFFER_SIZE`  | `2 * 1024 * 1024`                        | Maximum output buffer size per connection (2 MB).                                     |
@@ -289,46 +288,25 @@ The default `config/server.php` reads this variable in its global `settings`. Ad
 
 If you want opt-in cancellation on streamed responses when an HTTP/1.1 or HTTP/2 connection closes, consult the [streamed response documentation](/docs/{{version}}/responses#canceling-disconnected-streams).
 
-<a name="reloading-workers"></a>
-## Reloading Workers
+<a name="recycling-workers"></a>
+## Recycling Workers
 
-To gracefully recycle the server's worker processes, you may use the `server:reload` Artisan command. Each worker gets up to [`SERVER_MAX_WAIT_TIME`](#graceful-shutdown) seconds to finish its active requests. In `SWOOLE_PROCESS` mode, client connections stay open in the master process, while in `SWOOLE_BASE` mode each replaced worker closes its client connections:
+To reclaim memory or other resources accumulated by the server's event and task workers, you may recycle them on demand:
 
 ```shell
-php artisan server:reload
+php artisan server:recycle-workers
 ```
 
-This command reads the master PID from `server.settings.pid_file` and gracefully replaces event workers along with any configured task workers. The command fails if the configured PID file cannot be read, does not contain a valid process ID, or a signal cannot be delivered.
+The command sends a signal to the server identified by `server.settings.pid_file`. Replacement workers inherit the application that the server booted. Restart the server when deploying code or changing configuration or `.env`. Custom [server processes](/docs/{{version}}/server-processes) continue running until the server restarts.
 
-Before each replacement worker starts, Hypervel reloads `.env` (when configuration is not cached), rebuilds the configuration repository, and reapplies configuration changes your service providers made during boot.
-
-If the reloaded configuration is invalid, replacement workers fail before accepting traffic and the server logs each worker error. Swoole immediately starts another replacement, so failures continue until you fix the configuration. Once corrected, the next worker starts normally without needing to run `server:reload` again.
-
-To reload queue workers, the scheduler, and the server together, you may use the [`reload` command](/docs/{{version}}/deployment#reloading-services).
-
-<a name="when-a-full-restart-is-required"></a>
-### When a Full Restart Is Required
-
-`server:reload` only replaces worker processes; it does **not** rebuild the booted application inherited from the master process. You must restart the full server process whenever you change any of the following:
-
-<div class="content-list" markdown="1">
-
-- Application or vendor PHP code
-- Environment variables or configuration values that services already copied into their own state during boot
-- TLS certificates
-- Routes, event listeners, service providers, or package registration
-- Swoole server settings (`config/server.php`)
-- Shared Swoole tables, such as Cache or Rate Limiter Swoole tables (shared tables can only be created before workers are forked; referencing a newly configured table after a reload produces an error)
-- Custom [server processes](/docs/{{version}}/server-processes)
-
-</div>
+Each worker has up to [`SERVER_MAX_WAIT_TIME`](#graceful-shutdown) seconds to finish active requests. In `SWOOLE_PROCESS` mode, the master keeps client connections open. In `SWOOLE_BASE` mode, replaced workers close their connections. A single-process BASE server (one event worker, no task or custom processes, and `SERVER_MAX_REQUESTS=0`) requires a server restart to replace its worker.
 
 <a name="graceful-shutdown"></a>
 ## Graceful Shutdown
 
 Sending `SIGTERM` or `SIGINT` to the server's main process starts a graceful shutdown. However, pressing `Ctrl+C` in a terminal sends `SIGINT` to the entire terminal process group and can interrupt active requests in workers. To allow requests to finish, signal the main process only.
 
-The `SERVER_MAX_WAIT_TIME` environment variable controls Swoole's server-wide graceful drain allowance in seconds. It defaults to `3` and applies during server shutdown as well as when `server:reload` or `SERVER_MAX_REQUESTS` replaces workers. Increase this value when long-running requests, WebSocket connections, telemetry drains, or [server-process cleanup](/docs/{{version}}/signals#server-process-signals) need more time to finish. Swoole may forcefully terminate work that exceeds the configured allowance.
+The `SERVER_MAX_WAIT_TIME` environment variable controls Swoole's server-wide graceful drain allowance in seconds. It defaults to `3` and applies during server shutdown as well as when `server:recycle-workers` or `SERVER_MAX_REQUESTS` replaces workers. Increase this value when long-running requests, WebSocket connections, telemetry drains, or [server-process cleanup](/docs/{{version}}/signals#server-process-signals) need more time to finish. Swoole may forcefully terminate work that exceeds the configured allowance.
 
 A value of `0` does not provide unlimited shutdown time. Workers receive no graceful drain period, while Swoole's final timeout for custom server processes is disabled.
 
@@ -380,7 +358,7 @@ Hypervel enables the core Swoole server and worker lifecycle events by default, 
 | ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `OnStart`           | `$server`                           | When the master process starts (`SWOOLE_PROCESS` mode only).                                                       |
 | `OnManagerStart`    | `$server`                           | When the manager process starts.                                                                                   |
-| `BeforeWorkerStart` | `$server`, `$workerId`              | At the start of every worker and task worker. Hypervel reloads `.env` / config and resets inherited connection pools here. |
+| `BeforeWorkerStart` | `$server`, `$workerId`              | At the start of every worker and task worker. Hypervel clears inherited maintenance state and resets connection pools here. |
 | `MainWorkerStart`   | `$server`, `$workerId`              | Only in worker `0`, after `BeforeWorkerStart`.                                                                     |
 | `OtherWorkerStart`  | `$server`, `$workerId`              | Only in workers with `$workerId > 0`, after `BeforeWorkerStart`.                                                   |
 | `AfterWorkerStart`  | `$server`, `$workerId`              | After worker startup completes. Requests that arrive during startup wait until these listeners finish.             |

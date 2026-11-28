@@ -244,21 +244,15 @@ The check is skipped when Doctor runs in a [local environment](/docs/{{version}}
 > [!NOTE]
 > When deploying to [SonicStack](https://sonicstack.io), it is not necessary to use the `reload` command, as gracefully reloading all services is handled automatically.
 
-Hypervel provides a `reload` Artisan command that replaces the server's event and task workers, signals queue workers to restart, and interrupts the scheduler:
+After deploying new code or configuration, gracefully restart the Hypervel server through your process monitor. Use a rolling restart across instances when the application must continue accepting traffic during deployment.
+
+For queue workers, the scheduler, and services registered by packages, run:
 
 ```shell
 php artisan reload
 ```
 
-If you are not using [SonicStack](https://sonicstack.io), you should configure a process monitor to restart services such as queue workers when they exit.
-
-To reload only the Hypervel server's event and task workers, you may use the `server:reload` command:
-
-```shell
-php artisan server:reload
-```
-
-Because `server:reload` only recycles workers and does not rebuild the booted application inherited from the master process, you should restart the full server process when deploying new code or changing boot-time state. See [Reloading Workers](/docs/{{version}}/server#reloading-workers) for details on what is reloaded and when a full restart is required.
+This signals queue workers to exit after their current job and interrupts the running scheduler. Configure a process monitor to restart long-running services when they exit.
 
 <a name="debug-mode"></a>
 ## Debug Mode

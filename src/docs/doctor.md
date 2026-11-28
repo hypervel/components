@@ -62,7 +62,7 @@ First-party fixes cover deterministic local repairs such as creating a missing `
 
 Environment-file checks use the file selected by your application. A missing environment file is skipped in production, where deployment variables may be supplied externally. Doctor does not untrack files from Git or replace conflicting storage links automatically.
 
-Run repairs as maintenance operations without concurrent application traffic. Repairs may change deployment files, run migrations, or update process-wide configuration. After changing deployment settings, run `php artisan server:reload` or restart the server so running workers use the new settings.
+Run repairs as maintenance operations without concurrent application traffic. Repairs may change deployment files, run migrations, or update process-wide configuration. After changing deployment settings, restart the server so its workers use the new settings.
 
 > [!NOTE]
 > Fixes are only available with the CLI and agent [output formats](#output-formats). With agent output, `--fix` applies every available deterministic fix and reports the outcomes in the payload's `fixes` array. Doctor rejects `--fix` with the JSON and GitHub report formats so machine-readable reports never mutate the application.
