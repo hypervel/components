@@ -13,10 +13,8 @@ use UnexpectedValueException;
 
 class RedisStore implements Store
 {
-    // @TODO Re-benchmark a native INCREX implementation when equivalent bounded
-    // increment-with-expiry semantics are supported by Redis and Valkey and exposed
-    // by phpredis with prefix-aware Redis Cluster routing. Keep the portable Lua
-    // path until then; docs/todo.md records the compatibility details.
+    // @TODO Benchmark INCREX against this script once Redis and Valkey support
+    // equivalent bounds and expiry, and phpredis supports key prefixes and cluster routing.
     private const string FIXED_WINDOW_FUNCTIONS = <<<'LUA'
 local function load_fixed(key, policy)
     local raw = redis.call('GET', key)

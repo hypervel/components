@@ -112,10 +112,6 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
 
 - Port `spatie/typescript-transformer` as a general first-party Hypervel package, then add an optional Hypervel Data adapter that recognizes data classes and their existing mapping, Optional, lazy, and collection metadata. Keep TypeScript generation outside `hypervel/data`: the transformer must also support ordinary PHP classes and enums without making runtime data construction depend on filesystem discovery or code generation.
 
-## Redis
-
-- Revisit the rate limiter's portable fixed-window Lua script once native bounded increment-with-expiry support is mature across the supported Redis-compatible ecosystem. Redis 8.8's `INCREX` can atomically reject increments above an upper bound and set expiry only for a new window, but Redis 8.6 and Valkey 9 do not provide it, [Valkey #3253](https://github.com/valkey-io/valkey/pull/3253) is still an open related proposal rather than equivalent `INCREX` support, and phpredis 6.3 exposes no typed `INCREX` method (while `rawCommand()` bypasses key prefixing and has different Redis Cluster routing semantics). Re-benchmark and switch only when Redis and Valkey expose equivalent semantics and phpredis has prefix-aware, cluster-aware client support; keep the corresponding focused `@TODO` beside the Lua script until then.
-
 ## Validation
 
 - Remove pipe-separated validation rule strings in favor of arrays of rules across both `hypervel/validation` and `hypervel/data`, including Data's rule normalizer, denormalizer and `#[Rule]` handling. Update callers, tests and documentation together; preserve pipes inside individual regex patterns. `hypervel/phpstan`'s pipe-separated validation rules then report strings the runtime rejects: drop their `noPipeSeparatedValidationRules` switch and its `phpstan.types.neon.dist` override, and update the [Validation Rules](../src/docs/static-analysis.md#validation-rules) section.
