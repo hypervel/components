@@ -96,27 +96,24 @@ class CommanderServeTest extends TestCase
                 $pid = $process->getPid();
 
                 try {
-                    $this->waitForServeStartup($process, $port);
+                    $this->waitForWorkerStarts($process, 1);
                     [, , $body] = $this->fetchFromServe($port, '/worker-config');
                     $initial = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
                     $this->assertSame($expected, $initial['snapshot']);
                     $this->assertSame($expected, $initial['current']);
 
                     if ($expected === 'first') {
+                        $this->assertGreaterThan(0, $initial['task_pid']);
                         $files->replace($configFile, "<?php return ['value' => 'second'];");
                         $this->artisan('server:recycle-workers')->assertSuccessful();
 
-                        $deadline = microtime(true) + 5;
-                        do {
-                            [, , $body] = $this->fetchFromServe($port, '/worker-config');
-                            $worker = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
-                            if ($worker['pid'] !== $initial['pid']) {
-                                break;
-                            }
-                            usleep(10000);
-                        } while (microtime(true) < $deadline);
+                        $this->waitForWorkerStarts($process, 2);
 
+                        [, , $body] = $this->fetchFromServe($port, '/worker-config');
+                        $worker = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
                         $this->assertNotSame($initial['pid'], $worker['pid']);
+                        $this->assertGreaterThan(0, $worker['task_pid']);
+                        $this->assertNotSame($initial['task_pid'], $worker['task_pid']);
                         $this->assertSame('first', $worker['snapshot']);
                         $this->assertSame('first', $worker['current']);
                     }
@@ -591,6 +588,25 @@ class CommanderServeTest extends TestCase
         } while (microtime(true) < $deadline);
 
         $this->fail("Serve process did not answer HTTP requests on port {$serverPort}.\n{$this->combinedOutput($process)}");
+    }
+
+    /**
+     * Wait for both workers to report startup before querying the fixture.
+     */
+    private function waitForWorkerStarts(ProcessDecorator $process, int $starts): void
+    {
+        $deadline = microtime(true) + 10;
+
+        do {
+            $output = $process->getOutput();
+            if (substr_count($output, 'Worker#0 started.') >= $starts && substr_count($output, 'TaskWorker#1 started.') >= $starts) {
+                return;
+            }
+
+            usleep(50_000);
+        } while ($process->isRunning() && microtime(true) < $deadline);
+
+        $this->fail("The event and task workers did not report startup.\n{$this->combinedOutput($process)}");
     }
 
     /**
